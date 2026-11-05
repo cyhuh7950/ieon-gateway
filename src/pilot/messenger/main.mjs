@@ -1,16 +1,11 @@
 // 메신저 봇 실행. 사용: node src/pilot/messenger/main.mjs <configPath>
-// 설정(.local/messenger/config.json): serverUrl, userTokenFile, envFile, roomsPath, allowedUsers
-// envFile의 봇 토큰은 이 프로세스 안에서만 읽고 출력·기록하지 않는다. 있는 메신저만 켠다.
+// 설정(.local/messenger/config.json): serverUrl, userTokenFile(메신저 토큰), envFile, roomsPath, allowedUsers(공통)
+// 봇 목록·이름·역할은 웹 봇 관리에서 정의하고(서버 DB), 토큰은 envFile에 규칙 이름으로 둔다(docs/design/MULTI_BOTS.md).
+// envFile의 토큰은 이 프로세스 안에서만 읽고 출력·기록하지 않는다. 토큰이 있는 봇만 켠다.
 import { readFileSync } from 'node:fs';
-import { createBridge, serverApi } from './bridge.mjs';
+import { serverApi } from './bridge.mjs';
 import { runTelegram, runDiscord, runSlack } from './platforms.mjs';
-
-const NAMES = {
-  telegram: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_TOKEN'],
-  discord: ['DISCORD_BOT_TOKEN', 'DISCORD_TOKEN'],
-  slackApp: ['SLACK_APP_TOKEN'],
-  slackBot: ['SLACK_BOT_TOKEN'],
-};
+import { createBotRunner } from './runner.mjs';
 
 export function parseEnv(text) {
   const env = {};
@@ -20,30 +15,22 @@ export function parseEnv(text) {
   }
   return env;
 }
-const pick = (env, keys) => keys.map((k) => env[k]).find(Boolean);
 
 const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const env = parseEnv(readFileSync(config.envFile, 'utf8'));
 const log = (e) => process.stderr.write(JSON.stringify({ ch: 'messenger', at: new Date().toISOString(), ...e }) + '\n');
-const bridge = createBridge({
+const runner = createBotRunner({
   api: serverApi(config.serverUrl, config.userTokenFile),
-  allowedUsers: config.allowedUsers ?? {},
-  roomsPath: config.roomsPath,
+  apiFor: (platform, botId) => serverApi(config.serverUrl, config.userTokenFile, `${platform}:${botId}`),
+  env, allowedUsers: config.allowedUsers ?? {}, roomsPath: config.roomsPath,
+  runners: { telegram: runTelegram, discord: runDiscord, slack: runSlack },
+  log,
 });
-const onMessage = (m, send) => {
-  log({ platform: m.platform, event: 'message', allowed: (config.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId)) });
-  return bridge.handle(m, send);
-};
 
-// 새 세션 보관 예고를 10분마다 확인해 연결된 대화방에 보낸다(기능이 꺼져 있으면 서버가 403을 주고 아무것도 하지 않는다).
-setInterval(() => bridge.deliverNotices().catch(() => {}), 10 * 60 * 1000).unref();
-
-const enabled = [];
-const telegram = pick(env, NAMES.telegram);
-if (telegram) { runTelegram({ token: telegram, onMessage, log }); enabled.push('telegram'); }
-const discord = pick(env, NAMES.discord);
-if (discord) { runDiscord({ token: discord, onMessage, log }); enabled.push('discord'); }
-const slackApp = pick(env, NAMES.slackApp);
-const slackBot = pick(env, NAMES.slackBot);
-if (slackApp && slackBot) { runSlack({ appToken: slackApp, botToken: slackBot, onMessage, log }); enabled.push('slack'); }
-log({ event: 'enabled', platforms: enabled, missing: Object.entries(NAMES).filter(([, keys]) => !pick(env, keys)).map(([k]) => k) });
+// 봇 상태: 봇 ID·상태·빠진 토큰 이름만(값 없음).
+const report = (st) => st && log({ event: 'bots', bots: st.map((b) => ({ bot: `${b.platform}:${b.botId}`, state: b.state, ...(b.missing?.length ? { missing: b.missing } : {}) })) });
+report(await runner.sync());
+// 웹에서 봇을 추가·수정·끄면 1분 안에 반영한다. 새 토큰을 .env에 넣었으면 messenger를 다시 켠다.
+setInterval(() => runner.sync().then(report).catch((e) => log({ event: 'sync_error', error: String(e.message).slice(0, 80) })), 60 * 1000);
+// 새 세션 보관 예고를 10분마다 확인해 연결된 대화방에 보낸다.
+setInterval(() => runner.deliverNotices().catch(() => {}), 10 * 60 * 1000).unref();

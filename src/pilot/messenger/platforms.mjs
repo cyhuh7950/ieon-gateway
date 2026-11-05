@@ -12,7 +12,9 @@ export function runTelegram({ token, onMessage, log, signal }) {
     let offset = 0;
     // 봇 이름(공개 정보)만 알려 준다. 메신저에서 이 이름으로 검색해 대화를 시작한다.
     const me = await api('getMe', {}).catch(() => null);
-    log({ platform: 'telegram', event: 'started', bot: me?.ok ? `@${me.result.username}` : null, open: me?.ok ? `https://t.me/${me.result.username}` : null });
+    // canReadAll: 그룹 일반 글 수신(privacy mode 해제) 여부. 꺼져 있으면 부르는 이름으로 부를 수 없다.
+    log({ platform: 'telegram', event: 'started', bot: me?.ok ? `@${me.result.username}` : null, open: me?.ok ? `https://t.me/${me.result.username}` : null,
+      canReadAll: me?.ok ? Boolean(me.result.can_read_all_group_messages) : undefined });
     while (!signal?.aborted) {
       try {
         const r = await api('getUpdates', { offset, timeout: 30, allowed_updates: ['message'] });
