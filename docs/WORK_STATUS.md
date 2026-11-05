@@ -726,3 +726,9 @@
 - 신산님 지시: 기본 개발 완료. 저장소를 `cyhuh7950/ieon-gateway`로 바꾸고 PR 이력 등은 빼고 main 최종본만 옮기며 버전을 0.0.1로 한다. 이후 `sinsan-develop`은 폐쇄하고 수정·upgrade는 `cyhuh7950`에서 진행·관리한다.
 - 이전 직전 main: `sinsan-develop/ieon-gateway` `8c2f510`(PR #1~#11). 새 저장소에는 이 내용(+주소·버전 반영)을 부모 없는 단일 커밋 `v0.0.1`로 push.
 - 반영: package.json·package-lock.json version 0.0.1, PR Broker gate 기준 원격, AGENTS·DEVELOPMENT_ENVIRONMENT·BEGINNER_GUIDE의 저장소 주소. 이전 기록 속 sinsan-develop 표기는 당시 사실이라 그대로 둔다.
+
+### 2026-11-05 여러 봇·Teams·카카오톡 설계
+
+- 신산님 질문: 같은 메신저에서 봇 여러 개가 왜 안 되는가 → 메신저 제약이 아니라 현재 코드가 메신저마다 토큰 1개·대화방 키에 봇 구분 없음·허용 목록 메신저 단위로 만들어졌기 때문으로 답함. 카카오톡은 공개 HTTPS 스킬 서버·5초 응답 제한(콜백 승인 필요)·채널 개설이 필요해 지금 구조로는 안 됨으로 답함.
+- 인터뷰(12문항) 후 `docs/design/MULTI_BOTS.md` 작성: 설정 파일 등록·토큰은 .env, 허용 사용자 공통+봇별, 봇별 서버 앱 ID(`app_bot_<id>`)로 세션 범위, `/new` 세션은 만든 봇+웹, 같은 방은 봇별 연결·부른 봇만 답, 봇 수 제한 없음, 기존 설정은 default 봇으로 자동 전환, Teams(개인 계정) 포함, 공개 수신은 Oracle 중계, 카카오톡은 설계만·구현 승인 후, 순서는 여러 봇 먼저, 시험 봇은 신산님 생성, 모델 호출 엔진별 10회 새 승인.
+- 구현은 신산님 확인 후 M0부터. 모델 호출 0.

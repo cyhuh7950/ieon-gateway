@@ -290,3 +290,7 @@ components:
 ## 부록: 새 세션 만들기 기능
 
 기존 세션 연결에 더해 이어온이 새 Codex·Claude 세션을 만드는 기능은 [NEW_SESSIONS](NEW_SESSIONS.md)에 설계한다(2026-11-05 인터뷰 반영, 구현 승인 전).
+
+## 부록: 여러 봇·Teams·카카오톡
+
+같은 메신저의 여러 봇, Teams 연결, 카카오톡(승인 후)은 [MULTI_BOTS](MULTI_BOTS.md)에 설계한다(2026-11-05 인터뷰 반영, 구현 승인 전).
