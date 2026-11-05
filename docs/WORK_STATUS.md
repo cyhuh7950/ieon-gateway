@@ -37,7 +37,7 @@
 
 1. **여러 봇 M4~M6**(설계 MULTI_BOTS 6~8절, 모두 별도 승인): M4 Oracle 공개 수신 중계(`ieon-gateway.sinsan.kr`, Oracle 배포 승인 필요) → M5 Teams(먼저 개인 Teams에 사용자 지정 봇 추가 가능 여부 확인, Azure Bot 등록은 신산님) → M6 카카오톡(채널 개설·콜백 승인 후).
 2. **새 세션 N5~N6**(설계 NEW_SESSIONS 9절): N5 Linux 실행 스크립트·systemd·`check` Linux판·WSL 재확인 → N6 Oracle 배포(별도 승인).
-3. 설명서 정리: MESSENGER_MANUAL 6.2를 M3 완료 기준으로(역할 제한·AI 안내·봇 세션 소속), 6.5(기존 세션을 봇에 보이게 하기)를 웹 봇 관리 기준으로 고치기.
+3. ~~설명서 정리~~ **완료(2026-11-06)**: MESSENGER_MANUAL 6.2를 M3 기준(역할 제한·AI 안내·봇 세션 소속)으로, 6.5를 웹 봇 관리 기준으로 고쳤다.
 4. 시험 자원 정리 여부 결정: 역할 `test-review`, 세션 `n_m3-review`, 시험 봇 이름.
 5. 미확인 목록: 실제 웹 봇 관리 화면 조작(시험 서버에서만 확인), 텔레그램 그룹·주제에서 여러 봇, 메신저 보관 예고 실제 전달, Claude 새 세션의 메신저 경로, 대화형 `claude --resume` 직접 열기, `session_forked` 실제 발생, `full` 권한 실행, Codex 앱 화면의 새 세션 표시, 휴대폰 화면.
 
