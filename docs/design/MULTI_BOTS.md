@@ -132,7 +132,7 @@
 Teams와 카카오톡은 메신저 쪽이 **공개 HTTPS 주소로 메시지를 보내는** 방식이다. 이 PC는 지금처럼 공개 포트를 열지 않는다.
 
 ```
-Teams(Azure Bot) / 카카오 오픈빌더 ──HTTPS──▶ Oracle 중계(ieon-gateway.sinsan.kr)
+Teams(Azure Bot) / 카카오 오픈빌더 ──HTTPS──▶ Oracle 중계(ieun-gateway.sinsan.kr)
                                                   ▲ 대기 중 메시지 보관(짧게), 서명 검증
                                                   │ PC가 먼저 접속(긴 대기 폴링·웹소켓)해 가져감
                                           SINSAN PC 메신저 봇 프로세스 → 이어온 서버
@@ -141,13 +141,13 @@ Teams(Azure Bot) / 카카오 오픈빌더 ──HTTPS──▶ Oracle 중계(ieo
 - 중계는 **메시지 전달만** 한다. 질문 원문은 PC가 가져가면 바로 지우고 로그에 남기지 않는다. 이어온 서버·DB·토큰은 PC에 그대로 둔다.
 - 메신저 서명 검증(Teams Bot Framework JWT, 카카오 스킬 요청 확인)은 중계에서 하고, 중계↔PC는 별도 토큰으로 인증한다.
 - PC가 꺼져 있으면 중계가 "PC 연결 끊김"으로 바로 답한다(카카오 5초 제한).
-- Oracle `ieon-gateway.sinsan.kr`(A 레코드 확인됨)에 TLS·reverse proxy를 둔다. **Oracle 배포·포트·방화벽 변경은 후보와 되돌리는 방법을 제시하고 별도 승인 후 진행한다.**
+- Oracle `ieun-gateway.sinsan.kr`(A 레코드 확인됨)에 TLS·reverse proxy를 둔다. **Oracle 배포·포트·방화벽 변경은 후보와 되돌리는 방법을 제시하고 별도 승인 후 진행한다.**
 
 ### 6-1. 확정 사항 (2026-11-06 검토, 신산님 결정)
 
 - **Teams·카카오 공용 중계:** 중계 코드는 두 채널의 수신 어댑터를 함께 만들고 Oracle 배포도 한 번만 한다. 실제 메시지 시험은 Teams 먼저, 카카오는 채널 개설·콜백 승인 뒤에 한다.
 - **앱 비밀번호는 PC에만 둔다(방식 P):** Teams 앱 비밀번호는 PC `.env`에만 있고 중계는 갖지 않는다. 중계는 Bot Framework 공개 키로 JWT만 검증한다. 답장은 PC가 보낸다. 따라서 **PC가 꺼져 있으면 Teams에서는 답이 없다**(카카오는 중계가 응답 본문으로 "PC 연결 끊김"을 바로 답한다). 나중에 안내가 필요하면 중계에 비밀번호를 두는 방식으로 확장할 수 있다.
-- **배포 방식 A(Docker), 서버는 `sinsan-server`(168.107.4.6)로 변경(2026-11-06 신산님 결정):** 중계 컨테이너를 기존 nginx-proxy-manager와 같은 docker 네트워크(`proxy-network`)에 둔다. TLS는 NPM(Let's Encrypt), `ieon-gateway.sinsan.kr`은 이미 이 서버 IP라 DNS 변경 없음. 내부 포트 28770. 조사 결과·단계·되돌리기는 `docs/design/RELAY_DEPLOY.md`.
+- **배포 방식 A(Docker), 서버는 `sinsan-server`(168.107.4.6)로 변경(2026-11-06 신산님 결정):** 중계 컨테이너를 기존 nginx-proxy-manager와 같은 docker 네트워크(`proxy-network`)에 둔다. TLS는 NPM(Let's Encrypt), `ieun-gateway.sinsan.kr`은 이미 이 서버 IP라 DNS 변경 없음. 내부 포트 28770. 조사 결과·단계·되돌리기는 `docs/design/RELAY_DEPLOY.md`.
 - **PC→중계는 긴 대기 폴링:** PC가 먼저 HTTPS로 접속해 가져간다. 웹소켓은 쓰지 않는다.
 
 ### 6-3. 구현 메모 (M4-a, 2026-11-06)
