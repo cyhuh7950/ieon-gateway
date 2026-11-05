@@ -41,13 +41,16 @@ export function createBotRunner(opts) {
       botInfo: () => ({ name: entry.def.name, callNames: entry.def.callNames ?? [], role: entry.def.role ?? null,
         // 같은 메신저의 다른 봇을 부르는 이름(부르는 이름이 없으면 봇 ID). 그 이름으로 부른 글은 이 봇이 받지 않는다.
         otherCallNames: [...peers].filter((p) => p.platform === b.platform && p.botId !== b.botId)
-          .flatMap((p) => (p.callNames?.length ? p.callNames : [p.botId])) }),
+          .flatMap((p) => (p.callNames?.length ? p.callNames : [p.botId])),
+        // 같은 메신저의 다른 우리 봇 사용자 ID(슬랙 멘션 구분용)
+        otherBotUserIds: [...running.values()].filter((o) => o !== entry && o.def.platform === b.platform && o.userId).map((o) => o.userId) }),
       isAllowed: (m) => [...common, ...(entry.def.extraUsers ?? []).map(String)].includes(String(m.userId)) });
     const botLog = (e) => {
       if (['started', 'ready'].includes(e.event)) {
         entry.state = 'connected';
         entry.username = e.bot ?? entry.username;
         if (typeof e.canReadAll === 'boolean') entry.canReadAll = e.canReadAll;
+        if (e.botUserId) entry.userId = e.botUserId;
         // 연결되면 다음 주기(1분)를 기다리지 않고 바로 상태를 보고한다.
         opts.api({ method: 'POST', path: '/v1/messenger/bots/status', body: { bots: [{ platform: b.platform, botId: b.botId,
           state: entry.state, missing: [], username: entry.username, canReadAll: entry.canReadAll }] } }).catch(() => {});

@@ -133,8 +133,14 @@ export function createBridge(opts) {
     const bot = info();
     // 부르는 이름이 없으면 봇 ID로 부를 수 있다.
     const call = stripCallName(m.text, bot.callNames?.length ? bot.callNames : [m.botId ?? opts.botId ?? DEFAULT_BOT]);
-    const text = (call.called ? call.text : String(m.text ?? '')).trim();
+    let text = (call.called ? call.text : String(m.text ?? '')).trim();
+    // 슬랙은 /명령을 앱이 가로채므로 !명령을 쓴다. 부르는 이름을 뗀 뒤에도 같은 뜻으로 바꾼다.
+    if (m.platform === 'slack') text = text.replace(/^!(\w+)/, '/$1');
     if (!text) return;
+    // 같은 메신저의 다른 우리 봇을 멘션했거나 그 봇 스레드에 답장했고 이 봇은 안 불렸으면 그 봇 것이다(슬랙).
+    const others = new Set(bot.otherBotUserIds ?? []);
+    if (m.isGroup && !m.called && !call.called
+      && ((m.mentionIds ?? []).some((id) => others.has(id)) || (m.parentUserId && others.has(m.parentUserId)))) return;
     // 같은 메신저의 다른 우리 봇 부르는 이름으로 시작하면 그 봇 것이다(이 봇 이름이 아닐 때).
     if (m.isGroup && !m.called && !call.called && stripCallName(m.text, bot.otherCallNames ?? []).called) return;
     // 그룹·채널에서는 부른 봇만 답한다. 부르지 않았어도 그 방에 연결된 우리 봇이 이 봇뿐(또는 아무도 없음)이면 받는다.
