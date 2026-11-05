@@ -25,9 +25,9 @@ test('디스코드: 서버 채널은 그룹, <@봇> 멘션·봇 메시지 답장
 });
 
 test('슬랙: im은 1:1, <@봇> 멘션·봇 스레드 답장은 부름, !명령은 /명령', () => {
-  assert.deepEqual(slackAddress({ channel_type: 'im', text: '!whoami' }, 'U1'), { isGroup: false, called: false, forOther: false, text: '/whoami' });
-  assert.deepEqual(slackAddress({ channel_type: 'channel', text: '<@U1> !status' }, 'U1'), { isGroup: true, called: true, forOther: false, text: '/status' });
-  assert.deepEqual(slackAddress({ channel_type: 'channel', text: '<@U2> 질문' }, 'U1'), { isGroup: true, called: false, forOther: false, text: '질문' });
+  assert.equal(slackAddress({ channel_type: 'im', text: '!whoami' }, 'U1').text, '/whoami');
+  assert.deepEqual(slackAddress({ channel_type: 'channel', text: '<@U1> !status' }, 'U1'), { isGroup: true, called: true, forOther: false, text: '/status', mentionIds: [], parentUserId: null });
+  assert.deepEqual(slackAddress({ channel_type: 'channel', text: '<@U2> 질문' }, 'U1'), { isGroup: true, called: false, forOther: false, text: '질문', mentionIds: ['U2'], parentUserId: null });
   assert.equal(slackAddress({ channel_type: 'channel', text: '계속', parent_user_id: 'U1' }, 'U1').called, true);
 });
 

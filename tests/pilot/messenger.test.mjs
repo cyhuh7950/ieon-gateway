@@ -270,3 +270,23 @@ test('다른 봇의 부르는 이름(또는 봇 ID)으로 시작한 글은 이 �
   await say('그냥 질문'); // 이 방에 연결된 봇이 A뿐 → A가 받음
   assert.equal(said.at(-1), 'A 답');
 });
+
+test('슬랙: 다른 우리 봇을 멘션한 글은 받지 않고, 부르는 이름 뒤의 !명령은 명령으로 처리한다', async (t) => {
+  const roomStore = { rooms: { 'slack:default:C1': 'c_a' }, save() {} };
+  const f = fakeApi({ conversations: [conv({ conversationId: 'c_a', label: '공용' })], result: { status: 'completed', answer: 'A 답' } });
+  const said = [];
+  const A = createBridge({ api: f.api, allowedUsers: { slack: ['U9'] }, roomStore, botId: 'default', pollMs: 1, waitMs: 1000,
+    botInfo: () => ({ name: '기본 봇', callNames: [], otherCallNames: ['ieun01'], otherBotUserIds: ['UREVIEW'] }) });
+  const say = (text, extra = {}) => A.handle({ platform: 'slack', userId: 'U9', chatId: 'C1', isGroup: true, text, ...extra }, async (s) => { said.push(s); });
+  await say('/use 1', { mentionIds: ['UREVIEW'] });
+  await say('/session', { mentionIds: ['UREVIEW'] });
+  await say('계속', { parentUserId: 'UREVIEW' });
+  assert.deepEqual(said, []);
+  await say('안녕', { mentionIds: ['UHUMAN'] }); // 사람 멘션은 상관없음 → 연결된 A가 받음
+  assert.equal(said.at(-1), 'A 답');
+  const B = createBridge({ api: fakeApi({ conversations: [] }).api, allowedUsers: { slack: ['U9'] }, roomStore, botId: 'ieun01',
+    botInfo: () => ({ name: 'ieun01 시험 봇', callNames: [], otherCallNames: ['default'], otherBotUserIds: ['UIEON'] }) });
+  const saidB = [];
+  await B.handle({ platform: 'slack', userId: 'U9', chatId: 'C1', isGroup: true, text: 'ieun01, !whoami' }, async (s) => { saidB.push(s); });
+  assert.match(saidB[0], /봇 ID: ieun01/);
+});

@@ -54,6 +54,8 @@ export function slackAddress(ev, botUserId) {
   const isGroup = ev.channel_type !== 'im';
   let text = ev.text ?? '';
   let called = false;
+  // 멘션된 사용자 ID(이 봇 제외). 슬랙 멘션만으로는 봇인지 사람인지 모르므로, 우리 다른 봇인지는 브리지가 판단한다.
+  const mentionIds = [...text.matchAll(/<@([A-Z0-9]+)>/g)].map((x) => x[1]).filter((id) => id !== botUserId);
   if (botUserId) {
     const at = new RegExp(`<@${botUserId}>[,:]?\\s*`, 'g');
     if (at.test(text)) { called = true; text = text.replace(at, '').trim(); }
@@ -61,7 +63,7 @@ export function slackAddress(ev, botUserId) {
   }
   // 다른 사용자·봇 멘션은 떼어 낸다. 슬랙의 /명령은 앱 슬래시 커맨드로 가로채이므로 "!명령"도 같은 뜻으로 받는다.
   text = text.replace(/<@[A-Z0-9]+>\s*/g, '').replace(/^!(\w+)/, '/$1');
-  return { isGroup, called, forOther: false, text };
+  return { isGroup, called, forOther: false, text, mentionIds, parentUserId: ev.parent_user_id ?? null };
 }
 
 export function runTelegram({ token, onMessage, log, signal }) {
@@ -171,7 +173,7 @@ export function runSlack({ appToken, botToken, onMessage, log, signal }) {
       if (p.envelope_id) ws.send(JSON.stringify({ envelope_id: p.envelope_id }));
       if (p.type === 'hello') {
         attempt = 0;
-        web('auth.test', {}, botToken).then((a) => { botUserId = a.ok ? a.user_id : null; log({ platform: 'slack', event: 'ready', bot: a.ok ? a.user : null, team: a.ok ? a.team : null }); });
+        web('auth.test', {}, botToken).then((a) => { botUserId = a.ok ? a.user_id : null; log({ platform: 'slack', event: 'ready', bot: a.ok ? a.user : null, team: a.ok ? a.team : null, botUserId }); });
       }
       if (p.type === 'disconnect') ws.close();
       const ev = p.payload?.event;
