@@ -4,6 +4,51 @@
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 받은 메시지가 "이 봇을 부른 것"인지 메신저 정보로 판별한다(MULTI_BOTS 5절). 부르는 이름은 브리지에서 따로 본다.
+// 돌려주는 값: { isGroup(1:1이 아님), called(멘션·답장·/명령@이 봇), forOther(/명령@다른 봇 — 이 봇은 무시), text(부른 표시를 뗀 글) }
+export function telegramAddress(msg, username) {
+  const isGroup = msg.chat?.type !== 'private';
+  let text = msg.text ?? '';
+  let called = false;
+  let forOther = false;
+  const cmd = text.match(/^(\/\w+)@(\w+)/);
+  if (cmd) {
+    if (username && cmd[2].toLowerCase() === username.toLowerCase()) { called = true; text = cmd[1] + text.slice(cmd[0].length); } else forOther = true;
+  }
+  if (username) {
+    const at = new RegExp(`(^|\\s)@${username}\\b[,:]?\\s*`, 'i');
+    if (at.test(text)) { called = true; text = text.replace(at, '$1').trim(); }
+    if (msg.reply_to_message?.from?.username?.toLowerCase() === username.toLowerCase()) called = true;
+  }
+  return { isGroup, called, forOther, text };
+}
+
+export function discordAddress(d, botUserId) {
+  const isGroup = Boolean(d.guild_id);
+  let text = d.content ?? '';
+  let called = false;
+  if (botUserId) {
+    const at = new RegExp(`<@!?${botUserId}>[,:]?\\s*`, 'g');
+    if (at.test(text) || (d.mentions ?? []).some((u) => u.id === botUserId)) { called = true; text = text.replace(at, '').trim(); }
+    if (d.referenced_message?.author?.id === botUserId) called = true;
+  }
+  return { isGroup, called, forOther: false, text };
+}
+
+export function slackAddress(ev, botUserId) {
+  const isGroup = ev.channel_type !== 'im';
+  let text = ev.text ?? '';
+  let called = false;
+  if (botUserId) {
+    const at = new RegExp(`<@${botUserId}>[,:]?\\s*`, 'g');
+    if (at.test(text)) { called = true; text = text.replace(at, '').trim(); }
+    if (ev.parent_user_id === botUserId) called = true;
+  }
+  // 다른 사용자·봇 멘션은 떼어 낸다. 슬랙의 /명령은 앱 슬래시 커맨드로 가로채이므로 "!명령"도 같은 뜻으로 받는다.
+  text = text.replace(/<@[A-Z0-9]+>\s*/g, '').replace(/^!(\w+)/, '/$1');
+  return { isGroup, called, forOther: false, text };
+}
+
 export function runTelegram({ token, onMessage, log, signal }) {
   const api = (method, body) => fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
@@ -25,9 +70,8 @@ export function runTelegram({ token, onMessage, log, signal }) {
           if (!msg?.text || msg.from?.is_bot) continue;
           const threadKey = msg.is_topic_message ? msg.message_thread_id : undefined;
           const send = (text) => api('sendMessage', { chat_id: msg.chat.id, text, ...(threadKey ? { message_thread_id: threadKey } : {}) });
-          // 그룹에서 /명령@봇이름 형식으로 오면 봇 이름을 떼어 낸다.
-          const text = msg.text.replace(/^(\/\w+)@\w+/, '$1');
-          onMessage({ platform: 'telegram', userId: msg.from.id, chatId: msg.chat.id, threadKey, text }, send).catch((e) => log({ platform: 'telegram', event: 'handle_error', error: String(e.message).slice(0, 80) }));
+          const a = telegramAddress(msg, me?.ok ? me.result.username : null);
+          onMessage({ platform: 'telegram', userId: msg.from.id, chatId: msg.chat.id, threadKey, ...a }, send).catch((e) => log({ platform: 'telegram', event: 'handle_error', error: String(e.message).slice(0, 80) }));
         }
       } catch (e) {
         log({ platform: 'telegram', event: 'network_error', error: String(e.cause?.code ?? e.message).slice(0, 60) });
@@ -47,6 +91,7 @@ export function runDiscord({ token, onMessage, log, signal }) {
     const ws = new WebSocket('wss://gateway.discord.gg/?v=10&encoding=json');
     let seq = null;
     let beat;
+    let botUserId = null;
     ws.onmessage = (e) => {
       const p = JSON.parse(e.data);
       if (p.s != null) seq = p.s;
@@ -57,6 +102,7 @@ export function runDiscord({ token, onMessage, log, signal }) {
       if (p.op === 0 && p.t === 'READY') {
         attempt = 0;
         const appId = p.d.application?.id;
+        botUserId = p.d.user?.id ?? null;
         // 초대 링크: 채널 보기(1024)·메시지 보내기(2048)·기록 읽기(65536) 권한만.
         log({ platform: 'discord', event: 'ready', bot: p.d.user?.username, guilds: p.d.guilds?.length ?? 0,
           invite: appId ? `https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot&permissions=68608` : null });
@@ -65,7 +111,7 @@ export function runDiscord({ token, onMessage, log, signal }) {
         const d = p.d;
         if (d.author?.bot || !d.content) return;
         const send = (text) => rest(`/channels/${d.channel_id}/messages`, { content: text });
-        onMessage({ platform: 'discord', userId: d.author.id, chatId: d.channel_id, text: d.content }, send)
+        onMessage({ platform: 'discord', userId: d.author.id, chatId: d.channel_id, ...discordAddress(d, botUserId) }, send)
           .catch((err) => log({ platform: 'discord', event: 'handle_error', error: String(err.message).slice(0, 80) }));
       }
       if (p.op === 7 || p.op === 9) ws.close();
@@ -86,6 +132,7 @@ export function runSlack({ appToken, botToken, onMessage, log, signal }) {
   const web = (method, body, tokenValue) => fetch(`https://slack.com/api/${method}`, {
     method: 'POST', headers: { authorization: `Bearer ${tokenValue}`, 'content-type': 'application/json; charset=utf-8' }, body: JSON.stringify(body ?? {}),
   }).then((r) => r.json());
+  let botUserId = null;
   const connect = async (attempt = 0) => {
     if (signal?.aborted) return;
     const open = await web('apps.connections.open', {}, appToken).catch(() => ({ ok: false, error: 'network' }));
@@ -100,15 +147,13 @@ export function runSlack({ appToken, botToken, onMessage, log, signal }) {
       if (p.envelope_id) ws.send(JSON.stringify({ envelope_id: p.envelope_id }));
       if (p.type === 'hello') {
         attempt = 0;
-        web('auth.test', {}, botToken).then((a) => log({ platform: 'slack', event: 'ready', bot: a.ok ? a.user : null, team: a.ok ? a.team : null }));
+        web('auth.test', {}, botToken).then((a) => { botUserId = a.ok ? a.user_id : null; log({ platform: 'slack', event: 'ready', bot: a.ok ? a.user : null, team: a.ok ? a.team : null }); });
       }
       if (p.type === 'disconnect') ws.close();
       const ev = p.payload?.event;
       if (p.type !== 'events_api' || ev?.type !== 'message' || ev.bot_id || ev.subtype || !ev.text) return;
       const send = (text) => web('chat.postMessage', { channel: ev.channel, text, ...(ev.thread_ts ? { thread_ts: ev.thread_ts } : {}) }, botToken);
-      // 슬랙의 /명령은 앱 슬래시 커맨드로 가로채이므로 "!명령"도 같은 뜻으로 받는다.
-      const text = ev.text.replace(/^!(\w+)/, '/$1').replace(/<@[A-Z0-9]+>\s*/g, '');
-      onMessage({ platform: 'slack', userId: ev.user, chatId: ev.channel, text }, send)
+      onMessage({ platform: 'slack', userId: ev.user, chatId: ev.channel, ...slackAddress(ev, botUserId) }, send)
         .catch((err) => log({ platform: 'slack', event: 'handle_error', error: String(err.message).slice(0, 80) }));
     };
     ws.onclose = () => { log({ platform: 'slack', event: 'closed' }); setTimeout(() => connect(attempt + 1), Math.min(60000, 2000 * 2 ** attempt)); };
