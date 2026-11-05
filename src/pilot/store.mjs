@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { STATUS, RELEASING, EngineError } from './contracts.mjs';
 import { canAccess, sessionKey } from './guard.mjs';
 import { NEW_ENGINES, SESSION_STATES, resolveProfile, validateName, workspacePath } from './new-sessions.mjs';
-import { PLATFORMS, DEFAULT_BOT, validBotId, validCallName, normalizeCallName } from './bots.mjs';
+import { PLATFORMS, DEFAULT_BOT, validBotId, validCallName, normalizeCallName, botAppId } from './bots.mjs';
 
 const SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS roles (
 CREATE TABLE IF NOT EXISTS bots (
   platform TEXT NOT NULL, bot_id TEXT NOT NULL, name TEXT NOT NULL, role_id TEXT, call_names TEXT NOT NULL,
   extra_users TEXT NOT NULL, enabled INTEGER NOT NULL, PRIMARY KEY (platform, bot_id));
+CREATE TABLE IF NOT EXISTS bot_sessions (
+  platform TEXT NOT NULL, bot_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (platform, bot_id, conversation_id));
 CREATE TABLE IF NOT EXISTS locks (
   session_key TEXT PRIMARY KEY, holder_request_id TEXT NOT NULL);
 `;
@@ -59,9 +61,12 @@ export function openStore(path) {
 
   const binding = (id) => {
     const row = db.prepare('SELECT * FROM bindings WHERE conversation_id = ?').get(id);
+    // 웹 봇 관리에서 봇에게 보이게 한 세션(bot_sessions)은 그 봇의 앱 ID를 appIds에 더해 준다.
+    // server.json의 appIds는 서버를 켤 때마다 다시 쓰이므로 웹 설정은 따로 둔다.
+    const granted = row ? db.prepare('SELECT platform, bot_id FROM bot_sessions WHERE conversation_id = ?').all(id).map((g) => botAppId(g.platform, g.bot_id)) : [];
     return row && {
       conversationId: row.conversation_id, ownerUserId: row.owner_user_id,
-      appIds: JSON.parse(row.app_ids), hostId: row.host_id, engine: row.engine,
+      appIds: [...new Set([...JSON.parse(row.app_ids), ...granted])], hostId: row.host_id, engine: row.engine,
       sessionRef: row.session_ref, generation: row.generation, connectMode: row.connect_mode,
     };
   };
@@ -496,8 +501,24 @@ export function openStore(path) {
         .run(b.platform, b.botId, b.name.trim(), role, JSON.stringify(calls), JSON.stringify(users), b.enabled === false ? 0 : 1);
       return { http: 200, bot: this.bot(b.platform, b.botId) };
     },
+    // 봇이 볼 수 있는 기존 세션(웹에서 고름). 목록 전체를 바꾼다. 없는 세션은 거절한다.
+    botSessions(platform, botId) {
+      return db.prepare('SELECT conversation_id FROM bot_sessions WHERE platform = ? AND bot_id = ? ORDER BY conversation_id').all(platform, botId).map((r) => r.conversation_id);
+    },
+    setBotSessions(platform, botId, ids) {
+      if (!this.bot(platform, botId)) return { http: 404, code: 'not_found' };
+      const list = [...new Set((Array.isArray(ids) ? ids : []).map(String))];
+      if (list.some((id) => !db.prepare('SELECT 1 FROM bindings WHERE conversation_id = ?').get(id))) return { http: 400, code: 'unknown_session' };
+      tx(() => {
+        db.prepare('DELETE FROM bot_sessions WHERE platform = ? AND bot_id = ?').run(platform, botId);
+        for (const id of list) db.prepare('INSERT INTO bot_sessions (platform, bot_id, conversation_id) VALUES (?, ?, ?)').run(platform, botId, id);
+      });
+      return { http: 200, sessions: this.botSessions(platform, botId) };
+    },
+
     deleteBot(platform, botId) {
       if (botId === DEFAULT_BOT) return { http: 409, code: 'default_bot' };
+      db.prepare('DELETE FROM bot_sessions WHERE platform = ? AND bot_id = ?').run(platform, botId);
       if (!db.prepare('DELETE FROM bots WHERE platform = ? AND bot_id = ?').run(platform, botId).changes) return { http: 404, code: 'not_found' };
       return { http: 204 };
     },
