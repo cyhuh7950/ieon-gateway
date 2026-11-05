@@ -1,6 +1,6 @@
 # 중계 배포 계획 (M4-b, sinsan-server)
 
-기준: 2026-11-06. 상태: **W1~W5 완료(배포됨, 6절). 남은 것: W6(오픈빌더 스킬 URL)·W7(PC 연결, 별도 승인).**
+기준: 2026-11-06. 상태: **W1~W7 완료(배포·오픈빌더 봇 테스트·PC 연결 실측, 6~7절). 남은 것: 실제 채널 배포 여부 결정, 미확인 항목(7절).**
 
 ## 1. 결정
 
@@ -66,3 +66,11 @@
 - **스킬 URL**(신산님이 오픈빌더에 입력): `https://ieun-gateway.sinsan.kr/kakao/skill/<IEON_RELAY_KAKAO_SECRET 값>` — 값은 `.local\relay\relay.secrets`에서 읽는다(채팅·문서에 쓰지 않음).
 - **PC 쪽 설정(W7 전):** `.local\.env`에 `KAKAO_RELAY_TOKEN=<IEON_RELAY_PC_TOKEN 값>`, `.local\messenger\config.json`에 `"kakaoRelayUrl": "https://ieun-gateway.sinsan.kr"`.
 - 되돌리기: NPM에서 프록시 호스트 삭제 → 서버에서 `cd ~/deploy/ieon-gateway/relay && docker compose down` → `docker rmi ieon-relay:0.0.1` → 폴더 삭제.
+
+## 7. W6·W7 실측 결과 (2026-11-06)
+
+- W6(오픈빌더 봇 테스트, 배포 없음): PC 꺼짐 상태에서 `안녕` → "PC 연결 끊김" 응답, 서버 로그 `pc_down` 1건.
+- W7(PC 연결): 서버·연결부(실제 엔진 실행 켬)·메신저를 켜고 서버에 카카오 `default` 봇(이름 "카카오 Aidot 시험")을 웹 봇 관리 API로 등록, `.env`에 `KAKAO_RELAY_TOKEN`(신산님 입력), config에 `kakaoRelayUrl` 추가. 메신저 로그 `kakao started`, 중계 `/health`는 `pc:true`.
+- 통과: `/whoami`(허용 전에는 "허용 목록에 없음", 사용자 키를 `allowedUsers.kakao`에 넣고 메신저를 다시 켠 뒤 "허용됨"), `/sessions`(Codex 시험 세션·Claude 시험 세션 2개), `/use 1`, `/status`("보낼 수 있음"), 실제 질문 "1+1은?" → `2`, 40문장 요청 → 답이 말풍선 3개로 나뉘어 전부 도착(줄임 안내 없음). 모든 응답은 카카오의 "잠시만 기다려 주세요" 뒤에 콜백으로 왔다.
+- 모델 호출 **2회**(Codex 시험 thread `01a18790-63c7…`만, 승인 10회 중). 업무 대화·Claude 세션은 쓰지 않았다. 시험 후 `stop`으로 서버·연결부·메신저를 모두 끄고 live를 껐다.
+- **미확인:** 콜백 유효 시간·횟수의 정확한 값, 55초를 넘는 답의 `/last` 경로(실제 카카오에서), 응답까지 걸린 정확한 시간(두 질문 모두 사용자가 느끼기에 정상 범위), 실제 카카오톡 채널(배포 후) 대화, Claude 세션 경유, 긴 답이 3개를 넘을 때의 줄임 안내.

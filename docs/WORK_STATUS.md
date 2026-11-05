@@ -32,6 +32,7 @@
 
 - 새 세션 실증 승인(엔진별 10회): Codex 5/10, Claude 6/10.
 - 여러 봇 실증 승인(엔진별 10회, 2026-11-05): Codex 1/10, Claude 0/10.
+- 카카오 중계 실증 승인(2026-11-06, 10회 이내): Codex 시험 thread 2/10, Claude 0.
 
 ### 남은 일과 다음 조치
 
@@ -41,6 +42,7 @@
 0-3. **M6-a PC 카카오 러너 완료(2026-11-06):** `src/pilot/messenger/kakao.mjs`, 서버·웹에 kakao 추가, `tests/pilot/kakao.test.mjs` 8건 통과(실제 중계 모듈+가짜 콜백, 모델 호출·외부 접속 없음). 아직 실제 카카오·Oracle로는 시험하지 않음. 다음: M4-b Oracle 배포 승인 → 오픈빌더(Aidot 봇) 스킬 URL 등록 → 실측(콜백 유효 시간·횟수 포함). 상세는 MULTI_BOTS 6-3.
 0-4. **M4-b 사전 조사·계획(2026-11-06):** 배포 서버를 ysna-server에서 **sinsan-server(168.107.4.6)**로 변경(신산님 결정). 두 서버 모두 읽기 전용으로 조사했고 서버 변경은 없다. DNS는 이미 168.107.4.6이라 불일치 해소. 배포 초안 `deploy/relay/`(Dockerfile·compose), 계획·승인 항목 `docs/design/RELAY_DEPLOY.md`. 다음: W1~W3 서버 쓰기 승인 → NPM 프록시 호스트·인증서(신산님) → 오픈빌더 스킬 URL(신산님).
 0-5. **M4-b 배포 완료(2026-11-06, W1~W5):** 도메인은 신산님이 **`ieun-gateway.sinsan.kr`**로 변경, sinsan-server에 `ieon-relay` 컨테이너(healthy)와 NPM 프록시 호스트·Let's Encrypt 인증서. 외부 확인(health 200, 틀린 비밀 404, 토큰 없는 poll 401, HTTPS 301) 통과. 기록은 RELAY_DEPLOY 6절. 다음: W6 오픈빌더(Aidot 봇) 스킬 URL 등록(신산님) → 테스트 발화로 "PC 연결 끊김" 확인 → W7 PC 연결·실제 질문(별도 승인).
+0-6. **카카오 W6·W7 실측 완료(2026-11-06):** 오픈빌더(Aidot 봇) 봇 테스트에서 `/whoami`·`/sessions`·`/use`·`/status`·실제 질문(2)·40문장 긴 답(말풍선 3개) 모두 콜백으로 정상 응답. 모델 호출 2회(승인 10회 중, Codex 시험 thread만). 시험 후 이어온 전체 `stop`. 미확인: 콜백 유효 시간·횟수, 55초 초과 `/last`, 실제 채널(배포) 대화. 상세는 RELAY_DEPLOY 7절. 이 PC 설정 변경: `.local\messenger\config.json`에 `kakaoRelayUrl`·`allowedUsers.kakao`(백업 config.json.bak-m6), 서버 DB에 카카오 `default` 봇, `.env`에 `KAKAO_RELAY_TOKEN`.
 1. **여러 봇 M4~M6**(설계 MULTI_BOTS 6~8절, 모두 별도 승인): M4 Oracle 공개 수신 중계(`ieon-gateway.sinsan.kr`, Oracle 배포 승인 필요) → M5 Teams(먼저 개인 Teams에 사용자 지정 봇 추가 가능 여부 확인, Azure Bot 등록은 신산님) → M6 카카오톡(채널 개설·콜백 승인 후).
 2. **새 세션 N5~N6**(설계 NEW_SESSIONS 9절): N5 Linux 실행 스크립트·systemd·`check` Linux판·WSL 재확인 → N6 Oracle 배포(별도 승인).
 3. ~~설명서 정리~~ **완료(2026-11-06)**: MESSENGER_MANUAL 6.2를 M3 기준(역할 제한·AI 안내·봇 세션 소속)으로, 6.5를 웹 봇 관리 기준으로 고쳤다.
