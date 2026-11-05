@@ -21,6 +21,7 @@ export function loadRoomStore(path) {
 export function createBotRunner(opts) {
   const roomStore = loadRoomStore(opts.roomsPath);
   const running = new Map(); // "<메신저>:<봇ID>" → { def, controller, bridge, state, username, canReadAll }
+  let peers = []; // 마지막으로 받은 봇 정의 전체(다른 봇의 부르는 이름 확인용)
   const log = opts.log ?? (() => {});
 
   async function definitions() {
@@ -37,7 +38,10 @@ export function createBotRunner(opts) {
     const entry = { def: b, controller: new AbortController(), state: 'starting', username: null, canReadAll: null };
     const common = (opts.allowedUsers?.[b.platform] ?? []).map(String);
     entry.bridge = createBridge({ ...opts.bridgeOpts, api: opts.apiFor(b.platform, b.botId), roomStore, botId: b.botId,
-      botInfo: () => ({ name: entry.def.name, callNames: entry.def.callNames ?? [], role: entry.def.role ?? null }),
+      botInfo: () => ({ name: entry.def.name, callNames: entry.def.callNames ?? [], role: entry.def.role ?? null,
+        // 같은 메신저의 다른 봇을 부르는 이름(부르는 이름이 없으면 봇 ID). 그 이름으로 부른 글은 이 봇이 받지 않는다.
+        otherCallNames: [...peers].filter((p) => p.platform === b.platform && p.botId !== b.botId)
+          .flatMap((p) => (p.callNames?.length ? p.callNames : [p.botId])) }),
       isAllowed: (m) => [...common, ...(entry.def.extraUsers ?? []).map(String)].includes(String(m.userId)) });
     const botLog = (e) => {
       if (['started', 'ready'].includes(e.event)) {
@@ -68,6 +72,7 @@ export function createBotRunner(opts) {
   async function sync() {
     const defs = await definitions();
     if (!defs) return null;
+    peers = defs;
     const resolved = resolveBotTokens(defs, opts.env);
     const wanted = new Set();
     const statuses = [];

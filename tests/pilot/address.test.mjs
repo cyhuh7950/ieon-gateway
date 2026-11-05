@@ -30,3 +30,17 @@ test('슬랙: im은 1:1, <@봇> 멘션·봇 스레드 답장은 부름, !명령�
   assert.deepEqual(slackAddress({ channel_type: 'channel', text: '<@U2> 질문' }, 'U1'), { isGroup: true, called: false, forOther: false, text: '질문' });
   assert.equal(slackAddress({ channel_type: 'channel', text: '계속', parent_user_id: 'U1' }, 'U1').called, true);
 });
+
+test('다른 봇을 부른 글: 텔레그램 다른 @…bot·디스코드 다른 봇 멘션·봇 역할 멘션은 그 봇 것', () => {
+  const tg = (text, extra = {}) => telegramAddress({ chat: { type: 'group' }, text, ...extra }, 'Test_cyhuh_01_bot');
+  assert.equal(tg('@ieun_cyhuh_bot /whoami').forOther, true);
+  assert.equal(tg('@Test_cyhuh_01_bot /whoami').forOther, false);
+  assert.equal(tg('계속', { reply_to_message: { from: { is_bot: true, username: 'ieun_cyhuh_bot' } } }).forOther, true);
+  assert.equal(tg('@someone 안녕').forOther, false); // 사람 멘션은 상관없음
+  const roles = { mine: new Set(['R_ME']), bots: new Set(['R_ME', 'R_OTHER']) };
+  assert.deepEqual(discordAddress({ guild_id: 'G', content: '<@&R_ME> /whoami', mention_roles: ['R_ME'] }, 'B1', roles),
+    { isGroup: true, called: true, forOther: false, text: '/whoami' });
+  assert.equal(discordAddress({ guild_id: 'G', content: '<@&R_OTHER> /whoami', mention_roles: ['R_OTHER'] }, 'B1', roles).forOther, true);
+  assert.equal(discordAddress({ guild_id: 'G', content: '<@B2> /whoami', mentions: [{ id: 'B2', bot: true }] }, 'B1', roles).forOther, true);
+  assert.equal(discordAddress({ guild_id: 'G', content: '<@U9> 안녕', mentions: [{ id: 'U9', bot: false }] }, 'B1', roles).forOther, false);
+});
