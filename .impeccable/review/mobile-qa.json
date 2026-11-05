@@ -1,0 +1,29 @@
+{
+  "longAnswer": {
+    "paragraphs": 40,
+    "lastTop": 474.8000183105469,
+    "lastBottom": 500.70001792907715,
+    "composerTop": 551.7000122070312,
+    "viewportHeight": 844,
+    "lastVisible": true,
+    "noAnswerComposerOverlap": true,
+    "horizontalOverflow": false
+  },
+  "keyboardHeightSimulation": {
+    "emulatedViewport": {
+      "width": 430,
+      "height": 500,
+      "visualHeight": 500
+    },
+    "inputTop": 261.5,
+    "inputBottom": 366.5,
+    "sendTop": 381.3000183105469,
+    "sendBottom": 425.3000183105469,
+    "visibleBottom": 500,
+    "inputVisible": true,
+    "sendVisible": true,
+    "realDeviceKeyboardTest": false
+  },
+  "realMobileIME": "UNVERIFIED",
+  "modelCalls": 0
+}

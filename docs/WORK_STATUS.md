@@ -1,0 +1,728 @@
+# 이어온 작업현황
+
+## 최신 상태
+
+- 기준 시각: 2026-10-29 17:40 KST
+- 담당: 어울 / 현재 채팅의 단일 작성자
+- 판정: MANAGED_APP_SERVER_OPTIONS_REVIEW_DIRECTION_PENDING — 별도 공식 App Server 관리 대화의 설계상 가능성·원래 요구와 차이·인증/호스팅/화면 대안 검토 완료. 방향 미결정/구현 대기. 이번 로그인/기동/모델/키/기존 대화 조작0. 원래 thread 연결 성공으로 처리하지 않는다.
+- Git 단계: DEVELOPMENT_PRIVATE — origin private 개발 branch에서 조사·증거를 관리한다. 공식 저장소로 이력을 전송하지 않는다.
+- 로컬 정본 경로: `D:\Project\ieon-gateway` (2026-10-29 신산님 지시로 `D:\Project\ieon-agent-bridge`에서 변경. 옛 폴더는 아직 존재하며 정리하지 않음)
+- 개발 저장소: `https://github.com/sinsan-develop/ieon-gateway`. 2026-10-29 신산님 지시로 `origin`을 새 URL로 변경했다. 변경 시점에 새 저장소는 SSH 접근은 되지만 ref가 없는 빈 상태였고 gh 조회는 불가했다. 기존 이력은 옛 `sinsan-develop/ieon-agent-bridge`(main·docs branch, 원격 docs 최신 efaae98)에 있으며 새 저장소로의 push는 미실행
+- 공식 저장소: `https://github.com/cyhuh428-sinsan/ieon-agent-bridge` (`release` fetch 참조·개발 단계 push 비활성. 이름 변경 지시 없음)
+- WSL 배포 경로: `~/deploy/ieon-gateway`로 변경 지시됨. 실제 서버 경로는 미확인. 아래 과거 기록의 옛 이름 경로는 당시 사실로 보존
+- 작업계획 Stage: S0 후속 관리 App Server 대안의 비교 검토만. A PC/구독, B Oracle/API키, C 등록·허용된SIWC/원격 조건과 화면을 제시하고 선택을 기다린다. 이전 P0/P1 자동 재개 없음.
+- Git 실제 상태: docs/existing-codex-design, 이번 시작 HEAD61ac6ce925764c38d74fc9863cef8b39c3f18973. 검토서/지침/계획/설계참조/환경·현황만 변경, source/tests/main/공식 저장소/WSL/Oracle 불변. 기존 소유 미확인 .serena/는 보존·commit 제외.
+- 정본 문서: AGENTS.md → docs/design/DESIGN.md → docs/WORK_PLAN.md → docs/DEVELOPMENT_ENVIRONMENT.md. S0 실제 증거는 docs/validation/FEASIBILITY.md와 JSON receipt 2개다.
+- 현재 변경: MANAGED_APP_SERVER_OPTIONS_REVIEW.md에 비교표·인증/호스팅 근거·공통 웹 화면/기존 정적 시안·조건부 권장안을 기록했다. 원래 DESIGN을 대체하지 않았고 구현/기동/모델 검증 완료로 표시하지 않는다.
+- 최근 증거: 공식 App Server의 thread/start/resume/stdin-stdout 문서, legacy 구독 인증의 commercial/hosted 제한, SIWC 등록/선택 private·상용 trial/대화 접근 미부여, 공식 SIWC App Server/VM 가이드, API 키 표준 과금·programmatic 지원을 확인했다. 이는 문서상 가능성/제약이며 이어온의 실제 이용 승인/동작 성공은 아니다.
+- 오류와 조치: OS 잠금 충돌33은 예상 중단 조건1회로 처리, 반복 없음. Restart Manager와 CIM 소유 후보 대조는 성공했다. engine --version bootstrap access-denied 경고는 반복하지 않았다. 문서 patch context 오타/공개 source 범위 출력 누락 각1회는 수정했으며 runtime/모델 실행 오류와 구분한다. 과거 socket/daemon 우회 없음.
+- 미확정·미검증: 실제 데스크톱 thread 양방향 재사용·busy 관찰·권한/설정 보존·인증 전환·모델/비용·실제 모바일 IME·제품 구현/배포. 실증 결과 후 나머지 범위를 확정한다.
+- 정확한 다음 조치: 검토 대안을 보고하고 관리 전용 대화를 별도 기능으로 먼저 개발할지, PC/구독과 Oracle/API 비용 중 무엇을 우선할지 신산님 결정을 받는다. 결정 전 구현·새 로그인·키 등록·서버/모델·배포/기존 대화 조작 없음. 선택 후에만 선택안의 구체 설계/계획/검증·별도 승인 범위를 확정한다.
+
+## 적용 계약
+
+1. `DEVELOPMENT_PRIVATE`: 로컬·WSL 개발과 자체 검증은 sinsan-develop private 저장소의 `origin`만 사용한다. 코드·테스트·설계·계획·작업현황·내부 검증 이력을 이곳에서 관리한다. Stage별 branch → 검증 → PR → private main 병합 → WSL smoke → 작업 branch와 임시 작업공간 정리를 수행한다. 공식 저장소 push와 private history 노출을 금지한다.
+2. `OFFICIAL_RC_UAT`: 개발계획·WSL 자체 검증 완료 후 공식 저장소 main의 별도 clean checkout과 RC branch를 사용한다. private checkout의 remote만 바꾸어 push하지 않는다. 확정 배포 allowlist의 실제 배포 파일만 반영한다. private commit → 공식 RC commit → image digest/artifact checksum을 연결한다. 공식 RC push·PR 이후 신산님 인수 승인 전 main 병합을 금지한다. Oracle 배포는 PMO의 별도 명시적 승인 경계를 따른다.
+3. `OFFICIAL_RELEASED`: 신산님 인수 승인 후 공식 PR 병합, merged main 재배포·smoke, 공식 저장소 정본 전환과 RC 정리를 수행한다. private 저장소는 전체 refs 백업과 복원 검증 후 폐쇄 준비 상태로 보고한다. 저장소·계정 실제 삭제는 별도 직접 지시 전 수행하지 않는다.
+
+내부 문서·테스트·검증·임시자료·Secret·실제 `.env`는 공식 RC allowlist에서 제외한다. private 저장소에서는 내부 문서와 테스트를 정상 추적한다. 현재는 Git 자체가 없으므로 비추적 정책이 구현되었다고 판정하지 않는다.
+
+## 누적 기록
+
+### 2026-10-29 13:21 KST — 최초 Git 구성 직접 승인·인터뷰 시작
+
+- 신산님이 공식 GitHub 저장소 생성, 개발 원격 main·commit 생성, 로컬·WSL Git 구성을 직접 지시했다. DNS는 추후 생성으로 지정했다. port·DB·환경변수·실행/배포 명령·allowlist는 인터뷰로 완성하도록 지시했다.
+- 이번 신규 자원은 공식 `cyhuh428-sinsan/ieon-agent-bridge` 비공개 repository와 독립 README 기준선, 개발 저장소 최초 main/commit, 로컬 `.git`·Secret 제외용 `.gitignore`, WSL 지정 경로의 `.git`과 개발 원격 checkout이다. 소유자는 신산님, 담당자는 어울이며 지속 프로젝트 자원으로 유지한다. 임시 checkout·runtime·DB·container는 만들지 않는다.
+- 공식 최초 README 기준선은 개발 history와 독립적으로 생성한다. 이는 이번 직접 지시의 저장소 bootstrap 범위이며 RC 전환·제품 배포·private history 공식 push를 승인한 것으로 확대하지 않는다.
+- `origin/main`이 없는 최초 Git 기준선 생성과 해당 구성 결과 기록에 한정해 직접 초기화한다. 최초 구성 이후 main 직접 개발·커밋 금지는 그대로 적용한다.
+- 기존 문서 2개를 보존하며 Git·Secret 제외·정본 연결을 검증한 뒤 초기 기준선으로 추적한다. 공식 저장소는 우선 private으로 생성하고 공개 전환은 별도 결정한다.
+- 인터뷰 첫 질문: 처음 연결할 도구와 세션 간 수행할 실제 사용 장면을 요청했다. 구체적인 제품 기능·stack은 아직 정하지 않았다.
+- 공식 생성 시도 1회: `gh repo create ... --private --add-readme`가 HTTP 422 `name already exists on this account`로 실패했다. 이전 owner API 404/SSH not found와 다른 증거이므로 생성 재시도·덮어쓰기는 하지 않고 owner·API·SSH를 읽기 전용 재대조한다. 개발 Git 최초 구성과 인터뷰는 독립 진행한다.
+- 재조회 결과 공식 owner `cyhuh428-sinsan`의 해당 repository가 존재하며 `private:true`, admin/push 권한 true, 기본 branch 이름 main, SSH refs 0개다. 앞선 미생성 상태는 현재 사실로 대체한다. 누가 생성했는지는 추측하지 않고 현재 존재하는 정확한 저장소를 사용한다. 기존 파일·commit은 없어 초기 README만 독립 commit으로 생성한다.
+- 로컬 기존 Git 작성자 설정 `cyhuh7950` / noreply email을 그대로 사용한다. WSL 기존 Git 작성자 설정·`github-sinsan-develop` alias·개발 원격 읽기 접근도 확인했다. 키 생성·복사·credential 설정 변경은 필요하지 않다.
+- `.gitignore`를 추가해 실제 `.env`와 키·인증 파일을 제외한다. 내부 docs와 테스트는 private에서 정상 추적한다. `release` remote는 공식 SSH URL을 조회 참조로 등록하되 개발 단계 push URL을 비활성 표식으로 막아 private history 오발송을 예방한다.
+- 공식 초기 main `f07db77a1138601625b88fb58928e729cdb209ce`는 Contents API로 README 한 파일만 만든 독립 기준선이다. 로컬 `.git`, main, origin과 release 참조를 구성했다. release push URL은 `DISABLED_DURING_DEVELOPMENT_PRIVATE`로 설정하고 기본 push remote는 origin이다.
+- 최초 private commit 전에 추적 파일을 `.gitignore`와 기존 내부 문서 2개로 한정하고 whitespace·Secret 제외·공식 이력 분리를 확인한다. 이후 private push와 WSL의 해당 exact commit Git clone을 수행한다.
+- private 최초 main `ee1c1287f6e46c5847bda5818d4508f522dc0a58` 생성·origin push·upstream 등록을 완료했다. 추적 파일은 `.gitignore`와 내부 문서 2개이며 staged diff check와 `.env` 제외·내부 문서 비제외를 확인했다. 이 직후 로컬은 clean이었다. Git의 LF→CRLF 안내는 경고이며 검증 오류가 아니다.
+- WSL clone과 exact `ee1c1287f6e46c5847bda5818d4508f522dc0a58` 비교 및 main 상태 조회는 성공했다. 마지막 `git remote -v` 출력만 알 수 없는 스위치 오류 1회로 실패했다. PowerShell→SSH stdin 말미 CR 혼입 가능성을 분리 확인하며 clone·기존 파일은 변경하지 않는다.
+- 신산님 첨부 DNS 설정 화면에서 `ieon-gateway.sinsan.kr` A → `161.33.20.13`, DNS 전용·자동 TTL을 확인했다. 화면 설정 증거와 실제 DNS 전파·HTTP/TLS 검증을 구분해 추가 조회한다.
+- WSL 출력 오류의 원인은 stdin 검사에서 말미 `0d0a`가 확인된 PowerShell 파이프의 CRLF였다. 입력 파이프 없이 기존 원격 Git을 재조회해 origin URL·clean main·exact commit을 확인했다. 오류 1회 후 진단 1회·조회 정상이며 clone을 반복하지 않았다.
+- 공식 main의 parents는 0개, 전체 tree는 README.md 단일 파일이다. private 개발 이력·내부 문서는 포함되지 않았다.
+- DNS는 로컬 resolver와 1.1.1.1 양쪽에서 `161.33.20.13`을 반환했다. DNS 설정은 신산님이 수행했으며 어울은 변경하지 않았다. TLS·proxy·서비스 배포는 별도 미검증이다.
+
+### 2026-10-29 — 지속 대화 서비스 요구사항·설계 인터뷰
+
+- 신산님은 외부 앱이 등록된 에이전트의 특정 대화에 질문하고 이전 작업 맥락을 유지한 답변을 받는 공통 샘플을 요구했다. 첫 산출물은 실행 방식 비교·단일 권장안, 최소 구성/API/데이터 구조, 인증·비용 제약, 변경 대상, 구현 단계와 검증 계획이다.
+- 에이전트 이름·역할·지시·지식/RAG·허용 MCP 설정과 실제 대화 이력을 분리한다. 표시 별칭과 서버 검증 ID를 분리하고 앱·조직·이용자별 소유권·지식 접근을 검증한다.
+- 공식 Codex SDK/App Server 기존 thread 재개와 공식 모델 API 지속 대화를 비교하되 첫 샘플은 하나만 제안한다. 기존 Codex 재사용 요구를 API 새 대화로 대체하지 않는다. 다른 PC 기록·설정·작업 폴더 접근이 필요하며 ID만으로 기록을 가져온다고 가정하지 않는다.
+- 최소 구성은 인증된 HTTP API, 에이전트 설정, 세션 매핑, 요청 상태 저장, 실행 adapter다. 허용 에이전트 조회·대화 생성·질문 접수·상태/최종 답변 조회·필요 시 이벤트 스트림을 설계한다. 접수와 완료를 구분한다. 재사용할 기존 공통 기술·인증·로깅 규칙을 먼저 확인한다.
+- 서버에서 매 요청 소유권을 확인하고 외부 임의 thread ID·경로·명령·MCP 주소를 실행하지 않는다. 읽기 전용 질의·검색 도구만 허용하고 추가 권한·변경 작업은 자동 승인하지 않는다. 개인 로그인 토큰·쿠키 복사·계정 한도 우회·Secret 노출을 금지한다.
+- Codex 선택 시 initialize·대상 thread 확인/resume·turn 시작·이벤트·최종 상태까지 계획한다. stdio 우선, App Server 인터넷 직접 공개 금지, 실행 중 질문 삽입·중단 금지, 다른 클라이언트의 같은 thread 충돌 정책을 명시한다.
+- 대화별 직렬화, idempotency key·request ID·turn ID 영속화, 재시작 복구, 불명확 실행의 무조건 재전송 금지·기존 결과 대조, queued/running/approval_required/completed/failed/cancelled/unknown 상태를 요구한다.
+- 지식 원본·버전·도구 allowlist·출처·접근권한과 외부 문서 지시 불신을 관리한다. 입력/동시성/횟수/출력/사용량 상한을 두고 수집하지 못한 토큰·비용은 미확인으로 남긴다.
+- Oracle CPU·메모리·디스크·Docker·proxy를 조사해 외부 모델 실행·GPU 불필요·서비스/영속 데이터 격리·인증 HTTPS만 공개하는 배치안을 제시한다. 실제 배포·포트/방화벽/proxy/DB 변경은 별도 승인이다.
+- 먼저 모델 없는 대역으로 재사용·격리·중복·순서·재시작·timeout/unknown·권한 거부를 검증한다. 실제 모델 검증은 방식/모델/횟수/예산/성공·중단 조건을 사전 승인받고 대역 PASS와 실제 연결을 구분한다. 다중 Provider 프레임워크·대규모 관리 시스템으로 확대하지 않는다.
+- 신산님이 설계 완성을 위한 인터뷰를 직접 요청했다. 첫 질문은 기존 PC Codex 대화를 반드시 재사용할지, 이어온 새 대화의 지속성이면 되는지다. 이 답변 전에는 A/B를 임의 확정하지 않는다.
+- 인터뷰 질문을 중국어로 잘못 표시한 오류 1회가 있었으며 즉시 한국어로 정정했다. 신산님이 한국어 사용을 재지시했고 모든 질문·설명·문서를 한국어로 작성한다.
+- 설계 확인 전 운영 배포·유료 호출·키 등록·보안 변경을 금지하는 최신 직접 지시를 적용한다. Git 최초 구성 마무리와 기존 요구·답변 기록만 계속하며 제품 code·모델 실행은 하지 않는다.
+
+### 2026-10-29 13:07 KST — 환경 조사 시작
+
+- 신산님이 서비스명 `이어온`, 설명 `에이전트 세션 연결 서비스`, 두 GitHub 저장소, 로컬·WSL·Oracle 경로와 사용자 URL을 지정했다.
+- 신산님이 Git 3단계 운영과 신규 사실·변경 즉시 기록을 지시했다. 환경 구성을 위해 필요한 경우 인터뷰도 허용했다.
+- 읽은 기준: 전역 `C:\Users\cyhuh\.codex\AGENTS.md`, PMO `AGENTS.md`, `PMO_CONTINUITY.md`, `DEVELOPMENT_ENVIRONMENT_STARTUP_GUIDE.md`, `PROJECT_DOCUMENT_STANDARDS.md`.
+- 실제 확인: cwd는 지정 경로이며 일반 디렉터리다. 기존 파일·dirty 자료는 없었다. 로컬 Git 미구성은 지정된 저장소 운영 계약과 실제 준비 상태의 차이로 보고했다.
+- SSH 설정: `github-sinsan-develop`, `github-cyhuh428`, `WSL-server`, `ysna-server`가 신산님 제공 endpoint·user·identity 경로와 일치한다. 키 원문은 읽지 않았다.
+- 생성 전 자원 보고: 로컬 지정 root 아래 `docs`와 요청 문서 2개만 생성한다. 소유자는 어울이며 신규 정본 문서를 보존한다. 임시 runtime·DB·container·process는 생성하지 않는다. 신산님의 구체적 문서 작성 지시에 필요한 하위 경로만 사용한다.
+- 환경 확인·문서 작성과 Git 초기 설정은 구분한다. 원격이 비어 있거나 공식 저장소가 이미 다른 이력을 보유한 경우 임의 init·clone·main 생성·push·이력 결합을 하지 않고 실제 결과와 선택안을 보고한다.
+
+### 2026-10-29 — 실행 제한과 저장소 공개 상태 불일치
+
+- 기본 실행 권한: GitHub API 조회 2개 연결 실패, Git refs 조회 2개 하위 shell 접근 거부, SSH 2개 socket `Permission denied`를 확인했다. 원격 장애로 단정하지 않고 읽기 전용 확장 실행으로 원인을 분리한다.
+- 확장 실행 GitHub API: 개발 저장소 `private:false`, `default_branch:main`, `size:0`, `pushed_at:2026-10-29T03:55:20Z`를 확인했다. 현재 CLI identity의 repository 권한은 pull=true, push=false, admin=false다. size 0만으로 무커밋 저장소라고 단정하지 않는다.
+- 공식 저장소는 현재 CLI identity에서 HTTP 404다. 존재 여부와 SSH identity 접근은 미검증이다.
+- 판정: S0_PARTIAL_CONNECTION_BLOCKED — 읽기 전용 연결 조사와 요청한 설계 보완을 기록했다. 기존 socket 연결 거부로 지정 ID의 runtime 대조·사용 중 상태는 미확인이다. 실제 이어쓰기 가능 판정과 S0 전체 PASS는 아니다.
+- 권장안: 개발 저장소를 비공개로 전환하고 `private:true` 재검증 후 개발 Git 준비를 진행한다. 현재 CLI 계정에는 변경 권한이 없어 identity·권한과 사용자 조치 또는 승인이 필요하다. 공개 상태 유지로 개발하는 예외는 권장하지 않는다.
+- 문서 편집 오류: 다중 파일 patch 1회가 문자 불일치로 실패했고 변경이 반영되지 않았음을 재조회했다. 실제 행을 확인해 정정한다.
+
+### 2026-10-29 — SSH 접속·공식 접근 추가 확인
+
+- GitHub CLI 실제 로그인은 `cyhuh428-sinsan`이다. 이 계정의 공식 저장소 API도 404이며, 공식 URL·권한 상태를 확정하기 위해 alias별 결과를 분리해 확인한다.
+- 확장 실행의 두 Git refs 조회 중 1개가 `Repository not found`로 실패했다. 출력이 없는 성공과 구분하기 위해 다음 조회에는 저장소별 exit code를 기록한다. 이 결과만으로 무커밋·부재를 단정하지 않는다.
+- `WSL-server`: 실제 host `SINSAN`, user `daon`, home `/home/daon`, 지정 경로 `/home/daon/deploy/ieon-agent-bridge` 존재를 확인했다.
+- `ysna-server`: 실제 host `ysna-server`, user `ubuntu`, home `/home/ubuntu`, 지정 `~/deploy/ieon-agent-bridge` 디렉터리 부재를 확인했다. 디렉터리 생성·배포는 하지 않는다.
+- 개발 저장소 private 전환에 필요한 사용자 조치를 비동기 질문으로 요청했다. 이 결정에 종속되지 않는 서버 현황 조사와 문서 작성을 계속한다.
+
+### 2026-10-29 — 서버 runtime·프로젝트 자원 조사
+
+- WSL 프로젝트 경로는 빈 폴더다. `.git`, source manifest, Compose 파일, `.env`, 프로젝트 정본 문서가 없다.
+- 두 서버 Docker 조회는 성공했다. 이름에 `ieon`을 포함한 container·network·volume과 Compose project는 모두 0개다. 다른 이름의 자원·공유 DB가 이어온 소유라고 추정하지 않는다.
+- WSL: x86_64, Python 3.12.3, Node v24.22.1, npm 11.19.1, pnpm 12.15.0, Git 2.43.0, Docker client/server 29.1.3.
+- Oracle: aarch64, Python 3.12.3, Node v26.12.1, npm 12.2.1, Git 2.43.0, Docker client/server 29.6.1. pnpm 경로는 있지만 `--version` 실행이 OSError 1회로 실패했다. 제품 stack 미선정이므로 복구·설치는 시도하지 않았다.
+- 환경 차이: WSL x86_64와 staging aarch64가 다르다. 향후 RC image는 아키텍처 적합성과 WSL 검증 artifact 대응을 명시해야 한다. 현재 image가 없으므로 검증 완료로 표시하지 않는다.
+- 신산님의 공개 저장소 위험 질문에 공개 파일·커밋 열람/복제와 포크 잔존을 설명했다. 아직 공개 개발 허용이나 private 계약 변경 승인은 없으며 기존 계약을 유지한다.
+
+### 2026-10-29 13:15 KST — 공개 상태 해소 확인·조사 결과 정리
+
+- 신산님이 개발 저장소 비공개 전환 완료를 직접 통보했다. 전환 후 비인증 GitHub API는 404, 기존 `github-sinsan-develop` SSH identity의 전체 refs 조회는 exit 0·0개다. 공개 API 비노출과 소유자 SSH 읽기 유지가 함께 확인되어 전환과 일치한다. 현재 CLI `cyhuh428-sinsan`의 API도 404이며 `private:true` 필드 직접 조회는 해당 identity로 불가하다. 사용자 완료 통보와 실제 접근 경계를 구분해 기록한다.
+- 개발 SSH identity는 GitHub의 `sinsan-develop`, 공식 SSH identity는 `cyhuh428-sinsan`으로 각각 인증됐다. `ssh -T`의 exit 1은 GitHub shell 미제공에 따른 정상 인증 메시지와 함께 확인했으며 인증 실패로 계산하지 않는다.
+- 개발 저장소 전체 refs 0개로 원격 main·HEAD commit이 없다. 최신 `origin/main`에서 branch를 만드는 통상 절차를 바로 실행할 수 없다. 최초 기준선 구성은 후속 범위·방법을 확인한 뒤 진행한다.
+- 공식 저장소는 owner 계정 API 404와 해당 owner SSH의 exit 128·Repository not found다. 지금 경로는 읽기 불가하며 저장소 부재/접근 정책의 정확한 원인은 미확정이다. 추가 동일 재시도·원격 생성·다른 URL 추정은 하지 않는다.
+- 사용자 호스트의 로컬 DNS 조회는 이름 없음, HTTP·HTTPS HEAD는 모두 curl exit 6·code 000이다. 서버까지 연결되지 않아 TLS·HTTP·health 결과가 아니며 DNS를 임의 설정하지 않았다.
+- 로컬 도구 버전: Git 2.53.0.windows.2, Node v24.22.1, npm 11.19.1, Python 3.14.3, uv 0.11.2, GitHub CLI 2.96.0. stack 채택·dependency 고정과는 구분한다.
+- 이번 생성 자원은 영구 문서 2개와 그 하위 `docs`뿐이다. 임시 파일·checkout·runtime·container·DB 자원을 만들지 않았고 SSH/credential 설정·DB·배포·원격 Git을 변경하지 않았다.
+- 제품 build·test는 source·manifest가 없어 미실행이다. 문서 조사 완료를 환경 준비·기능·배포·사용자 인수 PASS로 표시하지 않는다.
+
+### 2026-10-29 — 공식 저장소 미생성 확인·문서 검증
+
+- 신산님이 공식 저장소는 아직 생성하지 않았다고 직접 확인했다. API 404·SSH Repository not found와 일치하며, 이전 미확정 원인을 이 사용자 확인으로 해소한다. 공식 저장소 생성·push는 수행하지 않는다.
+- 두 문서 필수 주제 대조에서 누락 0, 로컬 파일 2개, 예상 밖 파일 0, 문서 연결 정상, 예기치 않은 일본어 문자 0, 알려진 Secret 원문 패턴 0을 확인했다. 이 패턴 검사는 Secret 취급 안전의 보조 확인이며 제품 보안 감사 PASS가 아니다.
+- 검증 후 공식 미생성 사용자 답변을 최신 상태·개발환경 표에 반영하고 최종 저장 내용을 다시 확인한다. 제품 테스트·build·deploy는 미실행이다.
+
+### 2026-10-29 — 기존 Windows Codex 대화·교차 사용 확정
+
+- 신산님은 다른 PC의 이미 존재하는 특정 Codex 대화를 기존 thread ID 그대로 이어 쓰는 것을 필수 요구로 확정했다. 이전 기록 복사·새 대화 생성으로 대체하지 않는다. 신규 지속 대화는 별도 기능으로 지원한다.
+- 첫 대상은 Windows용 Codex 데스크톱 앱의 기존 대화다. 해당 PC 연결 구성요소와 이어온 서버의 통신을 검토한다. 서버가 thread ID만으로 기록·설정·작업 폴더에 접근할 수 있다고 가정하지 않는다.
+- Codex 데스크톱에서도 같은 대화를 계속 사용한다. 첫 샘플은 양쪽을 번갈아 사용하며 동일 thread·맥락의 연속성을 검증한다. 이어온 처리 중에는 데스크톱 새 질문을 보내지 않기로 했다. 이미 사용 중인 대화의 겹치는 요청은 추가 실행하지 않고 사용 중으로 표시한다.
+- 기존 PC가 끊기면 연결 불가로 표시하며 새 대화로 자동 대체하지 않는다. 실제 이어쓰기 가능 여부는 작은 검증 샘플로 먼저 확인한다. 실행 방식은 이 요구를 만족하는 Codex 방식 중심으로 제안하고 모델 API 새 대화는 대체안으로 적용하지 않는다.
+- 아직 모델 실행·실제 기존 대화 재개·메시지 전달은 하지 않았다. 설계·모델 검증 범위/예산 승인 전 유료 호출·키 등록·보안·staging 변경은 하지 않는다.
+- 다음 인터뷰: 첫 호출 앱/프로젝트를 확인해 기존 공통 인증·로깅 규칙을 재사용할 대상을 정한다.
+- 생성 전 내부 자원 기록: docs/existing-codex-design branch와 D:\tmp\ieon-agent-bridge-design-20261029 작업공간을 최신 origin/main에서 만든다. 담당 어울, 목적 설계 인터뷰·문서 작성, 상태 ACTIVE, 수명 설계/계획 확정과 안전한 통합까지다. 작업이 끝나고 main 포함·원격 복구 ref·clean을 확인한 뒤 git worktree remove와 branch 정상 삭제로 정리한다. 제품 runtime·DB·container·process는 생성하지 않는다.
+- PMO의 D:\tmp 명시 경계를 따르기 위해 목적지를 지정할 수 없는 앱 기본 생성 대신 Git 명령을 사용한다. 원본 WORK_STATUS의 이번 단일 작성자 기록만 새 문서 작업공간에 옮기고 정본 main의 원래 bytes를 복원한다. 기존 dirty 변경은 없음을 먼저 확인한다.
+### 2026-10-29 — 인터뷰 확정 사항·설계/시안 작성 승인
+
+- 첫 호출 앱은 기존 프로젝트가 아닌 최소 테스트 웹 화면이다. 대화 선택·질문 입력·처리 상태·답변 확인을 제공하고 외부 앱과 같은 인증된 API를 사용한다. 인증 정보·대화 원문은 일반 운영 로그에 남기지 않는다. 다른 앱 연동은 기존 Codex 이어쓰기 실증 후로 미룬다.
+- 첫 실제 이용자는 신산님 한 명, 연결 PC는 SINSAN 한 대다. 사용자·앱·PC·대화 소유 관계와 권한 없는 다른 사용자/앱 접근 거부 검증은 처음부터 포함한다. 다중 사용자 가입·관리 화면은 제외한다.
+- 첫 모델 실증은 새 문서·RAG·MCP 연결 없이 기존 대화 맥락만 사용한다. 데스크톱→이어온→데스크톱 양방향으로 같은 thread·앞선 맥락의 유지, 사용 중 감지·중복 실행 방지를 확인한다. 실패·단절·unknown이면 자동 재전송·새 대화 대체를 금지한다.
+- 현재 ChatGPT 구독 로그인으로 사용한다. 설계에는 구독 로그인과 API 키 인증을 별도 경로로 포함한다. 첫 실증은 구독 로그인, API 키는 후속 별도 검증이며 구독 한도 도달 시 유료 API 자동 전환을 금지한다. 공식 지원·과금·인증 전환 후 동일 thread 연속성은 각각 확인한다.
+- 서버의 질문·답변은 사용자가 직접 삭제할 때까지 보관한다. 대화별 조회·삭제, 해당 사용자·허용 앱만 접근, PC의 원래 Codex 대화 보존, 운영 로그 원문 중복 기록 금지, 향후 보관 기간 정책 변경을 요구한다.
+- 신산님이 제시된 구조로 계획을 작성하도록 지시했고, 실증 결과와 한계를 본 뒤 나머지 구현 범위를 확정하기로 했다. 이후 현재 내용으로 설계서·디자인 시안 작성을 직접 요청했다. 제품 구현·실제 모델 검증·staging 배포 승인으로 확대하지 않는다.
+- 실제 환경 추가 확인: SINSAN의 앱 OpenAI.Codex 26.1023.6123.0, 앱 동봉 엔진 0.165.0-alpha.1.2, npm CLI 0.161.0. App Server 도움말에는 stdio·daemon·proxy가 있으나 실제 데스크톱 runtime 연결·동일 thread 양방향 이어쓰기는 실행하지 않았다.
+- Oracle 읽기 확인: aarch64, CPU 4개, RAM 23972 MiB/조회 당시 available 17869 MiB, root 디스크 197316 MiB/available 26055 MiB/87% 사용. Docker proxy는 nginx-proxy-manager이며 80·81·443 게시 중이다. proxy/config/DB/port는 변경하지 않았다.
+- 기본 권한 Appx 조회 1회는 접근 거부, 읽기 전용 확장 조회는 성공했다. 앱 동봉 CLI 도움말 실행 시 임시 alias 정리/생성 접근 거부 경고가 있었고 표시된 신규 경로 2개는 실제 부재를 확인했다. 키·auth 파일·보안 설정은 읽거나 변경하지 않았다.
+- 문서 작업공간의 기본 권한 Git 조회 1회가 work tree 오류를 냈으나 확장 읽기 조회는 정상이다. Git 설정을 바꾸지 않고 문서 작업 때 명시 경로와 필요한 실행 권한을 사용한다.
+- 산출물 생성 전 기록: PRODUCT.md·AGENTS.md·docs/design/DESIGN.md·docs/WORK_PLAN.md, docs/design/prototypes/continuity-v1/의 독립 HTML/CSS/JS·README, docs/design/assets/의 정적 시안·browser PNG를 생성한다. 모두 private 내부 설계 산출물이다. 실제 backend·connector·model 연결 코드는 만들지 않는다.
+- 시안은 PMO의 폰트·밀도·접근성·viewport 기준을 사용한 업무 화면이다. 모든 대화·상태·식별자는 예시이며 실제 사용자 대화·Secret은 사용하지 않는다.
+- 시안 검토용 ego-browser 공간 1개와 qa 임시 .mjs 스크립트만 필요 시 생성한다. 로컬 file URL을 우선 사용해 서버/process/port를 열지 않는다. 스크립트는 이번 검토 후 정확한 소유 경로만 제거하고 브라우저 공간은 결과 탭을 남기거나 종료한다. PNG는 승인된 설계 증거로 보존한다.
+- 설계·첫 실증 계획 초안을 저장했다. 정적 시안은 PMO 10.2 순서에 따라 먼저 검토하고 클릭형 제품 흐름은 정적 검토 후 작성한다. 현재 HTML은 예시 정적 화면이며 API/모델 기능을 구현하지 않는다. 디자인 내부 brief·검토 metadata는 .impeccable 범위에 보존한다.
+
+### 2026-10-29 — 사용자 지정 시안 보완 3항목
+
+- 사용자 검토에서 기존 시안의 결과 확인·PC 원본 보존 안내를 수용했고 보완을 3개로 한정했다: 연결됨 예시 표기, PC/프로젝트/일부 thread 식별, 모바일 긴 답변 끝·키보드 입력/보내기 가림 검증.
+- 연결 상태는 SINSAN PC · 연결됨 예시로 변경하고, 허용된 대화에 예시 PC·프로젝트·가린 thread ID를 보인다. 미허용 대화 화면에 thread 메타데이터를 노출하지 않는다.
+- 모바일 답변 잘림은 flex 높이와 overflow의 상충을 해소해 문서 흐름으로 전체 길이를 확보한다. 키보드 대응은 viewport 변화 시 입력 영역을 보이게 하는 시안용 보조 JS만 추가하며 API·로그인·질문 전송 기능은 구현하지 않는다.
+- 검사 방법은 모바일 viewport·긴 합성 답변·입력 focus·키보드 높이를 가정한 viewport 축소다. 실제 모바일 OS IME/물리 기기는 미검증으로 구분한다.
+- 독립 화면 검토의 기타 글자크기·터치영역·삭제 식별자 안내·모바일 로그아웃 finding은 사용자 최신 '세가지만' 범위 밖으로 EXCLUDED 처리한다. 해당 finding을 수정·PASS로 표시하지 않는다.
+### 2026-10-29 — 설계/시안 독립 검토와 사용자 3항목 검증
+
+- builder_check는 설계/첫 실증 계획을 읽고 '중요한 미결정 없음'을 반환했다. 이는 실제 Codex 연결·실행 PASS가 아니다.
+- 첫 시각 검토는 fix로 모바일 답변 가림 등 5개 finding을 냈다. 사용자 최신 '세가지만 보완' 지시에 따라 범위를 확정했고, 다른 4개는 EXCLUDED 미해결로 유지했다.
+- 지정 3항목을 반영한 독립 재검토는 scoped ship: 연결됨 예시·PC/프로젝트/thread 일부·모바일 긴 답변/키보드 높이 재현을 resolved로 판정했다. 전체 UI 감사나 실제 IME PASS로 확대하지 않는다.
+- 마지막 줄(40단락) 가시성·composer 겹침 없음·가로 넘침 없음, 430×500의 입력/보내기 가시성, 버튼 focus outline을 확인했다. 실제 모바일 OS IME는 UNVERIFIED다.
+- 제공한 PNG는 1920×1080·1440×900·430×844 기본 및 busy/offline/unknown/delete/login/denied, 긴 답변·키보드 높이 재현이다. 모든 화면은 예시이며 실제 인증·대화·모델 연결이 없다.
+- 문서화 agent는 실제 CSS·레이아웃·시안 증거에 맞는 내부 디자인 metadata만 기록하며 UI/제품 코드는 변경하지 않는다.
+### 최종 저장·전달 checkpoint 준비
+
+- 설계서·첫 실증 계획·8개 정적 화면·11개 PNG·모바일 재현 receipt·이미지 출처·독립 검토 결과를 private 문서 branch에 commit·push한다. 실제 코드/API/DB/모델/Oracle 변경은 없다.
+- 링크·한국어·예시 상태·PNG 출처·예상 밖 제품 자원 0을 확인했고 viewport 보조 JS 문법·diff 검사를 통과했다. 실제 제품 테스트와 혼동하지 않는다.
+- 문서화 agent가 DESIGN §12와 schemaVersion 2 metadata만 기록했으며 사용자 지정 3개 외 UI는 변경하지 않았다. frontmatter 자동 인식 지원을 보장하지 않는다.
+- 신산님이 지정한 공식 로컬 경로에서 문서 branch를 열도록 전달한다. main에 병합하지 않는다. 원격 복구 SHA·clean 확인 후 이번 내부 작업공간과 qa-design-20261029의 일회성 스크립트만 정리한다. 브라우저 결과 탭은 공식 경로의 시안으로 옮겨 남긴다.
+### 공식 로컬 전달·정리 완료
+
+- 설계 checkpoint 78416a7a65a3a61957f0f6b1cdbd50b5b984932f을 origin/docs/existing-codex-design에 push하고 exact ref를 확인했다. private main은 e0b21c47cc126bfeeeaede1d2ac0248a24ab0422 그대로이며 main 병합·공식 push·WSL/Oracle 배포는 하지 않았다.
+- 공식 로컬 경로 D:\Project\ieon-agent-bridge를 docs/existing-codex-design branch로 열었다. Design·plan·시안을 이 경로에서 직접 검토할 수 있다. 브라우저 결과도 공식 경로로 전환했고 결과 탭 하나만 남겨 검토 공간을 종료했다.
+- 소유권·정확한 절대경로·clean·정본/원격 SHA를 확인한 뒤 일회성 QA 스크립트 7개와 내부 임시 작업공간을 정상 Git 명령으로 정리했다. 재조회 결과 두 경로 모두 부재다. 보존 PNG·결과 JSON·문서 branch는 삭제하지 않았다.
+- 마지막 상태 기록을 같은 문서 branch에 추가 commit·push하고 clean/원격 동일성을 확인한다. 사용자 검토용 초안이며 실제 모델·인증 전환·기존 thread 이어쓰기·실기기 IME·제품 배포를 완료로 표시하지 않는다.
+## 2026-10-29 14:30 KST — S0 시작·직접 승인 범위
+
+- 담당: 어울 단일 작성자. 기준 private branch docs/existing-codex-design, HEAD 6f0091d1f62f9b6c0f57f51b3155d3a7894821ae, clean 확인.
+- 신산님 승인: S0부터 진행. 현재 이어온 개발 thread 01a185d0-e8fd-7812-80d1-ba8ff1d470e9의 ID·사용 중 상태만 조회. 본문·질문 전송·설정 변경 금지. 실제 이어쓰기 대상 채택은 별도 결정.
+- 계획 보완: busy 관찰과 실행 배타 제어를 분리하고 양방향·동시 시작 경합의 차단 주체·증거를 표시한다. 교대 사용 약속은 기술적 차단 증거가 아니다.
+- 설정 보존: 지속 설정을 건드리지 않는 경로 우선. 추후 임시 설정이 필요하면 원본/적용값/현재값 비교와 사용자 변경 보존, 급종료 복구를 검증한다. S0에서는 설정 적용하지 않는다.
+- 내부 격리: 기존 미완료 docs branch를 재사용한다. 신규 successor branch 없음. 조사 QA 자료 D:\tmp\ieon-agent-bridge-s0-qa-20261029, 수명 S0 조사 동안, 종료 시 본 작업이 만든 자원만 안전 정리한다.
+- 오류: 이번 인수 후 0회. 제품 모델 호출·대화 재개/생성·로그인 변경·DB·port·Oracle 변경 0회.
+- 다음: 버전 고정 schema·로컬 control 경로 확인 후 허용 metadata 조회만 시도. 연결 안 되면 원인과 미검증을 기록한다.
+
+### S0 공식 schema 확인
+- 앱 동봉 0.165.0-alpha.1.2의 JSON schema를 QA 경로에 생성했다. 기존 로컬 control socket 엔트리와 실행 중 엔진 PID 2개를 확인했다. socket 연결 자체는 아직 미실행이다.
+- 중요: thread/read는 includeTurns=false여도 preview(첫 사용자 메시지)를 반환한다. 이번 직접 지시를 지키기 위해 금지하고 ID-only loaded list와 수동 유발 없는 status notification만 검토한다.
+- 중요: turn/start schema는 활성 turn에 input 추가/steer 가능성을 명시한다. busy 확인과 start 사이 경합을 별도 차단하지 않으면 안전한 실행으로 판정할 수 없다.
+- 오류 1회: InitializeParams schema 위치를 root로 가정해 file not found. rg --files로 v1/InitializeParams.json을 확인하여 수정했으며 동일 오류 반복 없음.
+- 다음: 본문 반환 RPC 없는 고정 조회 스크립트에 메서드 제한·원문 출력 차단·시간초과 무재시도 검사를 먼저 추가한다. S1 구현은 시작하지 않는다.
+
+### S0 접속 전 checkpoint
+- 조회 안전 검사: 미구현 import 실패(RED) 후 6개 테스트 GREEN, 두 조사 모듈 node --check 통과. 이는 대역 안전 검사이며 실제 연결 증거가 아니다.
+- 실제 접속 계획: 이미 존재하는 app-server-control.sock에 앱 동봉 proxy child 하나로 접속한다. initialize 1회, initialized 알림, thread/loaded/list 1회만 전송한다. 대화 본문 RPC·설정·login·resume·turn/start 없음. target status notification만 수동 유발 없이 수신 가능하면 확인한다. 5초 내 연결/응답 없으면 unknown, 무재시도, proxy child만 종료한다.
+
+### S0 실제 접속 결과
+- 2026-10-29T05:32:28Z: existing control socket에 proxy 연결 1회, initialize 응답 수신 전 transport_error. targetLoaded=null, status=unknown. ID는 사용자 지정값이며 공식 runtime 대조는 미확인.
+- RPC/대화/모델 재전송 없음. 별도 진단은 RPC 없는 proxy 연결만 수행했고 exit 1·stdout 0·OS error 10061(connection refused) 분류만 기록했다. raw stderr는 저장/출력하지 않았다.
+- 기존 엔진 PID 21356·34344는 유지됐다. proxy/daemon 재기동·설정·login·thread/read·resume·turn/start·도구 실행 없음.
+- 동일 연결 실패는 2회(접속 시험 1 + 무RPC 진단 1). 같은 대상에 추가 재시도하지 않고 프로세스 실행 형태와 schema만 대조한다.
+
+### 2026-10-29 14:36 KST — S0 판정·변경 기록
+- 설정 내용을 직접 조회/적용/복원하지 않고 설치 schema와 공식 문서의 override 지속성만 확인했다. Desktop 동시 차단·급종료 복구는 NOT_RUN이다.
+- 프로세스 분류: 기록 daemon PID 21016 dead, 현재 21356(app-server 명시 listen 없음)·34344는 생존. socket은 2026-10-08 수정 entry. 현재 앱 runtime의 공유 endpoint는 미확인이다.
+- 변경 파일: AGENTS, DESIGN, WORK_PLAN, WORK_STATUS, DEVELOPMENT_ENVIRONMENT, src/pilot 2개, tests/pilot 1개, validation 보고서·JSON 2개. 기존 시안·원래 Codex 대화·설정·인증·WSL/Oracle·main 변경 없음.
+- 사용자 요청 두 보완 반영. S0 전체 성공으로 판정하지 않으며 미확인 상태를 이어쓰기 성공으로 대체하지 않는다. 별도 읽기 전용 안전 검토 후 exact diff·원격 checkpoint·임시자원 정리를 확인한다.
+
+### S0 최종 검토 finding 처리
+- 별도 읽기 전용 검토: Critical 0·Important 1. status 알림 후 오류 시 과거 idle/active가 남는 문제를 회귀 검사(RED: idle/timeout)로 재현했다. 오류 시 unknown/invalidated_after_error로 무효화했고 timeout·transport·RPC 오류 조합을 검증한다. 실제 접속 재시도는 없다.
+- Minor: WORK_PLAN 말미의 src/tests 미생성 문구를 S0 조사 모듈과 후속 제품 구현으로 구분해 수정했다. 이전 6개 대역 검사는 당시 증거로 보존하며 최종 검사는 7개다.
+- 인수·오류: 최종 검토 finding 1회, main agent 직접 재현·수정. 동일 근본 원인 반복 0. 실제 연결 실패 증거는 원래 unknown으로 적혀 있어 변경하지 않는다.
+
+### 2026-10-29 14:39 KST — S0 checkpoint·정리
+- 조사 코드/기록 checkpoint 7e9cda74a531f75847414c6ee2b9a03882c34b05를 private origin 동일 branch로 push하고 exact 원격 ref를 검증했다. 일반 실행 gate 미충족이므로 main 병합/제품 smoke 대상이 아니다.
+- WORK_PLAN 승인된 S0 조사·requested 보완만 수행. S1~S3/Oracle/실제 모델/설정변경을 자동 시작하지 않았다. 두 engine 유지, proxy child 종료, 본 작업 QA schema·내부 임시 경로 삭제 및 잔류 0 확인. fingerprint와 정제 receipt는 validation에 보존했다.
+- 내부 격리 source는 clean·원격 복구 ref·경로/하위 link 없음 확인 후 정상 Git 명령으로 정리했다. 정본은 동일 docs branch의 checkpoint를 연 상태다.
+- 최종 미검증: 원래 runtime의 ID·active 관찰, 양방향 맥락, 양쪽/동시 시작 차단, 임시 제한·급종료 복원, 실제 모델/사용량. 실제 이어쓰기 대상으로 현재 개발 채팅을 채택하지 않았다.
+- 후속 필요: 공식 Desktop runtime 공유 제어 지원과 본문 없는 상태 경로, 원자 실행/복원 계약을 확정. 환경 전환이 필요하면 대상/영향/복구안을 보고하고 별도 승인 전에는 적용하지 않는다.
+
+## 2026-10-29 14:44 KST — S0 공식 Desktop 연결 경로 추가 조사
+- 직접 지시: 기능 구현/실제 이어쓰기 금지. 현재 실행 중인 Windows Desktop의 공식 연결 경로, 기존 socket 소속, 별도 CLI/App Server와 runtime 공유 여부만 확인한다. 저장 파일 공유를 runtime 연결 성공으로 취급하지 않는다.
+- 조사 시작 branch docs/existing-codex-design, HEAD cfdd21da7dc861bb3d2cfe71801a72d7d5d6052c, clean 확인. 조사 스크립트/제품 source 수정 없음. 문서·환경 사실만 동일 branch에 기록한다.
+- 공식 문서: app-server 연결 프로토콜, CLI remote/shared daemon, Desktop Remote Control(동일 계정/승인 기기), SSH host 시작 경로를 구분해 확인한다. 문서가 현재 installed build 지원을 확약하지 않으면 미확인으로 둔다.
+- 현재 앱 26.1023.6123.0과 engine PID 21356(app-server 명시 listen 없음),34344(별도 remote 플래그)를 재확인. 기록 daemon PID21016은 여전히 종료. 기존 socket 수정 시각은 동일하다. 이 시점에서 socket을 현재 Desktop endpoint로 판정하지 않는다.
+- 이번 오류: 공식 Markdown URL 2개는 web 도구의 unsupported text/markdown 응답으로 실패. 이미 읽힌 HTML 문서의 본문 위치로 전환하며 동일 실패를 반복하지 않는다. 실제 접속/질문/설정 재시도 없음.
+
+### 2026-10-29 14:48 KST — 설치 빌드의 연결 분기 확인
+- 공급 app.asar의 정적 application-network-startup-DMyt3FBI.js에서 로컬 shared daemon 조건에 process.platform!==win32가 포함됨을 확인했다. Windows는 StdioConnection으로 child를 생성하고 pipe stdin/stdout을 사용한다. 실제 Parent19212(ChatGPT.exe)→PID21356(app-server, analytics flag만)과 일치한다. 비공개 환경변수를 적용하지 않았다.
+- 코드 SHA-256 c4497beb1a68f4322acd6ec2fd1a44c06c24025b115b12324aefae5569849e9d. class _c 시작 char264234, pipe spawn char266024, control socket 분기 char270430 근처. 이 증거는 설치 구현 확인이지 외부 client용 공개 지원 계약이 아니다.
+- PID34344는 exec-server --remote --environment-id다. 대화 App Server 공유 연결 증거가 아니다. 플래그 값·명령행 원문은 보존하지 않았다.
+- 읽기 전용 daemon version은 exit1로 running app-server version을 확인하지 못했다. 새 daemon/서버는 시작하지 않았다. 기존 소켓에 추가 RPC/접속 재시도도 하지 않았다.
+- 오류 추가 1회: 정적 코드 일부의 cp949 출력 인코딩 실패. JSON ensure_ascii로 출력 형식만 수정해 해소했다. installed source/사용자 파일 변경 없음.
+- 공식 Remote Control은 승인된 first-party 기기 연결 경로가 문서화됨. 이어온 third-party client가 기존 Desktop runtime에 붙는 공개 endpoint/인증 계약은 확인하지 못했다.
+
+### 2026-10-29 14:49 KST — S0 공식 연결 지원 판정
+- 판정: 현재 설치 Windows Desktop의 child stdio 접속은 확인했지만 이어온 등 외부 client attach 공개 경로는 확인하지 못했다. Windows CLI 자체의 shared daemon 지원과 Desktop 지원을 혼동하지 않는다. 전체 제품의 영구적 미지원으로 단정하지 않는다.
+- 문서화: WINDOWS_DESKTOP_CONNECTION_PATH.md와 s0-desktop-path-evidence.json 추가, 기존 FEASIBILITY/ENVIRONMENT에 연결. source/tests/API/DB/connector/시안 수정 없음. 문서 변경이므로 모델 없는 안전 검사를 불필요하게 반복하지 않는다.
+- 기록 정정: 앞선 '기존 socket에 추가 접속 없음'은 proxy/조사 RPC script 재실행이 없다는 뜻이다. 도움말상 읽기 전용 daemon version 조회1회의 내부 IPC 동작은 따로 확인하지 않았으므로 그 명령의 접속 시도까지 0이라고 주장하지 않는다.
+- 미수행: 새 engine/daemon start·restart/update·Remote Control enable/pair·비공개 env 적용·본문/질문/turn·인증 변경·Oracle. 공식 문의 메시지도 발송하지 않았다.
+- 독립 조사 완료 후 Git diff/경로/증거 consistency를 확인해 private docs branch에만 보존한다. S0 실제 attach/원자 차단/이어쓰기 성공은 여전히 미확인이다.
+
+## 2026-10-29 15:04 KST — S0 전송 형식·조사 코드 정적 대조
+- 신산님 직접 범위: 오래된 socket 재시도·daemon 기동 없이 현재 Desktop의 공식 외부 공유 경로와 설치 버전 전송/조사 코드 일치만 확인. 재시작/listener/설정 변경은 영향·복구안 먼저 제시. 시험 질문/새 대화/별도 서버 구현 금지.
+- 시작 HEAD dc0641f4e0e67001d94a4152773b8d8a82a05d3a, docs/existing-codex-design clean 확인. source/tests 수정·실행하지 않음.
+- 실제 버전/프로세스 재대조: 앱26.1023.6123.0, PID21356 app-server(명시 listen 없음)·34344 exec-server, 부모19212 유지. 설치 공급 코드 SHA-256는 이전 증거와 동일(c4497b...). stdio JSONL/newline/parser, Unix socket WebSocket/Windows 제외 분기 8개 조건을 정적 확인했다.
+- 기존 조사 코드: JSON.stringify+개행 송신, 개행 분리 JSON.parse 수신, proxy --sock 실행. HTTP Upgrade/WebSocket 프레임 구현 없음. 버전 일치 RPC schema는 전송 프레임 계약 증거가 아니다.
+- 설치 proxy 도움말은 stdio bytes→control socket 설명만 제공한다. handshake/프레임 변환을 보장하는 계약은 확인하지 못했으므로 proxy 경로 호환 미확인이다. 현재 stdio와 JSONL 문법이 같더라도 Desktop 소유 pipe에 붙는 기능이 조사 코드에 있는 것은 아니다.
+- 이번 실제 socket/RPC/daemon version/start/서버기동/시험질문/설정 변경 0회. help --help와 정적 파일 읽기만 했다. 이전10061은 연결 단계 실패이며 protocol 호환 PASS/FAIL 근거로 확장하지 않는다.
+- 오류 0회. 공식 공유 경로 미확인 유지. 기존 보고서·환경·현황에 전송 계약과 필요한 영향/복구안을 명확히 보완한다.
+
+### 2026-10-29 15:05 KST — 전송 대조 판정 및 검증
+- 판정: Desktop stdio의 JSONL 문법과 조사 코드가 같다는 정적 확인만 가능하다. 같은 pipe/runtime attach나 proxy 소켓 전송 호환은 미확인이다. 이전 연결 거부를 framing 결함으로 재해석하지 않았다.
+- 변경 전/후: 이전에는 proxy 입력/출력의 JSONL 가정을 별도 미확인으로 분리하지 않았다. 현재는 Desktop stdio·daemon WebSocket·proxy 변환 세 경계를 나누고 실행 전 미충족 조건으로 기록했다. 코드 수정 없음.
+- 필수 확인: JSON 증거 파싱·source/tests diff 없음·문서 링크/whitespace 검사를 수행한다. 기능/전송 테스트는 미실행이며 대역 검사를 새 실제 증거로 재사용하지 않는다. 임시 file/listener/daemon 자원 생성 없음.
+
+## 2026-10-29 15:08 KST — 0.165.0-alpha.1.2 공식 proxy 소스 조사
+- 직접 범위: OpenAI 공식 저장소의 정확한 설치 버전 소스로 JSONL/WebSocket 변환 여부만 확인하고 Desktop runtime 외부 attach 판정과 분리한다. socket 재시도·daemon 기동·설정 변경·모델/대화 RPC 없음.
+- 시작 branch docs/existing-codex-design, HEAD d6355293cc4d106d748d9ca771638c73c3e12ffb, clean 확인. 제품 source/test 수정·실행 없음.
+- 공식 tag rust-v0.165.0-alpha.1.2를 git ls-remote로 확인. annotated tag object 3237dd94e20d69fbb5b424baec89833901ff835e, peeled commit 720fec862a608ae1e5878d1eecb04fb93192e93c. main/다른 버전으로 대체하지 않는다.
+- 조회 오류: web 도구 API URL 접근 불가1, GitHub raw 링크 cache miss2. 동일 경로 반복 대신 exact commit의 raw source를 메모리로 읽는 공식 원본 URL로 전환한다. 클론·dependency 설치·영구 source 복사 없음.
+
+### 2026-10-29 15:11 KST — 공식 proxy source 판정
+- 확정: proxy는 raw byte relay이며 JSONL/WebSocket 변환 없음. 기존 조사 코드의 framing 부적합은 source 정적 대조로 확인했다. 이전 연결 실패10061은 그대로 유지하며 이 finding이 당시 오류 원인이었다고 바꾸지 않는다.
+- 현재 Desktop runtime 외부 attach는 UNVERIFIED 유지. source 검증과 live/binary build 대응·runtime 공유를 혼동하지 않는다. 공식 fork/이슈/최신 main을 버전 source로 대체하지 않았다.
+- scope: 원본 source 메모리 읽기·공식 tag ls-remote만 수행. socket/daemon/version/앱 restart/listener/설정/인증/모델/thread 0회, source/tests/시안 변경 없음. source cache/clone/build/임시서비스 생성 없음.
+- web raw cache miss 추가2+Cargo1은 조회 도구 경계로 기록하고 같은 실패 URL 반복 대신 이미 동작하는 exact commit raw HTTP 조회를 사용했다. 코드/환경 오류로 해결하기 위해 설정을 바꾸지 않았다.
+- 다음 검증: evidence JSON/tag/commit/근거 링크와 문서 diff만 검사 후 private checkpoint. 기능/전송/기존 thread 실증은 미실행이다.
+- 문서 검증 중 자동 치환이 과거 판정행까지 적용된 1건을 diff에서 발견했다. 최신 상태 행만 갱신하고 과거 판정은 HEAD 원문으로 즉시 복구했으며 인수 기록은 보존했다.
+
+## 2026-10-29 15:14 KST — 정확한 버전 stdio runtime 외부 경로 소스 추적
+- 직접 범위: commit720fec862a608ae1e5878d1eecb04fb93192e93c의 현재 Windows Desktop 소유 stdio App Server 외부 경로만 확인. 별도 daemon과 구분. 소켓 재시도/daemon 기동/설정 변경/시험 질문 없음.
+- 시작 HEAD d891b2a4a777668e0d8c3530601b3fb5c91886d8, docs/existing-codex-design clean 확인. source/tests 수정·실행 없음. 공식 소스는 HTTP로 메모리에서만 읽는다.
+- lib.rs transport 선택: stdio는 start_stdio_connection만, UnixSocket은 start_control_socket_acceptor, WebSocket은 start_websocket_acceptor로 분리. 기존 stdio에 별도 listener 자동 추가를 확인하지 못함.
+- 새 조사점: lib.rs:888의 start_remote_control은 transport match 뒤 같은 transport_event_tx를 받고 stdio_client_name_rx도 받는다. 같은 runtime의 Remote Control 보조 경로 코드와 별도 daemon 기동을 구분해 조건/인증/공개 client 지원을 추적한다. 현재 PC 활성 여부는 조회하지 않는다.
+- 조회 오류 0회. web 검색이 main 결과를 반환했지만 근거로 사용하지 않고 정확한 commit의 실제 파일만 대조한다.
+
+### 2026-10-29 15:20 KST — stdio runtime source 조사 판정
+- 같은 프로세스 Remote Control 경로를 발견: lib815-861 transport분기 → lib888-901 RemoteControl에 같은 event tx 전달 → client_tracker150-176 RemoteControl origin/input → message_processor1197-1216 처리. 코드 존재와 현재 활성/공식 client 지원은 분리한다.
+- 관리 daemon start는 자체 environment/installation/lock/process를 사용한다. 기존 Desktop stdio 전환/attach 증거가 아니다. 직접 local attach 경로는 검토source에서 미발견이다.
+- source 추정 경로2개 404: root remote_control_processor.rs와 request_processors/remote_control.rs. 공식 directory 목록으로 실제 request_processors/remote_control_processor.rs를 확정했으며 추가 추정 재시도 없음. 같은 오류3회 경계에 도달하지 않았다.
+- 검증 범위: source 대조와 JSON/링크/diff만. 계정/설정/상태/RPC/socket/daemon기동/테스트 질문/기능코드 0회. 현재 Desktop이 실제 Remote Control을 사용한다는 주장은 하지 않는다.
+
+## 2026-10-29 15:27 KST — Remote Control 공개 client 확인·조건부 보류
+- 신산님 직접 확인: 현재 Desktop Remote Control은 비활성화다. 실제 설정/RPC 재조회로 확인한 값이 아니라 사용자 제공 사실로 기록한다.
+- 직접 범위: 외부 앱용 공식 client 등록/인증/접속 공개 문서·지원 API만 확인. 없으면 Remote Control 보류 후 별도 App Server 대안으로 전환. 내부 프로토콜 모방·기존 인증 재사용·기능 활성화 금지.
+- 시작 HEAD35500be895aabf250511f4ab81e967fb15b87d47, docs/existing-codex-design clean 확인. 공개 공식 문서만 검색/열람했고 내부 relay/protocol source 추가 분석·runtime/계정/소켓/설정 조회 없음.
+- 공개 확인: Remote connections의 first-party 기기·동일 계정/workspace·pairing; Developer commands의 managed client/SSH용 remote-control과 자체 protocol client용 app-server listen 구분. Remote Control 외부 client 발급/접속 인증/API 계약은 확인하지 못했다.
+- Sign in with ChatGPT의 일반 앱 client ID 등록 문서는 공개되어 있지만 identity/eligible AI requests의 계약이다. Remote Control용 device client 등록/relay 접속 API로 취급하지 않는다.
+- 판정: Remote Control 경로 HOLD_NO_PUBLIC_CLIENT_CONTRACT. 내부 source의 경로 존재를 공개 지원 API로 승격하지 않는다. 별도 App Server는 문서/계약 검토 대안으로만 전환하며 기동·로그인·모델·기존 thread 재개는 이번 범위에서 하지 않는다.
+- 조회 오류1: 문서 click의 URL ref가 invalid arguments. 이미 받은 페이지 ref를 사용해 일반 Sign in with ChatGPT 문서를 열었고 동일 오류 반복 없음.
+
+### 2026-10-29 15:28 KST — 보류·대안 전환 기록
+- 원래 사용자 요구와 최신 지시를 함께 적용: Remote Control은 보류하되 별도 App Server 계약 검토를 다음 방향으로 둔다. 같은 저장 파일/새 대화로 기존 Desktop 연결 성공을 대체하지 않는다.
+- 현재 산출물은 공개 지원 판정·대안 문서/증거 JSON과 정본 연결이다. 기동/실제 이어쓰기/기능 구현이 아니다. 인증 정보·계정 내용·기존 대화 원문은 읽지 않았다.
+- 불확실: 별도 인증 공간과 원래 thread 데이터의 양립, Desktop까지 포괄하는 writer 배타·양방향 갱신, hosted 서비스 인증 허용. 해결하지 못하면 원래 요구는 BLOCKED/UNVERIFIED로 유지한다.
+- 공개 문서/JSON/링크/diff만 검사하고 기존 private branch에 보존한다. source/test/시안/런타임·설정·Secret·배포 변경 없음.
+
+## 2026-10-29 15:31 KST — 두 조건 분리 판정·실증안 준비
+- 직접 지시: ① 공식 같은 계정 로그인+원래 thread 재개 ② Desktop 교대 기록 반영/실행 충돌 방지를 각각 판정. 인증 원문 복사와 새 공식 로그인은 구분한다. 동시 사용이 불가하면 교대 조건을 제시하고 실제 검증 전 대상/인증/호출수/원본 영향/복구안을 제안한다.
+- 시작 HEADbc50cf0ef38e7d2ee2fa768dbaed96860e1df6a0, docs/existing-codex-design clean 확인. 현재는 공식 문서/정확한 버전 소스만 읽고 로그인·기동·대화/인증 원문 조회·모델 호출은 하지 않는다.
+- 문서상 공식 ChatGPT 로그인과 thread/resume은 별도 지원 계약이다. 같은 계정 공식 로그인은 캐시/토큰 복사 금지와 혼동하지 않는다. credential store의 ephemeral은 공개 옵션이며 정확한 설치 버전에서 기존 credential 미사용/미변경을 보장할 조건을 소스로 추적한다.
+- Remote Control HOLD 유지. 이번 조사는 별도 App Server의 원래 thread 재개/교대 가능성 판정이며 기존 Desktop runtime 접속 성공을 주장하지 않는다.
+
+### 2026-10-29 15:42 KST — 두 조건 source 판정·대상 지정
+- 신산님 제안 대상 지정: 어울 전용 작업 지시 세션, thread01a0dadd-739f-74d2-93c5-9c405cc1019b. 실제 metadata/body 조회·재개·모델 호출 승인이 아니라 제안서의 대상 지정으로 기록한다. 현재 개발 대화는 제외한다.
+- ① 공식 새 ChatGPT 로그인+process ephemeral auth: OAuth callback이 설정된 저장 모드로 save하고 ephemeral은 메모리 map이며 persistent fallback 없음. 같은 계정 새 로그인은 기존 자격증명 복사와 다르다. 같은 CODEX_HOME의 원래 기록/lock 경로를 유지하면서 인증만 메모리 격리하는 source 경로를 확인했다. 상속 auth 환경 제외·정책 확인은 실제 검증 전 조건이다.
+- ② same physical CODEX_HOME/thread의 WriterLockCoordinator는 OS File.try_lock으로 단일 writer를 강제하고 두 번째는 WouldBlock→Conflict다. turn completed는 writer 반납이 아니다. writer 정상 shutdown/반납 후 새 resume는 최신 저장 history를 확인하도록 되어 있다. 두 runtime을 계속 로드한 채 질문만 교대하는 방식은 보장하지 않는다.
+- 실제 Windows/선택 thread의 인증·소유권·Desktop 재열기 반영은 NOT_RUN. 원본 영향/안전 백업·복구 범위/다른 작업 idle/임시권한·MCP 억제 조건을 포함한 0-model 우선 실증안을 작성한다. source 경로 추정404 1회는 공식 login/src/auth 목록으로 수정했고 동일오류 반복 없음.
+
+### 2026-10-29 15:46 KST — 두 조건 판정·실증안 제출 상태
+- 인증/기록 root 분리 여부를 동일 계정 금지로 해석하지 않았다. 같은 root의 OS writer 보호를 유지하고 process ephemeral의 새 공식 로그인이라는 조건부 방안을 제시했다. 실제 기존 인증 미사용/미변경 보장은 runtime 미검증이다.
+- source상 배타 보호와 실제 Desktop 사용 중 표시/반대 방향/거의 동시 시작 시험은 구분한다. Windows 실제 결과는 NOT_RUN이다.
+- 제안 대상 확정: 사용자 제공 이름/ID만 기록. P0 모델0, 로그인1, 이어온 명시 resume최대2. P1 이후 별도 승인 사용자3turn(내부 inference/compaction 호출수는 미확인). target 모델·원래 비민감 사실/문구·정답·구독한도 미조회/미확정.
+- 원본영향: P0도 lock/index/DB/cache 변경 가능, P1 승인시 원래 이력에3turn 추가. credential 제외 안전 백업/복원 경계·다른 Desktop 작업 idle·정상 unload/종료 영향이 확정되지 않으면 시작하지 않는다. 자동 덮어쓰기/삭제/revert/재전송 없음.
+- 기능 코드/테스트/실행 도구는 작성하지 않았다. 문서/JSON/link/diff 및 과거 판정 보존만 검사하고 private checkpoint를 남긴다. 구현 완료나 실제 이어쓰기 성공으로 처리하지 않는다.
+
+### 2026-10-29 16:00 KST — P0 승인 전 대상 신원·단독 unload·전체 종료 영향
+
+- 최신 직접 지시: 지정 thread ID의 실제 제목과 안전한 단독 unload 가능성을 먼저 확인하고, 전체 앱 종료가 필요하면 다른 작업 영향·백업/복구 범위를 보고한다. 그 후 로그인/P0를 승인하며 P1 질문은 아직 승인하지 않았다. 이번에는 metadata/source 조사만 수행했다.
+- 실제 앱 목록: 01a0dadd-739f-74d2-93c5-9c405cc1019b = 어울 전용 작업 지시 세션, local/Codex/D:\Project\PMO/idle. summary/본문/turn/preview는 사용·저장하지 않았다. 목록 idle은 App Server loaded/OS lock/goal/queued/승인 상태 확인이 아니다.
+- 다른 active 최소4개와 현재 조사 대화 active를 metadata로 확인했다. 완전 inventory는 아니며 다른 대화의 본문·작업 파일·dirty 상태는 조사하지 않았다. 타 작업을 중단/메시지/재개하지 않았다.
+- 설치본 정적 코드에 비활성3시간 또는 owner상한10 초과 시 connection별 unsubscribe가 있다. active view/follower/진행 상태 등 예외와 server의 무구독·비활성 유예 unload를 구분했다. 즉시 단일 대화를 안전 unload하는 공개 UI는 미확인이다. 탭 닫기/전환/idle/시간 경과를 lock 해제 증거로 바꾸지 않았다. 전체 종료 필수 여부도 미확인이다.
+- 전체 종료 대안은 다른 작업 정상 완료/checkpoint·미저장 자료·외부 명령 상태·독립 runner·재실행 절차와 영향 승인이 필요하다. 대상 한정 history/관련metadata·일관 manifest를 제안하고 전체 DB/CODEX_HOME·인증 복사, 다른 대화 되감기는 제외했다. 실제 저장형식/파일목록은 미확인이고 백업/복구는 미실행이다.
+- process metadata read-only 대조: Desktop19212→AppServer21356, listener/proxy/daemon없음, exec-server34344는 별도 역할. 새 process/소켓/daemon/설정/로그인/재개/질문/모델/backup/DB/종료 없음.
+- 오류2종은 최신 상태의 횟수/조치대로 해결했다. 사용자 원본/인증을 쓰는 조치는 하지 않았고 원본 hash 대조도 미실행이다. 문서·정제JSON·상대 링크·diff·과거 판정 보존만 확인하며 기능 테스트/실제 P0/P1 성공으로 보고하지 않는다.
+- 변경: AGENTS, WORK_PLAN, WORK_STATUS, DEVELOPMENT_ENVIRONMENT, AUTH_RESUME_AND_ALTERNATION_ASSESSMENT, s0-p0-preflight-evidence.json. 원래 source/tests와 main/공식 원격/WSL/Oracle 불변. 다음은 신산님의 조건 검토이며 로그인/P0·P1을 선행 실행하지 않는다.
+
+### 2026-10-29 16:14 KST — 사용자 지시로 조사 마감·P0 일정 지정 대기
+
+- 완료 기록: 대상01a0dadd-739f-74d2-93c5-9c405cc1019b의 실제 제목 어울 전용 작업 지시 세션 일치 확인 완료. 기존 판정서8절과 정제 receipt를 보존한다. 단독 unload/실제 writer 반납/실제 연결 성공은 계속 미확인이다.
+- 신산님 직접 지시: 다른 작업이 실행 중이므로 앱 종료·로그인·대화 재개를 하지 않는다. 신산님이 작업 완료 후 검증 시간을 정하면 P0를 이어간다. 그때 필요한 최소 백업 범위와 실행·복구 절차만 한 번에 제시한다. P1 질문은 미승인이다.
+- 이번 조치는 AGENTS·WORK_PLAN·WORK_STATUS의 일회성 마감 기록뿐이다. 추가 소스/잠금 해제 조사·앱/대화 상태 재조회·인증/본문/백업/실행·설정 변경 없음. 사용자 지정 전 동일 조사와 문서 보완·자동 재개/모니터링을 반복하지 않는다.
+- 신규 실행 오류0회. 문서 diff·기존 누적 기록 보존만 확인해 같은 private 작업 branch에 보존하며 main/공식 저장소/WSL/Oracle는 변경하지 않는다. 다음 조치는 신산님의 검증 시간 지정이다.
+
+### 후속 직접 승인 — 앱 유지 P0/P1 시작 전 기록
+
+- 신산님은 앱 전체 종료 없는 P0와 P0 통과 시 최대3turn P1을 승인했다. 공식 로그인은 신산님이 직접 한다. 잠금 충돌 시 강제 해제·재시도 없이 중단하며 다른 작업 중단·원본 덮어쓰기는 금지다.
+- 실행 계획 조정: 인증/원본 쓰기 전 기존 대상 writer lock을 읽기 전용으로1회 검사한다. 충돌이면 실제 resume/P0 통과를 주장하지 않고 중단 결과를 보고한다. 잠금이 없더라도 OS 검사만으로 resume/양방향 연속성 성공을 주장하지 않는다. 이 검사는 백업/원본/DB/인증 내용을 쓰거나 복사하지 않는다.
+- 확인: 설치 engine0.165.0-alpha.1.2, CODEX_HOME 환경변수 미설정, 기본 root는 junction/link가 아니다. 대상 이력 파일1개(6398769byte), 기존 대상 lock 존재, state_5.sqlite 존재를 파일 metadata로만 확인했다. auth/config/본문은 읽지 않았다.
+- engine --version bootstrap은 home arg0 temp 정리/alias 생성의 access denied 경고를 출력했다. 반복하지 않는다. 기존 S0 socket/proxy/daemon도 재시도하지 않는다. 새 App Server/로그인/모델 호출은 아직0회다.
+
+### 2026-10-29 16:20 KST — 실제 OS 잠금 충돌 확인·사용자 지시 중단
+
+- 대상01a0dadd-739f-74d2-93c5-9c405cc1019b의 기존 writer lock 파일을 읽기 전용 OPEN_EXISTING으로 열어 LockFileEx shared/FAIL_IMMEDIATELY full byte range를1회 시도했다. Windows ERROR_LOCK_VIOLATION33 반환. 파일 생성·write access·원본 byte 쓰기0, probe handle 정상 닫힘.
+- 다른 프로세스의 배타 잠금과 충돌했다는 OS 관찰이며, owner PID/현재 Desktop runtime 소유 여부는 조사하지 않았다. App Server thread/resume을 보낸 결과가 아니므로 공식 재개 실패/성공이나 P0 통과로 보고하지 않는다.
+- 충돌이면 중단하라는 최신 직접 지시를 적용했다. App Server 기동0·공식 로그인 시작0·thread/resume0·모델 turn0·재시도0. P0 미통과이므로 조건부 P1 사용자 turn도0이다. 강제 해제/잠금파일 삭제/다른 작업 중단/앱 종료/원본 복사·덮어쓰기·rollback 없음.
+- 백업은 생성하지 않았다. 원본 쓰기 전의 읽기 전용 사전 검사에서 중단했으므로 원본 복원 절차도 실행하지 않는다. 일시 검사 handle 외 신규 지속 runtime/port/callback/인증 자원 없음. 정제 receipt만 private repository에 보존한다.
+- 예상 중단 조건(잠금 충돌)1회이며 반복 없음. 공식 문서 .md fetch의 content-type 거부2건은 HTML 경로로 전환했다. 새 제품 source/tests 구현은 없고 실제 OS 증거/문서 diff/JSON/기존 기록 보존을 확인해 checkpoint를 남긴다. 다음은 결과 보고 후 신산님의 추가 직접 지시다.
+
+### 후속 지시 — 소유 후보 조회 및 사용자 정상 종료 조건
+
+- 신산님이 강제 해제 없이 소유 프로세스를 읽기 전용으로 확인하도록 지시했다. 동일 LockFileEx 검사를 반복하거나 lock 파일을 삭제하지 않는다. 정상 반납 방법을 제시하고, 앱 전체 종료가 필요하면 신산님이 다른 작업 정리 후 직접 수행한다. 정상 해제 확인 후 기존 P0/P1 승인 범위를 이어간다.
+- Windows Restart Manager의 StartSession/RegisterResources/GetList/EndSession만 사용하는 일회성 조회 세션을 현재 조사 소유로 생성한다. 대상은 해당 lock 파일1개, 수명은 호출1회이며 finally EndSession으로 정리한다. Shutdown/Restart/프로세스 종료/파일 잠금 API를 호출하지 않는다. 이 API가 반환하는 파일 사용 프로세스와 실제 byte-range 잠금 소유 증거의 한계를 구분한다.
+
+### 2026-10-29 16:23 KST — 파일 사용 프로세스 대조·정상 반납 조건
+
+- Restart Manager 조회1회 성공: 기존 대상 lock을 사용하는 프로세스1개, codex PID21356. session Start/Register/GetList/End 모두0, 진단 세션 정상 정리. Shutdown/Restart/파일 잠금/파일 쓰기 호출0이다. RM 내부 진단 세션 등록은 OS가 관리하며 사용자 원본/인증을 쓰는 동작은 하지 않았다.
+- CIM metadata 대조:21356은 설치 엔진08d187884f2330d1/codex.exe의 App Server, 부모19212는 Windows Codex Desktop ChatGPT.exe. 생성 시각도 RM의 unique-process 시각과 대조했다. 별도 daemon/proxy/listener없음. 유일 file-user와 기존 byte-range 충돌을 대조한 결과 Desktop 소유자 추론은 유력하나 owner PID를 직접 얻은 것으로 보고하지 않는다.
+- 같은 LockFileEx 검사는 반복하지 않았다(전체1회 유지). lock 파일 생성/삭제/해제·프로세스 종료·원본/DB/auth 복사·로그인·모델·실제 resume도 하지 않았다. 새 실행 오류0회, Get-Command로 handle 도구가 없음을 확인해 설치/EULA 변경 없이 Windows 기본 조회 API만 사용했다.
+- 즉시 단독 정상 unload의 공식 UI는 기존 미확인 그대로다. 전체 종료가 필요하면 신산님이 다른 작업 완료/저장 후 앱의 정상 Quit를 직접 수행한다. Agent는 전체 앱/자식 프로세스를 죽이지 않는다. 창 숨김/탭 닫기를 해제 증거로 간주하지 않는다.
+- 앱 종료가 현재 조사 실행에도 영향을 줄 수 있어 독립 runner와 사용자 공식 로그인 절차를 종료 전에 준비해야 한다. 아직 runner/로그인은 시작하지 않았다. 정상 반납은 owner 프로세스 종료 metadata와 이후 실제 공식 resume 소유권 취득으로 확인하며 LockFileEx 재검사·자동 재시도는 하지 않는다. P0/P1 승인은 유지되지만 실제 미실행·미통과다.
+
+### 2026-10-29 16:27 KST — 업무 대상 제외·새 시험용 세션과 인증 전환 확인 대기
+
+- 최신 직접 지시로 기존 업무 대상01a0dadd-739f-74d2-93c5-9c405cc1019b를 검증에서 제외한다. 사용자 전환 지시 이후 기존 대화/본문/잠금/소유 프로세스는 추가 조회·재개·질문·보관·종료하지 않았다. 기존 증거는 덮어쓰지 않고 보존한다.
+- 신산님이 별도 시험용 세션에서 단순 맥락을 만들고 정상 반납한 뒤 같은 ID 재개를 검증한다. 새 ID는 미지정이다. 계정 변경도 같은 계정 새 공식 로그인/다른 ChatGPT 계정/API 키 전환 중 어느 의미인지 미확정이라 두 질문을 전송했다. Secret 원문은 요청하지 않았다.
+- 새 대상 계정 전환 후 목록 표시(A)·본문 열기(B)·실제 답변 생성(C)을 별도 증거로 남긴다. local 저장 파일을 읽은 결과를 계정 간 cloud history 이전이나 현재 Desktop runtime attach로 보고하지 않는다. 최초 Desktop 맥락1turn도 총3turn에 포함한다.
+- 모델0/업무 대상 비접촉의 독립 작업만 수행했다. 새 시험용 세션의 정상 반납 후보로 exact source thread_processor1107–1139를 읽었으나 archive 경로는 Shutdown 실패/timeout에도 진행할 수 있어 archive 성공을 정상 반납 증거로 보지 않는다. 실제 archive/unarchive/새 thread 생성·로그인·재개·모델은 하지 않았다. 이 경로는 실행 확정안이 아니다.
+- 실행 source/tests 변경없음. 문서 patch context 오타1회는 해당 문장 대조로 수정했다. 공개 source 범위 출력 배열 처리 누락1회는 단일 범위 출력으로 수정했고 모델/원본/인증 영향없음. 다음은 새 ID/전환 방식 답변 후 시험 대상만의 구체 실행 준비다.
+
+### 2026-10-29 17:09 KST — 다른 계정 공식 로그인 실증 연결부 준비
+
+- 신산님은 다른 PC/다른 ChatGPT 계정의 시험 대상 PR-Test 설정, ID01a186a9-a58d-76d2-bc55-215f5b4a008e를 지정했다. 기존 업무 대상은 계속 제외한다. 현재 앱의 고정/최근50개 metadata와 현재 PC sessions/archived_sessions의 해당 ID 파일명 조회에서는 미발견이었다. 이는 계정 전환 후/원래 PC에서의 결과가 아니며 새 대상이 잠겼다는 증거도 아니다.
+- 신산님이 별도 프로그램에서 새 계정으로 공식 로그인한 뒤 지정 ID에 접근하도록 직접 지시했다. PC 이름/OS 질문보다 로그인/접근 실증을 우선한다. 현재 S0 도구에는 로그인 기능이 없다는 사실을 명확히 했고, 승인된 실증에 필요한 최소 auth/access 연결부만 추가한다.
+- 신규 임시 자원은 설치 엔진의 독립 stdio child1개와 사용자 직접 공식 로그인용 localhost callback이다. 현재 실증 소유, 실행1회의 수명이며 stdin EOF 정상 종료로 정리한다. Desktop/업무 thread를 재개/종료하지 않는다. 인증은 cli_auth_credentials_store=ephemeral과 인증 env 상속 배제, 기존 물리 CODEX_HOME 유지로 실행한다. 기존 credential 파일/keyring을 복사/조회하지 않는다.
+- 연결부는 initialize/account read/ChatGPT login1회/thread list1페이지/지정 시험 thread read1회만 허용한다. 모델/재개/쓰기/삭제/보관/logout RPC는 차단한다. 새 계정 로그인→목록→본문을 실제 판정하고, 이 단계만으로 P0/P1/계정 간 history 이전 성공을 선언하지 않는다. 실패 재시도/다른 계정 자동 전환 없음.
+- TDD 스킬로 env 비밀값 상속 차단·ephemeral 명령·업무 대상 접근 차단·model/mutation RPC 차단·단일 ChatGPT login·공식 HTTPS auth URL만 허용하는6개 테스트를 먼저 작성한다. 실제 기동은 이 검사 통과 후 수행하며 인증/URL/대화 원문을 receipt에 저장하지 않는다.
+
+### 후속 정정 — 클라우드 대상·원래 PC 로그아웃
+
+- 신산님은 PR-Test 설정이 지정한 다른 ChatGPT 계정의 클라우드 세션이며 해당 PC에서 로그아웃했다고 확인했다. 이메일 원문은 저장하지 않는다. 로그아웃을 클라우드 실행 종료/잠금 해제 증거로 보지 않는다. URL형태는 /local 및 codex://threads지만 실제 유형은 사용자 진술과 공식 클라우드 조회를 분리해 확인한다.
+- 로컬 App Server thread/list/read 결과를 클라우드 대상의 실패 판정으로 쓰지 않는다. 아직 App Server/로그인/모델은 기동하지 않았다. 로그인부 준비는 클라우드 공식 CLI wrapper로 전환한다. 이전 stdio 연결부 테스트 초안은 이 범위로 교체하며 구현 전 RED 상태만 관찰했다.
+- 새 자원: D:\tmp\ieon-cloud-p0-20261029-1720의 시험 전용 CODEX_HOME, 현재 실증 소유/1회 수명. official CLI 프로세스 간 클라우드 조회를 위해 새 공식 로그인 credential은 이 폴더의 file store만 사용하고 원래 credential은 복사/조회하지 않는다. 기존 Desktop CODEX_HOME/config/auth/계정은 변경하지 않는다. 새 프로필은 현재 사용자/SYSTEM에 한정하고 종료 시 신규 credential/arg0만 정리하며 계정 전체 logout/revoke는 하지 않는다.
+- 우선 해당 격리 프로필에서 cloud --help만 확인한다. 그 후 공식 login1회는 사용자 직접, cloud list/status는 각1회만 수행한다. 생성/exec/모델/로컬 resume/다른 작업 조작은 허용하지 않는다. 본문/실제 답변 API가 지원되지 않으면 NOT_RUN으로 구분한다. 임시 경로 생성 전 기존 경로 존재/실제 parent/reparse를 확인한다.
+
+### 클라우드 로그인 연결부 실제 준비 상태
+
+- cloud_account_probe.py와 모델 없는 안전 검사6개를 작성해 RED(모듈 없음)→GREEN6/6을 확인했다. 명령은 official login/cloud list/cloud status만 허용하며 exec/apply/로컬 resume/logout/daemon/proxy를 차단한다. 다른 task 원문·로그인 URL·credential은 출력/receipt에 남기지 않는다. 현재 공개 CLI의 cloud 명령에는 exec/status/list/apply/diff가 있고 history read/continue는 이 도움말에 없으므로 목록·상태 조회를 본문/이어쓰기 성공으로 확대하지 않는다.
+- 신규 프로필의 SYSTEM SID 문자열 변환 오류1회 및 Set-Acl SeSecurityPrivilege 오류1회가 있었다. 추가 권한 변경을 반복하지 않고 실제 DACL을 읽어 Protected=true/현재 사용자만 FullControl/다른 grant 없음/credential 없음을 확인했다. 현재 사용자 전용 보호로 진행하며 SYSTEM 추가를 필수조건으로 가정하지 않는다. 기존 Desktop 권한/인증은 변경하지 않았다.
+- 로그인 전 코드의 읽기 전용 안전 검토1회를 executing-plans 스킬 요구에 따라 요청했다. 실증 실행기·테스트만 검토하며 업무 대화/프로세스/인증 자료 접근은 금지했다. 새 credential은 CLI 프로세스가 발급/사용할 뿐 helper가 직접 읽지 않는다. 종료 시 새 auth.json부터 제거하고 승인 임시 경로의 reparse 확인 후 정리한다.
+
+- 최종 검토 Important1건(기존 파일이 있는 프로필의 초기화/정리 위험)을 수용했다. 기존 파일 보존 검사 RED→GREEN7/7로 보강하며 실제 빈 디렉터리일 때만 login/finally 정리에 진입하도록 제한한다. 같은 실행이 만든 help용 임시 cache만 경로/재분석 지점/원본 없는 상태 확인 후 네이티브 PowerShell로 정리해 신규 프로필을 비운다. 새 로그인 전이며 원래 Desktop/업무자료는 대상이 아니다. 추가 최종 재검토는 반복하지 않는다.
+
+### 2026-10-29 17:31 KST — 공식 새 로그인·실제 클라우드 조회 결과
+
+- 사용자 직접 시험 계정 로그인 완료 응답과 Signed in to Codex 화면을 받았다. 화면 주소의 인증값은 읽거나 복사/저장하지 않았다. 새 auth 파일 존재/로그인 child70200 종료/callback listener 없음만 metadata로 확인했다.
+- 최초 wrapper64684가 종료된 login의 출력 pipe EOF를 기다리는 I/O 문제가 있었다. 로그인 재시도 없이 자체 wrapper 경로·단일PID·자식0·login child 종료를 대조한 뒤 이 wrapper만 정지했다. Desktop/업무 프로세스는 중단하지 않았다. 브라우저가 상속한 출력 pipe 가능성은 추론이며 실제 관찰은 child 종료/부모 대기다.
+- 동일 신규 공식 인증으로 아직 수행되지 않았던 cloud list1회와 지정 ID status1회를 이어갔다. list exit0, 인식 schema의 항목0·targetFound=false. status exit1, NOT_FOUND 분류. raw task/오류/credential/URL은 보존하지 않았다. 목록 범위는 이 공식 CLI가 조회하는 Codex Cloud이며 다른 종류의 ChatGPT/동기화 대화 전체 부재로 확대하지 않는다.
+- 본문/답변 생성/실제 thread resume는 NOT_RUN, P0 통과/P1 시작 아님. model turn0, 로그인 시도1, 실패 요청 재시도0. 새 credential 먼저 삭제 후 승인 임시 경로만 검증·정리했고 temporaryProfileRemoved/newCredentialFileRemoved true다.
+- I/O 수정은 login stdout/stderr를 DEVNULL로 하고 child.wait를 사용하도록 변경했다. RED(PIPE 노출)→GREEN8/8을 확인했다. 수정된 login의 추가 실제 로그인을 하지 않았으므로 실제 재검증으로 표시하지 않는다. 테스트 Mock PID 누락1회는 fixture 수정으로 해결했고 의도한 RED를 다시 관찰했다.
+- .serena/ untracked가 새로 보이나 검토 agent는 생성하지 않았다고 확인했고 소유 근거가 없어 삭제/추적하지 않는다. 업무 세션·기존 인증/기타 dirty 자료 보존. 문서 patch context 오타 추가1회는 적용되지 않았으며 불필요 반복 없이 정본 문장 위치로 수정한다.
+
+### 2026-10-29 17:40 KST — 별도 관리 App Server 대안 검토·방향 결정 대기
+
+- 신산님 최신 지시는 실현 가능성/원래 요구 차이/인증·호스팅/사용 화면의 대안 제시까지이며 구현은 방향 결정 후다. 기존 실제 로그인/잠금/대화 조사나 P0/P1을 반복하지 않았다.
+- 단일 관리 App Server와 전용 저장소에서 관리 ID를 이어가는 구조는 공식 protocol 근거가 있지만 기존 다른PC Desktop/클라우드 ID를 자동 인수하거나 공식 Desktop 양방향 공유를 충족한 결과가 아니다. 원래 요구를 삭제/대체 승인하지 않았다.
+- 비교: A 개인PC/로컬웹·구독 자격 확인, B Oracle/API키·공통 웹·별도 비용, C 등록·허용된SIWC/원격·현재 자격 미확인. 상시 Oracle 목표를 우선할 때 B를 조건부 권장하며 지출/키/배포 승인은 아니다.
+- 공식 legacy App Server 구독 인증의 hosted/commercial 금지와 별도 SIWC 등록/이용 자격을 구분했다. 공식 open-source VM credential 전송 가이드가 private 이어온 호스팅 허가나 현재 credential 복사 허용을 뜻하지 않으므로 기본안에 넣지 않았다. 저장소 공개 전환도 제안/실행하지 않았다.
+- 사용할 화면은 기존 정적 시안을 기반으로 한 이어온 PC/모바일 웹이다. 공식 Desktop/ChatGPT 모바일 앱을 이어온 UI로 연결한 사실은 없다. 새 UI/실행기/서버를 만들거나 열지 않았다. 모바일/모델/권한 검증은 여전히 미실행이다.
+- 변경은 검토서·정본 참조/현황/환경 기록뿐이며 source/tests·credential·runtime·DB/port/인증/키·WSL/Oracle·공식 저장소 변경0. 신규 실행 오류0회. 문서 diff/상대 링크/이전 기록 보존을 검사하며 기존8개 테스트를 이번 문서 검토 때문에 반복하지 않는다.
+
+### 2026-10-29 방향 결정 — 엔진별 연결 방식 분리
+
+- 신산님 결정: Claude Code는 공식 Channels 방식(실행 중 세션에 메신저 메시지 push), Codex는 봇이 채널↔thread ID 매핑을 저장하고 질문마다 공식 SDK resumeThread로 재개하는 방식으로 구현한다.
+- Codex 방식은 Desktop이 해당 thread를 열고 있으면 잠금 충돌(실측 ERROR_LOCK_VIOLATION 33)이 나므로 busy로 거부·재시도 없음이 원칙이다. Desktop 반영(재열기 필요 여부)·턴 중 Desktop 입력 경합은 미검증이며 시험용 로컬 세션 P0/P1로 확인한다.
+- 클라우드 세션(01a186a9…) 경로는 공개 CLI에 이어쓰기 기능이 없어 주 경로에서 제외 후보다. Channels 문서·Codex SDK 문서 직접 대조와 DESIGN.md 반영은 아직 미실행이다.
+
+### 2026-10-29 설계 v0.2·작업계획·시안 개정
+
+- 신산님 지시로 DESIGN.md v0.2(엔진별 방식: Claude Code=Channels, Codex=thread 매핑·SDK 재개), WORK_PLAN.md(S1·X0·X1·C0·C1·S2 단계), 정적 시안(엔진 배지·세션 2개 목록·Codex Desktop 사용 중 문구·Claude 세션 미실행 안내·engine-badge CSS)을 개정했다. login 시안은 변경 없음. PNG 캡처는 v0.1 그대로이며 재촬영하지 않았다.
+- 대상 정의 명확화(신산님): 대상은 Codex·Claude Code의 작업 세션이며 ChatGPT·Claude 웹/앱 채팅방이 아니다.
+- 공식 문서 확인: Claude Channels(연구 미리보기·`--channels`·sender allowlist·Pro/Max는 조직 설정 없음), Codex SDK TS `resumeThread`/Python `thread_resume`, Python `ExternalMessage`(대기 thread는 새 turn·실행 중 turn 합류·비신뢰 입력·CLI 0.151.0+), `codex queue --thread --message`(`--remote` endpoint, 최종 답변 반환 미기재). 어울의 이전 "Codex는 pull만 가능" 설명은 오류로 정정했다. 공유 App Server+TUI `--remote` 경로는 설계 후속 후보로 기록했다.
+- 실행 0: plugin 설치·기동·로그인·모델·메시지 전송 없음. 옛 폴더 D:\Project\ieon-agent-bridge는 다른 작업자 사용 중으로 이후 변경하지 않는다(이 세션이 이동 전에 그 폴더 WORK_STATUS에 방향 결정 3줄을 추가한 이력 있음).
+
+### 2026-10-29 S1 모델 없는 공통 안전·내구성 검증
+
+- 신산님 지시로 설계 v0.2·작업계획 순서대로 착수. 목적 branch `feat/s1-safety-core`(docs/existing-codex-design 기반)에서 진행했다.
+- 신규: `src/pilot/contracts.mjs`·`guard.mjs`·`store.mjs`·`fake-adapters.mjs`, `tests/pilot/{helpers,ownership,idempotency,busy,recovery,retention}.test.mjs`·`crash-worker.mjs`.
+- RED(모듈 없음) → GREEN. `node --test` 27/27, `node --check` 통과. 소유권 404·payload의 user/thread/경로 무시, 멱등 409, 별칭 등록 잠금 공유, Codex Desktop 점유 409 재시도0, Claude 세션 미실행 503·권한 대기 approval_required, 실제 별도 프로세스 강제 종료 3지점 후 unknown·재전송0, ack 손실 unknown, 삭제 후 늦은 답변 재생성 금지·원래 세션 삭제 호출0.
+- 오류 1회: 테스트 helper가 이미 닫힌 DB를 다시 닫아 실패 → `close()`를 중복 호출에 안전하게 수정. 그 실패 실행이 남긴 임시 DB 디렉터리 3개(`%TEMP%\ieon-s1-*`)를 정리했다.
+- 모델·로그인·plugin 설치·실제 세션 접근 0. 다음은 X0(신산님이 Codex 시험용 로컬 대화 ID 전달) 또는 C0(Bun·fakechat 설치·`--channels` 기동 승인)이다.
+
+### 2026-10-29 X0 준비 — 버전 확인과 잠금 검사 도구
+
+- 버전(읽기 전용): npm Codex CLI 0.161.0, Desktop 동봉 엔진 0.165.0-alpha.1.2(이전 조사), `@openai/codex-sdk` 최신 0.165.0(Node>=18). Desktop이 만든 thread를 이전 CLI로 재개할 때 호환 위험이 있어 X1은 SDK 0.165.0 또는 Desktop 동봉 엔진 사용을 우선 검토한다. SDK 설치는 아직 하지 않았다.
+- `src/pilot/lock-probe.ps1` 추가: `%USERPROFILE%\.codex\thread-writer-locks\<id>.lock`을 GENERIC_READ로 열고 비차단 공유 LockFileEx 1회 후 닫는다. 생성·삭제·쓰기 없음, UUID 형식 검사, 업무 대화 ID 거부. 임시 파일 자기시험에서 잠금 중 WRITER_LOCK_CONFLICT(33), 해제 후 NO_WRITER_LOCK, 파일 없음 NO_LOCK_FILE, 업무 ID EXCLUDED_THREAD를 확인했다. 첫 실행은 access 상수의 UInt32 변환 오류로 실패해 수정했다.
+- 실제 시험 thread 검사·재개·모델 0. 신산님의 시험용 로컬 대화 ID를 기다린다.
+- X0.2(2026-10-29 21:09 KST): 신산님이 처음 준 링크는 제외된 업무 대화 ID여서 검사하지 않았다. 새 시험 대화 `01a18790-63c7-73e3-a60b-6ddb60fd5be8`을 Desktop이 연 상태에서 잠금 검사 1회 → WRITER_LOCK_CONFLICT(33), handle 닫힘, 재개·모델 0. Desktop 점유 시 외부 재개가 막힌다는 근거다. 증거: docs/validation/x0-lock-open-20261029.json. 다음은 신산님이 Desktop에서 대화를 닫은 뒤 X0.3 검사 1회.
+- X0.3(2026-10-29 21:11 KST): 신산님이 Desktop에서 시험 대화를 닫음(캡처상 최근 목록의 비활성 항목 "시험 표식 확인"). 잠금 검사 1회 → 여전히 WRITER_LOCK_CONFLICT(33), 재개·모델 0. 대화 화면을 닫는 것만으로는 Desktop App Server가 writer 잠금을 반납하지 않는다. 같은 캡처에 다른 대화가 진행 중 표시라 앱 종료를 요청하지 않았다. 강제 해제·재시도 없음. 증거: docs/validation/x0-lock-closed-20261029.json.
+- X0.3 대기(2026-10-29 21:22 KST): 대화를 닫고 약 11분 뒤 잠금 검사 1회 → 여전히 WRITER_LOCK_CONFLICT(33), 재개·모델 0. 최소 10분 범위에서는 Desktop의 자동 반납이 관찰되지 않았다. 남은 반납 경로는 신산님의 앱 직접 종료다. 증거: docs/validation/x0-lock-wait10m-20261029.json.
+- X0.3 앱 종료(2026-10-30 13:39 KST): 신산님이 Codex 앱을 직접 종료한 뒤 검사 → NO_LOCK_FILE(잠금 파일 자체가 정리됨), 남은 codex/ChatGPT 프로세스 없음. 앱 정상 종료 시 writer 잠금이 반납된다는 근거다. 대화 닫기·10분 대기로는 반납되지 않았다. 재개·모델 0. 증거: docs/validation/x0-lock-appquit-20261030.json. 판정: X0 잠금 반납 조건 확인(PASS 아님 — 실제 재개는 X1에서 확인).
+- 참고: 세션 재시작 시 다시 읽힌 AGENTS.md는 17:40 KST "관리 App Server 검토만" 단계의 내용이다. 이후 신산님의 채팅 직접 지시(v0.2 결정·작업계획 진행·X0 진행)가 더 최신이어서 그 범위로 진행했고, AGENTS.md 갱신은 하지 않았다.
+
+### 2026-10-30 X1 I1 — 이어온에서 시험 thread 재개 성공
+
+- 신산님 승인으로 `@openai/codex-sdk` 0.165.0(동봉 codex 0.165.0)을 정확한 버전으로 설치하고 최소 `package.json`을 만들었다. `node_modules/`는 .gitignore에 추가했다.
+- `src/pilot/codex-resume-once.mjs`: 허용 thread만, 업무 ID 거부, lock-probe 사전 확인, ThreadOptions 미전달(원래 설정 보존), 도구/파일/MCP/웹 항목 시작 시 중단, 재시도 없음, 답변 원문은 receipt에 저장하지 않음.
+- 실행(13:42 KST, Codex 앱 종료 상태): 사전 검사 NO_LOCK_FILE → `resumeThread` 1회·모델 turn 1회 → COMPLETED. 반환 thread ID가 원래 ID와 같음, 앞서 Desktop에서 남긴 표식 A를 맞힘, 새 표식 B 전달. 항목은 error·reasoning·agent_message, 도구 실행 없음. 실행 후 잠금 파일 없음·codex 프로세스 없음. 증거: docs/validation/x1-i1-resume-20261030.json.
+- 확인 필요: ① 항목 중 `error` 1건의 내용은 기록하지 않아 원인 미상(turn은 정상 완료). ② input_tokens 185,518(cached 113,408)로 단순 시험 대화치고 크다. 작업 폴더 지침·도구 정의 등이 포함된 것으로 추정하며 미확인. ③ ThreadOptions를 넘기지 않았지만 재개 시 작업 디렉터리가 이 저장소로 바뀌었는지는 미확인.
+- 사용자 turn 사용: D1(Desktop) 1, I1(이어온) 1 → 남은 승인 1(D2). 다음은 신산님이 Codex 앱을 다시 열어 시험 대화에 I1 내용이 보이는지 확인하고 표식 B를 묻는 D2.
+- X1 반영 확인(2026-10-30, 신산님 캡처): Codex 앱을 다시 연 뒤 시험 대화에 D1(어제 21:09 "시험 표식은 사과야")에 이어 I1(오늘 13:42 이어온 질문·답변 "사과")이 같은 대화로 표시됐다. 이어온 turn이 Desktop의 같은 thread에 반영됨을 확인(앱 재실행 후 표시). D2(표식 B "바나나" 질문)는 아직 미실행.
+- X1 D2(2026-10-30, 신산님 캡처): Desktop 같은 대화에서 "새 시험 표식이 뭐였지?" → "바나나". 승인 3 turn 모두 사용. **X1 조건부 PASS**: 같은 thread·양방향 맥락 확인, 단 이어온 재개는 앱 종료 필요·Desktop 반영은 재실행 후 확인. 결과서 docs/validation/FIRST_CONTINUITY_RESULT.md 작성, WORK_PLAN X0/X1·DESIGN 3·4절 반영. 실시간 갱신·턴 중 Desktop 입력 차단·원래 설정 보존·error 항목·큰 input_tokens는 미확인. 다음 방향(앱 종료 교대 수용 / 공유 App Server+TUI / C0 진행)은 신산님 결정 대기.
+
+### 2026-10-30 Codex 연결 모드 이원화 결정
+
+- 신산님 결정: 공유 App Server 방식과 방식 2 중 하나를 고르지 않고 **둘 다 구현해 Codex 세션별 설정에서 선택**한다. `alternate`(방식 2, 기본값) = Desktop과 이어온 중 한쪽만 쓰거나 이어온 전용 계정·thread로 운영할 때. `shared_server`(공유 App Server + 공식 TUI + 이어온 `ExternalMessage`) = 사람과 이어온이 같은 세션을 앱 종료 없이 동시에 써야 할 때.
+- 반영: DESIGN 3절 "Codex 연결 모드" 표·전환 조건·추가 설정·규칙, 2절 후속 범위 정정, 6절 대화 필드(connect_mode·busy 정책·endpoint 참조), 10절 X2 단계, 12절 UI-07(설정 화면, 시안 미작성). WORK_PLAN에 X2 단계 추가.
+- `shared_server`는 미실증이다. 엔진 기동·포트 개방(loopback)·Python SDK 설치·모델 turn 3회는 모두 별도 승인 전 NOT_RUN. 코드·시안 변경 없음.
+
+### 2026-10-30 X2.0 공유 App Server 문서·계약 확인
+
+- SDK 동봉 codex-cli 0.165.0의 `--help`와 `app-server generate-json-schema --experimental`(scratchpad 출력)로 확인. 서버 기동·포트·로그인·thread 접근·모델 0회.
+- 결과: `app-server --listen`은 [experimental], 값은 stdio/unix/ws/off(서버 측 wss 없음). WS 인증 `--ws-auth capability-token|signed-bearer-token`. TUI·queue는 `--remote`·`--remote-auth-token-env`. 프로토콜에 `turn/start`·`turn/steer`·`thread/queue/*`·`thread/inject_items`가 있고 `ExternalMessage`는 프로토콜 메서드가 아님(Python SDK 계층, 미확인).
+- 설계 영향: Node 연결부가 `turn/start`를 직접 쓰면 Python SDK 설치가 필요 없을 수 있음. 실행 중 thread에 `turn/start`가 steer로 합류할 수 있어 `reject_busy`는 연결부 사전 상태 확인이 필요. 인증 없는 기동 금지, `enable-remote-control`·`--approve-for-me`·dangerously 옵션 사용 금지.
+- 결과서: docs/validation/X2_0_SHARED_SERVER_DOC_CHECK.md. X2.0 완료(문서 확인), X2.1 이후 NOT_RUN.
+
+### 2026-10-30 X2.1 사전 확인 — 중단
+
+- 신산님 X2.1 승인 후 사전 확인(15:49 KST): Codex/ChatGPT 앱 프로세스 실행 중, 시험 thread 01a18790… lock-probe 1회 → WRITER_LOCK_CONFLICT(33). Desktop이 시험 thread를 쥐고 있음.
+- 승인 범위 조건(Codex 앱 종료 상태)을 충족하지 않아 공유 엔진 기동·토큰 생성·TUI 연결 0회로 중단. 앱 강제 종료·잠금 해제 없음. 신산님의 앱 직접 종료를 기다린다.
+- X2.1 진행(16:25 KST): 신산님 앱 종료 후 확인 → codex/ChatGPT 프로세스 없음, 시험 thread lock-probe NO_WRITER_LOCK, 포트 18761 비어 있음. 토큰을 저장소 밖 `%LOCALAPPDATA%\ieon-gateway\x2\token`에 생성(원문 미출력·미기록), sha256만 서버에 전달.
+- 공유 엔진 기동: SDK 동봉 codex 0.165.0 `app-server --listen ws://127.0.0.1:18761 --ws-auth capability-token --ws-token-sha256 …` → 127.0.0.1:18761만 listen 확인. 로그에 config 미인식 설정 1건(`computer_use.windows.always_allowed_app_ids`) 경고, 동작 영향 미확인. 모델 0회. 다음: 신산님 TUI `--remote` 연결.
+- X2.1 오류: 신산님 터미널에서 `%LOCALAPPDATA%\ieon-gateway\x2\token`이 보이지 않음(어울 쪽 도구에서는 존재). 어울 도구의 저장소 밖 쓰기가 격리 보관된 것으로 추정, 미확인. 토큰을 저장소 안 `.local/x2/token`(.gitignore 추가, git 무시 확인)으로 옮겨 안내.
+- X2.1 TUI 연결: 공유 엔진 접속 후 "Hooks need review (1 hook new or changed)" 화면 표시. 신뢰 설정 변경을 피하려고 "Continue without trusting" 선택을 안내(hook 미실행). hook 내용·출처 미확인.
+- X2.1 TUI(16:30 KST, 신산님 캡처): 3번(hook 미신뢰)으로 진행 후 시험 대화가 TUI에 열림. D1 "사과"·I1(13:42)·D2 "바나나" 이력이 모두 표시. 하단 표시 작업 폴더 `~\Documents\Codex`·대화 제목 "시험 표식 확인"(X1 확인 필요 ③ 관련: 원래 작업 폴더가 유지된 것으로 보임, 근거는 화면 표시뿐). TUI 경고 1건 미확인. 질문 0회.
+- X2.1 이어온 상태 조회: `src/pilot/shared-server-status.mjs`(허용 메서드 initialize·thread/loaded/list만, 토큰 비출력)로 같은 엔진에 Bearer 인증 접속 성공 → loaded thread 1개, 시험 thread 포함. 이어서 lock-probe 1회 → WRITER_LOCK_CONFLICT(공유 엔진이 writer로 쥠, 예상대로). 모델 0회. 증거: docs/validation/x2-1-status-20261030.json, x2-1-lock-shared-20261030.json.
+- **X2.1 PASS(모델 0 범위)**: 공유 엔진 하나에 TUI와 이어온이 동시에 붙고 같은 thread가 로드됨. 외부 turn 왕복·TUI 실시간 표시는 X2.2(모델 3회, 미승인).
+- X2.2 승인(신산님). 순서: T1(TUI, 표식 C "체리") → I1(이어온 `turn/start`, idle 확인 후 1회, C 질문·표식 D "포도") → T2(TUI, D 질문). 실행기 src/pilot/shared-server-turn-once.mjs 작성(허용 메서드 initialize·thread/read·thread/resume·turn/start·turn/interrupt, override 없음, 비idle이면 미전송, 도구 항목 시 interrupt, 재시도 없음, 답변 비저장). T1 대기.
+- X2.2 T1(16:54 KST, 신산님 TUI): "시험 표식 C는 체리야" → 확인 답변. 모델 turn 1.
+- X2.2 I1(16:54 KST, 이어온): thread/read 상태 idle 확인 → thread/resume(override 없음) → turn/start 1회 → COMPLETED, 표식 C 정답, 항목 userMessage·agentMessage만(도구 없음), 재시도 0. usage는 turn/completed에 없어 null. 증거: docs/validation/x2-2-i1-turn-20261030.json. 모델 turn 2.
+- **TUI 실시간 표시 확인(신산님 캡처):** I1 진행 중 TUI에 이어온 질문과 "Working (6s)"가 바로 표시됨. 앱 종료·재실행 없이 같은 화면에 반영. 남은 승인 1(T2).
+- X2.2 I1 답변 표시(신산님 캡처): TUI에 이어온 질문 아래 답변 "체리"(Worked for 14s, 4:54 PM)가 같은 화면에 표시됨. 질문·진행·답변 모두 실시간 반영 확인. T2는 아직 미실행.
+- X2.2 T2(16:55 KST, 신산님 TUI): "새 시험 표식 D가 뭐였지?" → "포도". 이어온 turn의 맥락이 TUI에서 이어짐. 승인 3 turn 모두 사용.
+- **X2.2 PASS**: 공유 엔진 하나에서 TUI→이어온→TUI 왕복, 같은 thread, 앱 종료·재실행 없이 실시간 표시. 미확인: 이어온 turn 중 TUI 입력 시 동작(TUI Tip상 tab=대기열), 사용 중 거부 실제 경합, usage 수집, TUI 경고 1건·hook 1건 내용. 다음 X2.3: TUI 종료 → 공유 엔진 종료 → 잠금 반납 확인.
+- X2.3(16:59 KST): 신산님 TUI 종료 알림 후 어울이 공유 엔진 백그라운드 작업 종료. 서버 PID 44864 소멸, readyz 무응답, 18761 listen 목록에는 소유 PID 44864 항목이 잔존(소멸 프로세스의 잔여 표시로 추정, 미확인). 시험 thread lock-probe → NO_WRITER_LOCK(잠금 반납 확인). 증거: docs/validation/x2-3-lock-stopped-20261030.json.
+- 잔존 프로세스: TUI 클라이언트 codex PID 37944(`resume … --remote`, 신산님 터미널 소유, 서버 종료로 연결 끊긴 상태로 추정)와 codex-windows-sandbox-setup PID 2872(Codex sandbox 권한 갱신용, read-acls-only·refresh_only). 어울은 둘 다 종료하지 않음.
+- **X2 결과: 동시 사용 모드(shared_server) 기본 왕복 PASS.** 미확인 항목은 X2.2 기록 참조.
+
+### 2026-10-30 C0 시작 — 사전 확인
+
+- C0.1: Bun 1.4.4 설치됨(WinGet). Claude Code 2.1.312. 공식 marketplace `claude-plugins-official` 등록됨, fakechat 미설치. `claude --help`에 `--channels` 표시 없음(연구 미리보기 숨김 옵션으로 추정, 미확인).
+- 설치·기동 전 신산님 승인 대기. 변경 0.
+- C0 승인(신산님). C0.2 설치: 시험 폴더 `.local/c0`(git 무시)에서 `claude plugin install fakechat@claude-plugins-official --scope local` → 성공. 다른 범위 설정 변경 없음. 기동은 신산님 터미널에서 진행.
+- fakechat 소스 확인: 웹 화면 127.0.0.1:8787(FAKECHAT_PORT로 변경 가능), MCP stdio 채널, 도구 reply·edit_message, 업로드는 ~/.claude/channels/fakechat/inbox/. 별도 sender allowlist 없음(loopback 접속자 모두 전송 가능) → 시험 중 이 PC 단독 사용 전제. C0.3 기동 대기.
+- C0.3 진행: 신산님 캡처상 fakechat 웹 화면(localhost:8787)이 열림(빈 대화). 채널 서버 기동은 확인, 질문 전송 전.
+- C0.3 결과(17:14 KST, 신산님 캡처): fakechat 웹에서 질문 1회 전송 → 시험 세션 터미널에 `← fakechat · web: 시험 표식은 레몬이야…` 수신 줄 표시(**채널→실행 중 세션 전달 확인**). 그러나 바로 `Login expired · Please run /login`, 하단 `Not logged in`으로 답변 생성 실패, 웹 화면 답장 없음. 판정: 전달 PASS / 왕복 FAIL(로그인 만료) — 모델 응답 미생성.
+- 주의 관찰: 세션 머리에 `Opus 5.5 · API Usage Billing` 표시, 하단 `auto mode on`. 구독이 아닌 API 사용량 과금 경로일 가능성 → 유료 API 자동 전환 금지 원칙상 재로그인 방식(구독 계정 vs Console API)을 신산님이 확인 후 진행. auto mode는 권한 자동 처리 위험이 있어 시험 세션에서 끄는 것을 권고. 재시도 없음.
+- C0 로그인 시도(신산님): 시험 세션 `/login` → 브라우저 claude.ai OAuth 화면에 "Claude Code에 연결하려면 Claude Max 또는 Pro가 필요합니다(또는 API 키)" 표시. 현재 브라우저에 로그인된 claude.ai 계정에 구독이 없음. 업그레이드·API 키 전환은 하지 않음(유료 자동 전환 금지). C0.3 왕복은 BLOCKED(계정 구독 없음). 구독 계정 로그인 여부는 신산님 결정.
+- C0.3 재시도(17:23~17:24 KST, 신산님 캡처): 구독 계정 로그인 성공(세션 표시 `Opus 5.5 · Claude Pro`). 로그인 직후 세션이 **만료 전에 받아 둔 첫 메시지를 자동으로 처리**(5:23 답변, 1m45s)하고, 다시 보낸 두 번째 메시지도 처리(5:24 "같은 메시지가 한 번 더 들어왔고"). 모델 turn 2회 소모(승인 1회 초과 — 대기 메시지 자동 처리는 예상하지 못함).
+- 답변은 터미널에만 표시되고 **fakechat 웹에는 답장이 오지 않음**. 원인 추정: 시험 질문에 "도구나 명령은 쓰지 말고"를 넣어 채널 `reply` 도구 호출까지 막음(어울의 질문 설계 오류). 답변이 "신산님"을 호칭해 상위 저장소 지침이 시험 세션에 로드된 것으로 보임. auto mode on 유지.
+- 판정: C0.3 전달 PASS / 웹 회신 FAIL(질문 설계 오류). 재시도 없음. 추가 turn은 새 승인 필요.
+- C0.3 3번째 메시지(17:25 KST, 신산님 1회 더 진행): 세션이 `plugin:fakechat:fakechat – Reply` 도구 호출 시도(text "신산님, 시험 표식 레몬 확인했습니다.", reply_to 지정) → 권한 확인 화면 표시. 질문 문구 수정으로 reply 도구 사용 확인. 신산님 1번(Yes, 이번만) 승인 안내.
+- **C0.3 PASS(17:26 KST, 신산님 캡처)**: 신산님 reply 1회 승인 → fakechat 웹에 `bot ↳ … : 신산님, 시험 표식 레몬 확인했습니다.`(세 번째 메시지 인용 답장) 표시. 실행 중 Claude Code 세션 ↔ 외부 채널 왕복 확인. 세션은 reply 도구가 지연 로딩이라 ToolSearch 1회 사용, 그 외 도구 없음. 이후 하단 `manual mode on`(auto mode 해제 확인).
+- C0 모델 turn 총 3회(로그인 후 대기 메시지 자동 처리 1 포함). 교훈: ① 채널 답장은 reply 도구 호출이 필수 — "도구 금지" 지시는 회신을 막음, 이어온 채널 지침에 반영 필요. ② 세션 단절 중 도착한 메시지는 재연결 후 자동 처리됨 → 중복 실행 위험, 이어온 측 idempotency·unknown 정책과 함께 설계 필요. ③ 저장소 하위 시험 폴더는 상위 지침이 로드됨.
+- 다음 C0.4: 신산님이 세션 종료 → fakechat 화면에서 전송 시도 → 도달 불가 확인(모델 0).
+- **C0.4 PASS(17:27 KST, 신산님 캡처+어울 확인)**: `/exit`로 시험 세션 종료(재개 ID 표시) 후 fakechat 화면에서 "세션 종료 확인" 전송 → 화면에는 보낸 줄만 표시(이미 열린 페이지의 자체 표시), 답 없음, 터미널 수신 없음. 어울 확인: 8787 listen 0, HTTP 무응답 → 채널 서버가 세션과 함께 종료되어 도달 불가. 웹 화면은 전송 실패를 알리지 않음(이어온 채널은 전달 확인 없으면 device_unavailable/unknown 처리 필요). 모델 0.
+- **C0 결과: Claude Channels 왕복 PASS(조건부)** — 실행 중 세션에만 전달, reply 도구 승인 필요, 단절 중 메시지 자동 처리·회신 지침 주의.
+
+### 2026-10-30 C1 — 이어온 전용 채널
+
+- 신산님 선택: C1 경로 = 이어온 전용 채널(개발 플래그 `--dangerously-load-development-channels` 사용 승인 포함으로 진행).
+- 작성: `src/pilot/ieon-channel.mjs`(의존성 없는 MCP stdio 채널, capability `claude/channel`, reply 도구 1개, 127.0.0.1:18762 Bearer 토큰 HTTP `POST /v1/messages`·`GET /v1/replies`, request_id 중복 409, reply_to 불일치 거부, 원문 비기록), `src/pilot/ieon-channel-send.mjs`(질문 1회·reply 대기 180초·재전송 없음), `tests/pilot/ieon-channel.test.mjs`(모델 0 단독 검사). 전체 테스트 28/28 통과.
+- 시험 폴더 `.local/c1`(git 무시): 토큰 파일, `.mcp.json`에 `ieon` 서버 등록. 18762 비어 있음. 다음: 신산님 세션 기동.
+- C1 세션 기동(17:34 KST, 신산님 캡처): Claude Code 2.1.314·Claude Pro·manual mode, 채널 서버 18762 listen 확인. 신산님이 시험 문장을 터미널에 직접 입력(모델 turn 1) → 세션이 "채널 message_id가 없어 reply로 보내지 않음, ID를 지어내면 엉뚱한 답장 위험"이라며 reply 미사용(채널 지침 인지·오답장 방지 동작 확인, 사용 도구는 reply 사용법 조회 1회). 이어서 이어온 측 전송 1회 진행.
+- **C1 PASS(17:35 KST)**: 이어온 측 `ieon-channel-send` 1회 → 202 전달 → 세션 터미널 `← ieon · ieon:` 수신 → 세션이 reply_to=request_id로 reply 호출 → 신산님 1회 승인 → 이어온 측 REPLIED(대기 62초, 재전송 0, 답 일치). 증거: docs/validation/c1-send-20261030.json. 같은 세션 맥락은 이전 터미널 turn의 "멜론"과 같은 세션에서 처리됨으로 확인. 모델 turn 총 2(터미널 직접 1 + 이어온 1).
+- 미확인: allowlist 밖 발신자 차단은 토큰 401로 대역 검사만 수행(실세션 미시행), 세션 종료 후 전송(C0.4와 같은 구조로 device_unavailable 예상), 권한 승인 없이 회신하는 운영 방식(reply 상시 허용 여부)은 신산님 결정.
+- C1 후속 관찰(신산님 캡처): 세션 표시 "Calling ieon 2 times" — 같은 reply_to로 두 번째 reply 호출이 권한 확인 대기. 첫 reply는 이미 이어온에 도착(REPLIED). 중복 답장 방지를 위해 3번(No) 선택 안내. 설계 반영 필요: 채널은 request_id당 reply 1회만 수락(이후 거부)하거나 최종 답 확정 규칙을 둔다. 현재 ieon-channel.mjs는 복수 reply를 모두 저장함.
+- C1 종료(신산님): 두 번째 reply는 No로 거부 후 세션 종료. 18762 listen 0 확인(채널 서버 함께 종료). 수정: ieon-channel.mjs가 request_id당 첫 reply만 저장하고 이후 reply는 거부(isError)하도록 변경, 단독 검사에 중복 reply 거부 추가. 테스트 28/28 통과.
+
+### 2026-10-30 S2 — 최소 실증 경로 구현(실행 꺼짐)
+
+- 작성: `src/pilot/server.mjs`(127.0.0.1:18760, 사용자·연결부 토큰 sha256 검증, 대화 목록·접수·상태·보관/삭제 API, PC 미연결 시 503 device_unavailable), `src/pilot/connector.mjs`(PC→서버 polling, 실행 전 receipt fsync, 본 요청 재실행 금지, EngineError→failed·그 외→unknown), `src/pilot/adapters/codex-thread.mjs`(alternate=잠금 확인+SDK resumeThread, shared_server=idle 확인 후 turn/start, live 기본 꺼짐·allowlist·업무 ID 거부·도구 항목 시 approval_required), `src/pilot/adapters/claude-channel.mjs`(이어온 채널 전달·reply 대기, 미기동=session_not_running, 전달 후 무응답=unknown), `src/pilot/web/index.html`(엔진 배지·엔진별 busy/미실행 문구·unknown 재전송 버튼 없음). store에 claim/report/conversations 추가.
+- 검사: `tests/pilot/s2-path.test.mjs` 6건 추가, 전체 34/34 통과(모델 0).
+- 실측(18:0x KST): `.local/s2`(git 무시)에 토큰·설정 생성 후 서버·연결부를 live=false로 기동 → 웹 페이지 200, 무토큰 401, 대화 2개(Codex·Claude, PC 연결됨) 조회, 질문 접수 202 → 연결부 처리 → failed `live_disabled`(모델 0). 브라우저 화면 렌더링 확인(접속 토큰 입력 화면).
+- 미실행: live 실행(실제 Codex/Claude 왕복), 화면에서 실제 질문, 모바일 확인. 사용자 토큰 원문은 어울이 읽지 않음(분류기 거부) → 웹 접속 토큰 입력은 신산님이 `.local/s2/user-token` 값으로 직접.
+- S2 live 승인(신산님): Codex·Claude 각 1회. 사전 확인 — Codex 앱 실행 중이나 시험 thread는 NO_LOCK_FILE(열려 있지 않음), 채널 18762 미기동. 연결부를 live=true로 재기동.
+- **S2 live 왕복 PASS(18:2x KST, 신산님 캡처+DB 확인)**: 웹 화면(127.0.0.1:18760) → 이어온 서버 → 연결부 → 엔진 → 화면.
+  - Codex(alternate, 시험 thread): "마지막 시험 표식?" → "포도"(X2 맥락 이어짐). 요청 completed·receipt 있음, 실행 후 잠금 없음(NO_LOCK_FILE). Codex 앱은 켜져 있었으나 해당 대화를 열지 않아 충돌 없음 — 앱 종료 없이도 대상 대화만 안 열면 번갈아 쓰기 가능.
+  - Claude(이어온 채널): "수박" → "수박 받았습니다." 요청 completed. 세션은 reply 지연 로딩 ToolSearch 1회 외 도구 없음. 이번에는 reply 권한 확인 화면 없이 호출됨(이유 미확인 — 이전 승인 기억 여부 확인 필요).
+  - 모델 turn: Codex 1, Claude 1. 재전송 0, 잠금 잔여 0.
+- 화면 관찰: Codex 캡처에서 답 "포도"가 보이는데 상태 줄이 "접수됨"으로 남음. 대기 중 세션을 다시 고르면 서버 보관 답을 먼저 그리고 상태 줄은 다음 2초 조회에서 바뀌는 일시 표시로 추정(미확인). 상태 줄을 요청 상태와 함께 갱신하도록 개선 후보.
+- S2 종료(신산님 지시): 연결부·서버 종료, 연결부 설정 live=false로 되돌림. Claude 시험 세션은 신산님이 종료.
+
+### 2026-10-30 X2.4·계획 마무리 정리
+
+- X2.4 구현: store `connect_mode`(기본 alternate, 기존 DB 자동 열 추가 — 실제 `.local/s2/pilot.db` 사본으로 확인), `setConnectMode`(Codex만·처리 중 409), 서버 `PUT /v1/conversations/{id}/settings`, 연결부가 작업의 connectMode를 어댑터에 전달(서버 설정 우선), shared_server 설정 누락 시 `shared_server_not_configured`, 웹 Codex 설정 영역(UI-07). 테스트 36/36. 모델 0. 실제 화면 조작은 미확인(웹 토큰 입력은 신산님 직접).
+- 문서: WORK_PLAN X2.4 완료·"현재 산출물" 문단을 단계별 판정표로 갱신(이전 "C0·C1·S2 NOT_RUN" 오기 정정), 결과서 0절 종합 판정·9절 S2 추가, DESIGN UI-07 구현 반영.
+
+### 2026-10-30 AGENTS.md 갱신
+
+- 신산님 지시로 branch `docs/agents-refresh`(origin/main 기준)에서 AGENTS.md를 현재 상태로 재작성: 목표·첫 실증 완료·다음 범위 확정 대기, 확정 연결 방식(Claude 채널, Codex alternate/shared_server), 안전 규칙(업무 대화 제외·승인 경계·토큰·재전송 금지·auto mode 금지), 기록·Git 절차. 10-29 검토 한정·P0 대기 문단은 이력으로 축약(근거 문서 보존).
+
+### 2026-10-30 .github PR Broker 추가
+
+- 신산님 지시로 `.github/pr-broker-gate.sh`·`.github/workflows/auto-pr-merge.yml`을 branch `chore/pr-broker-workflow`(origin/main 기준)에 커밋(a1d8453)·push. 워크플로는 `codex/pr-broker-bootstrap` push 또는 `pr-request/<sha>/<codex/*>` 태그 push 시 PR 생성·자동 squash 병합. gate의 canonical remote `cyhuh428-sinsan/ieon-gateway`는 의도된 값(신산님 확인: 아직 사용하지 않는 저장소). 스크립트는 CI 실행기 안에서 원격 설정과 로컬 ref만 만들고 fetch·push하지 않으므로 그 저장소에 접속하지 않는다. 어울의 "주소 불일치로 실패 가능" 지적은 오판이었다.
+- 지시 착오로 같은 이름 branch를 eoul-agent에도 push함(커밋 9ce700c, `.github` 2파일만, Codex 작업 브랜치·미커밋 변경 미접촉). 신산님 지시로 원격·로컬 branch 삭제 완료(eoul-agent 원래 폴더의 미추적 `.github`는 그대로).
+
+### 2026-10-30 미확인 항목 검증 1차(모델 0, 읽기 전용)
+
+- 신산님 선택: 다음 범위 = 미확인 항목 검증. 1차는 시험 thread rollout(`~/.codex/sessions/2026/10/29/rollout-…-01a18790….jsonl`)의 메타·turn_context·token_count만 조회(본문 미출력). 업무 대화 미접촉.
+- **[FAIL→수정] 원래 thread 설정 보존:** SDK `resumeThread`를 ThreadOptions 없이 쓴 turn 2개(X1 I1 04:42, S2 live 09:24)가 `cwd=D:\Project\ieon-gateway`, `approval_policy=never`, `sandbox=danger-full-access`로 실행됨. 원인: SDK(codex exec)가 사용자 `config.toml`의 `sandbox_mode = "danger-full-access"`를 따름. Desktop turn(원래 cwd `C:\Users\cyhuh\Documents\Codex…`, on-request, workspace-write)과 TUI·공유 서버 turn(on-request, workspace-write)은 정상. 다음 Desktop turn은 자기 설정으로 돌아와 영구 변경은 아님. 도구 항목 시작 시 중단 장치는 있었으나 실행 후 감지라 보호 구역 대체가 아님. 실제 도구 실행은 없었음.
+  - 수정: `adapters/codex-thread.mjs` alternate 재개에 `sandboxMode=read-only`, `approvalPolicy=never`, `networkAccessEnabled=false`, `webSearchMode=disabled`, 대화별 `workingDirectories` 지정. 테스트 37/37. 실제 재개로 rollout에 반영되는지는 다음 live 1회로 확인 필요. `codex-resume-once.mjs`(X1 일회성 도구)는 이력으로 두고 사용하지 않음.
+- **[해소] 큰 input_tokens:** SDK `turn.completed.usage`가 turn 값이 아니라 thread 누적(total_token_usage)이었음. X1 I1 실제 turn은 input 62,682(cached 24,192)·output 43. 결과서의 185,518은 누적값.
+- **[추정] X1 `error` 항목:** rollout에 error 이벤트가 없음. SDK 스트림의 error 항목은 rollout 밖의 비치명 경고로 추정(예: config 미인식 설정 경고). 원인 확정 못함.
+- **[미해소] C1 reply 권한 확인 생략:** `.local/c1/.claude/settings.local.json`(MCP 서버 허용만), 사용자 `~/.claude/settings.json`(allow 0개)에 reply 허용 규칙 없음. 생략 원인 미확인. 다음 C1 실행 때 첫 reply에서 확인 화면·모드 표시를 함께 관찰.
+- 수정 확인 live 1회(신산님 승인, 19:3x KST): 사전 잠금 NO_LOCK_FILE → 수정된 어댑터로 alternate 재개 1회 → **실패: `Codex Exec exited with code 1: 지정된 파일을 찾을 수 없습니다. (os error 2)`**. rollout에 새 turn 없음(136줄 그대로) → 모델 turn 0, 재시도 0. 작업 폴더 `C:\Users\cyhuh\Documents\Codex`는 존재. `codex sandbox`(모델 없음)로 read-only 실행은 됨. 원인 미확인 — 새로 넘긴 옵션(`--sandbox read-only`·`--cd`·`--skip-git-repo-check`·`web_search`·`network_access`) 중 하나가 exec resume 경로에서 실패하는 것으로 추정. Codex 로그 검색은 다른 thread 기록이 섞여 중단. 승인 1회는 모델 미호출로 남음.
+- 원인 좁히기(신산님 승인: 실패는 모델 0일 때만 반복, 첫 성공을 승인 1회로 계산): 첫 시도로 `workingDirectory`(`--cd`)만 빼고 실행 → **COMPLETED, 답 정답, 모델 turn 1(승인분 사용)**. rollout 새 turn_context: `sandbox_policy={"type":"read-only"}`, `approval_policy=never`(읽기 전용 적용 확인), cwd는 프로세스 폴더 `D:\Project\ieon-gateway`. 이 turn 입력 131,371(cached 123,392)·출력 6. 실행 후 잠금 없음. SDK 스트림 error 항목은 이번에도 1건(rollout에는 없음).
+- 결론: os error 2 원인은 `--cd`(SDK가 `exec … --cd <폴더> resume <id>`로 넘김). 수정: `--cd`를 넘기지 않고 codex 프로세스가 뜨는 순간만 연결부 현재 폴더를 원래 대화 폴더로 바꿨다가 되돌림(`process.chdir`, 연결부 단일 작업 전제). 테스트 37/37(대역에서 실행 시점 폴더·복원 확인). **실제 cwd 반영은 live 미확인**(추가 turn 필요).
+- **작업 폴더 확인 live 1회(신산님 추가 승인)**: 수정된 어댑터(alternate, workingDirectories=`C:/Users/cyhuh/Documents/Codex`) → COMPLETED, 답 정답, 연결부 폴더 원복 확인. rollout turn_context: **cwd=`C:\Users\cyhuh\Documents\Codex`, sandbox=read-only, approval=never** → 원래 작업 폴더·읽기 전용 모두 적용. 입력 133,461(cached 131,200)·출력 6. 실행 후 잠금 없음. 재시도 0. 판정: Codex SDK 재개 설정 문제 해결(PASS). 남은 차이: 원래 대화의 approval(on-request)·sandbox(workspace-write)보다 이어온 질문이 더 엄격(읽기 전용)하게 실행되는 것은 의도된 정책.
+
+### 2026-10-30 미확인 항목 검증 2차(모델 0)
+
+- 서버·연결부를 live=false로 기동(실제 DB `.local/s2/pilot.db`, 열 자동 추가 확인). 모드 전환 API 실측: 기본 alternate → shared_server 200 → Claude 대화 400 not_codex → 잘못된 값 400 bad_mode → alternate로 복귀 200. 모델 0.
+- 웹 화면(신산님 캡처): Codex 대화 선택 시 "Codex 연결 모드" 영역(번갈아 쓰기 선택됨·동시 사용 설명) 표시. 모드 전환 클릭·Claude 대화에서 영역 숨김·모바일 폭은 캡처로 아직 미확인.
+- 실세션 무단 발신자 차단: C1 세션 기동(Claude Pro·manual mode, "Channels (experimental) messages from server:ieon inject directly" 안내) 후 채널 18762에 토큰 없음·틀린 토큰·이어온 사용자 토큰(다른 용도 토큰)으로 전송 → 모두 401. 세션 터미널 수신 여부는 신산님 화면 확인 대기. 모델 0.
+- 2차 결과(신산님 캡처 3장 + 어울 브라우저 확인):
+  - **무단 발신자 차단 PASS:** 401 3건 동안 C1 세션 터미널에 수신 줄 없음(세션 대기 화면 그대로).
+  - **웹 모드 전환 PASS:** Codex 대화에서 동시 사용 선택 → 번갈아 쓰기로 복귀가 화면에 반영. Claude 대화 선택 시 모드 영역 숨김 확인.
+  - **모바일:** 신산님 환경에 모바일 화면 없음 → 어울이 브라우저 창을 375×812로 바꿔 캡처, 한 줄 배치(목록→모드→대화→입력)로 가로 잘림 없이 표시. 실제 휴대폰·키보드는 미확인.
+  - 결함 수정: 모드 변경·답변 완료 안내가 5초 주기 새로고침에 바로 지워지던 문제(이전 "상태 줄 일시 불일치" 관찰과 같은 원인 계열). 안내는 세션을 바꿀 때만 지우도록 `web/index.html` 수정. 모델 0.
+- 2차 종료: 서버·연결부 종료(live=false 유지). C1 세션은 신산님 종료.
+- 3차(모델 6회 승인): 공유 모드 사용량 수집 추가(thread/tokenUsage/updated의 turn별 last 합산, requests.usage 열, API usage 반환), 테스트 37/37. 공유 엔진(18761, capability-token)·서버·연결부(live=true) 기동, 시험 대화 모드 shared_server로 전환.
+- **A1 PASS(20:23 KST, 모델 1/6)**: 웹 → 공유 모드 → "키위" 확인 답, TUI에 같은 질문·답 실시간 표시(신산님 캡처), 웹 "답변 완료" 안내 유지(안내 수정 확인). 사용량 수집 PASS: input 140,287(cached 133,248)·output 15, requests.usage 저장. TUI에 "You have 1 usage limit reset available" 알림 표시(계정 사용 한도 관련, 영향 미확인).
+- **A2 PASS(20:26 KST, 모델 1, 누계 2/6)**: TUI에서 1~40 질문 처리 중 웹 질문 전송 → 연결부가 thread/read 비idle 확인 후 turn/start 없이 failed `thread_busy`, 웹 "공유 서버에서 이 대화가 사용 중이라 보내지 않았음". TUI 답(이십사~사십, 12초)에 웹 질문 끼어듦 없음. 잠금 잔여 없음.
+- **A3(20:27 KST, 모델 2, 누계 4/6)**: 웹 41~70 질문(이어온 turn 3초) 처리 중 신산님 TUI 입력+Enter → 이어온 turn은 41~70 목록만으로 완료(웹 "답변 완료"), TUI 입력은 그 뒤 별도 turn("확인")으로 처리. 이어온 답에 사람 입력 섞임 없음. 단 이어온 turn이 3초로 짧아 TUI가 대기열에 넣었는지, 끝난 뒤 입력됐는지는 구분 못함 → 판정: 섞임 없음 PASS, 대기열/합류 방식은 UNVERIFIED.
+- 공유 엔진 종료(18761 listen 0, readyz 무응답), 시험 대화 모드 alternate로 복귀, 잠금 NO_WRITER_LOCK.
+- **C 해소(20:3x KST, 모델 1, 누계 5/6)**: 어댑터와 같은 옵션(read-only 등, 원래 폴더)으로 1회 재개, SDK `error` 항목 메시지 기록 → "Codex is ignoring 1 unrecognized configuration setting … `computer_use.windows.always_allowed_app_ids` is ignored."(config.toml 미인식 설정 경고, 비치명). 답 "키위"(A1 표식) 정상, 도구 항목 없음. 원인 확정: X1 이후 매 SDK 실행의 error 항목은 이 경고다. 실행 후 잠금 없음.
+- **B(20:32 KST, 모델 1, 누계 6/6 — 승인분 모두 사용)**: 새 C1 세션(manual mode on, Claude Pro) → 웹 질문 → 세션이 reply 지연 로딩 ToolSearch 1회 후 reply 호출, **권한 확인 화면 없이** 전달, 웹 "확인" 표시. 시험 폴더 설정(MCP 서버 허용만)·사용자 설정(allow 0개)·`~/.claude.json` 프로젝트 항목에서 reply 허용 규칙을 찾지 못함. 판정: 생략은 재현됨, 원인 미확인(UNVERIFIED 유지). 영향: reply는 이어온 채널로 답을 보내는 것뿐이고 파일·명령 권한은 아님. 세션 하단에 "5시간 한도 92% 사용" 경고 표시.
+- 3차 종료: 서버·연결부·공유 엔진 종료, 연결부 live=false로 복귀. C1 세션은 신산님 종료.
+
+### 2026-10-30 남은 미확인 3건 진행
+
+- `.github/pr-broker-gate.sh` 기준 원격 변경(신산님 수정분)을 커밋(bdbb272).
+- reply 권한 생략 원인 문서 조사(모델 0, 공식 문서 channels·channels-reference·permissions·mcp): 채널 capability는 알림 수신만 등록하며 reply는 일반 MCP 도구이고, `--channels`·개발 플래그가 도구 승인을 준다는 문서 근거 없음. 자동 승인의 문서상 경로는 allow 규칙(`mcp__ieon__reply` 형식)·auto mode 분류기뿐이며 "Yes(1번)"는 1회만 유효. MCP 도구의 "don't ask again" 저장 위치는 문서에 명시 없음.
+- 설정 재확인: 사용자·상위 폴더·저장소·시험 폴더 settings(.json/.local.json)와 `~/.claude.json`에서 `mcp__ieon` 규칙 없음. 원인 미확인 유지. 다음 확인 수단(모델 0): C1 세션에서 `/permissions` 화면으로 실제 적용 규칙 확인(신산님 터미널 조작).
+- `/permissions`(신산님, 모델 0): Allow 탭 규칙 0개("Add a new rule…"만). 탭 구성 Permissions·Recently blocked·Allow·Ask·Deny·Auto mode·Workspace. Ask·Deny·Auto mode 탭 확인 대기.
+- `/permissions` 나머지 탭(신산님 캡처): Ask 0개, Deny 0개, Auto mode는 기본 규칙만(Soft allow 17·Soft deny 72·Hard deny 1, 사용자 추가 규칙 없음), Recently blocked 없음. → reply 자동 허용을 설명하는 규칙 없음.
+- 관찰된 차이: 권한 확인이 뜬 C0(fakechat)·C1 첫 세션은 Claude Code **2.1.312**, 확인 없이 실행된 S2·B 세션은 **2.1.314**(중간에 자동 업데이트, 세션 머리 표시). 버전 변경으로 채널 reply 처리 방식이 바뀌었을 가능성(추정, 변경 기록 미확인). 판정: 원인 UNVERIFIED 유지, 설정 원인은 배제. 운영 주의: 이 버전에서는 채널 reply가 확인 없이 실행될 수 있음(reply는 채널 답장만 가능).
+- 4차(모델 2회 승인, TUI 입력 처리 방식): 사전 잠금 확인 후 공유 엔진·서버·연결부(live) 기동, 시험 대화 shared_server로 전환.
+- **TUI 입력 처리 방식 확인(20:52 KST, 모델 1 — 승인 2회 중 1회만 사용)**: 웹 101~220 질문 처리 중 신산님이 TUI에서 Enter → TUI 입력이 대기열이 아니라 **진행 중인 이어온 turn에 합류(steer)**. rollout: 같은 turn(01a18ca7…)에 user 메시지 2개(11:52:41, 11:52:46) → assistant 1개 "확인", 12초. 이어온은 101~220 목록 대신 "확인"을 **정상 완료로 받아 웹에 표시**(사용량 input 344,052·cached 336,768·output 33). 판정: 이전 "섞임 없음 PASS"는 짧은 turn에서만 성립, **긴 turn에서는 FAIL(답 오염)**.
+- 수정: 공유 모드 어댑터가 이 turn의 userMessage 항목을 세어 2개 이상이면 `unknown`(`turn_joined_by_other_input`)으로 보고하고 답을 저장하지 않음. 웹은 "TUI 입력이 합류해 답이 섞였을 수 있음" 안내. 연결부 단위 검사 추가, 테스트 38/38. 실제 엔진으로 감지되는지는 live 미확인(남은 승인 1회). 운영 규칙 후보: 동시 사용 모드에서 이어온 처리 중 TUI는 Tab(대기열)로만 입력.
+- 4차 종료: 공유 엔진·서버·연결부 종료, live=false 복귀.
+- 5차(남은 승인 1회, 합류 감지 live): 잠금 NO_WRITER_LOCK 확인 후 공유 엔진·서버·연결부(live) 재기동, 시험 대화 shared_server 유지 확인.
+- **합류 감지 live PASS(21:05 KST, 모델 1 — 승인 2회 모두 사용)**: 웹 221~340 질문 처리 중 신산님 TUI Enter 입력 → 같은 turn에 합류("확인", 6초) → 연결부가 `unknown`/`turn_joined_by_other_input`으로 보고, **답 미저장**(웹에는 질문만 남고 답 없음). 재전송 0.
+- 정리: unknown은 설계대로 대화 잠금을 유지해 이후 질문을 막았음 → 서비스 종료 후 rollout으로 turn 실행이 확인된 사실에 근거해 `resolveUnknown(found=true, answer=null)`로 수동 정리(답은 계속 미저장). 공유 엔진·서버·연결부 종료, live=false, 시험 thread 잠금 없음. 후속 과제: unknown 정리를 화면/API에서 할 수 있는 공식 조회 경로(현재는 수동).
+
+### 2026-10-30 결과 불명 정리 기능
+
+- 신산님 지시로 구현: 결과 불명(unknown)·권한 확인 대기(approval_required) 요청이 대화를 잠그고 있으면 목록 API에 `heldBy`(요청 ID·상태·사유) 표시. `POST /v1/requests/{id}/review {executed: true|false}` — 사람이 원래 세션 화면을 보고 확인한 결과로 정리(소유자만, 대상 상태만, 1회). 실행됨 → completed(답 미저장, `reviewed_executed:<사유>`), 실행 안 됨 → failed(`reviewed_not_executed:<사유>`). 어느 쪽도 재전송하지 않으며 잠금이 풀린다.
+- 웹: 잠긴 대화를 고르면 사유별 안내와 "원래 세션에서 실행된 것을 확인함 / 실행되지 않은 것을 확인함" 버튼. 테스트 39/39(정리·권한·중복 정리 409·재실행 0). 화면 표시는 스크립트 문법·요소 존재만 확인, 실제 화면 조작은 미확인. 모델 0.
+
+### 2026-10-30 PR Broker 첫 실제 시험
+
+- chore/unverified-check-2는 신산님이 PR #6·#7로 main에 병합(3fed6da). 자동 PR이 동작하지 않았던 이유: 워크플로는 `codex/pr-broker-bootstrap` push 또는 `pr-request/<40자리 sha>/<codex/*>` 태그 push에만 반응하고, 작업 브랜치는 `codex/`로 시작해야 하며, 태그는 현재 main 커밋을 가리켜야 함. 지금까지 태그를 push한 적이 없고 브랜치도 `chore/`였음.
+- 시험: 이 기록만 담은 `codex/pr-broker-trial`을 push하고 요청 태그를 올려 PR 생성·squash 병합 여부를 확인한다. 저장소 Actions의 PR 생성 허용 설정은 미확인.
+- PR Broker 시험 결과: 요청 태그 push 후 15초 안에 GitHub Actions가 PR #8을 만들고 main에 squash 병합(52927c5), 원격 작업 브랜치·요청 태그 자동 삭제 확인. 저장소의 Actions PR 생성 허용 설정은 켜져 있는 것으로 판단.
+
+### 2026-10-30 브랜치 규칙 위반 정리
+
+- 신산님 지적: PMO 공통 규칙 8절(목적 branch·격리 worktree, 미완료 branch 1개, 병합 후 merged-main smoke와 원격·로컬 정리 뒤 다음 branch)을 어울이 지키지 않음. 병합된 branch 6개(feat/s1-safety-core, docs/existing-codex-design, docs/agents-refresh, chore/pr-broker-workflow, fix/codex-sdk-readonly, chore/unverified-check-2)가 정리되지 않았고, merged-main smoke 누락, 격리 worktree 미사용, branch 접두어 불일치.
+- 조치(신산님 승인): main 52927c5에서 테스트 39/39(merged-main smoke) → 6개 모두 origin/main 포함 확인 후 원격·로컬 삭제. 이후 원격은 main만 남음.
+- 이후 절차: 작업마다 최신 origin/main에서 `codex/<목적>` branch와 격리 worktree → commit·push → `pr-request/<sha>/<branch>` 태그(현재 main 가리킴) → 자동 PR 병합 확인 → merged-main smoke → 원격·로컬 branch·worktree 정리 → 다음 작업. 이 기록 자체를 이 절차로 올린다.
+
+### 2026-10-30 PR Broker 작업 주체 접두어 확장
+
+- 신산님 지적: branch 규칙이 Codex(`codex/`)만 받도록 되어 있어 Claude Code 작업이 같은 절차를 쓸 수 없었음. 수정: 워크플로 요청 검증을 `^(codex|claude)/…`로 확장, AGENTS.md에 작업 branch 절차(주체별 접두어·요청 태그·병합 확인·merged-main 테스트·정리 후 다음 branch) 기록. 이 수정은 기존 규칙상 `codex/broker-accept-claude`로 올려 PR #10 자동 병합(095ea8e), merged-main 테스트 39/39, branch·작업 폴더 정리.
+- 확인: 이 기록을 `claude/record-broker-claude` branch로 올려 claude/* 요청이 실제로 받아지는지 확인한다.
+
+### 2026-10-30 상시 실행 정리
+
+- 신산님 선택: 다음 작업 = 상시 실행 정리. branch `claude/always-on-ops`(격리 작업 폴더).
+- PMO 공통 AGENTS.md 8절에 주체별 접두어 규칙 1줄 추가(신산님 지시, 이전 turn). PMO는 원격 없음·Codex 작업 브랜치에서 AGENTS.md 포함 미커밋 수정 중이라 작업 파일에 한 줄만 넣고 커밋하지 않음.
+- 엔진 상태 보고: 연결부가 작업 조회 때마다 공유 App Server(`/readyz`)와 이어온 채널(`/v1/health`) 생존 여부를 `x-ieon-health` 헤더(상태값만)로 보냄. 서버는 대화별 `engineReady`를 목록에 표시하고, 꺼진 엔진(Claude 세션·공유 모드 Codex)으로의 질문은 접수 전에 503(`session_not_running`/`shared_server_down`)으로 거절. 웹은 "세션 꺼짐/공유 서버 꺼짐" 표시·보내기 비활성.
+- `scripts/ieon.ps1`: start [-Shared] [-Live] / stop / status / claude(새 창 채널 세션) / tui(새 창 Codex TUI). 자기가 띄운 node·codex PID만 종료, stop 시 live=false 복귀, 연결부 실행 중에는 live를 바꾸지 않음. 로그는 `.local/run/`.
+- 검증(모델 0): 테스트 40/40. 스크립트 실측 — start(서버·연결부) → 두 대화 engineReady=false·질문 503 거절 → start -Shared → Codex(공유 모드) engineReady=true → stop으로 세 프로세스 종료·포트 닫힘·잠금 없음. claude·tui 명령(새 창)은 실행 미확인. 시험 대화 모드는 alternate로 되돌림.
+
+### 2026-10-30 사용 설명서
+
+- 신산님 요청으로 `docs/MANUAL.md` 작성(구성·준비·켜고 끄기·웹 사용·모드·오류 대응·확인 필요 정리·지킬 것·제한·개발 절차). AGENTS.md 정본 목록에 추가. branch `claude/user-manual`.
+
+### 2026-10-30 설계서 v0.3 동기화·설치용 워크플로 제거
+
+- DESIGN: 5절 API(구현 표시, settings·review·device 경로, 거부 코드 보강), 7절 unknown 정리·합류 감지, 8절 SDK 재개 읽기 전용 실측 보정, 12절 UI-07 확인·UI-08 확인 필요 정리·UI-09 엔진 상태, 13절 현황·v0.3 이력.
+- PR Broker: 쓰지 않는 설치용(`codex/pr-broker-bootstrap` push 트리거와 bootstrap-install 작업) 제거, 태그 요청만 남김. branch `claude/design-sync-broker-cleanup`.
+- 휴대폰 확인 준비(신산님 선택: Tailscale): branch `claude/tailscale-access`. 서버에 `extraHosts`(Tailscale 주소 100.64.0.0/10만 허용, 0.0.0.0·LAN 거부)·`extraAllowedClients`(그 기기 주소에서만 접속, 그 외 403) 추가, 테스트 41/41. 설정: PC 100.98.75.104에서 열고 휴대폰 100.71.162.15(신산님 확인)만 허용. 기동 후 18760이 127.0.0.1과 100.98.75.104에서 listen, PC 자신의 Tailscale 주소 접속은 403 확인. 실제 엔진 실행 끔.
+- **휴대폰 확인 PASS(22:40 KST, 신산님 캡처, 모델 0)**: 휴대폰 브라우저에서 `http://100.98.75.104:18760` 접속·토큰 로그인 → 세션 목록(Codex "보낼 수 있음", Claude "세션 꺼짐"), 한 줄 배치·글자 크기 정상. 키보드 가림은 미확인. MANUAL에 휴대폰(Tailscale) 사용법 추가.
+
+### 2026-10-31 메신저 봇(텔레그램·디스코드·슬랙)
+
+- 신산님 결정: 메신저에서 세션에 질문. 봇은 메신저마다 1개, 대화방(그룹·주제·채널)마다 세션 연결 또는 1:1에서 `/use`. 카카오톡은 공개 HTTPS 필요로 제외. 봇 토큰은 신산님이 `.local/.env`에 둠(어울은 값을 읽지 않음 — 읽기 시도는 secrets-guard가 막음).
+- 구현(branch `claude/messenger-bots`): `src/pilot/messenger/bridge.mjs`(허용 목록·/whoami·/sessions·/use·/status·/review·질문 접수·결과 대기·긴 답 분할, 이어온 서버 API만 사용), `platforms.mjs`(텔레그램 long polling·디스코드 Gateway·슬랙 Socket Mode, 의존성 없음), `main.mjs`(.env에서 있는 토큰만 켬, 값 비출력). 서버 사용자에 `app_messenger` 추가(토큰 해시), 대화 바인딩 app_ids를 설정 기준으로 갱신하도록 store 변경. `scripts/ieon.ps1 messenger`. 테스트 45/45(모델 0). 실제 메신저 연결은 신산님 기동 후 확인 예정.
+- 신산님 질문: 슬랙 앱 생성 시 Claude/OpenAI 연결 선택 → 어느 것도 아님(From scratch). 이어온 봇은 Slack AI 기능이 아니라 이 PC 세션으로 중계한다.
+- 메신저 실제 연결(2026-10-31 03:00~03:30 KST, 신산님 캡처·messenger.log, 모델 0): 신산님이 `ieon.ps1 messenger` 기동 → 세 메신저 enabled·ready. 봇: 텔레그램 `@Test_cyhuh_01_bot`, 디스코드 `Test_bot`(서버 1곳), 슬랙 `myapp_local`(표시 이름 my-app (local), AGENT 템플릿 앱). `/whoami`로 사용자 ID 확인 후 허용 목록 등록(telegram 7253893482, discord 1531807987793002667, slack U0C5VU8FQPM), 재기동 후 세 메신저 모두 `/sessions`(슬랙 `!sessions`)에 세션 2개 목록 응답 확인.
+- 슬랙 주의: 앱 1:1(Messages 탭)에서는 메시지가 이어온 봇에 오지 않고 다른 프로그램(AGENT 템플릿 쪽)이 응답함. 채널(`#bot`)에 앱을 Integrations로 추가하면 이어온 봇이 받음. 슬랙은 채널 사용 권장, 1:1이 필요하면 From scratch 앱 재생성. 디스코드 Gateway 1006 끊김 후 2초 자동 재접속 관찰.
+- 봇 이름·디스코드 초대 링크를 기동 로그에 표시하도록 개선(PR #18).
+- **메신저 실제 질문 PASS(2026-10-31 03:36~03:38 KST, 신산님 3회 승인, 모델 3)**: 사전 잠금 NO_LOCK_FILE → 연결부 live 켬 → 텔레그램·디스코드·슬랙(#bot)에서 차례로 "마지막 시험 표식?" → 각 대화방에 "접수됨" 후 "키위" 답(Codex 시험 대화, alternate, 읽기 전용). 연결부 기록 completed 3건, 재전송 0. 종료 후 연결부 live=false 재기동, 잠금 없음. 직전에는 live 꺼짐 상태에서 세 메신저 모두 "실제 실행이 꺼져 있음" 안내로 경로 확인(모델 0). alternate 모드는 사용량 미수집(usage null).
+
+### 2026-10-31 메신저 설정 설명서
+
+- 신산님 요청으로 `docs/MESSENGER_MANUAL.md` 작성: 구조, 관련 파일, 켜고 끄기, 텔레그램·디스코드·슬랙(manifest) 봇 만들기, 처음 연결 순서·명령어, 대화방·봇·허용 사용자·새 세션 추가, 문제 해결, 확인 상태. MANUAL·AGENTS에 연결.
+- 신산님 질문 답: `D:\slack\my-app`은 Slack CLI 예제 앱 프로젝트로 이어온에 필요 없음. 그 폴더의 `slack run`이 같은 슬랙 앱에 Socket Mode로 붙어 1:1 메시지를 가져간 것이 슬랙 1:1 오응답 원인으로 판단(미확정). 현재 슬랙 토큰은 그 앱(`my-app (local)`) 것이라 전용 앱으로 바꾸기 전까지 앱 등록은 유지.
+- 설정 보완: 연결부 설정에 시험 Codex 대화의 `workingDirectories`(C:/Users/cyhuh/Documents/Codex)가 빠져 있어 추가(메신저 실제 질문 3회는 이어온 폴더를 작업 폴더로 실행됐을 것으로 판단, 읽기 전용이라 변경 없음).
+
+### 2026-11-05 초보자용 설명서 2종
+
+- 신산님 요청으로 `docs/BEGINNER_GUIDE.md`(설치·처음 설정 포함 전체 따라 하기)와 `docs/API_GUIDE.md`(개발 프로그램 HTTP API 연동)를 작성. MANUAL·AGENTS에 연결.
+- 설치 장의 `.local` 설정 생성 블록을 임시 폴더에서 실행해 시험: 생성 토큰으로 서버 인증, 연결부 `deviceOnline: true` 확인(포트 38760, 모델 0).
+- API 설명서의 Node·Python 예제를 같은 시험 서버에서 실행: 목록 조회·접수·결과 조회 동작 확인(가짜 Codex ID라 `thread_not_allowed`로 종료), PowerShell 접수는 Claude 세션 미실행으로 503 `session_not_running` 확인. 실제 엔진 답(`-Live`)은 미확인.
+- 기존 MANUAL의 프로그램 전용 토큰 안내에 세션 `appIds` 등록이 빠져 있어 보완(없으면 목록에서 빠지고 404).
+
+### 2026-11-05 설치 점검 명령·새 세션 만들기 설계
+
+- `pwsh scripts/ieon.ps1 check` 추가: Node 24, npm 부품, `.local` 설정, 이어온 폴더 안 Codex 실행 파일·로그인(`codex login status`), Claude Code 설치·구독 로그인(`claude auth status`의 loggedIn·authMethod·subscriptionType)을 한 번에 점검. 이메일·토큰은 출력하지 않고 모델 호출 없음. 정상 PC에서 통과, 임시 CODEX_HOME·PATH에서 claude 제외 시 "확인 필요"·exit 1 확인. BEGINNER_GUIDE 1-6, MANUAL 3장 반영.
+- 신산님 요청: Oracle 서버 등에서 텔레그램으로 새 Codex·Claude 세션을 만들어 대화. 신산님 정정: 서버 전용 모드가 아니라 기존 PC 설치 기능에 **추가**하는 기능(기존 = 있는 세션 연결, 새 기능 = 새 세션 생성).
+- 인터뷰(13문항) 후 `docs/design/NEW_SESSIONS.md` 작성: 만드는 곳(웹·텔레그램·디스코드·슬랙·API), 세션별 새 빈 작업 폴더, 직접 열기 지원, Windows·Linux 동시 지원, 기본 권한 `workspace`·`full`은 설정 파일에서만, 세션 수 10/동시 3, 정리(30분 잠들기·14일 보관·삭제는 사람 확인), 메신저는 만든 대화방에 연결, 권한 확인은 멈추고 알림, 실증 범위 PC·WSL(Oracle 별도 승인), 모델 호출 엔진별 10회 사전 승인.
+- 구현은 신산님 설계 확인 후 시작. 모델 호출 0.
+
+### 2026-11-05 새 세션 만들기 N0
+
+- 신산님 "N0 시작" 승인. branch `claude/new-sessions-n0`.
+- 추가: `src/pilot/new-sessions.mjs`(설정 기본값·검사 `loadNewSessionsConfig`, 이름 규칙 `validateName`, 권한 프로필 `resolveProfile`, 작업 폴더 경로), store `new_sessions` 테이블과 `createSession`·`setSessionState`·`effectiveProfile`·`sessionLimits`, 목록의 `newSession` 표시.
+- 규칙: 기능 기본 꺼짐(`enabled:false`), 만들 수 있는 앱은 `creatorApps`, `full`은 요청으로 거절하고 `sessionOverrides`로만 적용, 한도는 보관 제외 총수·엔진별(기존 세션 연결은 세지 않음), 이름은 영문·숫자·`-` 2~32자.
+- 보완: 엔진 세션이 아직 없는 `pending` 새 세션은 질문 접수를 503 `session_not_ready`로 거절(Claude 채널이 1개뿐이라 기존 세션으로 새는 것을 막음).
+- 검증: 새 테스트 10건 포함 전체 55/55 통과. 실제 `.local/s2/pilot.db` 사본으로 열어 기존 세션 목록 유지 확인(새 테이블만 추가). 모델 0, 서버 API·메신저 명령·작업 폴더 생성·엔진 연결은 N1~N4.
+- 설계서 수정: 생성 허용 앱을 `server.json` `canCreateSessions` 대신 `new-sessions.json` `creatorApps`로, full 지정 방법을 `sessionOverrides`로 명시.
+
+### 2026-11-05 새 세션 만들기 N1 (Codex)
+
+- 신산님 "N1 시작" 승인. branch `claude/new-sessions-n1`. 모델 호출은 사전 승인(엔진별 10회) 범위에서 사용.
+- 구현: Codex 어댑터에 새 세션 경로 추가(pending이면 작업 폴더 생성 후 SDK `startThread`, 이후 같은 ID로 `resumeThread`+작업 폴더에서 실행). 연결부가 서버의 프로필·작업 폴더를 자기 설정으로 다시 검사(`full`은 이 PC의 sessionOverrides·allowFullFromChat만, 작업 폴더는 workspaceRoot 바로 아래 같은 이름만). 연결부가 만든 대화 ID를 `new-threads.jsonl`에 기록하고 그 목록의 대화만 재개. 서버는 첫 결과의 대화 ID를 한 번만 받아 pending→active(이미 정해진 ID는 바꾸지 않음), Claude pending은 계속 거절.
+- 단위 테스트 7건 추가, 전체 62/62 통과.
+- **실측(Codex 모델 3회, 누적 Codex 3/10·Claude 0/10):** 임시 폴더·포트 38760의 시험 서버·연결부(live)로 시험 새 세션 `n1-proof` 생성 → ① 표식 "7" 기억 지시 → "기억함" ② 같은 대화에서 표식 질문 → "7"(같은 대화 ID `01a1ab1c-8b06-79f3-8dbb-ad83d55f9005`로 이어짐) ③ 작업 폴더에 hello.txt 작성 → 파일 생성("안녕") 확인. Codex 기록 `~/.codex/sessions/2026/11/05/rollout-…01a1ab1c….jsonl` 생성, 세 turn 모두 cwd=작업 폴더·`workspace-write`·network false·approval never(사용자 config.toml의 danger-full-access보다 SDK 옵션 우선 확인).
+- 미확인: Codex 앱 화면 목록 표시(기록 파일만 확인), 명령 실행 item 발생 시 실제 멈춤(단위 테스트로만), shared_server 모드의 새 세션. 시험 대화 기록 파일은 남겨 두고 임시 시험 폴더는 삭제.
+
+### 2026-11-05 새 세션 만들기 N2 (Claude)
+
+- 신산님 "N2 시작" 승인. branch `claude/new-sessions-n2`.
+- 방식 결정: 채널(연구 미리보기, 실행 중 터미널 1개)이 아니라 **질문마다 `claude -p`** 로 같은 세션 ID를 이어 쓰는 새 엔진 `claude_cli`. 근거: 세션이 디스크에 남아 잠들기·깨우기가 따로 필요 없고, 사람이 `claude --resume <ID>`로 직접 열 수 있으며, `--restricted`가 사용자 설정·훅을 무시하고 파일 도구를 작업 폴더로 제한함(`claude --help` 2.1.314 확인).
+- 구현: `src/pilot/adapters/claude-cli.mjs`(첫 질문 `--session-id`, 이후 `--resume`, 질문은 표준 입력, 프로필 도구만 `--tools`·`--allowedTools`, `--permission-prompts none`, `--strict-mcp-config`; `permission_denials`→approval_required, 다른 세션 ID(복사본)→unknown `session_forked`, 오류→unknown). 연결부가 만든 세션 ID만 재개. 새 세션 재검사 규칙을 `checkNewSession`으로 공통화(Codex 어댑터도 사용). 새 세션 Claude 엔진을 `claude_channel`→`claude_cli`로 바꿔 기존 채널과 분리하고 pending 접수 차단 제거. 웹·메신저 표시에 `Claude · 새 세션` 추가.
+- 단위 테스트 8건 추가·2건 수정, 전체 70/70 통과.
+- **실측(Claude 모델 5회, 누적 Codex 3/10·Claude 5/10):** 임시 시험 서버(38760)·연결부(live)로 새 세션 `n2-proof` → ① 표식 "7" 기억 → "기억함" ② 같은 세션에서 표식 질문 → "7" ③ hello.txt 작성 → 파일 생성("안녕") ④ 시험 서버를 끈 뒤 사람이 작업 폴더에서 `claude -p --resume <ID>`로 같은 세션 질문 → "7, hello.txt", 같은 session_id(직접 열기 확인) ⑤ 작업 폴더 밖 절대 경로에 파일 쓰기 지시 → `approval_required`, 파일 미생성. 세션 ID `09eacb22-a513-4484-910c-0058e005d1a8`, 기록 `~/.claude/projects/…/09eacb22….jsonl`.
+- 미확인: 대화형 `claude --resume`(터미널 화면)으로 여는 것은 비대화형 `-p --resume`으로만 확인, 사람이 열어 둔 상태의 `session_forked` 실제 발생, `full` 프로필의 Bash 실행. 임시 시험 폴더 삭제.
+
+### 2026-11-05 새 세션 만들기 N3 (정리)
+
+- 신산님 "N3 시작" 승인. branch `claude/new-sessions-n3`.
+- 구현: store `runCleanup`(30분 유휴 잠들기·14일 미사용 보관·3일 전 하루 1회 보관 예고, 잠금 세션 제외), `restoreSession`(한도 재검사 후 sleeping), `deleteSession`(이름 확인·잠금 거절, 이어온 기록만 삭제), `configureNewSessions`+접수 시 동시 실행 한도(`active_limit`)·보관 세션 거절(`session_archived`)·잠든 세션 자동 깨우기, `new_sessions.notified_at` 열(기존 DB 자동 추가). `removeWorkspace`(workspaceRoot 바로 아래 같은 이름만). 서버: `newSessionsConfigPath`가 있으면 1분 주기 정리, 목록 API에 `newSession` 상태·이름 표시(빠져 있던 것 보완).
+- 테스트 9건 추가, 전체 79/79 통과.
+- 실측(모델 0): 임시 시험 서버(38760)에 잠들기 1분 설정, DB에 active 새 세션을 만든 뒤 70초 후 서버 로그 `session_cleanup active→sleeping` 확인. 보관(일 단위)은 단위 테스트로만 확인.
+- 미구현·미확인: 사람이 직접 쓰는 중 감지(잠들기는 표시뿐이라 대화 영향 없음), 보관 예고의 실제 전달(N4).
+
+### 2026-11-05 새 세션 만들기 N4 (만드는 곳)
+
+- 신산님 "N4 시작" 승인. branch `claude/new-sessions-n4`.
+- 서버 API: `POST /v1/sessions`(웹 via=web, 메신저 via=chat, 그 밖 api; 만들 PC는 `newSessionsHostId` 또는 첫 연결부), `GET /v1/sessions/limits`, `POST /v1/sessions/{id}/sleep|restore`, `DELETE /v1/sessions/{id}`(confirm, 설정 시 작업 폴더 삭제), `GET /v1/sessions/notices?after=`(내 세션 것만). 기능이 꺼져 있으면 모두 403. 목록의 `newSession`에 직접 열기용 `sessionId` 추가, store `sleepSession`.
+- 메신저: `/new codex|claude <이름> [프로필]`(만든 대화방에 바로 연결), `/sleep`, `/archived`, `/restore`, `/close`(확인 단계), `/limits`, `/sessions`에 새 세션 상태·보관 제외, 보관 예고를 연결된 대화방으로 10분마다 전달(그 방의 마지막 send 사용).
+- 웹: 새 세션 만들기(엔진·이름·권한, full 없음), 목록에 새 세션 상태, 보관함(꺼내기), 선택한 새 세션의 상태·권한·직접 열기 ID·잠재우기·삭제(이름 입력).
+- 화면 결함 수정: `.ns{display:flex}`가 `hidden`을 덮어 세션 미선택 때 버튼이 보이던 것 → `[hidden]{display:none !important}`. 만들기 직후 안내가 세션 선택에서 지워지던 순서 수정.
+- 테스트 8건 추가(서버 API 5, 메신저 3), 전체 87/87 통과.
+- **실측(모델 Codex 1·Claude 1, 누적 Codex 4/10·Claude 6/10):** 임시 시험 서버(38760)·연결부(live)를 내장 브라우저로 열어 웹에서 새 Codex 세션 `web-codex` 생성 → 웹 질문 → "웹에서 만든 새 세션" 답, 상태 깨어 있음·직접 열기 ID 표시 → 잠재우기 → "잠듦". API로 Claude 새 세션 `api-claude` 생성 → 질문 → "API로 만든 Claude 세션", 한도 조회 2/10. 시험 폴더·토큰 삭제.
+- 미확인: 실제 텔레그램·디스코드·슬랙에서 `/new` 등(운영 중 봇과 충돌을 피하려 대역 API로만 시험), 웹 삭제(브라우저 확인 대화상자라 API 테스트로 대신), 보관 예고의 실제 메신저 전달, 휴대폰 화면 배치.
+
+### 2026-11-05 새 세션 만들기 텔레그램 실측
+
+- 신산님 "켜고 텔레그램 시험" 승인. 이 PC `.local`에 설명서 6-A-1 블록으로 기능 켬(`new-sessions.json` enabled, 작업 폴더 `D:/ieon-workspaces`; 변경 전 `server.json.bak-n4`·`connector.json.bak-n4` 백업). `start -Live`, `messenger`(텔레그램·디스코드·슬랙 ready).
+- **텔레그램 실측(신산님 캡처, Codex 모델 1회, 누적 Codex 5/10·Claude 6/10):** `/new codex tg-codex` → 생성·대화방 연결 안내 → 질문 → "텔레그램에서 만든 세션" → `/sessions` 3번 항목 "새 세션 깨어 있음" → `/sleep` → "잠재움" → `/limits` → "새 세션 1/10 (Codex 1/10, Claude 0/3)" → `/close tg-codex` 확인 안내 → `/close tg-codex 확인` → "삭제함". 서버 확인: 새 세션 0개, 텔레그램 대화방 연결 제거, 작업 폴더 `D:/ieon-workspaces/tg-codex`와 Codex 대화 기록(`01a1ab44-098f-7db0-a558-e42f8d70683e`)은 남음(설정대로).
+- 관찰: 확인 안내 속 `/close`가 텔레그램에서 링크로 표시돼, 누르면 확인 없이 같은 안내만 다시 나옴(신산님 화면에서 안내 2회). 삭제는 직접 입력한 `... 확인`으로만 되므로 안전 문제는 아님. 미확인: Claude 새 세션의 텔레그램 경로, 디스코드·슬랙 `/new`.
+
+### 2026-11-05 설명서 보완
+
+- 신산님 요청. MANUAL 머리말(기준일·범위·기능 두 가지)과 알려진 제한(새 세션 claude -p·session_forked·full 권한 한계·보관 예고 조건·텔레그램 /close 링크·잠듦은 표시)을 현재 상태로 갱신. BEGINNER_GUIDE에 두 기능 소개, 새 세션 안내 문구 문제 해결 표, check·설정 재시작 안내, 하루 사용 순서(메신저·새 세션) 보완. MESSENGER_MANUAL 기준일·명령 표·문제 해결·확인 상태(텔레그램 새 세션 확인) 갱신. API_GUIDE에 새 세션 API 위치 안내.
+
+### 2026-11-05 저장소 이전·버전 0.0.1
+
+- 신산님 지시: 기본 개발 완료. 저장소를 `cyhuh7950/ieon-gateway`로 바꾸고 PR 이력 등은 빼고 main 최종본만 옮기며 버전을 0.0.1로 한다. 이후 `sinsan-develop`은 폐쇄하고 수정·upgrade는 `cyhuh7950`에서 진행·관리한다.
+- 이전 직전 main: `sinsan-develop/ieon-gateway` `8c2f510`(PR #1~#11). 새 저장소에는 이 내용(+주소·버전 반영)을 부모 없는 단일 커밋 `v0.0.1`로 push.
+- 반영: package.json·package-lock.json version 0.0.1, PR Broker gate 기준 원격, AGENTS·DEVELOPMENT_ENVIRONMENT·BEGINNER_GUIDE의 저장소 주소. 이전 기록 속 sinsan-develop 표기는 당시 사실이라 그대로 둔다.

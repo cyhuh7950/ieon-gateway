@@ -1,0 +1,14 @@
+{
+  "type": "browser_screenshot",
+  "description": "430x500 viewport 축소로 키보드 높이를 가정한 입력/전송 가시성 캡처; 실제 OS IME 미검증",
+  "author": "어울",
+  "source_directory": "docs/design/assets",
+  "source_css": "continuity.css",
+  "source_viewport_helper": "continuity-viewport.js",
+  "width": 430,
+  "height": 500,
+  "data": "합성 예시",
+  "model_calls": 0,
+  "real_mobile_ime_verified": false,
+  "captured_kst": "2026-10-29 14:11 +09:00ST"
+}

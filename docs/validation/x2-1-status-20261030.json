@@ -1,0 +1,19 @@
+{
+  "threadId": "01a18790-63c7-73e3-a60b-6ddb60fd5be8",
+  "atUtc": "2026-10-30T07:30:41.087Z",
+  "endpoint": "ws://127.0.0.1:18761",
+  "methodsSent": [
+    "initialize",
+    "thread/loaded/list"
+  ],
+  "connected": true,
+  "initialized": true,
+  "loadedThreadCount": 1,
+  "targetLoaded": true,
+  "modelTurnStarts": 0,
+  "errorKind": null,
+  "loadedResultKeys": [
+    "data",
+    "nextCursor"
+  ]
+}

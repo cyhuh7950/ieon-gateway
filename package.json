@@ -1,0 +1,1 @@
+{"name":"ieon-gateway","version":"0.0.1","private":true,"type":"module","dependencies":{"@openai/codex-sdk":"0.165.0"}}

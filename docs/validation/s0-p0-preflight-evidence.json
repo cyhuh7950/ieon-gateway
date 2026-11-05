@@ -1,0 +1,150 @@
+{
+  "recordedUtc": "2026-10-29 06:55:59 UTC",
+  "scope": "P0 실행 전 읽기 전용 신원·단일 대화 unload·종료 영향 조사",
+  "gitPhase": "DEVELOPMENT_PRIVATE",
+  "sourceCommit": "720fec862a608ae1e5878d1eecb04fb93192e93c",
+  "selectedTarget": {
+    "id": "01a0dadd-739f-74d2-93c5-9c405cc1019b",
+    "title": "어울 전용 작업 지시 세션",
+    "status": "idle",
+    "kind": "codex",
+    "hostId": "local",
+    "projectId": "9f7770a8-23ab-436c-8534-2efbb3678854",
+    "cwd": "D:\\Project\\PMO",
+    "updatedAt": 1793178950,
+    "evidence": "Codex app list_threads metadata",
+    "exactTitleMatchesUser": true,
+    "statusMeans": "앱 목록 idle. live loaded/writer lock/goal/approval 상태 확인 아님."
+  },
+  "listScope": {
+    "nonPinnedLimit": 50,
+    "entriesReturned": 51,
+    "exhaustiveInventory": false,
+    "summaryOrTurnsUsed": false,
+    "rawResultPersisted": false
+  },
+  "otherActiveThreads": [
+    {
+      "id": "019eb973-383e-7f32-b076-23d79f54da6f",
+      "title": "Now 작업 - 서버담당",
+      "status": "active",
+      "hostId": "local"
+    },
+    {
+      "id": "01a1836c-e5c1-7121-a2b4-6d4b683aec7e",
+      "title": "CGA 기반 신규 설계 진행",
+      "status": "active",
+      "hostId": "local"
+    },
+    {
+      "id": "019e88e6-927d-7db2-b070-d8d56f7e2d47",
+      "title": "Now 작업 - 전체 기준표, 버전, 릴리즈 검증 담당",
+      "status": "active",
+      "hostId": "local"
+    },
+    {
+      "id": "01a09b06-415e-7971-a7f7-4d657bd3431e",
+      "title": "Active - Anvil C-09 복구 책임자",
+      "status": "active",
+      "hostId": "local"
+    }
+  ],
+  "ownThreadActive": true,
+  "desktopProcessMetadata": {
+    "parentPid": 19212,
+    "appServerPid": 21356,
+    "appServerHasListener": false,
+    "appServerIsProxy": false,
+    "appServerIsDaemon": false,
+    "separateExecServerPid": 34344
+  },
+  "installedStaticBundle": {
+    "path": ".vite/build/main-CP9z2iYn.js",
+    "sha256": "9a4d60010bcceb6310ef6a357cae924db06df1babe3c4dd91310da2b5f39cf1f",
+    "decodedCharOffsets": {
+      "inactiveConstants": 1035737,
+      "inactiveTracking": 1037919,
+      "unsubscribeSend": 1044602
+    },
+    "inactiveTtlMs": 10800000,
+    "maxInactiveOwnerThreads": 10,
+    "classification": "자동 비활성 구독 해제의 정적 코드 근거. 대상 runtime 실행 확인이나 외부 공개 API가 아님."
+  },
+  "sourceFiles": [
+    {
+      "path": "codex-rs/app-server/src/request_processors/thread_processor.rs",
+      "sha256Utf8": "37ff0875e2b6d3def2fc727fd065574bd243cea2aa836021ebb218ac83b898e7",
+      "ranges": [
+        "1079-1104"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server/src/request_processors/thread_lifecycle.rs",
+      "sha256Utf8": "eed1cc9bf38608be6ff2aa7a812b988fa9ecdcd5802944feda6839fe9361656e",
+      "ranges": [
+        "58-88",
+        "241-244"
+      ]
+    },
+    {
+      "path": "codex-rs/state/migrations/0001_threads.sql",
+      "sha256Utf8": "7a89ab37ba540b92781868aec12e7dc0a49eeb9a4b81125236e500534b012758",
+      "ranges": [
+        "1-19"
+      ]
+    },
+    {
+      "path": "codex-rs/state/migrations/0024_remote_control_enrollments.sql",
+      "sha256Utf8": "26fa628fb73b652e9604bf0fc16f699e15bc2d052e4f27991125a56c32d1a0dc",
+      "ranges": [
+        "1-10"
+      ]
+    },
+    {
+      "path": "codex-rs/state/migrations/0004_thread_dynamic_tools.sql",
+      "sha256Utf8": "89a39b8c371624551eafee412f683fab77459c503c48ec6cea8231d1e8c995fe",
+      "ranges": [
+        "1-9"
+      ]
+    },
+    {
+      "path": "codex-rs/state/migrations/0055_thread_attachments.sql",
+      "sha256Utf8": "f8066b833560b527a546d3d34a746e66a4432e6f3ad940e3d006b141646667f6",
+      "ranges": [
+        "1-6"
+      ]
+    }
+  ],
+  "officialDocs": [
+    "https://learn.chatgpt.com/docs/app-server",
+    "https://learn.chatgpt.com/docs/app/commands"
+  ],
+  "singleChatImmediateSafeUnload": "UNCONFIRMED",
+  "fullDesktopQuitRequired": "UNCONFIRMED",
+  "actualTargetStorageAndBackupManifest": "NOT_INSPECTED_NOT_CREATED",
+  "execution": {
+    "login": false,
+    "newServer": false,
+    "resume": false,
+    "unsubscribe": false,
+    "threadBodyRead": false,
+    "questionSent": false,
+    "settingsChanged": false,
+    "appQuit": false,
+    "backupOrDbCopy": false,
+    "P0": "NOT_APPROVED_NOT_RUN",
+    "P1": "NOT_APPROVED_NOT_RUN"
+  },
+  "errors": [
+    {
+      "kind": "list_threads argument limit100",
+      "count": 2,
+      "resolution": "공개 tool의 실제 상한50으로 수정해 metadata 조회 성공. 질문/RPC/모델 없음."
+    },
+    {
+      "kind": "sandbox CIM read",
+      "count": 1,
+      "resolution": "read-only 프로세스 metadata 조회의 자동 검토 승인 후 성공."
+    }
+  ]
+}

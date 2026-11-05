@@ -1,0 +1,35 @@
+{
+  "targetId": "01a186a9-a58d-76d2-bc55-215f5b4a008e",
+  "targetKind": "cloud_user_reported",
+  "startedUtc": "2026-10-29T08:26:31.629743+00:00",
+  "authentication": "PASS_USER_SUCCESS_SCREEN_AND_NEW_PROFILE",
+  "accountSelection": "USER_CONFIRMED_DESIGNATED_TEST_ACCOUNT",
+  "loginAttempts": 1,
+  "loginExitCode": null,
+  "recovery": "login child70200 already exited; owned pipe-wait runner64684 stopped; no query child was running; no re-login",
+  "cloudList": {
+    "status": "PASS_REQUEST",
+    "exitCode": 0,
+    "pageEntries": 0,
+    "targetFound": false,
+    "schemaRecognized": true
+  },
+  "cloudTargetStatus": {
+    "status": "FAILED",
+    "exitCode": 1,
+    "failureClass": "NOT_FOUND"
+  },
+  "bodyAccess": "NOT_RUN",
+  "answerGeneration": "NOT_RUN",
+  "P0Passed": false,
+  "P1Started": false,
+  "modelTurnStarts": 0,
+  "retries": 0,
+  "businessThreadRequests": 0,
+  "desktopAccountChanged": false,
+  "originalCredentialCopied": false,
+  "cloudExecOrApplyCommands": 0,
+  "finishedUtc": "2026-10-29T08:26:33.673569+00:00",
+  "temporaryProfileRemoved": true,
+  "newCredentialFileRemoved": true
+}

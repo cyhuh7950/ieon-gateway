@@ -1,0 +1,14 @@
+{
+  "type": "browser_screenshot",
+  "description": "동일 예시 HTML에 검증용 40단락을 삽입한 모바일 마지막 줄 가시성 캡처",
+  "author": "어울",
+  "source_directory": "docs/design/assets",
+  "source_css": "continuity.css",
+  "source_viewport_helper": "continuity-viewport.js",
+  "width": 430,
+  "height": 844,
+  "data": "합성 예시",
+  "model_calls": 0,
+  "real_mobile_ime_verified": false,
+  "captured_kst": "2026-10-29 14:11 +09:00ST"
+}

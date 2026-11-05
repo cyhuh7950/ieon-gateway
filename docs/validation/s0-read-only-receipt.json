@@ -1,0 +1,16 @@
+{
+  "startedAt": "2026-10-29T05:32:28.336Z",
+  "finishedAt": "2026-10-29T05:32:28.410Z",
+  "threadId": "01a185d0-e8fd-7812-80d1-ba8ff1d470e9",
+  "initialized": false,
+  "targetLoaded": null,
+  "listComplete": false,
+  "status": "unknown",
+  "statusSource": "not_observed",
+  "rpcRequests": 1,
+  "outcome": "transport_error",
+  "mutationRpcRequests": 0,
+  "bodyRpcRequests": 0,
+  "modelTurnStarts": 0,
+  "retries": 0
+}

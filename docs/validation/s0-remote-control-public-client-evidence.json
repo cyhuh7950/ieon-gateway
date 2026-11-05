@@ -1,0 +1,25 @@
+{
+  "reviewedKst": "2026-10-29 15:27 KST",
+  "desktopRemoteControlEnabled": false,
+  "desktopRemoteControlStateEvidence": "USER_DIRECT_STATEMENT_NOT_RUNTIME_QUERY",
+  "remoteControlExternalClientRegistration": "NOT_CONFIRMED_IN_PUBLIC_DOCS",
+  "remoteControlExternalClientAuthentication": "NOT_CONFIRMED_IN_PUBLIC_DOCS",
+  "remoteControlExternalClientConnectApi": "NOT_CONFIRMED_IN_PUBLIC_DOCS",
+  "remoteControlDecision": "HOLD_NO_PUBLIC_CLIENT_CONTRACT",
+  "nextAlternative": "SEPARATE_PC_APP_SERVER_STDIO_CONTRACT_REVIEW_ONLY",
+  "generalSiwcRegistrationIsRemoteControlSupport": false,
+  "originalExistingThreadRequirementPreserved": true,
+  "publicSources": [
+    "https://learn.chatgpt.com/docs/remote-connections",
+    "https://learn.chatgpt.com/docs/developer-commands",
+    "https://developers.openai.com/siwc",
+    "https://learn.chatgpt.com/docs/app-server"
+  ],
+  "runtimeQueries": 0,
+  "credentialReadOrReuse": 0,
+  "remoteControlActivation": 0,
+  "protocolImitation": 0,
+  "newServers": 0,
+  "modelCalls": 0,
+  "productSourceOrTestsChanges": 0
+}

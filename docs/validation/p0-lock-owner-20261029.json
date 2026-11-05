@@ -1,0 +1,42 @@
+{
+  "queriedUtc": "2026-10-29T07:22:43.947607+00:00",
+  "resource": "01a0dadd-739f-74d2-93c5-9c405cc1019b.lock",
+  "method": "Windows Restart Manager file-user metadata followed by CIM parent/process metadata",
+  "getListCalls": 1,
+  "startCode": 0,
+  "registerCode": 0,
+  "listCode": 0,
+  "endSessionCode": 0,
+  "processes": [
+    {
+      "pid": 21356,
+      "appName": "codex",
+      "processStartFileTime": 134377170485369034,
+      "parentPid": 19212,
+      "parentName": "ChatGPT.exe",
+      "creationDateUtc": "2026-10-29T03:10:48.5369030Z",
+      "executablePath": "C:\\Users\\cyhuh\\AppData\\Local\\OpenAI\\Codex\\bin\\08d187884f2330d1\\codex.exe",
+      "isAppServer": true,
+      "hasListener": false,
+      "isProxy": false,
+      "isDaemon": false
+    }
+  ],
+  "classification": "Unique file user confirmed; Desktop App Server lock ownership strongly inferred, not a direct byte-range owner PID response",
+  "additionalLockAcquisitionChecks": 0,
+  "lockFileDeleted": false,
+  "shutdownCalls": 0,
+  "restartCalls": 0,
+  "targetFileWrites": 0,
+  "appServerStarts": 0,
+  "loginStarts": 0,
+  "threadResumeRequests": 0,
+  "modelTurnStarts": 0,
+  "P0Passed": false,
+  "P1Started": false,
+  "singleThreadImmediateSafeUnload": "UNCONFIRMED",
+  "normalReleaseObserved": false,
+  "independentRunnerReady": false,
+  "normalQuitActorIfChosen": "USER_AFTER_OTHER_WORK_READY",
+  "userAuthorizedContinueAfterNormalRelease": true
+}

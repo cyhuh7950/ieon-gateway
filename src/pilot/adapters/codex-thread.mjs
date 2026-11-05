@@ -1,0 +1,211 @@
+// S2.3 Codex thread 어댑터. 세션별 connect_mode로 두 방식을 고른다.
+// - alternate: 잠금 사전 확인 → SDK resumeThread → runStreamed (X1에서 확인한 방식)
+// - shared_server: 공유 App Server에 붙어 thread가 idle일 때만 turn/start (X2에서 확인한 방식)
+// 기본은 live 실행 차단이다. allowlist 밖 thread·업무 대화는 거부한다. override를 넘기지 않는다.
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { checkNewSession } from '../new-sessions.mjs';
+import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { EngineError } from '../contracts.mjs';
+
+const EXCLUDED = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
+const BLOCKED_SDK = new Set(['command_execution', 'file_change', 'mcp_tool_call', 'web_search']);
+const BLOCKED_APP = new Set(['commandExecution', 'fileChange', 'mcpToolCall', 'webSearch', 'dynamicToolCall']);
+const PROBE = fileURLToPath(new URL('../lock-probe.ps1', import.meta.url));
+
+export function lockProbe(threadId) {
+  return JSON.parse(execFileSync('pwsh', ['-NoProfile', '-File', PROBE, '-ThreadId', threadId], { encoding: 'utf8' })).outcome;
+}
+
+async function runAlternate(threadId, question, deps) {
+  const outcome = deps.probe(threadId);
+  if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) {
+    throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
+  }
+  const { Codex } = await deps.loadSdk();
+  // ThreadOptions를 비우면 SDK(codex exec)가 사용자 config.toml의 sandbox_mode(이 PC는 danger-full-access)와
+  // approval never로 실행한다(2026-10-30 rollout 확인). 외부 질문은 항상 읽기 전용·승인 없음·웹/네트워크 차단으로 고정하고,
+  // SDK 옵션은 이번 실행에만 적용되고 Desktop은 다음 turn에 자기 설정을 다시 쓴다(rollout 확인).
+  // workingDirectory(--cd)는 exec resume에서 os error 2로 실패하므로 넘기지 않고, codex 프로세스가 시작될 때의
+  // 현재 폴더를 원래 대화 폴더로 잠시 바꾼다. 연결부는 한 번에 한 작업만 실행한다.
+  const thread = new Codex().resumeThread(threadId, {
+    sandboxMode: 'read-only',
+    approvalPolicy: 'never',
+    networkAccessEnabled: false,
+    webSearchMode: 'disabled',
+    skipGitRepoCheck: true,
+  });
+  const turn = await streamTurn(thread, question, { cwd: deps.workingDirectory, blocked: BLOCKED_SDK });
+  if (turn.blocked) return { approvalRequired: true };
+  if (turn.failed || (turn.returned ?? thread.id) !== threadId) throw new Error('turn_failed_or_thread_mismatch');
+  return { receipt: `codex:${threadId}`, answer: turn.answer };
+}
+
+// SDK turn 하나를 끝까지 읽는다. blocked에 든 item이 시작되면 그 자리에서 멈춘다.
+// cwd를 주면 codex 프로세스가 시작되는 동안만 현재 폴더를 바꾼다(resume은 --cd가 os error 2로 실패한다).
+async function streamTurn(thread, question, { cwd, blocked: blockedTypes }) {
+  const controller = new AbortController();
+  const { events } = await thread.runStreamed(question, { signal: controller.signal });
+  const iterator = events[Symbol.asyncIterator]();
+  const previousCwd = process.cwd();
+  let first;
+  try {
+    if (cwd) process.chdir(cwd);
+    first = await iterator.next(); // SDK는 첫 이벤트를 기다릴 때 codex 프로세스를 띄운다.
+  } finally {
+    process.chdir(previousCwd);
+  }
+  const rest = { [Symbol.asyncIterator]: () => iterator };
+  let answer = '';
+  let returned = null;
+  let blocked = null;
+  let failed = false;
+  const all = (async function* () { if (!first.done) yield first.value; yield* rest; })();
+  for await (const event of all) {
+    if (event.type === 'thread.started') returned = event.thread_id;
+    if (event.type === 'item.started' || event.type === 'item.completed') {
+      if (blockedTypes.has(event.item.type)) { blocked = event.item.type; controller.abort(); break; }
+      if (event.type === 'item.completed' && event.item.type === 'agent_message') answer = event.item.text;
+    }
+    if (event.type === 'turn.failed') failed = true;
+  }
+  return { answer, returned, blocked, failed };
+}
+
+// 새 세션(설계 NEW_SESSIONS N1). 서버가 보낸 프로필·작업 폴더를 연결부 설정으로 다시 검사한다.
+// full은 이 PC의 설정 파일(sessionOverrides·allowFullFromChat)이 허용할 때만 쓴다.
+function newSessionPlan(ns, cfg) {
+  let checked;
+  try { checked = checkNewSession(cfg, ns); } catch (e) { throw new EngineError(e.code, e.http); }
+  const { profile, workspace } = checked;
+  const { sandbox, network } = profile.codex;
+  const blocked = new Set(['mcp_tool_call', 'dynamic_tool_call']);
+  if (sandbox === 'read-only') blocked.add('file_change');
+  // 명령 실행·웹 검색은 네트워크까지 연 프로필(full)에서만 허용한다. workspace는 파일 변경까지만.
+  if (!network) { blocked.add('command_execution'); blocked.add('web_search'); }
+  return {
+    workspace, blocked,
+    options: { sandboxMode: sandbox, approvalPolicy: 'never', networkAccessEnabled: network,
+      webSearchMode: network ? 'live' : 'disabled', skipGitRepoCheck: true },
+  };
+}
+
+async function runNewSession({ sessionRef, question, newSession }, deps, { config, created }) {
+  const plan = newSessionPlan(newSession, config);
+  const { Codex } = await deps.loadSdk();
+  let thread;
+  let cwd;
+  const pending = sessionRef.startsWith('pending:');
+  if (pending) {
+    mkdirSync(plan.workspace, { recursive: true });
+    thread = new Codex().startThread({ ...plan.options, workingDirectory: plan.workspace });
+  } else {
+    // 서버 DB만 믿지 않는다. 이 연결부가 직접 만든 대화만 새 세션으로 재개한다.
+    if (sessionRef === EXCLUDED || !created.has(sessionRef)) throw new EngineError('thread_not_allowed', 403);
+    const outcome = deps.probe(sessionRef);
+    if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) {
+      throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
+    }
+    thread = new Codex().resumeThread(sessionRef, plan.options);
+    cwd = plan.workspace;
+  }
+  const turn = await streamTurn(thread, question, { cwd, blocked: plan.blocked });
+  const threadId = pending ? (turn.returned ?? thread.id) : sessionRef;
+  if (pending && threadId) created.add(threadId, newSession.name);
+  // 멈추거나 실패해도 이미 만들어진 대화 ID는 서버에 남겨 같은 세션으로 이어 가게 한다.
+  if (turn.blocked) return { approvalRequired: true, sessionRef: threadId };
+  if (turn.failed || !threadId || (turn.returned ?? thread.id) !== threadId) {
+    throw Object.assign(new Error('turn_failed_or_thread_mismatch'), { sessionRef: threadId });
+  }
+  return { receipt: `codex:${threadId}`, answer: turn.answer, sessionRef: threadId };
+}
+
+async function runShared(threadId, question, { endpoint, token }) {
+  const ws = new WebSocket(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+  const pending = new Map();
+  let nextId = 1;
+  let turnId = null;
+  let answer = '';
+  let blocked = false;
+  let userMessages = 0;
+  const usage = {};
+  let finish;
+  const done = new Promise((r) => { finish = r; });
+  const call = (method, params) => {
+    const id = nextId++;
+    ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+    return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.id !== undefined && pending.has(msg.id)) {
+      const p = pending.get(msg.id); pending.delete(msg.id);
+      return msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result);
+    }
+    const params = msg.params;
+    if (!params || params.threadId !== threadId || (turnId && params.turnId && params.turnId !== turnId)) return;
+    if (msg.method === 'item/started' || msg.method === 'item/completed') {
+      if (BLOCKED_APP.has(params.item?.type) && !blocked) {
+        blocked = true;
+        call('turn/interrupt', { threadId, turnId }).catch(() => {});
+      }
+      if (msg.method === 'item/completed' && params.item?.type === 'agentMessage') answer = params.item.text ?? answer;
+      // 이 turn에 우리 질문 외의 사용자 메시지가 들어오면(TUI에서 Enter = steer) 답이 섞였을 수 있다.
+      if (msg.method === 'item/started' && params.item?.type === 'userMessage') userMessages += 1;
+    }
+    // 사용량: 이 turn의 모델 호출마다 오는 last 값을 더한다(total은 thread 누적값이라 쓰지 않는다).
+    if (msg.method === 'thread/tokenUsage/updated' && turnId && params.turnId === turnId) {
+      const last = params.tokenUsage?.last ?? {};
+      for (const k of ['inputTokens', 'cachedInputTokens', 'outputTokens', 'reasoningOutputTokens']) usage[k] = (usage[k] ?? 0) + (last[k] ?? 0);
+    }
+    if (msg.method === 'turn/completed') finish(params.turn?.status ?? null);
+  };
+  try {
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = () => reject(new EngineError('shared_server_down', 503)); });
+    await call('initialize', { clientInfo: { name: 'ieon-connector', version: '0.1.0' } });
+    ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'initialized' }));
+    const read = await call('thread/read', { threadId, includeTurns: false });
+    const status = read.thread?.status?.type;
+    // reject_busy: 사람이 쓰는 중이면 합류(steer)하지 않고 거부한다.
+    if (status !== 'idle') throw new EngineError(status === 'notLoaded' ? 'thread_not_open' : 'thread_busy', 409);
+    await call('thread/resume', { threadId, excludeTurns: true });
+    const started = await call('turn/start', { threadId, clientUserMessageId: randomUUID(), input: [{ type: 'text', text: question, text_elements: [] }] });
+    turnId = started.turn?.id ?? null;
+    const status2 = await Promise.race([done, new Promise((r) => setTimeout(() => r('timeout'), 180000))]);
+    if (blocked) return { approvalRequired: true };
+    if (status2 !== 'completed') throw new Error(`turn_${status2}`);
+    // 2026-10-30 실측: 이어온 turn 중 TUI 입력이 합류해 답이 사람 입력에 대한 답("확인")으로 바뀌었다.
+    // 모델은 실행됐으므로 실패가 아니라 결과 불명으로 넘기고, 섞였을 수 있는 답은 이어온 답으로 내보내지 않는다.
+    if (userMessages > 1) throw Object.assign(new Error('turn_joined_by_other_input'), { unknownCode: 'turn_joined_by_other_input' });
+    return { receipt: `codex:${threadId}:${turnId}`, answer, usage: Object.keys(usage).length ? usage : null };
+  } finally {
+    ws.close();
+  }
+}
+
+// opts: { live, allowlist, modes: {threadId: 'alternate'|'shared_server'}, shared: {endpoint, tokenFile}, probe?, loadSdk?,
+//         newSessions?: { config(loadNewSessionsConfig 결과), created: { has(id), add(id, name) } } }
+export function codexThreadAdapter(opts) {
+  const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')) };
+  return {
+    engine: 'codex_thread',
+    async run({ sessionRef: threadId, question, connectMode, newSession }) {
+      if (newSession) {
+        if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
+        if (!opts.live) throw new EngineError('live_disabled', 503);
+        return runNewSession({ sessionRef: threadId, question, newSession }, deps, opts.newSessions);
+      }
+      if (threadId === EXCLUDED || !opts.allowlist.includes(threadId)) throw new EngineError('thread_not_allowed', 403);
+      if (!opts.live) throw new EngineError('live_disabled', 503);
+      // 서버가 보낸 세션 설정이 우선이고, 없으면 연결부 설정·기본값(alternate) 순으로 쓴다.
+      const mode = connectMode ?? opts.modes?.[threadId] ?? 'alternate';
+      if (mode === 'shared_server') {
+        if (!opts.shared?.endpoint || !opts.shared?.tokenFile) throw new EngineError('shared_server_not_configured', 503);
+        const token = readFileSync(opts.shared.tokenFile, 'utf8').trim();
+        return runShared(threadId, question, { endpoint: opts.shared.endpoint, token });
+      }
+      return runAlternate(threadId, question, { ...deps, workingDirectory: opts.workingDirectories?.[threadId] });
+    },
+  };
+}

@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-29T05:11:59.497Z",
+  "title": "이어온 정적 시안 디자인 프로필",
+  "extensions": {
+    "colorMeta": {
+      "bg": {
+        "role": "neutral",
+        "displayName": "차분한 회색 바탕",
+        "canonical": "#f3f5f7",
+        "tonalRamp": [
+          "oklch(15% 0.0011 247.86)",
+          "oklch(26% 0.0024 247.86)",
+          "oklch(37% 0.0034 247.86)",
+          "oklch(48% 0.0034 247.86)",
+          "oklch(60% 0.0034 247.86)",
+          "oklch(72% 0.0034 247.86)",
+          "oklch(84% 0.0022 247.86)",
+          "oklch(95% 0.0007 247.86)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "흰 작업 표면",
+        "canonical": "#fff",
+        "tonalRamp": [
+          "oklch(15% 0.0000 89.88)",
+          "oklch(26% 0.0000 89.88)",
+          "oklch(37% 0.0000 89.88)",
+          "oklch(48% 0.0000 89.88)",
+          "oklch(60% 0.0000 89.88)",
+          "oklch(72% 0.0000 89.88)",
+          "oklch(84% 0.0000 89.88)",
+          "oklch(95% 0.0000 89.88)"
+        ]
+      },
+      "surface-alt": {
+        "role": "neutral",
+        "displayName": "보조 회색 표면",
+        "canonical": "#f7f9fb",
+        "tonalRamp": [
+          "oklch(15% 0.0011 247.86)",
+          "oklch(26% 0.0024 247.86)",
+          "oklch(37% 0.0034 247.86)",
+          "oklch(48% 0.0034 247.86)",
+          "oklch(60% 0.0034 247.86)",
+          "oklch(72% 0.0034 247.86)",
+          "oklch(84% 0.0022 247.86)",
+          "oklch(95% 0.0007 247.86)"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "짙은 본문",
+        "canonical": "#22252b",
+        "tonalRamp": [
+          "oklch(15% 0.0040 264.34)",
+          "oklch(26% 0.0084 264.34)",
+          "oklch(37% 0.0120 264.34)",
+          "oklch(48% 0.0120 264.34)",
+          "oklch(60% 0.0120 264.34)",
+          "oklch(72% 0.0120 264.34)",
+          "oklch(84% 0.0077 264.34)",
+          "oklch(95% 0.0024 264.34)"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "보조 설명",
+        "canonical": "#596472",
+        "tonalRamp": [
+          "oklch(15% 0.0087 254.52)",
+          "oklch(26% 0.0183 254.52)",
+          "oklch(37% 0.0262 254.52)",
+          "oklch(48% 0.0262 254.52)",
+          "oklch(60% 0.0262 254.52)",
+          "oklch(72% 0.0262 254.52)",
+          "oklch(84% 0.0168 254.52)",
+          "oklch(95% 0.0052 254.52)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "연한 경계",
+        "canonical": "#dfe3e8",
+        "tonalRamp": [
+          "oklch(15% 0.0027 253.86)",
+          "oklch(26% 0.0056 253.86)",
+          "oklch(37% 0.0081 253.86)",
+          "oklch(48% 0.0081 253.86)",
+          "oklch(60% 0.0081 253.86)",
+          "oklch(72% 0.0081 253.86)",
+          "oklch(84% 0.0052 253.86)",
+          "oklch(95% 0.0016 253.86)"
+        ]
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "남색 주요 동작",
+        "canonical": "#24344d",
+        "tonalRamp": [
+          "oklch(15% 0.0165 259.08)",
+          "oklch(26% 0.0347 259.08)",
+          "oklch(37% 0.0496 259.08)",
+          "oklch(48% 0.0496 259.08)",
+          "oklch(60% 0.0496 259.08)",
+          "oklch(72% 0.0496 259.08)",
+          "oklch(84% 0.0318 259.08)",
+          "oklch(95% 0.0099 259.08)"
+        ]
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "청록 연결 강조",
+        "canonical": "#0f766e",
+        "tonalRamp": [
+          "oklch(15% 0.0287 186.39)",
+          "oklch(26% 0.0602 186.39)",
+          "oklch(37% 0.0861 186.39)",
+          "oklch(48% 0.0861 186.39)",
+          "oklch(60% 0.0861 186.39)",
+          "oklch(72% 0.0861 186.39)",
+          "oklch(84% 0.0551 186.39)",
+          "oklch(95% 0.0172 186.39)"
+        ]
+      },
+      "focus": {
+        "role": "focus",
+        "displayName": "푸른 키보드 초점",
+        "canonical": "#2563eb",
+        "tonalRamp": [
+          "oklch(15% 0.0717 262.88)",
+          "oklch(26% 0.1506 262.88)",
+          "oklch(37% 0.2152 262.88)",
+          "oklch(48% 0.2152 262.88)",
+          "oklch(60% 0.2152 262.88)",
+          "oklch(72% 0.2152 262.88)",
+          "oklch(84% 0.1377 262.88)",
+          "oklch(95% 0.0430 262.88)"
+        ]
+      },
+      "success": {
+        "role": "success",
+        "displayName": "초록 성공 상태",
+        "canonical": "#17654d",
+        "tonalRamp": [
+          "oklch(15% 0.0278 167.58)",
+          "oklch(26% 0.0585 167.58)",
+          "oklch(37% 0.0835 167.58)",
+          "oklch(48% 0.0835 167.58)",
+          "oklch(60% 0.0835 167.58)",
+          "oklch(72% 0.0835 167.58)",
+          "oklch(84% 0.0535 167.58)",
+          "oklch(95% 0.0167 167.58)"
+        ]
+      },
+      "warning": {
+        "role": "warning",
+        "displayName": "황갈색 주의 상태",
+        "canonical": "#815b0d",
+        "tonalRamp": [
+          "oklch(15% 0.0330 78.79)",
+          "oklch(26% 0.0693 78.79)",
+          "oklch(37% 0.0990 78.79)",
+          "oklch(48% 0.0990 78.79)",
+          "oklch(60% 0.0990 78.79)",
+          "oklch(72% 0.0990 78.79)",
+          "oklch(84% 0.0634 78.79)",
+          "oklch(95% 0.0198 78.79)"
+        ]
+      },
+      "danger": {
+        "role": "danger",
+        "displayName": "붉은 위험 동작",
+        "canonical": "#a12b37",
+        "tonalRamp": [
+          "oklch(15% 0.0511 19.80)",
+          "oklch(26% 0.1074 19.80)",
+          "oklch(37% 0.1534 19.80)",
+          "oklch(48% 0.1534 19.80)",
+          "oklch(60% 0.1534 19.80)",
+          "oklch(72% 0.1534 19.80)",
+          "oklch(84% 0.0982 19.80)",
+          "oklch(95% 0.0307 19.80)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "업무 본문",
+        "purpose": "본문·폼 기본 12px. 설치 브라우저에서 Noto Sans KR fallback 확인."
+      },
+      "conversation": {
+        "displayName": "주요 대화",
+        "purpose": "질문과 보관 답변의 14px 읽기 영역."
+      },
+      "mobile-input": {
+        "displayName": "모바일 질문 입력",
+        "purpose": "650px 이하 질문 textarea의 16px 입력."
+      }
+    },
+    "shadows": [
+      {
+        "name": "delete-dialog",
+        "value": "0 16px 44px rgba(23,37,52,.2)",
+        "purpose": "보관 기록 삭제 확인 대화상자의 계층을 구분한다."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-min",
+        "value": "1600px"
+      },
+      {
+        "name": "shell-margin-max",
+        "value": "1490px"
+      },
+      {
+        "name": "compact-columns-max",
+        "value": "900px"
+      },
+      {
+        "name": "mobile-flow-max",
+        "value": "650px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "질문 보내기",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "현재 시안의 남색 주요 동작. 실제 전송은 연결하지 않은 표시다.",
+      "html": "<button class=\"ds-primary-button\" type=\"button\">질문 보내기<svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m4 4 16 8-16 8 3-8-3-8Z\"></path><path d=\"M7 12h13\"></path></svg></button>",
+      "css": ".ds-primary-button{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;}.ds-primary-button{background:var(--color-primary, #24344d);color:#fff;border:1px solid var(--color-primary, #24344d);border-radius:6px;min-height:36px;min-width:104px;padding:8px 14px;display:inline-flex;align-items:center;justify-content:center;gap:9px;font-size:12px;font-weight:600;white-space:nowrap}.ds-primary-button:hover{background:#344b69}.ds-primary-button:disabled{background:#e9edf2;border-color:#d8dfe7;color:#607084}.ds-primary-button:focus-visible{outline:2px solid var(--color-focus, #2563eb);outline-offset:4px;}.ds-icon{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}"
+    },
+    {
+      "name": "보조 동작",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "기존 대화 연결 등에 쓰는 흰 바탕의 보조 버튼.",
+      "html": "<button class=\"ds-plain-button\" type=\"button\">기존 대화 연결</button>",
+      "css": ".ds-plain-button{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;font-size:12px;}.ds-plain-button{border:1px solid #cbd3dd;background:#fff;color:#344860;border-radius:6px;padding:9px 10px;display:flex;justify-content:center;align-items:center;gap:6px;min-height:36px}.ds-plain-button:hover{background:#f4f7fa}.ds-plain-button:disabled{background:#f5f7f9;color:#737d89;border-color:#dce1e7}.ds-plain-button:focus-visible{outline:2px solid var(--color-focus, #2563eb);outline-offset:4px;}"
+    },
+    {
+      "name": "질문 입력",
+      "kind": "input",
+      "refersTo": "question-input",
+      "description": "programmatic label이 있는 질문 textarea. 작은 화면은 16px 입력을 사용한다.",
+      "html": "<label class=\"ds-question-label\" for=\"ds-question\">질문</label><textarea class=\"ds-question\" id=\"ds-question\" placeholder=\"이 대화의 앞선 내용을 이어서 질문하세요.\"></textarea>",
+      "css": ".ds-question-label{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;display:block;font-size:12px;font-weight:600;margin-bottom:8px;}.ds-question{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;}.ds-question{width:100%;height:91px;resize:vertical;max-height:180px;border:1px solid #aebdcb;background:#fff;border-radius:7px;color:#222f3f;padding:12px 14px;line-height:1.7;font-size:13px}.ds-question::placeholder{color:#586a7d;opacity:1}.ds-question:disabled{background:#f6f8fa;color:#596472;border-color:#d5dde5}.ds-question:focus-visible{outline:2px solid var(--color-focus, #2563eb);outline-offset:4px;}@media(max-width:650px){.ds-question{font-size:16px;height:105px;}}"
+    },
+    {
+      "name": "정적 상태 검토 이동",
+      "kind": "nav",
+      "refersTo": "review-navigation",
+      "description": "제품 영역 밖에서 합성 상태 시안을 비교하는 링크. 제품 navigation으로 해석하지 않는다.",
+      "html": "<nav class=\"ds-review-nav\" aria-label=\"시안 상태 선택\"><a href=\"#completed\" aria-current=\"page\">답변 완료</a><a href=\"#offline\">PC 연결 끊김</a><a href=\"#unknown\">결과 확인 필요</a></nav>",
+      "css": ".ds-review-nav{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;font-size:11px;}.ds-review-nav{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.ds-review-nav a{padding:3px 9px;border-radius:5px;color:#3b4d63;text-decoration:none;white-space:nowrap}.ds-review-nav a:hover{background:#d9e2eb}.ds-review-nav a[aria-current=page]{background:var(--color-primary, #24344d);color:#fff}.ds-review-nav a:focus-visible{outline:2px solid var(--color-focus, #2563eb);outline-offset:4px;}"
+    },
+    {
+      "name": "대화 유형 표시",
+      "kind": "chip",
+      "refersTo": "conversation-chip",
+      "description": "기존 대화·질의 전용을 나타내는 비대화형 표식의 관찰값. 글자크기 finding의 해소를 뜻하지 않는다.",
+      "html": "<span class=\"ds-chip\">기존 대화 · 질의 전용</span>",
+      "css": ".ds-chip{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;}.ds-chip{display:inline-flex;align-items:center;gap:5px;border-radius:4px;padding:2px 7px;font-size:10px;color:#46576c;background:#f0f3f7}"
+    },
+    {
+      "name": "선택된 기존 대화",
+      "kind": "card",
+      "refersTo": "conversation-selected",
+      "description": "상단 목록에서 이미 연결한 대화를 구분하는 연한 청록 표면.",
+      "html": "<div class=\"ds-conversation-item\" aria-current=\"true\"><div class=\"ds-conversation-name\">프로젝트 검토</div><div class=\"ds-item-meta\"><span class=\"ds-existing-tag\">기존 대화</span><span>프로젝트 도우미</span></div></div>",
+      "css": ".ds-conversation-item{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;}.ds-conversation-item{border:1px solid #cadbdc;background:#edf5f4;border-radius:8px;padding:15px 13px;display:block;color:inherit;text-decoration:none}.ds-conversation-name{font-size:13px;font-weight:650;color:#204e4b;margin-bottom:8px}.ds-item-meta{display:flex;align-items:center;gap:6px;color:#506362;font-size:11px}.ds-existing-tag{font-size:10px;font-weight:600;background:#fff;color:#49615e;border:1px solid #bdcfcd;padding:0 5px;border-radius:3px}"
+    },
+    {
+      "name": "완료 상태",
+      "kind": "chip",
+      "refersTo": "status-completed",
+      "description": "문구와 점 표식을 함께 제공하는 완료 상태의 관찰값.",
+      "html": "<span class=\"ds-status-pill\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>답변 완료</span>",
+      "css": ".ds-status-pill{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;}.ds-status-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:4px;background:#e9f4ee;color:var(--color-success, #17654d);font-size:11px;white-space:nowrap}.ds-dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;flex-shrink:0}"
+    },
+    {
+      "name": "결과 확인 필요 안내",
+      "kind": "custom",
+      "refersTo": "status-unknown",
+      "description": "결과불명 상태를 주의 색상·제목·안내로 구분하는 합성 예시.",
+      "html": "<section class=\"ds-status-banner\" role=\"alert\"><div><h2>결과 확인이 필요합니다</h2><p>질문을 자동으로 다시 보내지 않습니다. 기존 처리 결과를 먼저 확인하세요.</p><button type=\"button\" class=\"ds-plain-button\">기존 결과 확인</button></div></section>",
+      "css": ".ds-status-banner{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;}.ds-status-banner h2,.ds-status-banner p{margin:0;}.ds-plain-button{font-family:var(--font-sans, \"Pretendard Variable\",Pretendard,\"Noto Sans KR\",\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"Segoe UI\",sans-serif);line-height:1.6;font-size:12px;}.ds-status-banner{flex-shrink:0;display:flex;align-items:flex-start;gap:11px;padding:15px 20px;margin:22px 36px 0;background:#fff7e4;border:1px solid #e5c77c;border-radius:8px;color:#6c4c0c}.ds-status-banner h2{font-size:12px;margin-bottom:3px}.ds-status-banner p{font-size:12px;color:#6c4c0c;line-height:1.7}.ds-plain-button{border:1px solid #cbd3dd;background:#fff;color:#344860;border-radius:6px;padding:9px 10px;display:flex;justify-content:center;align-items:center;gap:6px;min-height:36px}.ds-plain-button:hover{background:#f4f7fa}.ds-status-banner .ds-plain-button{background:#fffaf0;border-color:#c6ab69;color:#6c4c0c;justify-content:flex-start;margin-top:10px;padding:6px 10px;min-height:30px;display:inline-flex}.ds-plain-button:focus-visible{outline:2px solid var(--color-focus, #2563eb);outline-offset:4px;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "원래 대화를 그대로",
+    "overview": "원래 대화를 바꾸지 않고 이어 쓴다는 사실과 현재 실행 가능 상태를 한 화면에서 읽는다. PMO의 차분한 회색 바탕·흰 표면·남색 액션·청록 연결 상태를 계승한다.",
+    "keyCharacteristics": [
+      "12px 업무 기본과 14px 주요 대화, 모바일 16px 입력",
+      "상태를 한국어 문구와 색상으로 함께 구분",
+      "데스크톱 목록·대화 분할과 모바일 문서 전체 흐름"
+    ],
+    "rules": [],
+    "dos": [],
+    "donts": []
+  }
+}

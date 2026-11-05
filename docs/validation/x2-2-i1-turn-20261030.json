@@ -1,0 +1,28 @@
+{
+  "threadId": "01a18790-63c7-73e3-a60b-6ddb60fd5be8",
+  "atUtc": "2026-10-30T07:54:42.471Z",
+  "endpoint": "ws://127.0.0.1:18761",
+  "clientUserMessageId": "1f17abf8-da37-4d79-8300-c3ca1813820e",
+  "methodsSent": [
+    "initialize",
+    "thread/read",
+    "thread/resume",
+    "turn/start"
+  ],
+  "statusBefore": "idle",
+  "turnStartRequests": 1,
+  "modelTurnStarts": 1,
+  "retries": 0,
+  "turnId": "01a18bcd-cbd2-7392-835e-348e30d6d435",
+  "outcome": "COMPLETED",
+  "markerCFound": true,
+  "itemTypes": [
+    "userMessage",
+    "agentMessage"
+  ],
+  "blockedItem": null,
+  "usage": null,
+  "errorKind": null,
+  "answerStored": false,
+  "turnStatus": "completed"
+}

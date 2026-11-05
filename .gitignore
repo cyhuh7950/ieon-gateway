@@ -1,0 +1,16 @@
+# 실제 Secret과 인증 자료는 private 저장소에서도 추적하지 않는다.
+.env
+.env.*
+!.env.example
+.ssh/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# 일회성 로그와 임시 파일
+*.log
+*.tmp
+*.temp
+node_modules/
+.local/

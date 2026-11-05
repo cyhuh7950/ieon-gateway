@@ -1,0 +1,84 @@
+{
+  "reviewedKst": "2026-10-29 17:57 KST",
+  "scope": "Claude Channels와Codex공식 외부 입력의 문서/source 비교",
+  "tag": "rust-v0.165.0-alpha.1.2",
+  "commit": "720fec862a608ae1e5878d1eecb04fb93192e93c",
+  "sourceFiles": [
+    {
+      "path": "codex-rs/cli/src/main.rs",
+      "sha256": "ac51c153916132c0be2c37ea1136562685b832957bc2e43e53d71608d0b28a4a",
+      "ranges": [
+        "91",
+        "213",
+        "1576-1577"
+      ]
+    },
+    {
+      "path": "codex-rs/cli/src/queue_cmd.rs",
+      "sha256": "6dd11747249b2cb0a36f6dcd17756a4ebe14361067a1d3af5b37716e1b22dceb",
+      "ranges": [
+        "29-62"
+      ]
+    },
+    {
+      "path": "codex-rs/tui/src/session_queue_commands.rs",
+      "sha256": "fdff738632b7a367ea0d2a934fac1102559eb8610c9b6930890778b91f22cb45",
+      "ranges": [
+        "27-80",
+        "84-127"
+      ]
+    },
+    {
+      "path": "codex-rs/tui/src/session_archive_commands.rs",
+      "sha256": "d8b3fef383dad8c15c277d5f245bfe817e886a7d01a1545e41a17a08b2dc40ac",
+      "ranges": [
+        "225-294"
+      ]
+    },
+    {
+      "path": "sdk/python/docs/api-reference.md",
+      "sha256": "690676cdae341212cfe4232a2c50c3426ba13995c000c68e7dd0647874bafffc",
+      "ranges": [
+        "309-356"
+      ]
+    },
+    {
+      "path": "sdk/python/docs/faq.md",
+      "sha256": "cceee83a1b3724d8de8c3698cc5cd4cbf552b48974ec0561ba61982c1db94fc4",
+      "ranges": [
+        "40-68"
+      ]
+    }
+  ],
+  "primaryDocs": [
+    "https://code.claude.com/docs/en/channels",
+    "https://learn.chatgpt.com/docs/developer-commands#codex-queue",
+    "https://learn.chatgpt.com/docs/app-server"
+  ],
+  "findings": {
+    "externalInputApiExists": true,
+    "queueCommandExistsInExactSource": true,
+    "queueRequiresSharedOrExplicitRemoteServer": true,
+    "queueAcknowledgementIsFinalAnswer": false,
+    "externalMessageStartsIdleOrJoinsActiveRegularTurn": true,
+    "externalMessageAuthority": "TOOL_LEVEL_NOT_USER_APPROVAL",
+    "sdkDocumentedMinimumCli": "0.151.0",
+    "currentWindowsDesktopExternalAttach": "UNCONFIRMED",
+    "sameRunningThreadDelivery": "SOURCE_SUPPORTED_SAME_ACCESSIBLE_RUNTIME_REQUIRED",
+    "messengerEndToEnd": "NOT_IMPLEMENTED_NOT_TESTED",
+    "sdkInstalled": "NOT_CHECKED",
+    "claudeChannels": "RESEARCH_PREVIEW_OPT_IN_AND_ALLOWLIST_REQUIRED"
+  },
+  "executed": {
+    "messageSend": 0,
+    "queueCommands": 0,
+    "sdkInvocations": 0,
+    "socketConnections": 0,
+    "daemonStarts": 0,
+    "newLogins": 0,
+    "modelTurns": 0,
+    "configChanges": 0,
+    "desktopOrThreadMutations": 0
+  },
+  "decision": "REVIEW_ONLY_NO_IMPLEMENTATION_APPROVAL"
+}

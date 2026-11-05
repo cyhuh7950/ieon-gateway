@@ -1,0 +1,93 @@
+{
+  "observedKst": "2026-10-29 15:19",
+  "tag": "rust-v0.165.0-alpha.1.2",
+  "commit": "720fec862a608ae1e5878d1eecb04fb93192e93c",
+  "tagMappingEvidence": "s0-proxy-source-evidence.json",
+  "sourceFiles": [
+    {
+      "path": "codex-rs/app-server/src/lib.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server/src/lib.rs",
+      "sha256Utf8": "314e9b2fe129e053b8c7cf261c366a19f9df681f9bc2c7288761d695152fad2f",
+      "evidenceRanges": [
+        "815-861",
+        "888-901",
+        "1215-1218"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server/src/message_processor.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server/src/message_processor.rs",
+      "sha256Utf8": "aadaf2f4a99db6a4844a2e44c97ed8ba2718dfab4e460609a1408558875b8a74",
+      "evidenceRanges": [
+        "1197-1216"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server/src/request_processors/remote_control_processor.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server/src/request_processors/remote_control_processor.rs",
+      "sha256Utf8": "34a891caca1c163d253ba8cfafaed490e5ee63467c956e075e07443eaae459d0",
+      "evidenceRanges": [
+        "41-60",
+        "85-94",
+        "118-125"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server-transport/src/transport/remote_control/controller.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server-transport/src/transport/remote_control/controller.rs",
+      "sha256Utf8": "eca8afee2ab912bedef8813d4c3972ee0f01cf5e4fdf5ef99856d516838767c3",
+      "evidenceRanges": [
+        "193-208",
+        "265-311"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server-transport/src/transport/remote_control/client_tracker.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server-transport/src/transport/remote_control/client_tracker.rs",
+      "sha256Utf8": "eb962402dfa0dcd44de5f433ecb91db44ae2f07077e6680c38bb077e24ae874e",
+      "evidenceRanges": [
+        "150-176"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server-transport/src/transport/remote_control/auth.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server-transport/src/transport/remote_control/auth.rs",
+      "sha256Utf8": "070dfb6e839ca0a1e75f8f9b9a23332181fa32894ab5fd549a5968fcf23b8941",
+      "evidenceRanges": [
+        "100-141"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server-daemon/src/launch.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server-daemon/src/launch.rs",
+      "sha256Utf8": "c58544e8a5dd2af5cc0cef6f08932d79c2c0824fd2d4348d89c6efac29e2b160",
+      "evidenceRanges": [
+        "15-25"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server-daemon/src/backend/pid_start.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server-daemon/src/backend/pid_start.rs",
+      "sha256Utf8": "8ded330f05e2119a5295090f5dc66ba3dd86dd361433d65c9cfc8ab772febc1d",
+      "evidenceRanges": [
+        "214-216"
+      ]
+    }
+  ],
+  "stdioStartsUnixOrWebSocketListener": false,
+  "directLocalAttachToExistingStdio": "NOT_FOUND_IN_REVIEWED_SOURCE",
+  "sameProcessRemoteControlTransport": "CONDITIONAL_PATH_CONFIRMED_IN_SOURCE",
+  "remoteControlSharesTransportEventQueue": true,
+  "remoteControlEnableViaExistingInitializedClient": true,
+  "currentDesktopRemoteControlEnabled": "NOT_QUERIED",
+  "thirdPartyIeonClientOfficialSupport": "UNVERIFIED",
+  "daemonStartReattachesDesktopStdio": false,
+  "stdioCloseCancelsRemoteControl": true,
+  "sourceReviewOnly": true,
+  "socketAttempts": 0,
+  "daemonOrServerStarts": 0,
+  "settingsOrAuthChanges": 0,
+  "liveRpcCalls": 0,
+  "testPrompts": 0,
+  "productSourceOrTestChanges": 0
+}

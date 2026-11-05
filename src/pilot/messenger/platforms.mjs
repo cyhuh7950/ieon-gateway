@@ -1,0 +1,116 @@
+// 메신저별 연결. 모두 이 PC에서 메신저 서버로 먼저 접속하는 방식이라 공개 주소가 필요 없다.
+// 텔레그램: long polling / 디스코드: Gateway WebSocket / 슬랙: Socket Mode.
+// 토큰은 받은 그대로 쓰고 로그에 남기지 않는다. 로그에는 플랫폼·이벤트·오류 종류만 남긴다.
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export function runTelegram({ token, onMessage, log, signal }) {
+  const api = (method, body) => fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  }).then((r) => r.json());
+  (async () => {
+    let offset = 0;
+    // 봇 이름(공개 정보)만 알려 준다. 메신저에서 이 이름으로 검색해 대화를 시작한다.
+    const me = await api('getMe', {}).catch(() => null);
+    log({ platform: 'telegram', event: 'started', bot: me?.ok ? `@${me.result.username}` : null, open: me?.ok ? `https://t.me/${me.result.username}` : null });
+    while (!signal?.aborted) {
+      try {
+        const r = await api('getUpdates', { offset, timeout: 30, allowed_updates: ['message'] });
+        if (!r.ok) { log({ platform: 'telegram', event: 'poll_error', code: r.error_code }); await sleep(5000); continue; }
+        for (const u of r.result) {
+          offset = u.update_id + 1;
+          const msg = u.message;
+          if (!msg?.text || msg.from?.is_bot) continue;
+          const threadKey = msg.is_topic_message ? msg.message_thread_id : undefined;
+          const send = (text) => api('sendMessage', { chat_id: msg.chat.id, text, ...(threadKey ? { message_thread_id: threadKey } : {}) });
+          // 그룹에서 /명령@봇이름 형식으로 오면 봇 이름을 떼어 낸다.
+          const text = msg.text.replace(/^(\/\w+)@\w+/, '$1');
+          onMessage({ platform: 'telegram', userId: msg.from.id, chatId: msg.chat.id, threadKey, text }, send).catch((e) => log({ platform: 'telegram', event: 'handle_error', error: String(e.message).slice(0, 80) }));
+        }
+      } catch (e) {
+        log({ platform: 'telegram', event: 'network_error', error: String(e.cause?.code ?? e.message).slice(0, 60) });
+        await sleep(5000);
+      }
+    }
+  })();
+}
+
+export function runDiscord({ token, onMessage, log, signal }) {
+  const INTENTS = 1 | 512 | 4096 | 32768; // GUILDS, GUILD_MESSAGES, DIRECT_MESSAGES, MESSAGE_CONTENT
+  const rest = (path, body) => fetch(`https://discord.com/api/v10${path}`, {
+    method: 'POST', headers: { authorization: `Bot ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body),
+  }).then((r) => r.ok ? r.json() : r.text().then((t) => { throw new Error(`discord_${r.status}:${t.slice(0, 60)}`); }));
+  const connect = (attempt = 0) => {
+    if (signal?.aborted) return;
+    const ws = new WebSocket('wss://gateway.discord.gg/?v=10&encoding=json');
+    let seq = null;
+    let beat;
+    ws.onmessage = (e) => {
+      const p = JSON.parse(e.data);
+      if (p.s != null) seq = p.s;
+      if (p.op === 10) {
+        beat = setInterval(() => ws.send(JSON.stringify({ op: 1, d: seq })), p.d.heartbeat_interval);
+        ws.send(JSON.stringify({ op: 2, d: { token, intents: INTENTS, properties: { os: 'windows', browser: 'ieon', device: 'ieon' } } }));
+      }
+      if (p.op === 0 && p.t === 'READY') {
+        attempt = 0;
+        const appId = p.d.application?.id;
+        // 초대 링크: 채널 보기(1024)·메시지 보내기(2048)·기록 읽기(65536) 권한만.
+        log({ platform: 'discord', event: 'ready', bot: p.d.user?.username, guilds: p.d.guilds?.length ?? 0,
+          invite: appId ? `https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot&permissions=68608` : null });
+      }
+      if (p.op === 0 && p.t === 'MESSAGE_CREATE') {
+        const d = p.d;
+        if (d.author?.bot || !d.content) return;
+        const send = (text) => rest(`/channels/${d.channel_id}/messages`, { content: text });
+        onMessage({ platform: 'discord', userId: d.author.id, chatId: d.channel_id, text: d.content }, send)
+          .catch((err) => log({ platform: 'discord', event: 'handle_error', error: String(err.message).slice(0, 80) }));
+      }
+      if (p.op === 7 || p.op === 9) ws.close();
+    };
+    ws.onclose = (e) => {
+      clearInterval(beat);
+      log({ platform: 'discord', event: 'closed', code: e.code });
+      // 4004(토큰 오류)·4014(권한 없는 intent)는 다시 붙어도 실패하므로 멈춘다.
+      if ([4004, 4013, 4014].includes(e.code)) return;
+      setTimeout(() => connect(attempt + 1), Math.min(60000, 2000 * 2 ** attempt));
+    };
+    ws.onerror = () => {};
+  };
+  connect();
+}
+
+export function runSlack({ appToken, botToken, onMessage, log, signal }) {
+  const web = (method, body, tokenValue) => fetch(`https://slack.com/api/${method}`, {
+    method: 'POST', headers: { authorization: `Bearer ${tokenValue}`, 'content-type': 'application/json; charset=utf-8' }, body: JSON.stringify(body ?? {}),
+  }).then((r) => r.json());
+  const connect = async (attempt = 0) => {
+    if (signal?.aborted) return;
+    const open = await web('apps.connections.open', {}, appToken).catch(() => ({ ok: false, error: 'network' }));
+    if (!open.ok) {
+      log({ platform: 'slack', event: 'open_error', error: open.error });
+      if (['invalid_auth', 'not_allowed_token_type'].includes(open.error)) return;
+      return setTimeout(() => connect(attempt + 1), Math.min(60000, 2000 * 2 ** attempt));
+    }
+    const ws = new WebSocket(open.url);
+    ws.onmessage = (e) => {
+      const p = JSON.parse(e.data);
+      if (p.envelope_id) ws.send(JSON.stringify({ envelope_id: p.envelope_id }));
+      if (p.type === 'hello') {
+        attempt = 0;
+        web('auth.test', {}, botToken).then((a) => log({ platform: 'slack', event: 'ready', bot: a.ok ? a.user : null, team: a.ok ? a.team : null }));
+      }
+      if (p.type === 'disconnect') ws.close();
+      const ev = p.payload?.event;
+      if (p.type !== 'events_api' || ev?.type !== 'message' || ev.bot_id || ev.subtype || !ev.text) return;
+      const send = (text) => web('chat.postMessage', { channel: ev.channel, text, ...(ev.thread_ts ? { thread_ts: ev.thread_ts } : {}) }, botToken);
+      // 슬랙의 /명령은 앱 슬래시 커맨드로 가로채이므로 "!명령"도 같은 뜻으로 받는다.
+      const text = ev.text.replace(/^!(\w+)/, '/$1').replace(/<@[A-Z0-9]+>\s*/g, '');
+      onMessage({ platform: 'slack', userId: ev.user, chatId: ev.channel, text }, send)
+        .catch((err) => log({ platform: 'slack', event: 'handle_error', error: String(err.message).slice(0, 80) }));
+    };
+    ws.onclose = () => { log({ platform: 'slack', event: 'closed' }); setTimeout(() => connect(attempt + 1), Math.min(60000, 2000 * 2 ** attempt)); };
+    ws.onerror = () => {};
+  };
+  connect();
+}

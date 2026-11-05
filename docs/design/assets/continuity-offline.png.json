@@ -1,0 +1,15 @@
+{
+  "type": "browser_screenshot",
+  "description": "v0.2 정적 HTML을 headless Chrome으로 캡처(모바일은 430px iframe 후 crop)",
+  "author": "어울",
+  "source_directory": "docs/design/assets",
+  "source_css": "continuity.css",
+  "source_viewport_helper": "continuity-viewport.js",
+  "width": 1440,
+  "height": 900,
+  "data": "합성 예시",
+  "model_calls": 0,
+  "real_mobile_ime_verified": false,
+  "captured_kst": "2026-10-29 18:38 +09:00",
+  "design_version": "0.2"
+}

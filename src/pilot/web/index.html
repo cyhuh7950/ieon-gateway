@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어온 실증</title>
+<style>
+:root { --bg:#f3f5f7; --surface:#fff; --surface-alt:#f7f9fb; --text:#22252b; --muted:#596472; --border:#dfe3e8;
+  --primary:#24344d; --accent:#0f766e; --focus:#2563eb; --success:#17654d; --warning:#815b0d; --danger:#a12b37; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:12px/1.6 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Segoe UI",sans-serif; }
+header { display:flex; align-items:center; gap:12px; padding:12px 16px; background:var(--surface); border-bottom:1px solid var(--border); }
+header h1 { font-size:16px; margin:0; }
+.layout { display:grid; grid-template-columns:280px 1fr; gap:16px; padding:16px; max-width:1200px; margin:0 auto; }
+aside, main { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; }
+.conv { display:block; width:100%; text-align:left; border:1px solid transparent; background:none; border-radius:8px; padding:10px; cursor:pointer; font:inherit; color:inherit; }
+.conv[aria-current="true"] { background:#edf5f4; border-color:#cfe5e2; }
+.badge { display:inline-block; background:#eef1f6; color:var(--primary); border-radius:4px; padding:1px 7px; margin-right:6px; }
+.muted { color:var(--muted); }
+.state { border-radius:8px; padding:10px 12px; margin:8px 0; }
+.state.ok { background:#e9f4ee; color:var(--success); }
+.state.warn { background:#fff7e4; color:#6c4c0c; }
+.state.err { background:#fbecee; color:var(--danger); }
+#log { min-height:200px; font-size:14px; line-height:1.9; }
+.q { color:var(--primary); font-weight:600; margin-top:12px; }
+.a { white-space:pre-wrap; }
+textarea { width:100%; height:91px; border:1px solid var(--border); border-radius:7px; padding:12px 14px; font:inherit; font-size:14px; }
+button.primary { background:var(--primary); color:#fff; border:0; border-radius:6px; padding:8px 14px; font:inherit; cursor:pointer; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+fieldset { border:1px solid var(--border); border-radius:8px; margin:10px 0; padding:8px 12px; }
+legend { padding:0 4px; font-weight:600; }
+.mode { display:flex; gap:8px; align-items:flex-start; padding:6px 0; cursor:pointer; }
+.mode input { margin-top:3px; }
+details { border:1px solid var(--border); border-radius:8px; padding:6px 10px; margin:0 0 10px; }
+summary { cursor:pointer; font-weight:600; }
+.row { display:flex; gap:6px; align-items:center; margin:6px 0; }
+.row label { min-width:44px; }
+.row input, .row select { flex:1; font:inherit; padding:4px 6px; border:1px solid var(--border); border-radius:6px; }
+.ns { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+[hidden] { display:none !important; }
+code { background:var(--surface-alt); border:1px solid var(--border); border-radius:4px; padding:0 5px; }
+h2 { font-size:13px; margin:14px 0 4px; }
+@media (max-width:650px) { .layout { grid-template-columns:1fr; } textarea { font-size:16px; } }
+</style>
+</head>
+<body>
+<header><h1>이어온</h1><span class="muted">기존 세션 이어쓰기 · 로컬 실증</span></header>
+<div class="layout">
+  <aside aria-label="세션 목록">
+    <form id="login" hidden>
+      <label for="token">접속 토큰</label>
+      <input id="token" type="password" autocomplete="off" style="width:100%;margin:6px 0">
+      <button class="primary" type="submit">접속</button>
+    </form>
+    <details id="newBox" hidden>
+      <summary>새 세션 만들기</summary>
+      <form id="newForm">
+        <div class="row"><label for="nsEngine">엔진</label><select id="nsEngine"><option value="codex">Codex</option><option value="claude">Claude</option></select></div>
+        <div class="row"><label for="nsName">이름</label><input id="nsName" placeholder="영문·숫자·- 2~32자" maxlength="32" autocomplete="off"></div>
+        <div class="row"><label for="nsProfile">권한</label><select id="nsProfile">
+          <option value="workspace">작업 폴더 안 읽기·쓰기(기본)</option><option value="read_only">읽기 전용</option></select></div>
+        <div class="muted">명령 실행·인터넷(full)은 PC 설정 파일에서만 지정할 수 있습니다.</div>
+        <div class="row" style="justify-content:flex-end"><button class="primary" type="submit">만들기</button></div>
+        <div id="nsLimits" class="muted"></div>
+      </form>
+    </details>
+    <div id="list"></div>
+    <div id="archBox" hidden><h2>보관함</h2><div id="archived"></div></div>
+  </aside>
+  <main>
+    <div id="current" class="muted">세션을 고르세요.</div>
+    <fieldset id="settings" hidden>
+      <legend>Codex 연결 모드</legend>
+      <label class="mode"><input type="radio" name="mode" value="alternate">
+        <span><b>번갈아 쓰기</b><br><span class="muted">Desktop과 이어온 중 한쪽만 쓸 때, 또는 이어온 전용 계정·대화. 보낼 때 이 대화를 Desktop에서 열고 있으면 거절됩니다.</span></span></label>
+      <label class="mode"><input type="radio" name="mode" value="shared_server">
+        <span><b>동시 사용 (공유 서버·TUI)</b><br><span class="muted">사람은 공식 TUI 화면으로 같은 대화를 함께 씁니다. 공유 App Server가 켜져 있어야 하고, 사람이 쓰는 중이면 거절됩니다.</span></span></label>
+      <div id="settingsNote" class="muted"></div>
+    </fieldset>
+    <section id="nsPanel" class="ns" hidden aria-label="새 세션 관리">
+      <span id="nsInfo" class="muted"></span>
+      <button type="button" id="nsSleep">잠재우기</button>
+      <button type="button" id="nsDelete">삭제</button>
+    </section>
+    <div id="status" role="status"></div>
+    <section id="review" class="state warn" hidden aria-label="결과 확인 필요">
+      <div id="reviewText"></div>
+      <div class="muted" style="margin:4px 0 8px">원래 세션 화면(Desktop·TUI·터미널)에서 이 질문이 실행됐는지 확인한 뒤 고르세요. 다시 보내기는 하지 않습니다.</div>
+      <button type="button" class="primary" id="reviewDone">원래 세션에서 실행된 것을 확인함</button>
+      <button type="button" id="reviewNot" style="margin-left:6px">실행되지 않은 것을 확인함</button>
+    </section>
+    <div id="log" aria-live="polite"></div>
+    <form id="ask">
+      <label for="question">질문</label>
+      <textarea id="question" maxlength="8000" disabled></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="primary" id="send" disabled>보내기</button></div>
+    </form>
+  </main>
+</div>
+<script>
+const ENGINE = { codex_thread: 'Codex · thread', claude_channel: 'Claude · 채널', claude_cli: 'Claude · 새 세션' };
+const HOW = { codex_thread: '보낼 때마다 같은 대화를 다시 열어 이어 씀', claude_channel: '실행 중인 세션에 직접 전달', claude_cli: '질문마다 같은 세션을 이어서 실행' };
+const ERR = {
+  conversation_busy: ['warn', '이 세션에서 처리 중인 질문이 있어 보낼 수 없음'],
+  device_unavailable: ['err', 'PC 연결이 끊겨 보낼 수 없음'],
+  desktop_holds_thread: ['warn', 'Desktop에서 이 대화를 열고 있어 보내지 않았음 — Codex 앱을 종료한 뒤 다시 보내기'],
+  thread_busy: ['warn', '공유 서버에서 이 대화가 사용 중이라 보내지 않았음'],
+  thread_not_open: ['warn', '공유 서버에 이 대화가 열려 있지 않음'],
+  shared_server_down: ['err', '공유 App Server가 실행 중이 아님'],
+  session_not_running: ['err', '세션이 실행 중이 아님 — 채널과 함께 세션을 다시 시작'],
+  live_disabled: ['warn', '연결부에서 실제 실행이 꺼져 있음'],
+  thread_not_allowed: ['err', '허용되지 않은 대화'],
+  shared_server_not_configured: ['err', '연결부에 공유 App Server 설정이 없음'],
+  session_archived: ['warn', '보관된 세션 — 보관함에서 꺼낸 뒤 질문하세요'],
+  active_limit: ['warn', '새 세션 질문을 동시에 처리할 수 있는 수를 넘음 — 잠시 후 다시 보내기'],
+  session_forked: ['warn', '같은 Claude 세션을 터미널에서 열고 있어 결과를 확인할 수 없음 — 자동으로 다시 보내지 않습니다'],
+  profile_not_allowed: ['err', '이 권한은 화면에서 고를 수 없음'],
+  new_sessions_not_configured: ['err', '연결부에 새 세션 설정이 없음'],
+};
+const NS_ERR = { bad_name: '이름은 영문·숫자·- 2~32자(앞뒤는 영문·숫자)', name_taken: '같은 이름의 세션이 이미 있음',
+  session_limit: '세션 수 한도를 넘음 — 보관하거나 삭제하세요', engine_limit: '이 엔진의 세션 수 한도를 넘음',
+  profile_not_allowed: 'full 권한은 PC 설정 파일에서만 지정', app_not_allowed: '이 앱에서는 만들 수 없음',
+  not_active: '깨어 있는 세션이 아님', conversation_busy: '처리 중이거나 확인 필요 질문이 있음', confirm_mismatch: '이름 확인이 맞지 않음' };
+const NS_STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
+let token = sessionStorage.getItem('ieon_token') || '';
+let convs = [], current = null, pending = null;
+const $ = (id) => document.getElementById(id);
+const api = async (path, init = {}) => {
+  const res = await fetch(path, { ...init, headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json', ...(init.headers || {}) } });
+  if (res.status === 401) { showLogin(); throw new Error('unauthorized'); }
+  return { status: res.status, body: res.status === 204 ? null : await res.json() };
+};
+function showLogin() { $('login').hidden = false; }
+$('login').onsubmit = (e) => { e.preventDefault(); token = $('token').value.trim(); sessionStorage.setItem('ieon_token', token); $('login').hidden = true; load(); loadLimits(); };
+function setStatus(kind, text) { $('status').innerHTML = ''; if (!text) return; const d = document.createElement('div'); d.className = 'state ' + kind; d.textContent = text; $('status').append(d); }
+async function loadLimits() {
+  const r = await api('/v1/sessions/limits');
+  $('newBox').hidden = r.status !== 200;
+  if (r.status === 200) $('nsLimits').textContent = '새 세션 ' + r.body.sessions + '/' + r.body.maxSessions + ' · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude;
+}
+async function load() {
+  const { body } = await api('/v1/conversations');
+  convs = body.conversations;
+  $('list').innerHTML = '';
+  $('archived').innerHTML = '';
+  const arch = convs.filter((c) => c.newSession?.state === 'archived');
+  $('archBox').hidden = !arch.length;
+  for (const c of arch) {
+    const d = document.createElement('div'); d.className = 'row';
+    const n = document.createElement('span'); n.textContent = c.label; n.style.flex = '1';
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '꺼내기';
+    b.onclick = async () => { const r = await api('/v1/sessions/' + c.conversationId + '/restore', { method: 'POST' });
+      setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '"' + c.label + '" 보관에서 꺼냄' : (NS_ERR[r.body.error] || '꺼낼 수 없음: ' + r.body.error)); await load(); };
+    d.append(n, b); $('archived').append(d);
+  }
+  for (const c of convs.filter((x) => x.newSession?.state !== 'archived')) {
+    const b = document.createElement('button');
+    b.className = 'conv'; b.setAttribute('aria-current', String(current === c.conversationId));
+    b.innerHTML = '<span class="badge"></span><b></b><div class="muted"></div>';
+    b.querySelector('.badge').textContent = ENGINE[c.engine] || c.engine;
+    b.querySelector('b').textContent = c.label;
+    b.querySelector('.muted').textContent = !c.deviceOnline ? 'PC 연결 끊김'
+      : c.engineReady === false ? (c.engine === 'claude_channel' ? '세션 꺼짐' : '공유 서버 꺼짐')
+      : c.busy ? '처리 중' : '보낼 수 있음';
+    if (c.newSession) b.querySelector('.muted').textContent += ' · 새 세션 ' + (NS_STATE[c.newSession.state] || c.newSession.state);
+    b.onclick = () => select(c.conversationId);
+    $('list').append(b);
+  }
+  if (current && convs.some((c) => c.conversationId === current)) render();
+  else if (current) { current = null; $('current').textContent = '세션을 고르세요.'; $('nsPanel').hidden = true; $('log').innerHTML = ''; }
+}
+// 안내 문구는 세션을 바꿀 때만 지운다. 5초 주기 새로고침이 방금 띄운 결과 안내를 지우지 않게 한다.
+async function select(id) { current = id; if (!pending) setStatus('', ''); await load(); const { body } = await api('/v1/conversations/' + id + '/messages'); $('log').innerHTML = ''; body.messages.forEach((m) => addTurn(m.question, m.answer)); }
+function render() {
+  const c = convs.find((x) => x.conversationId === current);
+  $('current').innerHTML = '<span class="badge"></span><b></b> <span class="muted"></span>';
+  $('current').querySelector('.badge').textContent = ENGINE[c.engine];
+  $('current').querySelector('b').textContent = c.label;
+  $('current').querySelector('.muted').textContent = HOW[c.engine];
+  const can = c.deviceOnline && c.engineReady !== false && !c.busy && !pending;
+  $('settings').hidden = c.engine !== 'codex_thread';
+  $('nsPanel').hidden = !c.newSession;
+  if (c.newSession) {
+    $('nsInfo').textContent = '새 세션 · ' + (NS_STATE[c.newSession.state] || c.newSession.state) + ' · 권한 ' + c.newSession.profile
+      + (c.newSession.sessionId ? ' · 직접 열기 ID ' + c.newSession.sessionId : '');
+    $('nsSleep').disabled = c.newSession.state !== 'active' || c.busy;
+  }
+  if (c.engine === 'codex_thread') {
+    for (const r of document.getElementsByName('mode')) { r.checked = r.value === c.connectMode; r.disabled = c.busy || Boolean(pending); }
+    $('settingsNote').textContent = c.busy || pending ? '처리 중인 질문이 있어 모드를 바꿀 수 없음' : '';
+  }
+  $('question').disabled = !can; $('send').disabled = !can;
+  $('review').hidden = !(c.heldBy && !pending);
+  if (c.heldBy && !pending) {
+    $('reviewText').textContent = c.heldBy.status === 'approval_required'
+      ? '원래 세션에서 권한 확인이 필요해 멈춘 질문이 있어 이 세션이 잠겨 있음'
+      : c.heldBy.errorCode === 'turn_joined_by_other_input'
+        ? '처리 중에 TUI 입력이 합류해 결과를 확정하지 못한 질문이 있어 이 세션이 잠겨 있음'
+        : '결과를 확인하지 못한 질문이 있어 이 세션이 잠겨 있음';
+  }
+  if (!c.deviceOnline) setStatus('err', ERR.device_unavailable[1]);
+  else if (c.engineReady === false) setStatus('err', ERR[c.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down'][1]);
+  else if (!pending && c.busy && !c.heldBy) setStatus('warn', ERR.conversation_busy[1]);
+}
+function addTurn(q, a) {
+  const qd = document.createElement('div'); qd.className = 'q'; qd.textContent = q; $('log').append(qd);
+  const ad = document.createElement('div'); ad.className = 'a'; ad.textContent = a ?? ''; $('log').append(ad); return ad;
+}
+$('ask').onsubmit = async (e) => {
+  e.preventDefault();
+  const question = $('question').value.trim(); if (!question || !current) return;
+  const key = crypto.randomUUID();
+  const { status, body } = await api('/v1/conversations/' + current + '/requests', { method: 'POST', headers: { 'idempotency-key': key }, body: JSON.stringify({ question }) });
+  if (status !== 202) { const [k, t] = ERR[body.error] || ['err', '보낼 수 없음: ' + body.error]; setStatus(k, t); return; }
+  $('question').value = '';
+  pending = body.requestId;
+  const out = addTurn(question, '');
+  setStatus('ok', '접수됨 — 답을 기다리는 중');
+  render();
+  while (true) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const r = (await api('/v1/requests/' + pending)).body;
+    if (r.status === 'completed') { out.textContent = r.answer ?? '(보관하지 않은 답변)'; setStatus('ok', '답변 완료'); break; }
+    if (r.status === 'failed') { const [k, t] = ERR[r.errorCode] || ['err', '실행 실패: ' + r.errorCode]; setStatus(k, t); break; }
+    if (r.status === 'unknown') {
+      setStatus('warn', r.errorCode === 'turn_joined_by_other_input'
+        ? '처리 중에 TUI 입력이 합류해 답이 섞였을 수 있음 — 자동으로 다시 보내지 않습니다. TUI 화면에서 결과를 확인하세요.'
+        : '결과를 확인할 수 없음 — 자동으로 다시 보내지 않습니다. 원래 세션에서 결과를 확인하세요.');
+      break;
+    }
+    if (r.status === 'approval_required') { setStatus('warn', '원래 세션에서 권한 확인이 필요해 멈춤 — 자동 승인하지 않습니다.'); break; }
+  }
+  pending = null; await load();
+};
+async function review(executed) {
+  const c = convs.find((x) => x.conversationId === current);
+  if (!c?.heldBy) return;
+  const { status, body } = await api('/v1/requests/' + c.heldBy.requestId + '/review', { method: 'POST', body: JSON.stringify({ executed }) });
+  if (status !== 200) setStatus('err', '정리할 수 없음: ' + body.error);
+  else setStatus('ok', executed ? '실행된 것으로 정리함 — 받지 못한 답은 저장하지 않았습니다' : '실행되지 않은 것으로 정리함 — 필요하면 질문을 직접 다시 보내세요');
+  await load();
+}
+$('newForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const body = { engine: $('nsEngine').value, name: $('nsName').value.trim(), profile: $('nsProfile').value };
+  const r = await api('/v1/sessions', { method: 'POST', body: JSON.stringify(body) });
+  if (r.status !== 201) { setStatus('err', '새 세션을 만들 수 없음: ' + (NS_ERR[r.body.error] || r.body.error)); return; }
+  $('nsName').value = '';
+  await loadLimits(); await select(r.body.conversationId);
+  setStatus('ok', '새 세션 "' + r.body.name + '"을 만들었습니다. 첫 질문을 보내면 시작합니다.');
+};
+$('nsSleep').onclick = async () => {
+  const r = await api('/v1/sessions/' + current + '/sleep', { method: 'POST' });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '잠재움 — 질문하면 다시 깨어납니다' : (NS_ERR[r.body.error] || r.body.error)); await load();
+};
+$('nsDelete').onclick = async () => {
+  const c = convs.find((x) => x.conversationId === current);
+  const typed = prompt('삭제하면 이어온 기록이 지워지고 되돌릴 수 없습니다(원래 Codex·Claude 기록은 남음). 지우려면 세션 이름 "' + c.newSession.name + '"을 입력하세요.');
+  if (typed === null) return;
+  const r = await api('/v1/sessions/' + current, { method: 'DELETE', body: JSON.stringify({ confirm: typed.trim() }) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '"' + c.newSession.name + '" 삭제함' + (r.body.workspaceRemoved ? '(작업 폴더도 지움)' : '') : (NS_ERR[r.body.error] || r.body.error));
+  await loadLimits(); await load();
+};
+$('reviewDone').onclick = () => review(true);
+$('reviewNot').onclick = () => review(false);
+for (const r of document.getElementsByName('mode')) {
+  r.onchange = async () => {
+    const { status, body } = await api('/v1/conversations/' + current + '/settings', { method: 'PUT', body: JSON.stringify({ connectMode: r.value }) });
+    if (status !== 200) { const [k, t] = ERR[body.error] || ['err', '모드를 바꿀 수 없음: ' + body.error]; setStatus(k, t); }
+    else setStatus('ok', r.value === 'shared_server' ? '동시 사용으로 바꿈 — 공유 App Server와 TUI에서 이 대화를 열어 두세요' : '번갈아 쓰기로 바꿈 — 보낼 때 Desktop에서 이 대화를 열지 마세요');
+    await load();
+  };
+}
+token ? Promise.all([load(), loadLimits()]).catch(() => {}) : showLogin();
+setInterval(() => { if (token && !pending) load().catch(() => {}); }, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "threadId": "01a18790-63c7-73e3-a60b-6ddb60fd5be8",
+  "atUtc": "2026-10-30T07:30:47.0587123Z",
+  "attempts": 1,
+  "outcome": "WRITER_LOCK_CONFLICT",
+  "winError": 33,
+  "probeHandleClosed": true,
+  "sourceFileCreated": false,
+  "sourceBytesWritten": 0,
+  "modelTurnStarts": 0,
+  "threadResumeRequests": 0
+}

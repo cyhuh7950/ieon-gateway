@@ -1,0 +1,210 @@
+// 메신저 공통 처리. 메신저별 연결(텔레그램·디스코드·슬랙)은 메시지를 이 모듈에 넘기고, 돌려받은 글을 보낸다.
+// - 허용 목록에 없는 발신자는 /whoami 외에는 응답하지 않는다(처음 설정할 때 내 ID 확인용).
+// - 대화방마다 세션 하나를 연결하거나(/use), 1:1 대화에서 /use로 대상 세션을 고른다.
+// - 질문은 이어온 서버 API로만 넣는다. 결과 불명이면 다시 보내지 않고 /review로 정리한다.
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+
+const MAX_CHUNK = { telegram: 3800, discord: 1900, slack: 3800 };
+const ERR = {
+  conversation_busy: '이 세션에서 처리 중인 질문이 있어 보낼 수 없음',
+  device_unavailable: 'PC 연결이 끊겨 보낼 수 없음',
+  desktop_holds_thread: 'Desktop에서 이 대화를 열고 있어 보내지 않았음 — Desktop에서 대화를 닫고 다시 보내기',
+  thread_busy: '공유 서버에서 이 대화가 사용 중이라 보내지 않았음',
+  thread_not_open: '공유 서버에 이 대화가 열려 있지 않음',
+  shared_server_down: '공유 App Server가 꺼져 있음',
+  session_not_running: '세션이 실행 중이 아님',
+  live_disabled: '연결부에서 실제 실행이 꺼져 있음',
+  thread_not_allowed: '허용되지 않은 대화',
+  session_archived: '보관된 세션 — /restore <이름>으로 꺼낸 뒤 질문하세요',
+  active_limit: '새 세션 질문을 동시에 처리할 수 있는 수를 넘음 — 잠시 후 다시 보내기',
+  session_forked: '같은 Claude 세션을 터미널에서 열고 있어 결과를 확인할 수 없음',
+};
+// 새 세션 만들기·정리 명령의 거절 사유
+const NS_ERR = {
+  new_sessions_disabled: '새 세션 만들기가 꺼져 있음(설정 enabled)',
+  app_not_allowed: '이 앱에서는 새 세션을 만들 수 없음(설정 creatorApps)',
+  bad_name: '이름은 영문·숫자·- 2~32자(앞뒤는 영문·숫자)',
+  bad_engine: '엔진은 codex 또는 claude',
+  unknown_profile: '없는 권한 프로필',
+  profile_not_allowed: 'full 권한은 메신저에서 고를 수 없음 — PC 설정 파일의 sessionOverrides로만 지정',
+  name_taken: '같은 이름의 세션이 이미 있음',
+  session_limit: '세션 수 한도를 넘음 — /archived·/close로 정리',
+  engine_limit: '이 엔진의 세션 수 한도를 넘음',
+  not_active: '깨어 있는 세션이 아님',
+  not_archived: '보관된 세션이 아님',
+  conversation_busy: '처리 중이거나 확인 필요 질문이 있음',
+  confirm_mismatch: '이름 확인이 맞지 않음',
+};
+const STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
+
+export function splitText(text, max) {
+  const out = [];
+  let rest = String(text ?? '');
+  while (rest.length > max) {
+    let cut = rest.lastIndexOf('\n', max);
+    if (cut < max / 2) cut = max;
+    out.push(rest.slice(0, cut));
+    rest = rest.slice(cut).replace(/^\n/, '');
+  }
+  if (rest.length || !out.length) out.push(rest);
+  return out;
+}
+
+// opts: { api({method, path, body, headers}) → {status, body}, allowedUsers: {telegram:[], …}, roomsPath, pollMs, waitMs }
+export function createBridge(opts) {
+  const pollMs = opts.pollMs ?? 2000;
+  const waitMs = opts.waitMs ?? 300000;
+  const rooms = existsSync(opts.roomsPath) ? JSON.parse(readFileSync(opts.roomsPath, 'utf8')) : {};
+  const saveRooms = () => writeFileSync(opts.roomsPath, JSON.stringify(rooms, null, 2));
+  const allowed = (m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId));
+  const roomKey = (m) => `${m.platform}:${m.chatId}${m.threadKey ? `:${m.threadKey}` : ''}`;
+
+  async function sessions() {
+    const r = await opts.api({ method: 'GET', path: '/v1/conversations' });
+    return r.status === 200 ? r.body.conversations : [];
+  }
+  const lastSend = new Map(); // 대화방 → 마지막으로 쓴 send(보관 예고를 그 방에 보내기 위해)
+  let noticeAfter = new Date().toISOString();
+  const byName = (all, name) => all.find((c) => c.newSession?.name === name);
+  const nsFail = (r) => NS_ERR[r.body?.error] ?? `할 수 없음: ${r.body?.error}`;
+  const describe = (c, i) => {
+    const engine = c.engine === 'claude_channel' ? 'Claude' : c.engine === 'claude_cli' ? 'Claude(새 세션)' : `Codex(${c.connectMode === 'shared_server' ? '동시 사용' : '번갈아 쓰기'})`;
+    const ns = c.newSession ? ` · 새 세션 ${STATE[c.newSession.state] ?? c.newSession.state}` : '';
+    const state = !c.deviceOnline ? 'PC 연결 끊김' : c.heldBy ? '확인 필요' : c.engineReady === false ? '엔진 꺼짐' : c.busy ? '처리 중' : '보낼 수 있음';
+    return `${i + 1}. ${c.label} — ${engine} · ${state}${ns}`;
+  };
+
+  async function ask(m, conv, question, send) {
+    const r = await opts.api({
+      method: 'POST', path: `/v1/conversations/${conv.conversationId}/requests`,
+      headers: { 'idempotency-key': `msg-${randomUUID()}` }, body: { question },
+    });
+    if (r.status !== 202) return send(`[${conv.label}] ${ERR[r.body?.error] ?? `보낼 수 없음: ${r.body?.error}`}`);
+    await send(`[${conv.label}] 접수됨 — 답을 기다리는 중`);
+    const started = Date.now();
+    while (Date.now() - started < waitMs) {
+      await new Promise((ok) => setTimeout(ok, pollMs));
+      const s = (await opts.api({ method: 'GET', path: `/v1/requests/${r.body.requestId}` })).body;
+      if (s.status === 'completed') {
+        for (const part of splitText(s.answer ?? '(보관하지 않은 답변)', MAX_CHUNK[m.platform] ?? 1900)) await send(part);
+        return;
+      }
+      if (s.status === 'failed') return send(`[${conv.label}] ${ERR[s.errorCode] ?? `실행 실패: ${s.errorCode}`}`);
+      if (s.status === 'unknown') {
+        return send(`[${conv.label}] 결과를 확인할 수 없음${s.errorCode === 'turn_joined_by_other_input' ? '(TUI 입력이 합류했을 수 있음)' : ''} — 자동으로 다시 보내지 않습니다. 원래 세션을 확인한 뒤 /review done 또는 /review not`);
+      }
+      if (s.status === 'approval_required') return send(`[${conv.label}] 원래 세션에서 권한 확인이 필요해 멈춤 — 처리 후 /review done 또는 /review not`);
+    }
+    return send(`[${conv.label}] 아직 답이 없음 — 끝나면 /status로 확인하세요(다시 보내지 않음)`);
+  }
+
+  // m: { platform, userId, chatId, threadKey?, text }, send(text) → Promise
+  async function handle(m, send) {
+    const text = String(m.text ?? '').trim();
+    if (!text) return;
+    if (/^\/whoami\b/.test(text)) {
+      return send(`플랫폼: ${m.platform}\n사용자 ID: ${m.userId}\n대화방: ${roomKey(m)}\n허용 여부: ${allowed(m) ? '허용됨' : '허용 목록에 없음'}`);
+    }
+    if (!allowed(m)) return; // 허용되지 않은 발신자에게는 아무것도 하지 않는다.
+    lastSend.set(roomKey(m), send);
+    const all = await sessions();
+    // 보관된 새 세션은 목록·번호에서 빼고 /archived로 따로 본다.
+    const list = all.filter((c) => c.newSession?.state !== 'archived');
+    const current = list.find((c) => c.conversationId === rooms[roomKey(m)]);
+
+    if (/^\/(help|start)\b/.test(text)) {
+      return send('명령어\n/sessions 세션 목록\n/use <번호> 이 대화방을 그 세션에 연결\n/status 연결된 세션 상태\n/review done|not 확인 필요 질문 정리\n'
+        + '/new codex|claude <이름> [read_only|workspace] 새 세션을 만들고 이 대화방에 연결\n/sleep <이름> 잠재우기\n/archived 보관 목록\n'
+        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
+    }
+    const create = text.match(/^\/new\s+(codex|claude)\s+(\S+)(?:\s+(\S+))?\s*$/);
+    if (create) {
+      const r = await opts.api({ method: 'POST', path: '/v1/sessions', body: { engine: create[1], name: create[2], ...(create[3] ? { profile: create[3] } : {}) } });
+      if (r.status !== 201) return send(`새 세션을 만들 수 없음: ${nsFail(r)}`);
+      rooms[roomKey(m)] = r.body.conversationId;
+      saveRooms();
+      return send(`새 ${create[1] === 'codex' ? 'Codex' : 'Claude'} 세션 "${r.body.name}"(권한 ${r.body.profile})을 만들고 이 대화방에 연결했습니다. 첫 질문을 보내면 시작합니다.`);
+    }
+    if (/^\/new\b/.test(text)) return send('사용법: /new codex|claude <이름> [read_only|workspace]');
+    if (/^\/limits\b/.test(text)) {
+      const r = await opts.api({ method: 'GET', path: '/v1/sessions/limits' });
+      if (r.status !== 200) return send(nsFail(r));
+      const l = r.body;
+      return send(`새 세션 ${l.sessions}/${l.maxSessions} (Codex ${l.perEngine.codex}/${l.maxPerEngine.codex}, Claude ${l.perEngine.claude}/${l.maxPerEngine.claude}) · 동시 처리 ${l.maxActive}`);
+    }
+    if (/^\/archived\b/.test(text)) {
+      const arch = all.filter((c) => c.newSession?.state === 'archived');
+      return send(arch.length ? `보관된 세션\n${arch.map((c) => `- ${c.newSession.name}`).join('\n')}\n꺼내기: /restore <이름>` : '보관된 세션 없음');
+    }
+    const act = text.match(/^\/(sleep|restore)\s+(\S+)\s*$/);
+    if (act) {
+      const c = byName(all, act[2]);
+      if (!c) return send(`"${act[2]}" 새 세션이 없음`);
+      const r = await opts.api({ method: 'POST', path: `/v1/sessions/${c.conversationId}/${act[1]}` });
+      return send(r.status === 200 ? `"${act[2]}" ${act[1] === 'sleep' ? '잠재움(질문하면 다시 깨어남)' : '보관에서 꺼냄'}` : nsFail(r));
+    }
+    const close = text.match(/^\/close\s+(\S+)(\s+확인)?\s*$/);
+    if (close) {
+      const c = byName(all, close[1]);
+      if (!c) return send(`"${close[1]}" 새 세션이 없음`);
+      if (!close[2]) return send(`"${close[1]}"을 지웁니다. 이어온 기록이 지워지고 되돌릴 수 없습니다(원래 Codex·Claude 기록과 작업 폴더는 설정에 따라 남음). 계속하려면: /close ${close[1]} 확인`);
+      const r = await opts.api({ method: 'DELETE', path: `/v1/sessions/${c.conversationId}`, body: { confirm: close[1] } });
+      if (r.status !== 200) return send(nsFail(r));
+      for (const [k, v] of Object.entries(rooms)) if (v === c.conversationId) delete rooms[k];
+      saveRooms();
+      return send(`"${close[1]}" 삭제함${r.body.workspaceRemoved ? '(작업 폴더도 지움)' : ''}`);
+    }
+    if (/^\/sessions\b/.test(text)) return send(list.length ? list.map(describe).join('\n') : '연결할 수 있는 세션이 없음');
+    const use = text.match(/^\/use\s+(\d+)\s*$/);
+    if (use) {
+      const c = list[Number(use[1]) - 1];
+      if (!c) return send('그 번호의 세션이 없음 — /sessions로 확인');
+      rooms[roomKey(m)] = c.conversationId;
+      saveRooms();
+      return send(`이 대화방을 "${c.label}"에 연결했습니다.`);
+    }
+    if (!current) return send('이 대화방에 연결된 세션이 없음 — /sessions 후 /use <번호>');
+    if (/^\/status\b/.test(text)) return send(describe(current, list.indexOf(current)));
+    const review = text.match(/^\/review\s+(done|not)\s*$/);
+    if (review) {
+      if (!current.heldBy) return send(`[${current.label}] 정리할 질문이 없음`);
+      const r = await opts.api({ method: 'POST', path: `/v1/requests/${current.heldBy.requestId}/review`, body: { executed: review[1] === 'done' } });
+      return send(r.status === 200
+        ? `[${current.label}] ${review[1] === 'done' ? '실행된 것으로 정리함(답은 저장하지 않음)' : '실행되지 않은 것으로 정리함 — 필요하면 다시 질문하세요'}`
+        : `[${current.label}] 정리할 수 없음: ${r.body?.error}`);
+    }
+    if (text.startsWith('/')) return send('모르는 명령어 — /help');
+    return ask(m, current, text, send);
+  }
+
+  // 보관 예고를 그 세션에 연결된 대화방으로 보낸다. 대화방의 send는 그 방에서 마지막으로 받은 메시지 것을 쓴다
+  // (메신저 봇을 다시 켠 뒤 그 방에서 아직 아무 말도 없으면 보낼 수 없어 건너뛴다).
+  async function deliverNotices() {
+    const r = await opts.api({ method: 'GET', path: `/v1/sessions/notices?after=${encodeURIComponent(noticeAfter)}` });
+    if (r.status !== 200) return 0;
+    let sent = 0;
+    for (const n of r.body.notices) {
+      noticeAfter = n.at > noticeAfter ? n.at : noticeAfter;
+      for (const [k, v] of Object.entries(rooms)) {
+        const send = v === n.conversationId && lastSend.get(k);
+        if (send) { await send(`[${n.name}] ${n.archiveAt.slice(0, 10)}에 보관될 예정 — 계속 쓰려면 질문을 보내세요(보관돼도 /restore로 꺼낼 수 있음)`); sent += 1; }
+      }
+    }
+    return sent;
+  }
+
+  return { handle, roomKey, deliverNotices };
+}
+
+// 이어온 서버 API 호출기. 토큰은 파일에서 읽고 출력하지 않는다.
+export function serverApi(baseUrl, tokenFile) {
+  const token = readFileSync(tokenFile, 'utf8').trim();
+  return async ({ method, path, body, headers = {} }) => {
+    const r = await fetch(baseUrl + path, {
+      method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: r.status, body: r.status === 204 ? null : await r.json().catch(() => null) };
+  };
+}

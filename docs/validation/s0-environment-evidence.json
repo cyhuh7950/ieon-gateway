@@ -1,0 +1,66 @@
+{
+  "observedAt": "2026-10-29T05:35:40.5472676Z",
+  "desktopVersion": "26.1023.6123.0",
+  "bundledEngine": "0.165.0-alpha.1.2",
+  "selectedThreadId": "01a185d0-e8fd-7812-80d1-ba8ff1d470e9",
+  "threadIdVerifiedAgainstRuntime": false,
+  "socketEntryExists": true,
+  "socketEntryLastWriteUtc": "2026-10-08T16:21:03.2433117Z",
+  "recordedDaemonPid": 21016,
+  "recordedDaemonPidAlive": false,
+  "processes": [
+    {
+      "pid": 21356,
+      "listenFlag": false,
+      "stdioFlag": false,
+      "appServer": true
+    },
+    {
+      "pid": 34344,
+      "listenFlag": false,
+      "stdioFlag": false,
+      "appServer": false
+    }
+  ],
+  "diagnosticConnection": {
+    "stdoutBytes": 0,
+    "rpcRequests": 0,
+    "rawStderrStored": false,
+    "exitCode": 1,
+    "osError": 10061
+  },
+  "schemaHashes": [
+    {
+      "file": "ServerNotification.json",
+      "sha256": "7e8324c4c95da9057611ffe40487c21db40eed69c247a1508d0651e89715e23a"
+    },
+    {
+      "file": "v1/InitializeParams.json",
+      "sha256": "b55124e7c0f36a1789396daa5578217a92be67f053903696236686e59f6f212e"
+    },
+    {
+      "file": "v2/ThreadReadParams.json",
+      "sha256": "dfe040c6ac71d30795b8be3f3ff232e66f362a37f883b491e5d1ea367f470db4"
+    },
+    {
+      "file": "v2/ThreadReadResponse.json",
+      "sha256": "8aa88b8203cf3cc29fe474595f5d3645c9f0d26d1294ce342ac5d69de1313211"
+    },
+    {
+      "file": "v2/ThreadLoadedListParams.json",
+      "sha256": "42c2d124ab2b2998d84f0126daae2d32b0bf9c5a7ea7266e3a0814e5e37cf00d"
+    },
+    {
+      "file": "v2/ThreadLoadedListResponse.json",
+      "sha256": "1ea02c4710083e552b2a3a89b931b9049d5bf05b7db46278b8352cf9fd80cd52"
+    },
+    {
+      "file": "v2/ThreadStatusChangedNotification.json",
+      "sha256": "26f3c60c1b73f7fa2d31c74429cdc36f8746c76c33e3d314b3fb61d3661f05f6"
+    },
+    {
+      "file": "v2/TurnStartParams.json",
+      "sha256": "835e0d4ca1a0ddc4fb6db1e2b3249dd67f07c50ac2506092ba81543efc92829b"
+    }
+  ]
+}

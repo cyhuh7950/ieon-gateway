@@ -1,0 +1,13 @@
+{
+  "requestId": "e3f926e9-1561-4c52-9895-20c2118a0eb5",
+  "atUtc": "2026-10-30T08:34:52.024Z",
+  "endpoint": "http://127.0.0.1:18762",
+  "sendAttempts": 1,
+  "retries": 0,
+  "postStatus": 202,
+  "outcome": "REPLIED",
+  "replyCount": 1,
+  "waitedMs": 62287,
+  "errorKind": null,
+  "answerStored": false
+}

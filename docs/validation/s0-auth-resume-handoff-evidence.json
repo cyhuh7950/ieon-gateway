@@ -1,0 +1,101 @@
+{
+  "reviewedKst": "2026-10-29 15:42 KST",
+  "tag": "rust-v0.165.0-alpha.1.2",
+  "commit": "720fec862a608ae1e5878d1eecb04fb93192e93c",
+  "selectedTarget": {
+    "evidence": "USER_SELECTED_FOR_PROPOSAL",
+    "executionApproved": false,
+    "metadataOrBodyQueried": false,
+    "title": "어울 전용 작업 지시 세션",
+    "threadId": "01a0dadd-739f-74d2-93c5-9c405cc1019b"
+  },
+  "sourceFiles": [
+    {
+      "path": "codex-rs/login/src/auth/storage.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/login/src/auth/storage.rs",
+      "sha256Utf8": "1cce1de2b553f60fa919ec968863f3417476d66d54ceda37c587c54f3a8dd6ba",
+      "ranges": [
+        "564-603",
+        "621-633"
+      ]
+    },
+    {
+      "path": "codex-rs/login/src/auth/manager.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/login/src/auth/manager.rs",
+      "sha256Utf8": "9b24dcf505b09800ec9169aeee521f0c362b4ffa62fb20421e09d6a2ab73558e",
+      "ranges": [
+        "1185-1216",
+        "1500-1522",
+        "1537-1601"
+      ]
+    },
+    {
+      "path": "codex-rs/login/src/server.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/login/src/server.rs",
+      "sha256Utf8": "2fefab8eb943a6c8d3770c67ac54ae55326299b99e4624666380100caf6dbb23",
+      "ranges": [
+        "828-872"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server/src/request_processors/account_processor.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server/src/request_processors/account_processor.rs",
+      "sha256Utf8": "f462380b847d6f895f587063cb71a07aec14cf33d46c13298a3940a9647a48d6",
+      "ranges": [
+        "605-625"
+      ]
+    },
+    {
+      "path": "codex-rs/app-server/src/request_processors/thread_processor.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server/src/request_processors/thread_processor.rs",
+      "sha256Utf8": "37ff0875e2b6d3def2fc727fd065574bd243cea2aa836021ebb218ac83b898e7",
+      "ranges": [
+        "3929-4048",
+        "4624-4692"
+      ]
+    },
+    {
+      "path": "codex-rs/rollout/src/writer_lock.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/rollout/src/writer_lock.rs",
+      "sha256Utf8": "e9a49bef7540dc688de8243d6df1ee9a24cf328c082934b1352d8bebef857468",
+      "ranges": [
+        "33-86"
+      ]
+    },
+    {
+      "path": "codex-rs/thread-store/src/local/mod.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/thread-store/src/local/mod.rs",
+      "sha256Utf8": "b1c8064b79f945e9dfe1741793af7dd3fab438ddedadea36e7cb2c1544ebf658",
+      "ranges": [
+        "273-280",
+        "374-389"
+      ]
+    },
+    {
+      "path": "codex-rs/thread-store/src/local/live_writer.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/thread-store/src/local/live_writer.rs",
+      "sha256Utf8": "1e11169c69e9126de9708d8dc1506f04783c56628a43237b7fea1de8aa5480b9",
+      "ranges": [
+        "75-131",
+        "204-243"
+      ]
+    }
+  ],
+  "freshOfficialSameAccountLogin": "SUPPORTED_CONDITIONAL_NOT_CREDENTIAL_COPY",
+  "processMemoryAuthStorageSupported": true,
+  "ephemeralModeNoPersistentCredentialFallback": true,
+  "inheritedAuthEnvironmentMustBeExcluded": true,
+  "originalThreadResume": "SUPPORTED_CONDITIONAL_LIVE_NOT_RUN",
+  "sameCodexHomeAndThreadWriterLock": "OS_FILE_LOCK_SOURCE_CONFIRMED",
+  "secondWriterReturnsConflict": true,
+  "idleTurnCompletionImpliesWriterReleased": false,
+  "naiveBothRuntimesLoadedAlternation": "NOT_GUARANTEED",
+  "exclusiveWriterReleaseAndFreshResumeAlternation": "CONDITIONAL_SOURCE_SUPPORTED_LIVE_NOT_RUN",
+  "initialProposedModelTurns": 0,
+  "laterProposedUserTurns": 3,
+  "internalInferenceRequestCount": "UNCONFIRMED",
+  "loginCalls": 0,
+  "actualThreadResumeCalls": 0,
+  "sourceOrTestsModified": false,
+  "remoteControl": "HOLD_UNCHANGED"
+}

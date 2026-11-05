@@ -1,0 +1,62 @@
+{
+  "observedKst": "2026-10-29 15:10",
+  "repository": "https://github.com/openai/codex",
+  "tag": "rust-v0.165.0-alpha.1.2",
+  "annotatedTagObject": "3237dd94e20d69fbb5b424baec89833901ff835e",
+  "peeledCommit": "720fec862a608ae1e5878d1eecb04fb93192e93c",
+  "sourceFiles": [
+    {
+      "path": "codex-rs/cli/src/main.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/cli/src/main.rs",
+      "sha256Utf8": "ac51c153916132c0be2c37ea1136562685b832957bc2e43e53d71608d0b28a4a",
+      "matchingLines": [
+        1486,
+        1910
+      ],
+      "lineCount": 5110
+    },
+    {
+      "path": "codex-rs/stdio-to-uds/src/lib.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/stdio-to-uds/src/lib.rs",
+      "sha256Utf8": "f6d45cd733992f9882af62478245a0b8c98010b0dde0626f422d297d5751a050",
+      "matchingLines": [
+        12,
+        20,
+        26,
+        42
+      ],
+      "lineCount": 47
+    },
+    {
+      "path": "codex-rs/uds/src/lib.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/uds/src/lib.rs",
+      "sha256Utf8": "a6c126e70fc54ce15e5508819bfa6b5b7d0b13274be20e5a6c13261056bc19be",
+      "matchingLines": [
+        77,
+        87
+      ],
+      "lineCount": 376
+    },
+    {
+      "path": "codex-rs/app-server-transport/src/transport/unix_socket.rs",
+      "url": "https://raw.githubusercontent.com/openai/codex/720fec862a608ae1e5878d1eecb04fb93192e93c/codex-rs/app-server-transport/src/transport/unix_socket.rs",
+      "sha256Utf8": "a2ff08a28cb52c8a11895bb4cff41401180fb0efd0491984b77af381e7efafe3",
+      "matchingLines": [
+        193
+      ],
+      "lineCount": 545
+    }
+  ],
+  "proxyBehavior": "RAW_BIDIRECTIONAL_BYTE_RELAY",
+  "jsonlWebSocketConversion": false,
+  "controlSocketRequiresWebSocketHandshake": true,
+  "currentInspectorProxyFraming": "INCOMPATIBLE_WITH_WEBSOCKET_CONTROL_SOCKET",
+  "desktopRuntimeExternalAttach": "UNVERIFIED",
+  "sourceReviewOnly": true,
+  "socketRetries": 0,
+  "daemonStarts": 0,
+  "settingsChanges": 0,
+  "threadTurnCalls": 0,
+  "productSourceChanges": 0,
+  "binaryRebuiltOrReproduciblyMatched": false
+}

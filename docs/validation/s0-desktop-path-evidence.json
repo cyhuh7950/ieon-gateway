@@ -1,0 +1,70 @@
+{
+  "scope": "S0_공식_Windows_Desktop_연결_경로_읽기전용_조사",
+  "desktopPackageVersion": "26.1023.6123.0",
+  "engineVersionPreviouslyVerified": "0.165.0-alpha.1.2",
+  "desktopParentPid": 19212,
+  "conversationServerPid": 21356,
+  "execServerPid": 34344,
+  "recordedManagedDaemonPid": 21016,
+  "recordedManagedDaemonAlive": false,
+  "observedFlags": {
+    "appServer": [
+      "--analytics-default-enabled"
+    ],
+    "execServer": [
+      "--remote",
+      "--environment-id"
+    ]
+  },
+  "socketEntryLastWriteUtc": "2026-10-08T16:21:03.2433117Z",
+  "socketConnectionResultFromPriorS0": "OS_10061_CONNECTION_REFUSED",
+  "proxyRunsThisFollowup": 0,
+  "readOnlyDaemonVersionQueries": 1,
+  "daemonVersionQueryExit": 1,
+  "daemonVersionInternalIpcAttempt": "미확인",
+  "staticEvidence": {
+    "archive": "C:/Program Files/WindowsApps/OpenAI.Codex_26.1023.6123.0_x64__2p2nqsd0c76g0/app/resources/app.asar",
+    "entry": ".vite/build/application-network-startup-DMyt3FBI.js",
+    "sha256": "c4497beb1a68f4322acd6ec2fd1a44c06c24025b115b12324aefae5569849e9d",
+    "offsetUnit": "decoded_Unicode_characters_approximate",
+    "stdioClassOffset": 264234,
+    "pipeSpawnOffset": 266024,
+    "controlSocketBranchOffset": 270430,
+    "localSharedDaemonBranchExcludesWindows": true,
+    "stdioChildPipesPresent": true,
+    "publicExternalClientSupportContract": "NOT_CONFIRMED"
+  },
+  "threadTurnRpcCalls": 0,
+  "bodyQueries": 0,
+  "testModelTurnStarts": 0,
+  "appRestarts": 0,
+  "newServersOrDaemonsStarted": 0,
+  "settingsOrAuthenticationChanges": 0,
+  "productSourceChanges": 0,
+  "fullCommandLinesStored": false,
+  "userTranscriptOrAuthFilesRead": false,
+  "observedKst": "2026-10-29 14:49 KST",
+  "transportReview": {
+    "reviewedKst": "2026-10-29 15:04 KST",
+    "desktopBuildRechecked": "26.1023.6123.0",
+    "appServerPidRechecked": 21356,
+    "execServerPidRechecked": 34344,
+    "installedModuleHashUnchanged": true,
+    "desktopStdioJsonlStaticallyConfirmed": true,
+    "daemonUnixSocketWebSocketStaticallyConfirmed": true,
+    "windowsExcludedFromDaemonBranch": true,
+    "scriptSendJsonl": true,
+    "scriptReceiveJsonl": true,
+    "scriptImplementsWebSocketHandshake": false,
+    "proxyHelpSpecifiesFramingConversion": false,
+    "proxyFramingCompatibility": "UNVERIFIED",
+    "sameDesktopRuntimeAttach": "UNVERIFIED",
+    "socketRetries": 0,
+    "daemonStartsOrVersionQueries": 0,
+    "newAppServers": 0,
+    "threadTurnRpc": 0,
+    "settingsChanges": 0,
+    "transportSourceSha256": "498eb5f320620f663c51d635d799e742ef00e6e5cdd4e75a3dc217bb1dfd357a",
+    "inspectSourceSha256": "c631fbaf1adc4e5752ef12c5c41b9b650ac7af71621e78b5ffde95ab88c608df"
+  }
+}
