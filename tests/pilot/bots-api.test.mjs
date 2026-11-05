@@ -47,7 +47,7 @@ test('역할·봇 저장: 규칙 검사, full 권한 거부, 부르는 이름 �
   assert.equal((await call('/v1/admin/roles/review', { method: 'PUT', body: { ...role, defaultSession: 'nope' } })).body.error, 'unknown_session');
   assert.equal((await call('/v1/admin/roles/review', { method: 'PUT', body: { ...role, defaultSession: 'c_review' } })).status, 200);
   assert.equal((await call('/v1/admin/bots/telegram/Bad_ID', { method: 'PUT', body: { name: 'x' } })).body.error, 'bad_bot_id');
-  assert.equal((await call('/v1/admin/bots/kakao/ieun01', { method: 'PUT', body: { name: 'x' } })).body.error, 'bad_platform');
+  assert.equal((await call('/v1/admin/bots/line/ieun01', { method: 'PUT', body: { name: 'x' } })).body.error, 'bad_platform');
   assert.equal((await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'nope' } })).body.error, 'unknown_role');
   const ok = await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'] } });
   assert.deepEqual(ok.body, { platform: 'telegram', botId: 'ieun01', name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'], extraUsers: [], enabled: true, sessions: [] });
