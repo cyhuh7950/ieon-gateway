@@ -59,10 +59,10 @@
 
 ## 6. 배포 결과 (2026-11-06)
 
-- W1: PC `.localelayelay.secrets`(git 제외, 값은 출력하지 않음)에 비밀 값 2개 생성. W2: `~/deploy/ieon-gateway/relay/`에 파일 복사, `relay.secrets` 권한 600. W3: `docker compose build`·`up -d`로 이미지 `ieon-relay:0.0.1`·컨테이너 `ieon-relay` 기동(healthy, 호스트 포트 게시 없음, 새 이미지는 로컬 `node:22-alpine` 위에 빌드).
+- W1: PC `.local\relay\relay.secrets`(git 제외, 값은 출력하지 않음)에 비밀 값 2개 생성. W2: `~/deploy/ieon-gateway/relay/`에 파일 복사, `relay.secrets` 권한 600. W3: `docker compose build`·`up -d`로 이미지 `ieon-relay:0.0.1`·컨테이너 `ieon-relay` 기동(healthy, 호스트 포트 게시 없음, 새 이미지는 로컬 `node:22-alpine` 위에 빌드).
 - W4: 신산님이 NPM에서 프록시 호스트 `ieun-gateway.sinsan.kr` → `http://ieon-relay:28770`, Let's Encrypt 인증서 등록(Online).
 - W5 확인(이 PC 외부 접속): `GET /health` 200 `{"ok":true,"pc":false}`, 틀린 스킬 비밀 경로 404, `/` 404, 토큰 없는 `/pc/poll` 401, HTTP→HTTPS 301, 인증서 Let's Encrypt(CN=ieun-gateway.sinsan.kr, 만료 2027-02-03).
 - 변경 범위: `~/deploy/ieon-gateway`·컨테이너 1개·이미지 1개·NPM 프록시 호스트 1개. 기존 서비스·DNS 변경 없음.
-- **스킬 URL**(신산님이 오픈빌더에 입력): `https://ieun-gateway.sinsan.kr/kakao/skill/<IEON_RELAY_KAKAO_SECRET 값>` — 값은 `.localelayelay.secrets`에서 읽는다(채팅·문서에 쓰지 않음).
+- **스킬 URL**(신산님이 오픈빌더에 입력): `https://ieun-gateway.sinsan.kr/kakao/skill/<IEON_RELAY_KAKAO_SECRET 값>` — 값은 `.local\relay\relay.secrets`에서 읽는다(채팅·문서에 쓰지 않음).
 - **PC 쪽 설정(W7 전):** `.local\.env`에 `KAKAO_RELAY_TOKEN=<IEON_RELAY_PC_TOKEN 값>`, `.local\messenger\config.json`에 `"kakaoRelayUrl": "https://ieun-gateway.sinsan.kr"`.
 - 되돌리기: NPM에서 프록시 호스트 삭제 → 서버에서 `cd ~/deploy/ieon-gateway/relay && docker compose down` → `docker rmi ieon-relay:0.0.1` → 폴더 삭제.
