@@ -36,6 +36,8 @@ const NS_ERR = {
   not_archived: '보관된 세션이 아님',
   conversation_busy: '처리 중이거나 확인 필요 질문이 있음',
   confirm_mismatch: '이름 확인이 맞지 않음',
+  engine_not_allowed_for_role: '이 봇의 역할로는 그 엔진을 만들 수 없음',
+  profile_not_allowed_for_role: '이 봇의 역할로는 그 권한을 고를 수 없음',
 };
 const STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
 
@@ -174,7 +176,7 @@ export function createBridge(opts) {
     const create = text.match(/^\/new\s+(codex|claude)\s+(\S+)(?:\s+(\S+))?\s*$/);
     if (create) {
       const r = await opts.api({ method: 'POST', path: '/v1/sessions', body: { engine: create[1], name: create[2], ...(create[3] ? { profile: create[3] } : {}) } });
-      if (r.status !== 201) return send(`새 세션을 만들 수 없음: ${nsFail(r)}`);
+      if (r.status !== 201) return send(`새 세션을 만들 수 없음: ${nsFail(r)}${r.body?.allowed ? ` (가능: ${r.body.allowed.join(', ')})` : ''}`);
       rooms[roomKey(m)] = r.body.conversationId;
       saveRooms();
       return send(`새 ${create[1] === 'codex' ? 'Codex' : 'Claude'} 세션 "${r.body.name}"(권한 ${r.body.profile})을 만들고 이 대화방에 연결했습니다. 첫 질문을 보내면 시작합니다.`);
