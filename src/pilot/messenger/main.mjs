@@ -1,10 +1,11 @@
 // 메신저 봇 실행. 사용: node src/pilot/messenger/main.mjs <configPath>
-// 설정(.local/messenger/config.json): serverUrl, userTokenFile(메신저 토큰), envFile, roomsPath, allowedUsers(공통)
+// 설정(.local/messenger/config.json): serverUrl, userTokenFile(메신저 토큰), envFile, roomsPath, allowedUsers(공통), kakaoRelayUrl(카카오 중계 주소, 선택)
 // 봇 목록·이름·역할은 웹 봇 관리에서 정의하고(서버 DB), 토큰은 envFile에 규칙 이름으로 둔다(docs/design/MULTI_BOTS.md).
 // envFile의 토큰은 이 프로세스 안에서만 읽고 출력·기록하지 않는다. 토큰이 있는 봇만 켠다.
 import { readFileSync } from 'node:fs';
 import { serverApi } from './bridge.mjs';
 import { runTelegram, runDiscord, runSlack } from './platforms.mjs';
+import { runKakao } from './kakao.mjs';
 import { createBotRunner } from './runner.mjs';
 
 export function parseEnv(text) {
@@ -23,7 +24,9 @@ const runner = createBotRunner({
   api: serverApi(config.serverUrl, config.userTokenFile),
   apiFor: (platform, botId) => serverApi(config.serverUrl, config.userTokenFile, `${platform}:${botId}`),
   env, allowedUsers: config.allowedUsers ?? {}, roomsPath: config.roomsPath,
-  runners: { telegram: runTelegram, discord: runDiscord, slack: runSlack },
+  runners: { telegram: runTelegram, discord: runDiscord, slack: runSlack,
+    // 카카오는 공개 수신 중계(Oracle)에서 질문을 가져온다. 중계 주소(비밀 아님)는 설정 파일의 kakaoRelayUrl, 토큰은 .env.
+    kakao: (o) => (config.kakaoRelayUrl ? runKakao({ ...o, relayUrl: config.kakaoRelayUrl }) : o.log({ platform: 'kakao', event: 'open_error', error: 'kakaoRelayUrl_missing' })) },
   log,
 });
 
