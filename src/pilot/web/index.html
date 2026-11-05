@@ -41,11 +41,28 @@ summary { cursor:pointer; font-weight:600; }
 [hidden] { display:none !important; }
 code { background:var(--surface-alt); border:1px solid var(--border); border-radius:4px; padding:0 5px; }
 h2 { font-size:13px; margin:14px 0 4px; }
+nav.tabs { margin-left:auto; display:flex; gap:6px; }
+nav.tabs button { border:1px solid var(--border); background:var(--surface); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
+nav.tabs button[aria-pressed="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+.admin { max-width:1200px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+.admin section { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 16px; }
+.admin h3 { font-size:14px; margin:4px 0 10px; }
+table.list { width:100%; border-collapse:collapse; }
+table.list th, table.list td { text-align:left; border-bottom:1px solid var(--border); padding:6px 8px; vertical-align:top; }
+table.list tr.pick { cursor:pointer; }
+table.list tr.pick:hover { background:var(--surface-alt); }
+.grid2 { display:grid; grid-template-columns:120px 1fr; gap:6px 10px; align-items:center; }
+.grid2 input[type=text], .grid2 select, .grid2 textarea { width:100%; font:inherit; padding:4px 6px; border:1px solid var(--border); border-radius:6px; }
+.grid2 textarea { height:70px; font-size:12px; }
+.chk { display:inline-flex; gap:4px; align-items:center; margin-right:12px; }
+.st-ok { color:var(--success); } .st-warn { color:#6c4c0c; } .st-err { color:var(--danger); }
+@media (max-width:650px) { .grid2 { grid-template-columns:1fr; } }
 @media (max-width:650px) { .layout { grid-template-columns:1fr; } textarea { font-size:16px; } }
 </style>
 </head>
 <body>
-<header><h1>이어온</h1><span class="muted">기존 세션 이어쓰기 · 로컬 실증</span></header>
+<header><h1>이어온</h1><span class="muted">기존 세션 이어쓰기 · 로컬 실증</span>
+  <nav class="tabs" id="tabs" hidden><button type="button" id="tabSessions" aria-pressed="true">세션</button><button type="button" id="tabAdmin" aria-pressed="false">봇 관리</button></nav></header>
 <div class="layout">
   <aside aria-label="세션 목록">
     <form id="login" hidden>
@@ -98,6 +115,47 @@ h2 { font-size:13px; margin:14px 0 4px; }
     </form>
   </main>
 </div>
+<div class="admin" id="admin" hidden>
+  <section aria-label="봇 목록">
+    <h3>봇 목록</h3>
+    <div class="muted">봇 토큰은 이 화면에 넣지 않습니다. PC의 <code>.local\.env</code>에 아래 "토큰 변수" 이름으로 넣고 메신저를 다시 켜세요.</div>
+    <table class="list"><thead><tr><th>메신저</th><th>봇 ID</th><th>이름</th><th>역할</th><th>부르는 이름</th><th>상태</th></tr></thead><tbody id="botRows"></tbody></table>
+    <form id="botAdd" class="row" style="margin-top:10px">
+      <select id="addPlatform" aria-label="메신저"><option value="telegram">텔레그램</option><option value="discord">디스코드</option><option value="slack">슬랙</option></select>
+      <input id="addBotId" placeholder="새 봇 ID (영문 소문자·숫자·-)" maxlength="32" autocomplete="off" aria-label="새 봇 ID">
+      <button class="primary" type="submit">봇 추가</button>
+    </form>
+    <div id="addHint" class="muted"></div>
+  </section>
+  <section id="botEdit" hidden aria-label="봇 편집">
+    <h3 id="botEditTitle"></h3>
+    <form id="botForm" class="grid2">
+      <label for="bName">이름</label><input type="text" id="bName" maxlength="30">
+      <label for="bRole">역할</label><select id="bRole"></select>
+      <label for="bCalls">부르는 이름</label><input type="text" id="bCalls" placeholder="쉼표로 구분 (예: 리뷰, 리뷰봇)">
+      <label for="bUsers">추가 허용 사용자</label><input type="text" id="bUsers" placeholder="메신저 사용자 ID, 쉼표로 구분 (공통 허용 목록에 더해짐)">
+      <span>볼 수 있는 기존 세션</span><div id="bSessions"></div>
+      <span>켜기</span><label class="chk"><input type="checkbox" id="bEnabled"> 이 봇을 켭니다</label>
+      <span>토큰 변수</span><div id="bEnv" class="muted"></div>
+      <span>상태</span><div id="bStatus"></div>
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="bDelete">봇 삭제</button></div>
+    </form>
+  </section>
+  <section aria-label="역할 목록">
+    <h3>역할 목록</h3>
+    <table class="list"><thead><tr><th>역할 ID</th><th>이름</th><th>만들 수 있는 엔진</th><th>허용 권한</th><th>기본 세션</th></tr></thead><tbody id="roleRows"></tbody></table>
+    <form id="roleForm" class="grid2" style="margin-top:10px">
+      <label for="rId">역할 ID</label><input type="text" id="rId" placeholder="영문 소문자·숫자·- (예: review)" maxlength="32">
+      <label for="rName">이름</label><input type="text" id="rName" maxlength="30">
+      <label for="rDesc">설명</label><input type="text" id="rDesc" maxlength="200">
+      <span>만들 수 있는 엔진</span><div><label class="chk"><input type="checkbox" name="rEng" value="codex" checked> Codex</label><label class="chk"><input type="checkbox" name="rEng" value="claude" checked> Claude</label></div>
+      <span>허용 권한</span><div><label class="chk"><input type="checkbox" name="rProf" value="workspace" checked> 작업 폴더 안 읽기·쓰기</label><label class="chk"><input type="checkbox" name="rProf" value="read_only" checked> 읽기 전용</label><span class="muted">(명령 실행·인터넷은 설정 파일에서만)</span></div>
+      <label for="rGuide">AI 역할 안내</label><textarea id="rGuide" maxlength="2000" placeholder="이 역할 봇에서 만든 새 세션의 첫 질문 앞에 붙습니다"></textarea>
+      <label for="rDefault">기본 세션</label><select id="rDefault"></select>
+      <span></span><div class="row"><button class="primary" type="submit">역할 저장</button><button type="button" id="rDelete">역할 삭제</button><button type="button" id="rNew">새 역할</button></div>
+    </form>
+  </section>
+</div>
 <script>
 const ENGINE = { codex_thread: 'Codex · thread', claude_channel: 'Claude · 채널', claude_cli: 'Claude · 새 세션' };
 const HOW = { codex_thread: '보낼 때마다 같은 대화를 다시 열어 이어 씀', claude_channel: '실행 중인 세션에 직접 전달', claude_cli: '질문마다 같은 세션을 이어서 실행' };
@@ -132,7 +190,7 @@ const api = async (path, init = {}) => {
   return { status: res.status, body: res.status === 204 ? null : await res.json() };
 };
 function showLogin() { $('login').hidden = false; }
-$('login').onsubmit = (e) => { e.preventDefault(); token = $('token').value.trim(); sessionStorage.setItem('ieon_token', token); $('login').hidden = true; load(); loadLimits(); };
+$('login').onsubmit = (e) => { e.preventDefault(); token = $('token').value.trim(); sessionStorage.setItem('ieon_token', token); $('login').hidden = true; load(); loadLimits(); initAdmin(); };
 function setStatus(kind, text) { $('status').innerHTML = ''; if (!text) return; const d = document.createElement('div'); d.className = 'state ' + kind; d.textContent = text; $('status').append(d); }
 async function loadLimits() {
   const r = await api('/v1/sessions/limits');
@@ -272,7 +330,134 @@ for (const r of document.getElementsByName('mode')) {
     await load();
   };
 }
-token ? Promise.all([load(), loadLimits()]).catch(() => {}) : showLogin();
+// --- 봇 관리(웹 사용자만, MULTI_BOTS M2-W) ---
+const PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', teams: 'Teams' };
+const STATE = { connected: ['st-ok', '연결됨'], starting: ['st-warn', '시작 중'], token_missing: ['st-err', '토큰 없음'],
+  duplicate_token: ['st-err', '토큰 중복'], error: ['st-err', '연결 오류'], platform_not_supported: ['st-err', '지원 안 함'] };
+const ADMIN_ERR = { bad_bot_id: '봇 ID는 영문 소문자·숫자·- 2~32자', bad_name: '이름을 1~30자로', unknown_role: '없는 역할',
+  bad_call_name: '부르는 이름은 한글·영문·숫자 1~20자(명령어 이름 불가)', duplicate_call_name: '같은 부르는 이름이 두 번 있음',
+  call_name_taken: '다른 봇이 쓰는 부르는 이름', default_bot: '기본 봇은 지울 수 없음', unknown_session: '없는 세션',
+  bad_role_id: '역할 ID는 영문 소문자·숫자·- 2~32자', bad_engines: '엔진을 하나 이상', bad_profiles: '권한을 하나 이상', role_in_use: '이 역할을 쓰는 봇이 있음' };
+let bots = [], roles = [], adminSessions = [], editing = null;
+const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+const envHint = (platform, id) => {
+  if (id === 'default') return { telegram: 'TELEGRAM_BOT_TOKEN', discord: 'DISCORD_BOT_TOKEN', slack: 'SLACK_APP_TOKEN, SLACK_BOT_TOKEN' }[platform] || '';
+  const ID = id.toUpperCase().replaceAll('-', '_');
+  return { telegram: 'TELEGRAM_BOT_' + ID + '_TOKEN', discord: 'DISCORD_BOT_' + ID + '_TOKEN', slack: 'SLACK_BOT_' + ID + '_APP_TOKEN, SLACK_BOT_' + ID + '_BOT_TOKEN' }[platform] || '';
+};
+const split = (s) => s.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
+function statusText(b) {
+  if (!b.enabled) return ['muted', '꺼짐'];
+  const s = b.status; if (!s) return ['st-warn', '메신저 꺼짐(보고 없음)'];
+  const [cls, label] = STATE[s.state] || ['st-warn', s.state];
+  const extra = [s.username, s.missing?.length ? '빠진 토큰: ' + s.missing.join(', ') : '',
+    b.platform === 'telegram' && s.canReadAll === false ? '그룹 일반 글 수신 꺼짐 — 부르는 이름이 동작하지 않음(BotFather /setprivacy → Disable)' : ''].filter(Boolean).join(' · ');
+  return [cls, label + (extra ? ' · ' + extra : '')];
+}
+async function loadAdmin() {
+  const [b, r, s] = await Promise.all([api('/v1/admin/bots'), api('/v1/admin/roles'), api('/v1/admin/sessions')]);
+  if (b.status !== 200) return;
+  bots = b.body.bots; roles = r.body.roles; adminSessions = s.body.sessions;
+  $('botRows').innerHTML = '';
+  for (const x of bots) {
+    const tr = el('tr', null, 'pick'); tr.tabIndex = 0;
+    const [cls, st] = statusText(x);
+    [PLAT[x.platform] || x.platform, x.botId, x.name, roles.find((q) => q.roleId === x.roleId)?.name || '—', x.callNames.join(', ') || '(' + x.botId + ')'].forEach((v) => tr.append(el('td', v)));
+    tr.append(el('td', st, cls));
+    tr.onclick = tr.onkeydown = (e) => { if (e.type === 'click' || e.key === 'Enter') editBot(x.platform, x.botId); };
+    $('botRows').append(tr);
+  }
+  $('roleRows').innerHTML = '';
+  for (const q of roles) {
+    const tr = el('tr', null, 'pick'); tr.tabIndex = 0;
+    [q.roleId, q.name, q.engines.join(', '), q.profiles.join(', '), adminSessions.find((s2) => s2.conversationId === q.defaultSession)?.label || '—'].forEach((v) => tr.append(el('td', v)));
+    tr.onclick = tr.onkeydown = (e) => { if (e.type === 'click' || e.key === 'Enter') editRole(q.roleId); };
+    $('roleRows').append(tr);
+  }
+  const fillSelect = (sel, items, empty) => { const keep = sel.value; sel.innerHTML = ''; sel.append(new Option(empty, '')); items.forEach(([v, l]) => sel.append(new Option(l, v))); sel.value = keep; };
+  fillSelect($('bRole'), roles.map((q) => [q.roleId, q.name]), '역할 없음');
+  fillSelect($('rDefault'), adminSessions.map((s2) => [s2.conversationId, s2.label]), '없음');
+  if (editing) editBot(editing.platform, editing.botId, true);
+}
+function editBot(platform, botId, refresh) {
+  const b = bots.find((x) => x.platform === platform && x.botId === botId); if (!b) { $('botEdit').hidden = true; editing = null; return; }
+  const same = editing && editing.platform === platform && editing.botId === botId;
+  editing = { platform, botId };
+  $('botEdit').hidden = false;
+  $('botEditTitle').textContent = PLAT[platform] + ' · ' + botId;
+  const [cls, st] = statusText(b); $('bStatus').textContent = st; $('bStatus').className = cls;
+  $('bEnv').textContent = envHint(platform, botId);
+  $('bDelete').disabled = botId === 'default';
+  if (refresh && same) return; // 주기 새로고침이 입력 중인 값을 덮어쓰지 않게 상태만 바꾼다
+  $('bName').value = b.name; $('bRole').value = b.roleId || ''; $('bCalls').value = b.callNames.join(', '); $('bUsers').value = b.extraUsers.join(', ');
+  $('bEnabled').checked = b.enabled;
+  $('bSessions').innerHTML = '';
+  if (botId === 'default') $('bSessions').append(el('div', '기본 봇은 server.json에서 app_messenger로 정한 세션을 봅니다. 여기서 더 추가할 수 있습니다.', 'muted'));
+  for (const s2 of adminSessions) {
+    const l = el('label', null, 'chk'); const c = document.createElement('input'); c.type = 'checkbox'; c.value = s2.conversationId; c.checked = b.sessions.includes(s2.conversationId);
+    l.append(c, document.createTextNode(' ' + s2.label + (s2.newSession ? ' (새 세션)' : ''))); $('bSessions').append(l);
+  }
+}
+$('botForm').onsubmit = async (e) => {
+  e.preventDefault(); if (!editing) return;
+  const body = { name: $('bName').value.trim(), roleId: $('bRole').value || null, callNames: split($('bCalls').value), extraUsers: split($('bUsers').value),
+    enabled: $('bEnabled').checked, sessions: [...$('bSessions').querySelectorAll('input:checked')].map((c) => c.value) };
+  const r = await api('/v1/admin/bots/' + editing.platform + '/' + editing.botId, { method: 'PUT', body: JSON.stringify(body) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '저장함 — 메신저에 1분 안에 반영됩니다' : (ADMIN_ERR[r.body.error] || r.body.error) + (r.body.callName ? ' (' + r.body.callName + ' → ' + r.body.botId + ')' : ''));
+  if (r.status === 200) { editing = null; await loadAdmin(); editBot(r.body.platform, r.body.botId); }
+};
+$('bDelete').onclick = async () => {
+  if (!editing || !confirm(editing.botId + ' 봇을 지웁니다. 이 봇의 대화방 연결도 지워집니다.')) return;
+  const r = await api('/v1/admin/bots/' + editing.platform + '/' + editing.botId, { method: 'DELETE' });
+  setStatus(r.status === 204 ? 'ok' : 'err', r.status === 204 ? '봇을 지웠습니다' : (ADMIN_ERR[r.body.error] || r.body.error));
+  if (r.status === 204) { editing = null; $('botEdit').hidden = true; await loadAdmin(); }
+};
+$('addBotId').oninput = () => { const id = $('addBotId').value.trim(); $('addHint').textContent = id ? '토큰 변수: ' + envHint($('addPlatform').value, id) : ''; };
+$('addPlatform').onchange = $('addBotId').oninput;
+$('botAdd').onsubmit = async (e) => {
+  e.preventDefault();
+  const platform = $('addPlatform').value, botId = $('addBotId').value.trim();
+  const r = await api('/v1/admin/bots/' + platform + '/' + encodeURIComponent(botId), { method: 'PUT', body: JSON.stringify({ name: botId }) });
+  if (r.status !== 200) { setStatus('err', ADMIN_ERR[r.body.error] || r.body.error); return; }
+  setStatus('ok', '봇을 추가했습니다. .env에 ' + envHint(platform, botId) + '를 넣고 메신저를 다시 켜세요.');
+  $('addBotId').value = ''; $('addHint').textContent = ''; await loadAdmin(); editBot(platform, botId);
+};
+function editRole(id) {
+  const q = roles.find((x) => x.roleId === id);
+  $('rId').value = q?.roleId || ''; $('rId').readOnly = Boolean(q); $('rName').value = q?.name || ''; $('rDesc').value = q?.description || '';
+  document.getElementsByName('rEng').forEach((c) => { c.checked = q ? q.engines.includes(c.value) : true; });
+  document.getElementsByName('rProf').forEach((c) => { c.checked = q ? q.profiles.includes(c.value) : true; });
+  $('rGuide').value = q?.aiGuide || ''; $('rDefault').value = q?.defaultSession || ''; $('rDelete').disabled = !q;
+}
+$('rNew').onclick = () => editRole(null);
+$('roleForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const id = $('rId').value.trim();
+  const body = { name: $('rName').value.trim(), description: $('rDesc').value.trim(), aiGuide: $('rGuide').value,
+    engines: [...document.getElementsByName('rEng')].filter((c) => c.checked).map((c) => c.value),
+    profiles: [...document.getElementsByName('rProf')].filter((c) => c.checked).map((c) => c.value), defaultSession: $('rDefault').value || null };
+  const r = await api('/v1/admin/roles/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '역할을 저장했습니다' : (ADMIN_ERR[r.body.error] || r.body.error));
+  if (r.status === 200) { await loadAdmin(); editRole(id); }
+};
+$('rDelete').onclick = async () => {
+  const id = $('rId').value.trim(); if (!id || !confirm(id + ' 역할을 지웁니다.')) return;
+  const r = await api('/v1/admin/roles/' + encodeURIComponent(id), { method: 'DELETE' });
+  setStatus(r.status === 204 ? 'ok' : 'err', r.status === 204 ? '역할을 지웠습니다' : (ADMIN_ERR[r.body.error] || r.body.error));
+  if (r.status === 204) { editRole(null); await loadAdmin(); }
+};
+function showTab(admin) {
+  $('tabAdmin').setAttribute('aria-pressed', String(admin)); $('tabSessions').setAttribute('aria-pressed', String(!admin));
+  document.querySelector('.layout').hidden = admin; $('admin').hidden = !admin;
+  if (admin) loadAdmin().catch(() => {});
+  // 안내 문구가 두 화면에 함께 보이도록 상태 표시를 현재 화면으로 옮긴다
+  (admin ? $('admin') : document.querySelector('main')).prepend($('status'));
+}
+$('tabSessions').onclick = () => showTab(false);
+$('tabAdmin').onclick = () => showTab(true);
+async function initAdmin() { const r = await api('/v1/admin/bots'); $('tabs').hidden = r.status !== 200; }
+token ? Promise.all([load(), loadLimits(), initAdmin()]).catch(() => {}) : showLogin();
+setInterval(() => { if (token && !$('admin').hidden) loadAdmin().catch(() => {}); }, 10000);
 setInterval(() => { if (token && !pending) load().catch(() => {}); }, 5000);
 </script>
 </body>

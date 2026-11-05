@@ -50,7 +50,7 @@ test('역할·봇 저장: 규칙 검사, full 권한 거부, 부르는 이름 �
   assert.equal((await call('/v1/admin/bots/kakao/ieun01', { method: 'PUT', body: { name: 'x' } })).body.error, 'bad_platform');
   assert.equal((await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'nope' } })).body.error, 'unknown_role');
   const ok = await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'] } });
-  assert.deepEqual(ok.body, { platform: 'telegram', botId: 'ieun01', name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'], extraUsers: [], enabled: true });
+  assert.deepEqual(ok.body, { platform: 'telegram', botId: 'ieun01', name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'], extraUsers: [], enabled: true, sessions: [] });
   assert.deepEqual((await call('/v1/admin/bots/telegram/other', { method: 'PUT', body: { name: 'x', callNames: ['리 뷰'] } })).body,
     { error: 'call_name_taken', callName: '리뷰', botId: 'ieun01' });
   // 다른 메신저에서는 같은 부르는 이름을 써도 된다.
@@ -97,4 +97,26 @@ test('메신저 프로세스: 켜진 봇 정의(역할 포함)를 받고, 상태
   assert.equal(st.state, 'token_missing');
   assert.deepEqual(st.missing, ['TELEGRAM_BOT_IEUN01_TOKEN']);
   assert.equal(JSON.stringify(st).includes('SHOULD_NOT_STORE'), false);
+});
+
+test('봇이 볼 수 있는 기존 세션을 웹에서 고르면 그 봇에 보이고, 서버를 다시 켜도 유지된다', async (t) => {
+  const { call, app } = await setup(t);
+  await call('/v1/admin/bots/discord/ieun01', { method: 'PUT', body: { name: '리뷰 봇' } });
+  const ids = async () => (await call('/v1/conversations', { token: 'msg', bot: 'discord:ieun01' })).body.conversations.map((c) => c.conversationId);
+  assert.deepEqual(await ids(), []);
+  assert.equal((await call('/v1/admin/bots/discord/ieun01', { method: 'PUT', body: { name: '리뷰 봇', sessions: ['nope'] } })).body.error, 'unknown_session');
+  const r = await call('/v1/admin/bots/discord/ieun01', { method: 'PUT', body: { name: '리뷰 봇', sessions: ['c_shared'] } });
+  assert.deepEqual(r.body.sessions, ['c_shared']);
+  assert.deepEqual(await ids(), ['c_shared']);
+  // 이름만 바꾸면(sessions 없음) 고른 세션은 그대로
+  await call('/v1/admin/bots/discord/ieun01', { method: 'PUT', body: { name: '리뷰 봇2' } });
+  assert.deepEqual(await ids(), ['c_shared']);
+  // server.json bindings를 다시 넣어도(재시작과 같음) 웹 설정은 유지
+  app.store.addBinding({ conversationId: 'c_shared', ownerUserId: 'u_sinsan', appIds: ['app_web', 'app_messenger'], hostId: 'h_sinsan', engine: 'codex_thread', sessionRef: 't1' });
+  assert.deepEqual(await ids(), ['c_shared']);
+  const admin = (await call('/v1/admin/bots')).body.bots.find((b) => b.platform === 'discord' && b.botId === 'ieun01');
+  assert.deepEqual(admin.envNames, { token: 'DISCORD_BOT_IEUN01_TOKEN' });
+  assert.deepEqual((await call('/v1/admin/sessions')).body.sessions.map((s) => s.conversationId), ['c_shared', 'c_review']);
+  await call('/v1/admin/bots/discord/ieun01', { method: 'DELETE' });
+  assert.deepEqual((await call('/v1/conversations', { token: 'msg' })).body.conversations.map((c) => c.conversationId), ['c_shared']);
 });

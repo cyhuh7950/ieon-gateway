@@ -7,7 +7,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
-import { botAppId } from './bots.mjs';
+import { botAppId, tokenEnvNames } from './bots.mjs';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -122,7 +122,13 @@ export function createApp(config) {
         if (req.method === 'GET' && path === '/v1/admin/roles') return json(res, 200, { roles: store.listRoles() });
         if (req.method === 'GET' && path === '/v1/admin/bots') {
           return json(res, 200, { bots: store.listBots().map((b) => ({ ...b, appId: botAppId(b.platform, b.botId),
+            sessions: store.botSessions(b.platform, b.botId), envNames: tokenEnvNames(b.platform, b.botId),
             status: botStatus.get(`${b.platform}:${b.botId}`) ?? null })) });
+        }
+        // 봇 관리 화면에서 고를 기존 세션 목록(웹 사용자가 볼 수 있는 것 = 모든 등록 세션 중 소유자 것)
+        if (req.method === 'GET' && path === '/v1/admin/sessions') {
+          return json(res, 200, { sessions: store.conversations(principal).map((c) => ({ conversationId: c.conversationId,
+            label: labels[c.conversationId] ?? c.newSession?.name ?? c.conversationId, engine: c.engine, newSession: Boolean(c.newSession) })) });
         }
         const role = path.match(/^\/v1\/admin\/roles\/([\w-]+)$/);
         if (role && req.method === 'PUT') {
@@ -135,8 +141,15 @@ export function createApp(config) {
         }
         const bot = path.match(/^\/v1\/admin\/bots\/(\w+)\/([\w-]+)$/);
         if (bot && req.method === 'PUT') {
-          const r = store.saveBot({ ...(await readJson(req)), platform: bot[1], botId: bot[2] });
-          return r.http === 200 ? json(res, 200, r.bot) : json(res, r.http, { error: r.code, ...(r.callName ? { callName: r.callName, botId: r.botId } : {}) });
+          const body = await readJson(req);
+          const r = store.saveBot({ ...body, platform: bot[1], botId: bot[2] });
+          if (r.http !== 200) return json(res, r.http, { error: r.code, ...(r.callName ? { callName: r.callName, botId: r.botId } : {}) });
+          // sessions가 있으면 그 봇이 볼 수 있는 기존 세션 목록을 바꾼다(없으면 그대로).
+          if (body.sessions !== undefined) {
+            const g = store.setBotSessions(bot[1], bot[2], body.sessions);
+            if (g.http !== 200) return json(res, g.http, { error: g.code });
+          }
+          return json(res, 200, { ...r.bot, sessions: store.botSessions(bot[1], bot[2]) });
         }
         if (bot && req.method === 'DELETE') {
           const r = store.deleteBot(bot[1], bot[2]);
