@@ -175,3 +175,17 @@ test('보관 예고는 그 세션에 연결된 대화방으로만 보낸다', as
   assert.match(room.a.at(-1), /\[aa\] 2026-11-19에 보관될 예정/);
   assert.equal(room.b.length, 1);
 });
+
+test('여러 봇 M0: 옛 rooms.json은 default 봇 연결로 바뀌어 그대로 이어지고, 대화방 키에 봇 ID가 들어간다', async (t) => {
+  const { writeFileSync, readFileSync } = await import('node:fs');
+  const dir = mkdtempSync(join(tmpdir(), 'ieon-msg-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'rooms.json');
+  writeFileSync(path, JSON.stringify({ 'telegram:-100': 'c1' }));
+  const bridge = createBridge({ api: fakeApi({ conversations: [conv()] }).api, allowedUsers: { telegram: ['111'] }, roomsPath: path });
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { _v: 2, rooms: { 'telegram:default:-100': 'c1' } });
+  const said = [];
+  await bridge.handle({ platform: 'telegram', userId: '111', chatId: '-100', text: '/status' }, async (s) => { said.push(s); });
+  assert.match(said[0], /시험 표식 확인/);
+  assert.equal(bridge.roomKey({ platform: 'telegram', botId: 'ieun01', chatId: '-100', threadKey: 7 }), 'telegram:ieun01:-100:7');
+});

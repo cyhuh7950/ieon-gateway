@@ -7,6 +7,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
+import { botAppId } from './bots.mjs';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -32,6 +33,9 @@ async function readJson(req) {
 export function createApp(config) {
   const store = openStore(config.dbPath);
   for (const b of config.bindings) store.addBinding(b);
+  store.ensureDefaultBots();
+  // 메신저 프로세스가 보고한 봇 상태(토큰 있음·연결됨·실제 봇 이름). 토큰 값은 받지 않는다. 키 "<메신저>:<봇ID>".
+  const botStatus = new Map();
   // 새 세션 만들기: server.json의 newSessionsConfigPath가 있으면 동시 실행 한도를 걸고 1분마다 정리(잠들기·보관)를 돌린다.
   const nsCfg = config.newSessionsConfigPath && existsSync(config.newSessionsConfigPath)
     ? loadNewSessionsConfig(JSON.parse(readFileSync(config.newSessionsConfigPath, 'utf8'))) : null;
@@ -101,6 +105,67 @@ export function createApp(config) {
       const user = matchToken(req.headers.authorization, config.users);
       if (!user) return json(res, 401, { error: 'unauthorized' });
       const principal = { userId: user.userId, appId: user.appId };
+      // 여러 봇: 메신저 토큰으로 온 요청이 x-ieon-bot: <메신저>:<봇ID>를 붙이면, 웹에 정의돼 있고 켜진 봇일 때만
+      // 그 봇의 앱 ID로 처리한다. default 봇은 기존 app_messenger 그대로다. 정의 없는 봇은 거절한다.
+      const botHeader = req.headers['x-ieon-bot'];
+      if (botHeader !== undefined) {
+        const [platform, botId] = String(botHeader).split(':');
+        const bot = user.appId === 'app_messenger' && store.bot(platform, botId);
+        if (!bot || !bot.enabled) return json(res, 403, { error: 'unknown_bot' });
+        principal.appId = botAppId(platform, botId);
+        principal.bot = { platform, botId };
+      }
+
+      // --- 봇 관리(웹 사용자만) ---
+      if (path.startsWith('/v1/admin/')) {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        if (req.method === 'GET' && path === '/v1/admin/roles') return json(res, 200, { roles: store.listRoles() });
+        if (req.method === 'GET' && path === '/v1/admin/bots') {
+          return json(res, 200, { bots: store.listBots().map((b) => ({ ...b, appId: botAppId(b.platform, b.botId),
+            status: botStatus.get(`${b.platform}:${b.botId}`) ?? null })) });
+        }
+        const role = path.match(/^\/v1\/admin\/roles\/([\w-]+)$/);
+        if (role && req.method === 'PUT') {
+          const r = store.saveRole({ ...(await readJson(req)), roleId: role[1] });
+          return r.http === 200 ? json(res, 200, r.role) : json(res, r.http, { error: r.code });
+        }
+        if (role && req.method === 'DELETE') {
+          const r = store.deleteRole(role[1]);
+          return r.http === 204 ? json(res, 204) : json(res, r.http, { error: r.code });
+        }
+        const bot = path.match(/^\/v1\/admin\/bots\/(\w+)\/([\w-]+)$/);
+        if (bot && req.method === 'PUT') {
+          const r = store.saveBot({ ...(await readJson(req)), platform: bot[1], botId: bot[2] });
+          return r.http === 200 ? json(res, 200, r.bot) : json(res, r.http, { error: r.code, ...(r.callName ? { callName: r.callName, botId: r.botId } : {}) });
+        }
+        if (bot && req.method === 'DELETE') {
+          const r = store.deleteBot(bot[1], bot[2]);
+          if (r.http === 204) botStatus.delete(`${bot[1]}:${bot[2]}`);
+          return r.http === 204 ? json(res, 204) : json(res, r.http, { error: r.code });
+        }
+        return json(res, 404, { error: 'not_found' });
+      }
+
+      // --- 메신저 프로세스용: 봇 정의 받기·상태 보고(봇 헤더 없이 메신저 토큰으로만) ---
+      if (path.startsWith('/v1/messenger/')) {
+        if (user.appId !== 'app_messenger' || principal.bot) return json(res, 403, { error: 'messenger_only' });
+        if (req.method === 'GET' && path === '/v1/messenger/bots') {
+          const roles = Object.fromEntries(store.listRoles().map((r) => [r.roleId, r]));
+          return json(res, 200, { bots: store.listBots().filter((b) => b.enabled).map((b) => ({ ...b, role: roles[b.roleId] ?? null })) });
+        }
+        if (req.method === 'POST' && path === '/v1/messenger/bots/status') {
+          const body = await readJson(req);
+          for (const s of Array.isArray(body.bots) ? body.bots.slice(0, 200) : []) {
+            if (!store.bot(s.platform, s.botId)) continue;
+            botStatus.set(`${s.platform}:${s.botId}`, { state: String(s.state ?? '').slice(0, 40),
+              missing: Array.isArray(s.missing) ? s.missing.map(String).slice(0, 4) : [],
+              username: s.username ? String(s.username).slice(0, 80) : null,
+              canReadAll: typeof s.canReadAll === 'boolean' ? s.canReadAll : null, at: new Date().toISOString() });
+          }
+          return json(res, 204);
+        }
+        return json(res, 404, { error: 'not_found' });
+      }
 
       if (req.method === 'GET' && path === '/v1/conversations') {
         return json(res, 200, { conversations: store.conversations(principal).map((c) => ({
