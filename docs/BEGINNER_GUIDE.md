@@ -581,6 +581,8 @@ $c | ConvertTo-Json -Depth 8 | Set-Content "$L\s2\connector.json" -Encoding utf8
 
 > 카카오톡은 공개 HTTPS 서버가 필요해 지금은 지원하지 않는다.
 
+**같은 메신저에 봇을 여러 개 두려면**(예: 리뷰용 봇 따로): 메신저에서 봇을 하나 더 만들고, 토큰을 규칙 이름(`TELEGRAM_BOT_<봇 ID>_TOKEN` 등)으로 `.env`에 넣은 뒤 이어온 서버에 등록한다. 자세한 순서는 [메신저 설정 설명서](MESSENGER_MANUAL.md) 6.2. 지금은 같은 방에 두 봇을 넣으면 둘 다 답하므로 1:1 대화로 쓴다(부른 봇만 답하기는 다음 단계).
+
 ---
 
 ## 9. 문제가 생겼을 때
