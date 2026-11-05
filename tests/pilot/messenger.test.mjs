@@ -189,3 +189,69 @@ test('여러 봇 M0: 옛 rooms.json은 default 봇 연결로 바뀌어 그대로
   assert.match(said[0], /시험 표식 확인/);
   assert.equal(bridge.roomKey({ platform: 'telegram', botId: 'ieun01', chatId: '-100', threadKey: 7 }), 'telegram:ieun01:-100:7');
 });
+
+// 여러 봇 M2: 같은 방의 두 봇(대화방 연결 공유), 부르는 이름·부른 봇만 답하기·기본 세션·봇 표시.
+function twoBots(t, { roleA, roleB } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'ieon-msg-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const roomStore = { rooms: {}, save() {} };
+  const mk = (botId, info, convs) => {
+    const f = fakeApi({ conversations: convs, result: { status: 'completed', answer: `${botId} 답` } });
+    const b = createBridge({ api: f.api, allowedUsers: { telegram: ['111'] }, roomStore, botId, botInfo: () => info, pollMs: 1, waitMs: 1000 });
+    const said = [];
+    const say = (text, extra = {}) => b.handle({ platform: 'telegram', userId: '111', chatId: '-100', isGroup: true, text, ...extra }, async (s) => { said.push(s); });
+    return { b, f, said, say };
+  };
+  const A = mk('default', { name: '기본 봇', callNames: [], role: roleA ?? null }, [conv({ conversationId: 'c_a', label: '공용' })]);
+  const B = mk('ieun01', { name: '리뷰 봇', callNames: ['리뷰', '리뷰봇'], role: roleB ?? null }, [conv({ conversationId: 'c_b', label: '리뷰 전용' })]);
+  return { A, B, roomStore };
+}
+
+test('같은 방 두 봇: 연결 후에는 부른 봇만 답하고, 부르는 이름은 떼고 질문으로 보낸다', async (t) => {
+  const { A, B, roomStore } = twoBots(t);
+  await A.say('/use 1', { called: true });
+  await B.say('리뷰, /use 1');
+  assert.deepEqual(roomStore.rooms, { 'telegram:default:-100': 'c_a', 'telegram:ieun01:-100': 'c_b' });
+  const before = [A.said.length, B.said.length];
+  // 아무도 부르지 않은 글: 두 봇 모두 연결돼 있으므로 둘 다 답하지 않는다.
+  await A.say('그냥 잡담'); await B.say('그냥 잡담');
+  assert.deepEqual([A.said.length, B.said.length], before);
+  // 부르는 이름으로 부르면 그 봇만, 이름을 뗀 글이 질문으로 간다.
+  await A.say('리뷰야 이 PR 봐 줘'); await B.say('리뷰야 이 PR 봐 줘');
+  assert.equal(A.said.length, before[0]);
+  assert.equal(B.f.calls.find((c) => c.path.endsWith('/requests')).body.question, '이 PR 봐 줘');
+  assert.equal(B.said.at(-1), 'ieun01 답');
+  // 멘션(called)으로 부르면 기본 봇이 답한다.
+  await A.say('상태 알려 줘', { called: true });
+  assert.equal(A.said.at(-1), 'default 답');
+  // /명령@다른 봇은 무시
+  await A.say('/status@other', { forOther: true });
+  assert.equal(A.said.at(-1), 'default 답');
+});
+
+test('같은 방에 연결된 우리 봇이 하나뿐이면 부르지 않아도 받고, 1:1은 항상 받는다', async (t) => {
+  const { A, B } = twoBots(t);
+  await B.say('/use 1', { called: true });
+  await B.say('그냥 질문');
+  assert.equal(B.said.at(-1), 'ieun01 답');
+  // A는 연결이 없고 B가 연결돼 있으므로 부르지 않은 글은 받지 않는다.
+  const n = A.said.length;
+  await A.say('그냥 질문');
+  assert.equal(A.said.length, n);
+  await A.say('/whoami', { isGroup: false });
+  assert.match(A.said.at(-1), /봇 ID: default/);
+});
+
+test('/whoami·/help에 봇 이름·역할·부르는 이름, 역할의 기본 세션에 자동 연결', async (t) => {
+  const role = { roleId: 'review', name: '코드 리뷰', description: 'PR 검토', defaultSession: 'c_b' };
+  const { B, roomStore } = twoBots(t, { roleB: role });
+  await B.say('/whoami', { isGroup: false });
+  assert.match(B.said.at(-1), /봇 이름: 리뷰 봇\n역할: 코드 리뷰\n부르는 이름: 리뷰, 리뷰봇/);
+  await B.say('/help', { isGroup: false });
+  assert.match(B.said.at(-1), /^리뷰 봇 · 코드 리뷰 — PR 검토\n그룹에서 부르기: "리뷰, …"/);
+  // 연결 없는 방에서 첫 질문 → 기본 세션에 연결하고 알린 뒤 질문을 보낸다.
+  await B.say('리뷰, 첫 질문');
+  assert.equal(roomStore.rooms['telegram:ieun01:-100'], 'c_b');
+  assert.match(B.said.find((s) => s.includes('기본 세션')), /기본 세션 "리뷰 전용"에 연결했습니다\(코드 리뷰 역할\)/);
+  assert.equal(B.said.at(-1), 'ieun01 답');
+});

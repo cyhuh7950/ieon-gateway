@@ -39,6 +39,17 @@ const NS_ERR = {
 };
 const STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
 
+// 메시지 맨 앞의 부르는 이름을 찾는다: "리뷰, …" · "리뷰: …" · "리뷰야 …" · "@리뷰 …" · "리뷰"만. 찾으면 이름을 떼고 나머지를 돌려준다.
+export function stripCallName(text, names) {
+  const t = String(text ?? '').trimStart();
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const n of [...names].map((x) => String(x).trim()).filter(Boolean).sort((a, b) => b.length - a.length)) {
+    const m = t.match(new RegExp(`^@?${esc(n)}(?:야|아)?(?:[,:，]\\s*|\\s+|$)`, 'i'));
+    if (m) return { called: true, text: t.slice(m[0].length).trim() };
+  }
+  return { called: false, text };
+}
+
 export function splitText(text, max) {
   const out = [];
   let rest = String(text ?? '');
@@ -108,22 +119,47 @@ export function createBridge(opts) {
     return send(`[${conv.label}] 아직 답이 없음 — 끝나면 /status로 확인하세요(다시 보내지 않음)`);
   }
 
-  // m: { platform, userId, chatId, threadKey?, text }, send(text) → Promise
+  // 그 대화방에서 다른 우리 봇이 세션에 연결돼 있는지(키 "<메신저>:<봇>:<대화방>[:<주제>]"의 대화방 부분이 같은 것).
+  const otherBotConnected = (m) => {
+    const [platform, bot, ...rest] = roomKey(m).split(':');
+    const suffix = rest.join(':');
+    return Object.keys(rooms).some((k) => { const [p, b, ...r] = k.split(':'); return p === platform && b !== bot && r.join(':') === suffix; });
+  };
+  const info = () => opts.botInfo?.() ?? {};
+
+  // m: { platform, botId?, userId, chatId, threadKey?, text, isGroup?, called?, forOther? }, send(text) → Promise
   async function handle(m, send) {
-    const text = String(m.text ?? '').trim();
+    if (m.forOther) return; // /명령@다른 봇
+    const bot = info();
+    // 부르는 이름이 없으면 봇 ID로 부를 수 있다.
+    const call = stripCallName(m.text, bot.callNames?.length ? bot.callNames : [m.botId ?? opts.botId ?? DEFAULT_BOT]);
+    const text = (call.called ? call.text : String(m.text ?? '')).trim();
     if (!text) return;
+    // 그룹·채널에서는 부른 봇만 답한다. 부르지 않았어도 그 방에 연결된 우리 봇이 이 봇뿐(또는 아무도 없음)이면 받는다.
+    if (m.isGroup && !m.called && !call.called && otherBotConnected(m)) return;
     if (/^\/whoami\b/.test(text)) {
-      return send(`플랫폼: ${m.platform}\n봇 ID: ${m.botId ?? opts.botId ?? DEFAULT_BOT}\n사용자 ID: ${m.userId}\n대화방: ${roomKey(m)}\n허용 여부: ${allowed(m) ? '허용됨' : '허용 목록에 없음'}`);
+      return send(`플랫폼: ${m.platform}\n봇 ID: ${m.botId ?? opts.botId ?? DEFAULT_BOT}${bot.name ? `\n봇 이름: ${bot.name}` : ''}${bot.role ? `\n역할: ${bot.role.name}` : ''}${bot.callNames?.length ? `\n부르는 이름: ${bot.callNames.join(', ')}` : ''}\n사용자 ID: ${m.userId}\n대화방: ${roomKey(m)}\n허용 여부: ${allowed(m) ? '허용됨' : '허용 목록에 없음'}`);
     }
     if (!allowed(m)) return; // 허용되지 않은 발신자에게는 아무것도 하지 않는다.
     lastSend.set(roomKey(m), send);
     const all = await sessions();
     // 보관된 새 세션은 목록·번호에서 빼고 /archived로 따로 본다.
     const list = all.filter((c) => c.newSession?.state !== 'archived');
-    const current = list.find((c) => c.conversationId === rooms[roomKey(m)]);
+    let current = list.find((c) => c.conversationId === rooms[roomKey(m)]);
+    // 역할의 기본 세션: 연결이 없는 대화방이면 /use 없이 그 세션에 연결한다(이 봇이 볼 수 있는 세션일 때만).
+    if (!current && bot.role?.defaultSession && !/^\/(help|start|sessions|use|new)\b/.test(text)) {
+      const d = list.find((c) => c.conversationId === bot.role.defaultSession);
+      if (d) {
+        rooms[roomKey(m)] = d.conversationId;
+        saveRooms();
+        current = d;
+        await send(`이 대화방을 기본 세션 "${d.label}"에 연결했습니다(${bot.role.name} 역할). 바꾸려면 /sessions 후 /use <번호>.`);
+      }
+    }
 
     if (/^\/(help|start)\b/.test(text)) {
-      return send('명령어\n/sessions 세션 목록\n/use <번호> 이 대화방을 그 세션에 연결\n/status 연결된 세션 상태\n/review done|not 확인 필요 질문 정리\n'
+      const head = bot.name ? `${bot.name}${bot.role ? ` · ${bot.role.name}${bot.role.description ? ` — ${bot.role.description}` : ''}` : ''}${bot.callNames?.length ? `\n그룹에서 부르기: "${bot.callNames[0]}, …" 또는 @멘션` : ''}\n\n` : '';
+      return send(head + '명령어\n/sessions 세션 목록\n/use <번호> 이 대화방을 그 세션에 연결\n/status 연결된 세션 상태\n/review done|not 확인 필요 질문 정리\n'
         + '/new codex|claude <이름> [read_only|workspace] 새 세션을 만들고 이 대화방에 연결\n/sleep <이름> 잠재우기\n/archived 보관 목록\n'
         + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
     }

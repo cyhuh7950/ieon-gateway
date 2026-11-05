@@ -37,12 +37,16 @@ export function createBotRunner(opts) {
     const entry = { def: b, controller: new AbortController(), state: 'starting', username: null, canReadAll: null };
     const common = (opts.allowedUsers?.[b.platform] ?? []).map(String);
     entry.bridge = createBridge({ ...opts.bridgeOpts, api: opts.apiFor(b.platform, b.botId), roomStore, botId: b.botId,
+      botInfo: () => ({ name: entry.def.name, callNames: entry.def.callNames ?? [], role: entry.def.role ?? null }),
       isAllowed: (m) => [...common, ...(entry.def.extraUsers ?? []).map(String)].includes(String(m.userId)) });
     const botLog = (e) => {
       if (['started', 'ready'].includes(e.event)) {
         entry.state = 'connected';
         entry.username = e.bot ?? entry.username;
         if (typeof e.canReadAll === 'boolean') entry.canReadAll = e.canReadAll;
+        // 연결되면 다음 주기(1분)를 기다리지 않고 바로 상태를 보고한다.
+        opts.api({ method: 'POST', path: '/v1/messenger/bots/status', body: { bots: [{ platform: b.platform, botId: b.botId,
+          state: entry.state, missing: [], username: entry.username, canReadAll: entry.canReadAll }] } }).catch(() => {});
       }
       if (['open_error', 'closed_fatal'].includes(e.event)) entry.state = 'error';
       log({ ...e, botId: b.botId });
