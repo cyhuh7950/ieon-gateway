@@ -14,3 +14,6 @@
 *.temp
 node_modules/
 .local/
+
+# 중계 비밀 값 파일(배포용)
+*.secrets

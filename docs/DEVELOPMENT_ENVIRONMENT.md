@@ -317,3 +317,10 @@
 - codex queue는 thread/queue/add를 공유 또는 명시 remote App Server로 보내며 접수 ID를 반환한다. 새 Desktop endpoint/port/daemon/remote 토큰/소켓을 실제 설정하지 않았다. 이 명령을 read-only 상태 조회로 실행하지 않는다.
 - 공식 CLI/TUI --remote는 화면 후보로 추가했으나 현재 Desktop의 stdio 외부 attach/동일 runtime 공유는 미확인이다. source 비교를 위해 현재 프로세스/기존 대화/잠금을 다시 조회하지 않았다.
 - fingerprint는 codex-external-input-source-evidence.json, 비교/정정은 CLAUDE_CHANNELS_CODEX_INPUT_REVIEW.md. runtime/config/credential/model/source/tests·WSL/Oracle 변경없음.
+
+## sinsan-server (중계 배포 서버, 2026-11-06 읽기 전용 조사)
+
+- 접속: SSH 별칭 `sinsan-server`(ubuntu@168.107.4.6:22). 키 경로는 보안 가드 때문에 명령에 쓰지 않고 별칭으로만 접속한다. ysna-server(161.33.20.13)는 이어온 배포 대상이 아니다(신산님 결정).
+- Ubuntu 22.04.5 aarch64, Docker 29.1.3·Compose 2.40.3, 디스크 26G 여유(74%), 메모리 가용 약 6.4G. nginx-proxy-manager(80/81/443)와 `proxy-network`(172.19.0.0/16) 사용, ufw 비활성, 호스트 28700~28799 미사용. 이어온 관련 자원 없음.
+- `ieon-gateway.sinsan.kr` A 레코드 = 168.107.4.6(1.1.1.1·8.8.8.8·서버 리졸버 일치, TTL 300, DNS 전용). 이 레코드는 10-29 기록(161.33.20.13) 이후 바뀐 상태다.
+- 서버에는 아직 어떤 변경도 하지 않았다. 배포 계획은 docs/design/RELAY_DEPLOY.md.

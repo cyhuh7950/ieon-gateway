@@ -1,0 +1,28 @@
+# 이어온 중계(sinsan-server, 방식 A). 호스트 포트는 열지 않고 기존 nginx-proxy-manager와 같은 proxy-network로만 연결한다.
+# 비밀 값(IEON_RELAY_PC_TOKEN, IEON_RELAY_KAKAO_SECRET)은 같은 폴더의 relay.secrets(권한 600)에 둔다. 저장소에는 올리지 않는다.
+name: ieon-relay
+services:
+  relay:
+    build: { context: ., dockerfile: Dockerfile }
+    image: ieon-relay:0.0.1
+    container_name: ieon-relay
+    restart: unless-stopped
+    env_file: relay.secrets
+    environment:
+      IEON_RELAY_PORT: "28770"
+      IEON_RELAY_HOST: "0.0.0.0"
+      IEON_RELAY_TRUST_PROXY: "1"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    pids_limit: 64
+    networks: [proxy-network]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:28770/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+networks:
+  proxy-network:
+    external: true
