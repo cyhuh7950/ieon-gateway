@@ -147,7 +147,7 @@ Teams(Azure Bot) / 카카오 오픈빌더 ──HTTPS──▶ Oracle 중계(ieo
 
 - **Teams·카카오 공용 중계:** 중계 코드는 두 채널의 수신 어댑터를 함께 만들고 Oracle 배포도 한 번만 한다. 실제 메시지 시험은 Teams 먼저, 카카오는 채널 개설·콜백 승인 뒤에 한다.
 - **앱 비밀번호는 PC에만 둔다(방식 P):** Teams 앱 비밀번호는 PC `.env`에만 있고 중계는 갖지 않는다. 중계는 Bot Framework 공개 키로 JWT만 검증한다. 답장은 PC가 보낸다. 따라서 **PC가 꺼져 있으면 Teams에서는 답이 없다**(카카오는 중계가 응답 본문으로 "PC 연결 끊김"을 바로 답한다). 나중에 안내가 필요하면 중계에 비밀번호를 두는 방식으로 확장할 수 있다.
-- **배포 방식 A(Docker):** 중계 컨테이너를 기존 nginx-proxy-manager와 같은 docker 네트워크에 둔다. TLS는 NPM(Let's Encrypt), DNS 변경 없음. 되돌리기는 NPM 프록시 호스트 삭제 후 컨테이너·폴더 삭제. 내부 포트·네트워크 이름은 읽기 전용 확인 뒤 승인 때 확정한다.
+- **배포 방식 A(Docker), 서버는 `sinsan-server`(168.107.4.6)로 변경(2026-11-06 신산님 결정):** 중계 컨테이너를 기존 nginx-proxy-manager와 같은 docker 네트워크(`proxy-network`)에 둔다. TLS는 NPM(Let's Encrypt), `ieon-gateway.sinsan.kr`은 이미 이 서버 IP라 DNS 변경 없음. 내부 포트 28770. 조사 결과·단계·되돌리기는 `docs/design/RELAY_DEPLOY.md`.
 - **PC→중계는 긴 대기 폴링:** PC가 먼저 HTTPS로 접속해 가져간다. 웹소켓은 쓰지 않는다.
 
 ### 6-3. 구현 메모 (M4-a, 2026-11-06)
