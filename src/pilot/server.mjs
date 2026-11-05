@@ -194,10 +194,13 @@ export function createApp(config) {
         if (!nsCfg?.enabled) return json(res, 403, { error: 'new_sessions_disabled' });
         if (req.method === 'POST' && path === '/v1/sessions') {
           const body = await readJson(req);
+          // 봇에서 만들면 그 봇의 역할(엔진·권한 제한, AI 역할 안내)을 적용한다.
+          const bot = principal.bot && store.bot(principal.bot.platform, principal.bot.botId);
+          const role = bot?.roleId ? store.listRoles().find((q) => q.roleId === bot.roleId) ?? null : null;
           const r = store.createSession(principal, { engine: body.engine, name: body.name, profile: body.profile,
-            hostId: nsHost, via: VIA[principal.appId] ?? 'api' }, nsCfg);
+            hostId: nsHost, via: principal.bot ? 'chat' : (VIA[principal.appId] ?? 'api'), role }, nsCfg);
           return r.http === 201 ? json(res, 201, { conversationId: r.conversationId, name: r.name, engine: r.engine, profile: r.profile })
-            : json(res, r.http, { error: r.code, ...(r.limit ? { limit: r.limit } : {}) });
+            : json(res, r.http, { error: r.code, ...(r.limit ? { limit: r.limit } : {}), ...(r.allowed ? { allowed: r.allowed } : {}) });
         }
         if (req.method === 'GET' && path === '/v1/sessions/limits') return json(res, 200, store.sessionLimits(nsCfg, nsHost));
         if (req.method === 'GET' && path === '/v1/sessions/notices') {

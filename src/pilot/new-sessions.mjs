@@ -11,7 +11,8 @@ const CODEX_SANDBOXES = new Set(['read-only', 'workspace-write']);
 const DEFAULTS = Object.freeze({
   enabled: false,
   workspaceRoot: process.platform === 'win32' ? 'D:/ieon-workspaces' : '~/ieon-workspaces',
-  creatorApps: ['app_web', 'app_messenger'],
+  // app_bot_*: 웹 봇 관리에서 정의한 모든 추가 봇(MULTI_BOTS 4절)
+  creatorApps: ['app_web', 'app_messenger', 'app_bot_*'],
   limits: { maxSessions: 10, maxActive: 3, maxPerEngine: { codex: 10, claude: 3 } },
   permissions: {
     default: 'workspace',
@@ -60,6 +61,11 @@ export function loadNewSessionsConfig(raw = {}) {
 
   return { enabled: raw.enabled === true, workspaceRoot: raw.workspaceRoot ?? DEFAULTS.workspaceRoot,
     creatorApps, limits, permissions, cleanup, sessionOverrides };
+}
+
+// creatorApps 항목은 앱 ID 또는 "접두어*"(예: app_bot_*)
+export function appAllowed(config, appId) {
+  return config.creatorApps.some((a) => (a.endsWith('*') ? String(appId).startsWith(a.slice(0, -1)) : a === appId));
 }
 
 // 폴더 이름으로도 쓰므로 경로 구분자·점·밑줄·공백을 받지 않는다.

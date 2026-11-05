@@ -120,3 +120,49 @@ test('봇이 볼 수 있는 기존 세션을 웹에서 고르면 그 봇에 보�
   await call('/v1/admin/bots/discord/ieun01', { method: 'DELETE' });
   assert.deepEqual((await call('/v1/conversations', { token: 'msg' })).body.conversations.map((c) => c.conversationId), ['c_shared']);
 });
+
+test('M3: 봇에서 /new로 만든 세션은 만든 봇+웹에서만 보이고, 역할의 엔진·권한 제한과 AI 역할 안내가 적용된다', async (t) => {
+  const { writeFileSync } = await import('node:fs');
+  const dir = mkdtempSync(join(tmpdir(), 'ieon-m3-'));
+  const nsPath = join(dir, 'ns.json');
+  writeFileSync(nsPath, JSON.stringify({ enabled: true, workspaceRoot: join(dir, 'ws') }));
+  const app = createApp({ dbPath: join(dir, 'pilot.db'), newSessionsConfigPath: nsPath,
+    users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }, { tokenSha256: sha('msg'), userId: 'u_sinsan', appId: 'app_messenger' }],
+    devices: [{ tokenSha256: sha('dev'), hostId: 'h_sinsan' }], bindings: [] });
+  const port = await app.listen(0);
+  t.after(async () => { await app.close(); rmSync(dir, { recursive: true, force: true }); });
+  const call = (path, { token = 'web', method = 'GET', body, bot } = {}) => fetch(`http://127.0.0.1:${port}${path}`, {
+    method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(bot ? { 'x-ieon-bot': bot } : {}) },
+    body: body && JSON.stringify(body) }).then(async (r) => ({ status: r.status, body: r.status === 204 ? null : await r.json() }));
+  await call('/v1/admin/roles/review', { method: 'PUT', body: { name: '코드 리뷰', engines: ['codex'], profiles: ['read_only'], aiGuide: '너는 리뷰 담당이다.' } });
+  await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'review' } });
+  const asBot = { token: 'msg', bot: 'telegram:ieun01' };
+  // 역할 제한
+  assert.deepEqual((await call('/v1/sessions', { ...asBot, method: 'POST', body: { engine: 'claude', name: 'r-claude' } })).body,
+    { error: 'engine_not_allowed_for_role', allowed: ['codex'] });
+  assert.deepEqual((await call('/v1/sessions', { ...asBot, method: 'POST', body: { engine: 'codex', name: 'r-ws', profile: 'workspace' } })).body,
+    { error: 'profile_not_allowed_for_role', allowed: ['read_only'] });
+  const ok = await call('/v1/sessions', { ...asBot, method: 'POST', body: { engine: 'codex', name: 'r-ok' } });
+  assert.deepEqual(ok.body, { conversationId: 'n_r-ok', name: 'r-ok', engine: 'codex', profile: 'read_only' });
+  // 소속: 만든 봇 + 웹만
+  const seen = async (opts) => (await call('/v1/conversations', opts)).body.conversations.map((c) => c.conversationId);
+  assert.deepEqual(await seen(asBot), ['n_r-ok']);
+  assert.deepEqual(await seen({}), ['n_r-ok']);
+  assert.deepEqual(await seen({ token: 'msg' }), []);
+  await call('/v1/admin/bots/discord/ieun01', { method: 'PUT', body: { name: '다른 봇' } });
+  assert.deepEqual(await seen({ token: 'msg', bot: 'discord:ieun01' }), []);
+  // 기본 봇·웹에서 만든 세션은 지금처럼 웹+메신저
+  await call('/v1/sessions', { token: 'msg', method: 'POST', body: { engine: 'claude', name: 'd-new' } });
+  assert.deepEqual(await seen({ token: 'msg' }), ['n_d-new']);
+  // AI 역할 안내: 첫 질문(엔진 세션 만들 때)에만 붙고, 저장된 질문은 그대로
+  await fetch(`http://127.0.0.1:${port}/v1/device/jobs`, { headers: { authorization: 'Bearer dev' } }); // 연결부 온라인 표시
+  const q1 = await fetch(`http://127.0.0.1:${port}/v1/conversations/n_r-ok/requests`, { method: 'POST',
+    headers: { authorization: 'Bearer msg', 'x-ieon-bot': 'telegram:ieun01', 'content-type': 'application/json', 'idempotency-key': 'k-m3-0001' },
+    body: JSON.stringify({ question: '이 PR 봐 줘' }) }).then((r) => r.json());
+  const job = app.store.claim('h_sinsan');
+  assert.equal(job.question, '[역할 안내]\n너는 리뷰 담당이다.\n\n[질문]\n이 PR 봐 줘');
+  app.store.report('h_sinsan', q1.requestId, { status: 'completed', answer: 'a', sessionRef: '0f0f0f0f-1111-4222-8333-444444444444' });
+  assert.equal(app.store.messages({ userId: 'u_sinsan', appId: 'app_web' }, 'n_r-ok')[0].question, '이 PR 봐 줘');
+  app.store.submit({ userId: 'u_sinsan', appId: 'app_web' }, 'n_r-ok', 'k-m3-0002', { question: '두 번째' });
+  assert.equal(app.store.claim('h_sinsan').question, '두 번째');
+});

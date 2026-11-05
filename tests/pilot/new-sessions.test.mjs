@@ -16,7 +16,7 @@ test('설정: 기본값을 채우고 잘못된 값은 거부한다', () => {
   assert.deepEqual(Object.keys(c.permissions.profiles), ['read_only', 'workspace', 'full']);
   assert.deepEqual(c.cleanup, { idleSleepMinutes: 30, archiveAfterDays: 14, archiveNoticeDays: 3,
     deleteRequiresConfirm: true, deleteWorkspaceOnClose: false });
-  assert.deepEqual(c.creatorApps, ['app_web', 'app_messenger']);
+  assert.deepEqual(c.creatorApps, ['app_web', 'app_messenger', 'app_bot_*']);
 
   // 일부만 바꿔도 나머지 기본값은 유지된다.
   assert.equal(loadNewSessionsConfig({ limits: { maxActive: 2 } }).limits.maxSessions, 10);

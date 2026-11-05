@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { STATUS, RELEASING, EngineError } from './contracts.mjs';
 import { canAccess, sessionKey } from './guard.mjs';
-import { NEW_ENGINES, SESSION_STATES, resolveProfile, validateName, workspacePath } from './new-sessions.mjs';
+import { NEW_ENGINES, SESSION_STATES, resolveProfile, validateName, workspacePath, appAllowed } from './new-sessions.mjs';
 import { PLATFORMS, DEFAULT_BOT, validBotId, validCallName, normalizeCallName, botAppId } from './bots.mjs';
 
 const SCHEMA = `
@@ -48,6 +48,10 @@ export function openStore(path) {
     db.exec("ALTER TABLE bindings ADD COLUMN connect_mode TEXT NOT NULL DEFAULT 'alternate'");
   }
   // 엔진이 알려 준 사용량(토큰 수만). 없으면 NULL이다.
+  // 여러 봇 M3: 역할 봇에서 만든 새 세션의 AI 역할 안내(첫 질문 앞에 붙임)
+  if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'role_guide')) {
+    db.exec('ALTER TABLE new_sessions ADD COLUMN role_guide TEXT');
+  }
   if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'notified_at')) {
     db.exec('ALTER TABLE new_sessions ADD COLUMN notified_at TEXT');
   }
@@ -212,9 +216,11 @@ export function openStore(path) {
           WHERE b.host_id = ? AND r.status = 'queued' ORDER BY r.rowid LIMIT 1`).get(hostId);
         if (!row) return null;
         db.prepare("UPDATE requests SET status = 'dispatching' WHERE request_id = ?").run(row.request_id);
-        const ns = db.prepare(`SELECT n.name, n.profile, n.workspace FROM new_sessions n JOIN requests r
+        const ns = db.prepare(`SELECT n.name, n.profile, n.workspace, n.state, n.role_guide FROM new_sessions n JOIN requests r
           ON r.conversation_id = n.conversation_id WHERE r.request_id = ?`).get(row.request_id);
-        return { requestId: row.request_id, engine: row.engine, sessionRef: row.session_ref, question: row.question,
+        // 역할 봇에서 만든 새 세션의 첫 질문(엔진 세션을 만드는 질문)에만 AI 역할 안내를 붙인다. 저장된 질문은 그대로다.
+        const question = ns?.state === 'pending' && ns.role_guide ? `[역할 안내]\n${ns.role_guide}\n\n[질문]\n${row.question}` : row.question;
+        return { requestId: row.request_id, engine: row.engine, sessionRef: row.session_ref, question,
           ...(row.engine === 'codex_thread' ? { connectMode: row.connect_mode } : {}),
           ...(ns ? { newSession: { name: ns.name, profile: ns.profile, workspace: ns.workspace } } : {}) };
       });
@@ -257,12 +263,15 @@ export function openStore(path) {
 
     // 새 세션 등록(N0). 엔진 쪽 세션은 아직 만들지 않으므로 sessionRef는 pending 표식이고 상태는 pending이다.
     // 기존 세션 연결(사람이 등록한 binding)은 한도에 세지 않고, 보관된 새 세션도 세지 않는다.
-    createSession(principal, { engine, name, profile, hostId, via }, config) {
+    // role: 만든 봇의 역할({ engines, profiles, aiGuide }) — 있으면 엔진·권한을 그 안으로 제한하고 AI 역할 안내를 남긴다.
+    createSession(principal, { engine, name, profile, hostId, via, role }, config) {
       if (!config.enabled) return { http: 403, code: 'new_sessions_disabled' };
-      if (!principal || !config.creatorApps.includes(principal.appId)) return { http: 403, code: 'app_not_allowed' };
+      if (!principal || !appAllowed(config, principal.appId)) return { http: 403, code: 'app_not_allowed' };
       if (!validateName(name)) return { http: 400, code: 'bad_name' };
       if (!Object.hasOwn(NEW_ENGINES, engine)) return { http: 400, code: 'bad_engine' };
-      const p = resolveProfile(config, profile);
+      if (role && !role.engines.includes(engine)) return { http: 403, code: 'engine_not_allowed_for_role', allowed: role.engines };
+      if (role && profile !== undefined && !role.profiles.includes(profile)) return { http: 403, code: 'profile_not_allowed_for_role', allowed: role.profiles };
+      const p = resolveProfile(config, profile ?? role?.profiles[0]);
       if (!p.profile) return p;
       const conversationId = `n_${name}`;
       return tx(() => {
@@ -276,11 +285,13 @@ export function openStore(path) {
         const now = new Date().toISOString();
         const workspace = workspacePath(config, name);
         db.prepare(`INSERT INTO bindings (conversation_id, owner_user_id, app_ids, host_id, engine, session_ref)
-          VALUES (?, ?, ?, ?, ?, ?)`).run(conversationId, principal.userId, JSON.stringify(config.creatorApps), hostId,
+          VALUES (?, ?, ?, ?, ?, ?)`).run(conversationId, principal.userId,
+          // 추가 봇이 만든 세션은 만든 봇 + 웹에서만 보인다. 그 밖은 creatorApps의 앱들(지금과 같음).
+          JSON.stringify(principal.appId.startsWith('app_bot_') ? [principal.appId, 'app_web'] : config.creatorApps.filter((a) => !a.endsWith('*'))), hostId,
           NEW_ENGINES[engine], `pending:${randomUUID()}`);
         db.prepare(`INSERT INTO new_sessions (conversation_id, host_id, name, engine, profile, state, workspace, created_via,
-          created_at, last_used_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`)
-          .run(conversationId, hostId, name, engine, p.profile, workspace, String(via ?? 'unknown'), now, now);
+          created_at, last_used_at, role_guide) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`)
+          .run(conversationId, hostId, name, engine, p.profile, workspace, String(via ?? 'unknown'), now, now, role?.aiGuide?.trim() || null);
         return { http: 201, conversationId, name, engine, profile: p.profile, workspace };
       });
     },
