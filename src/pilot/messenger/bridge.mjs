@@ -57,12 +57,17 @@ export function createBridge(opts) {
   const pollMs = opts.pollMs ?? 2000;
   const waitMs = opts.waitMs ?? 300000;
   // 대화방 연결은 봇마다 따로다. 옛 형식(봇 구분 없음)은 처음 읽을 때 default 봇 것으로 바꿔 저장한다(MULTI_BOTS 3-4).
-  const loaded = migrateRooms(existsSync(opts.roomsPath) ? JSON.parse(readFileSync(opts.roomsPath, 'utf8')) : {});
-  const rooms = loaded.data.rooms;
-  const saveRooms = () => writeFileSync(opts.roomsPath, JSON.stringify({ _v: 2, rooms }, null, 2));
-  if (loaded.changed && existsSync(opts.roomsPath)) saveRooms();
-  const allowed = (m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId));
-  const roomKey = (m) => `${m.platform}:${m.botId ?? DEFAULT_BOT}:${m.chatId}${m.threadKey ? `:${m.threadKey}` : ''}`;
+  // 여러 봇이 함께 쓰도록 roomStore({ rooms, save })를 넘겨받을 수 있다(키에 봇 ID가 있어 겹치지 않음).
+  let roomStore = opts.roomStore;
+  if (!roomStore) {
+    const loaded = migrateRooms(existsSync(opts.roomsPath) ? JSON.parse(readFileSync(opts.roomsPath, 'utf8')) : {});
+    roomStore = { rooms: loaded.data.rooms, save: () => writeFileSync(opts.roomsPath, JSON.stringify({ _v: 2, rooms: roomStore.rooms }, null, 2)) };
+    if (loaded.changed && existsSync(opts.roomsPath)) roomStore.save();
+  }
+  const rooms = roomStore.rooms;
+  const saveRooms = () => roomStore.save();
+  const allowed = opts.isAllowed ?? ((m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId)));
+  const roomKey = (m) => `${m.platform}:${m.botId ?? opts.botId ?? DEFAULT_BOT}:${m.chatId}${m.threadKey ? `:${m.threadKey}` : ''}`;
 
   async function sessions() {
     const r = await opts.api({ method: 'GET', path: '/v1/conversations' });
@@ -108,7 +113,7 @@ export function createBridge(opts) {
     const text = String(m.text ?? '').trim();
     if (!text) return;
     if (/^\/whoami\b/.test(text)) {
-      return send(`플랫폼: ${m.platform}\n사용자 ID: ${m.userId}\n대화방: ${roomKey(m)}\n허용 여부: ${allowed(m) ? '허용됨' : '허용 목록에 없음'}`);
+      return send(`플랫폼: ${m.platform}\n봇 ID: ${m.botId ?? opts.botId ?? DEFAULT_BOT}\n사용자 ID: ${m.userId}\n대화방: ${roomKey(m)}\n허용 여부: ${allowed(m) ? '허용됨' : '허용 목록에 없음'}`);
     }
     if (!allowed(m)) return; // 허용되지 않은 발신자에게는 아무것도 하지 않는다.
     lastSend.set(roomKey(m), send);
@@ -198,15 +203,16 @@ export function createBridge(opts) {
     return sent;
   }
 
-  return { handle, roomKey, deliverNotices };
+  return { handle, roomKey, deliverNotices, allowed };
 }
 
 // 이어온 서버 API 호출기. 토큰은 파일에서 읽고 출력하지 않는다.
-export function serverApi(baseUrl, tokenFile) {
+// botHeader("<메신저>:<봇ID>")를 주면 요청마다 x-ieon-bot을 붙여 서버가 그 봇으로 처리하게 한다(여러 봇 M1).
+export function serverApi(baseUrl, tokenFile, botHeader) {
   const token = readFileSync(tokenFile, 'utf8').trim();
   return async ({ method, path, body, headers = {} }) => {
     const r = await fetch(baseUrl + path, {
-      method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...headers },
+      method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(botHeader ? { 'x-ieon-bot': botHeader } : {}), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     return { status: r.status, body: r.status === 204 ? null : await r.json().catch(() => null) };
