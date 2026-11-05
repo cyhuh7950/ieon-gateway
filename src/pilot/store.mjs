@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { STATUS, RELEASING, EngineError } from './contracts.mjs';
 import { canAccess, sessionKey } from './guard.mjs';
 import { NEW_ENGINES, SESSION_STATES, resolveProfile, validateName, workspacePath } from './new-sessions.mjs';
+import { PLATFORMS, DEFAULT_BOT, validBotId, validCallName, normalizeCallName } from './bots.mjs';
 
 const SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -22,6 +23,12 @@ CREATE TABLE IF NOT EXISTS new_sessions (
   conversation_id TEXT PRIMARY KEY, host_id TEXT NOT NULL, name TEXT NOT NULL, engine TEXT NOT NULL,
   profile TEXT NOT NULL, state TEXT NOT NULL, workspace TEXT NOT NULL, created_via TEXT NOT NULL,
   created_at TEXT NOT NULL, last_used_at TEXT NOT NULL, UNIQUE (host_id, name));
+CREATE TABLE IF NOT EXISTS roles (
+  role_id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, engines TEXT NOT NULL, profiles TEXT NOT NULL,
+  ai_guide TEXT NOT NULL, default_session TEXT);
+CREATE TABLE IF NOT EXISTS bots (
+  platform TEXT NOT NULL, bot_id TEXT NOT NULL, name TEXT NOT NULL, role_id TEXT, call_names TEXT NOT NULL,
+  extra_users TEXT NOT NULL, enabled INTEGER NOT NULL, PRIMARY KEY (platform, bot_id));
 CREATE TABLE IF NOT EXISTS locks (
   session_key TEXT PRIMARY KEY, holder_request_id TEXT NOT NULL);
 `;
@@ -83,6 +90,10 @@ export function openStore(path) {
   };
   const locked = (b) => Boolean(db.prepare('SELECT 1 FROM locks WHERE session_key = ?').get(sessionKey(b)));
   let nsConfig = null; // configureNewSessions로 받은 새 세션 설정(동시 실행 한도용). 없으면 한도를 걸지 않는다.
+  const roleView = (r) => r && { roleId: r.role_id, name: r.name, description: r.description, engines: JSON.parse(r.engines),
+    profiles: JSON.parse(r.profiles), aiGuide: r.ai_guide, defaultSession: r.default_session };
+  const botView = (b) => b && { platform: b.platform, botId: b.bot_id, name: b.name, roleId: b.role_id,
+    callNames: JSON.parse(b.call_names), extraUsers: JSON.parse(b.extra_users), enabled: Boolean(b.enabled) };
   // 보관하지 않은 새 세션 수(총수·엔진별).
   const activeCounts = (hostId) => {
     const rows = db.prepare("SELECT engine, COUNT(*) AS n FROM new_sessions WHERE host_id = ? AND state != 'archived' GROUP BY engine").all(hostId);
@@ -424,6 +435,70 @@ export function openStore(path) {
         db.prepare('UPDATE bindings SET generation = generation + 1 WHERE conversation_id = ?').run(conversationId);
         db.prepare('UPDATE requests SET question = NULL, answer = NULL WHERE conversation_id = ?').run(conversationId);
       });
+      return { http: 204 };
+    },
+
+    // --- 여러 봇(MULTI_BOTS M0): 역할·봇 정의. 토큰은 저장하지 않는다(.env에만). ---
+    listRoles() { return db.prepare('SELECT * FROM roles ORDER BY role_id').all().map(roleView); },
+    saveRole(r) {
+      const engines = Array.isArray(r.engines) ? [...new Set(r.engines)] : [];
+      const profiles = Array.isArray(r.profiles) ? [...new Set(r.profiles)] : [];
+      if (!validBotId(r.roleId)) return { http: 400, code: 'bad_role_id' };
+      if (typeof r.name !== 'string' || !r.name.trim() || r.name.length > 30) return { http: 400, code: 'bad_name' };
+      if (!engines.length || engines.some((e) => !Object.hasOwn(NEW_ENGINES, e))) return { http: 400, code: 'bad_engines' };
+      // full(명령 실행·인터넷)은 역할로 줄 수 없다. 설정 파일 sessionOverrides로만.
+      if (!profiles.length || profiles.some((p) => !['read_only', 'workspace'].includes(p))) return { http: 400, code: 'bad_profiles' };
+      const guide = String(r.aiGuide ?? '');
+      if (guide.length > 2000 || String(r.description ?? '').length > 200) return { http: 400, code: 'too_long' };
+      const def = r.defaultSession ? String(r.defaultSession) : null;
+      if (def && !binding(def)) return { http: 400, code: 'unknown_session' };
+      db.prepare(`INSERT INTO roles (role_id, name, description, engines, profiles, ai_guide, default_session) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (role_id) DO UPDATE SET name = excluded.name, description = excluded.description, engines = excluded.engines,
+        profiles = excluded.profiles, ai_guide = excluded.ai_guide, default_session = excluded.default_session`)
+        .run(r.roleId, r.name.trim(), String(r.description ?? ''), JSON.stringify(engines), JSON.stringify(profiles), guide, def);
+      return { http: 200, role: roleView(db.prepare('SELECT * FROM roles WHERE role_id = ?').get(r.roleId)) };
+    },
+    deleteRole(roleId) {
+      if (!db.prepare('SELECT 1 FROM roles WHERE role_id = ?').get(roleId)) return { http: 404, code: 'not_found' };
+      if (db.prepare('SELECT 1 FROM bots WHERE role_id = ?').get(roleId)) return { http: 409, code: 'role_in_use' };
+      db.prepare('DELETE FROM roles WHERE role_id = ?').run(roleId);
+      return { http: 204 };
+    },
+    // 메신저마다 default 봇(지금 쓰는 봇)이 없으면 만든다. 이미 있으면 사용자가 바꾼 이름·역할을 건드리지 않는다.
+    ensureDefaultBots() {
+      for (const p of ['telegram', 'discord', 'slack']) {
+        db.prepare(`INSERT OR IGNORE INTO bots (platform, bot_id, name, role_id, call_names, extra_users, enabled)
+          VALUES (?, ?, '기본 봇', NULL, '[]', '[]', 1)`).run(p, DEFAULT_BOT);
+      }
+    },
+    listBots() { return db.prepare('SELECT * FROM bots ORDER BY platform, bot_id').all().map(botView); },
+    bot(platform, botId) { return botView(db.prepare('SELECT * FROM bots WHERE platform = ? AND bot_id = ?').get(platform, botId)); },
+    saveBot(b) {
+      if (!PLATFORMS.includes(b.platform)) return { http: 400, code: 'bad_platform' };
+      if (!validBotId(b.botId)) return { http: 400, code: 'bad_bot_id' };
+      if (typeof b.name !== 'string' || !b.name.trim() || b.name.length > 30) return { http: 400, code: 'bad_name' };
+      const role = b.roleId ? String(b.roleId) : null;
+      if (role && !db.prepare('SELECT 1 FROM roles WHERE role_id = ?').get(role)) return { http: 400, code: 'unknown_role' };
+      const calls = Array.isArray(b.callNames) ? b.callNames.map((c) => String(c).trim()).filter(Boolean) : [];
+      if (calls.some((c) => !validCallName(c))) return { http: 400, code: 'bad_call_name' };
+      const norm = calls.map(normalizeCallName);
+      if (new Set(norm).size !== norm.length) return { http: 400, code: 'duplicate_call_name' };
+      // 같은 메신저의 다른 봇과 부르는 이름이 겹치면 어느 봇을 부른 것인지 알 수 없다.
+      for (const other of db.prepare('SELECT bot_id, call_names FROM bots WHERE platform = ? AND bot_id != ?').all(b.platform, b.botId)) {
+        const theirs = [other.bot_id, ...JSON.parse(other.call_names)].map(normalizeCallName);
+        const clash = [b.botId, ...calls].map(normalizeCallName).find((n) => theirs.includes(n));
+        if (clash) return { http: 409, code: 'call_name_taken', callName: clash, botId: other.bot_id };
+      }
+      const users = Array.isArray(b.extraUsers) ? b.extraUsers.map(String).filter((u) => /^[\w.-]{1,64}$/.test(u)) : [];
+      db.prepare(`INSERT INTO bots (platform, bot_id, name, role_id, call_names, extra_users, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (platform, bot_id) DO UPDATE SET name = excluded.name, role_id = excluded.role_id, call_names = excluded.call_names,
+        extra_users = excluded.extra_users, enabled = excluded.enabled`)
+        .run(b.platform, b.botId, b.name.trim(), role, JSON.stringify(calls), JSON.stringify(users), b.enabled === false ? 0 : 1);
+      return { http: 200, bot: this.bot(b.platform, b.botId) };
+    },
+    deleteBot(platform, botId) {
+      if (botId === DEFAULT_BOT) return { http: 409, code: 'default_bot' };
+      if (!db.prepare('DELETE FROM bots WHERE platform = ? AND bot_id = ?').run(platform, botId).changes) return { http: 404, code: 'not_found' };
       return { http: 204 };
     },
 

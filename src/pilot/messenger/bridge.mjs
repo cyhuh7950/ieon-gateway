@@ -4,6 +4,7 @@
 // - 질문은 이어온 서버 API로만 넣는다. 결과 불명이면 다시 보내지 않고 /review로 정리한다.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { DEFAULT_BOT, migrateRooms } from '../bots.mjs';
 
 const MAX_CHUNK = { telegram: 3800, discord: 1900, slack: 3800 };
 const ERR = {
@@ -55,10 +56,13 @@ export function splitText(text, max) {
 export function createBridge(opts) {
   const pollMs = opts.pollMs ?? 2000;
   const waitMs = opts.waitMs ?? 300000;
-  const rooms = existsSync(opts.roomsPath) ? JSON.parse(readFileSync(opts.roomsPath, 'utf8')) : {};
-  const saveRooms = () => writeFileSync(opts.roomsPath, JSON.stringify(rooms, null, 2));
+  // 대화방 연결은 봇마다 따로다. 옛 형식(봇 구분 없음)은 처음 읽을 때 default 봇 것으로 바꿔 저장한다(MULTI_BOTS 3-4).
+  const loaded = migrateRooms(existsSync(opts.roomsPath) ? JSON.parse(readFileSync(opts.roomsPath, 'utf8')) : {});
+  const rooms = loaded.data.rooms;
+  const saveRooms = () => writeFileSync(opts.roomsPath, JSON.stringify({ _v: 2, rooms }, null, 2));
+  if (loaded.changed && existsSync(opts.roomsPath)) saveRooms();
   const allowed = (m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId));
-  const roomKey = (m) => `${m.platform}:${m.chatId}${m.threadKey ? `:${m.threadKey}` : ''}`;
+  const roomKey = (m) => `${m.platform}:${m.botId ?? DEFAULT_BOT}:${m.chatId}${m.threadKey ? `:${m.threadKey}` : ''}`;
 
   async function sessions() {
     const r = await opts.api({ method: 'GET', path: '/v1/conversations' });
