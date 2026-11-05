@@ -1,6 +1,55 @@
 # 이어온 작업현황
 
-## 최신 상태
+## 최신 상태 (2026-11-06 인계)
+
+- 기준 시각: 2026-11-06 00:30 KST · 작성: 어울(Claude Code) · 사유: 신산님 주간 토큰 만료로 작업 중단, 다음 작업자 인계
+- 저장소: **`cyhuh7950/ieon-gateway`**(private, SSH `git@github-cyhuh7950:cyhuh7950/ieon-gateway.git`). 버전 **0.0.1**(태그 `v0.0.1` = `26d737f`, 이전 `sinsan-develop/ieon-gateway` main `8c2f510`의 최종본을 이력 없이 단일 커밋으로 이전). 이전 저장소 `sinsan-develop/ieon-gateway`는 **보관(archive)** 처리, 읽기 전용.
+- main 최신: `be24d2e`(새 저장소 PR #1~#12 병합). 로컬 `D:\Project\ieon-gateway`·WSL `~/deploy/ieon-gateway` 모두 같은 커밋. 테스트 `node --test tests/pilot/*.test.mjs` **111/111 통과**.
+- PR 절차: `claude/<목적>` branch → push → 현재 main을 가리키는 `pr-request/<sha40>/<branch>` 태그 push → PR Broker 자동 PR·squash 병합(새 저장소에서 동작 확인). 커밋 메시지·명령에 `.env` 글자가 들어가면 보안 가드가 명령을 막으니 피한다. WSL은 `wsl` 명령이 자주 시간 초과 → `ssh WSL-server`로 동기화.
+- 실행 상태: **이어온 전체 꺼짐**(서버·연결부·메신저 종료, `live: false`). 웹에서 등록한 봇·역할, 시험 세션, 새 세션 기능 설정(`enabled: true`)은 남아 있음.
+
+### 완료된 기능
+
+| 영역 | 상태 | 근거 |
+| --- | --- | --- |
+| 기존 세션 연결(Codex 번갈아 쓰기·동시 사용, Claude 채널) | 첫 실증 완료 | docs/validation/FIRST_CONTINUITY_RESULT.md |
+| 포트 28760~28762(ieon-agent 18760~와 분리) | 완료 | 2026-10-31 기록 |
+| 설치 점검 `pwsh scripts/ieon.ps1 check` | 완료 | 2026-11-05 기록 |
+| 새 세션 만들기 N0~N4(Codex·Claude 새 세션, 잠들기·보관·삭제, 웹·메신저·API) | 완료, 텔레그램 실측 | docs/design/NEW_SESSIONS.md |
+| 여러 봇 M0~M3(봇·역할 정의, 봇별 연결, 부른 봇만 답, 부르는 이름, 기본 세션, 웹 봇 관리, 봇별 세션 범위, 역할 엔진·권한 제한, AI 역할 안내) | 완료, 텔레그램·디스코드·슬랙 실측 | docs/design/MULTI_BOTS.md |
+| 설명서: MANUAL·BEGINNER_GUIDE·API_GUIDE·MESSENGER_MANUAL | 여러 봇 M2-W까지 반영 | 각 문서 |
+
+### 이 PC 실제 설정(`.local`, git 제외)
+
+- 새 세션: `.local\new-sessions.json`(enabled, 작업 폴더 `D:/ieon-workspaces`), `server.json` `newSessionsConfigPath`, `connector.json` `newSessions`. 변경 전 백업 `server.json.bak-n4`·`connector.json.bak-n4`.
+- 메신저 봇(서버 DB): 텔레그램 `default` `@Test_cyhuh_01_bot`(privacy 해제됨)·`ieun01` `@ieun_cyhuh_bot`(역할 `test-review`), 디스코드 `default` `Test_bot`·`ieun01` `코드리뷰`(서버 초대됨), 슬랙 `default` `ieon`·`ieun01` `ieon-review`(`#bot` 채널에 추가됨). `ieun01` 봇 이름은 모두 "ieun01 시험 봇", 부르는 이름 미지정(봇 ID로 부름).
+- 역할: `test-review`("시험 리뷰", Codex만·read_only·AI 안내 "첫 줄에 [리뷰 봇]") — 시험용.
+- 시험 새 세션: `n_m3-review`(텔레그램 ieun01 봇에서 생성, Codex 대화 1개). 이전 시험 `tg-codex`는 삭제됨(작업 폴더·Codex 기록은 남음).
+- `.local\.env` 토큰 이름: 기본 봇 `TELEGRAM_BOT_TOKEN`·`DISCORD_BOT_TOKEN`·`SLACK_APP_TOKEN`·`SLACK_BOT_TOKEN`, 추가 봇 `TELEGRAM_BOT_IEUN01_TOKEN`·`DISCORD_BOT_IEUN01_TOKEN`·`SLACK_BOT_IEUN01_APP_TOKEN`·`SLACK_BOT_IEUN01_BOT_TOKEN`(값은 어울이 읽지 않음).
+- **보안 후속:** 2026-11-05 신산님이 채팅에 붙인 텔레그램 봇 토큰 2개는 재발급 권고만 함(재발급 여부 미확인).
+
+### 모델 호출 사용량(승인 범위 대비)
+
+- 새 세션 실증 승인(엔진별 10회): Codex 5/10, Claude 6/10.
+- 여러 봇 실증 승인(엔진별 10회, 2026-11-05): Codex 1/10, Claude 0/10.
+
+### 남은 일과 다음 조치
+
+1. **여러 봇 M4~M6**(설계 MULTI_BOTS 6~8절, 모두 별도 승인): M4 Oracle 공개 수신 중계(`ieon-gateway.sinsan.kr`, Oracle 배포 승인 필요) → M5 Teams(먼저 개인 Teams에 사용자 지정 봇 추가 가능 여부 확인, Azure Bot 등록은 신산님) → M6 카카오톡(채널 개설·콜백 승인 후).
+2. **새 세션 N5~N6**(설계 NEW_SESSIONS 9절): N5 Linux 실행 스크립트·systemd·`check` Linux판·WSL 재확인 → N6 Oracle 배포(별도 승인).
+3. 설명서 정리: MESSENGER_MANUAL 6.2를 M3 완료 기준으로(역할 제한·AI 안내·봇 세션 소속), 6.5(기존 세션을 봇에 보이게 하기)를 웹 봇 관리 기준으로 고치기.
+4. 시험 자원 정리 여부 결정: 역할 `test-review`, 세션 `n_m3-review`, 시험 봇 이름.
+5. 미확인 목록: 실제 웹 봇 관리 화면 조작(시험 서버에서만 확인), 텔레그램 그룹·주제에서 여러 봇, 메신저 보관 예고 실제 전달, Claude 새 세션의 메신저 경로, 대화형 `claude --resume` 직접 열기, `session_forked` 실제 발생, `full` 권한 실행, Codex 앱 화면의 새 세션 표시, 휴대폰 화면.
+
+## 적용 계약
+
+1. `DEVELOPMENT_PRIVATE`: 로컬·WSL 개발과 자체 검증은 private 개발 저장소의 `origin`만 사용한다(2026-11-05부터 `cyhuh7950/ieon-gateway`, 이전 `sinsan-develop`은 보관). 코드·테스트·설계·계획·작업현황·내부 검증 이력을 이곳에서 관리한다. Stage별 branch → 검증 → PR → private main 병합 → WSL smoke → 작업 branch와 임시 작업공간 정리를 수행한다. 공식 저장소 push와 private history 노출을 금지한다.
+2. `OFFICIAL_RC_UAT`: 개발계획·WSL 자체 검증 완료 후 공식 저장소 main의 별도 clean checkout과 RC branch를 사용한다. private checkout의 remote만 바꾸어 push하지 않는다. 확정 배포 allowlist의 실제 배포 파일만 반영한다. private commit → 공식 RC commit → image digest/artifact checksum을 연결한다. 공식 RC push·PR 이후 신산님 인수 승인 전 main 병합을 금지한다. Oracle 배포는 PMO의 별도 명시적 승인 경계를 따른다.
+3. `OFFICIAL_RELEASED`: 신산님 인수 승인 후 공식 PR 병합, merged main 재배포·smoke, 공식 저장소 정본 전환과 RC 정리를 수행한다. private 저장소는 전체 refs 백업과 복원 검증 후 폐쇄 준비 상태로 보고한다. 저장소·계정 실제 삭제는 별도 직접 지시 전 수행하지 않는다.
+
+내부 문서·테스트·검증·임시자료·Secret·실제 `.env`는 공식 RC allowlist에서 제외한다. private 저장소에서는 내부 문서와 테스트를 정상 추적한다. 현재는 Git 자체가 없으므로 비추적 정책이 구현되었다고 판정하지 않는다.
+
+## 이전 최신 상태 (2026-10-29 기준, 당시 기록 보존)
 
 - 기준 시각: 2026-10-29 17:40 KST
 - 담당: 어울 / 현재 채팅의 단일 작성자
@@ -19,13 +68,6 @@
 - 미확정·미검증: 실제 데스크톱 thread 양방향 재사용·busy 관찰·권한/설정 보존·인증 전환·모델/비용·실제 모바일 IME·제품 구현/배포. 실증 결과 후 나머지 범위를 확정한다.
 - 정확한 다음 조치: 검토 대안을 보고하고 관리 전용 대화를 별도 기능으로 먼저 개발할지, PC/구독과 Oracle/API 비용 중 무엇을 우선할지 신산님 결정을 받는다. 결정 전 구현·새 로그인·키 등록·서버/모델·배포/기존 대화 조작 없음. 선택 후에만 선택안의 구체 설계/계획/검증·별도 승인 범위를 확정한다.
 
-## 적용 계약
-
-1. `DEVELOPMENT_PRIVATE`: 로컬·WSL 개발과 자체 검증은 sinsan-develop private 저장소의 `origin`만 사용한다. 코드·테스트·설계·계획·작업현황·내부 검증 이력을 이곳에서 관리한다. Stage별 branch → 검증 → PR → private main 병합 → WSL smoke → 작업 branch와 임시 작업공간 정리를 수행한다. 공식 저장소 push와 private history 노출을 금지한다.
-2. `OFFICIAL_RC_UAT`: 개발계획·WSL 자체 검증 완료 후 공식 저장소 main의 별도 clean checkout과 RC branch를 사용한다. private checkout의 remote만 바꾸어 push하지 않는다. 확정 배포 allowlist의 실제 배포 파일만 반영한다. private commit → 공식 RC commit → image digest/artifact checksum을 연결한다. 공식 RC push·PR 이후 신산님 인수 승인 전 main 병합을 금지한다. Oracle 배포는 PMO의 별도 명시적 승인 경계를 따른다.
-3. `OFFICIAL_RELEASED`: 신산님 인수 승인 후 공식 PR 병합, merged main 재배포·smoke, 공식 저장소 정본 전환과 RC 정리를 수행한다. private 저장소는 전체 refs 백업과 복원 검증 후 폐쇄 준비 상태로 보고한다. 저장소·계정 실제 삭제는 별도 직접 지시 전 수행하지 않는다.
-
-내부 문서·테스트·검증·임시자료·Secret·실제 `.env`는 공식 RC allowlist에서 제외한다. private 저장소에서는 내부 문서와 테스트를 정상 추적한다. 현재는 Git 자체가 없으므로 비추적 정책이 구현되었다고 판정하지 않는다.
 
 ## 누적 기록
 
@@ -781,3 +823,7 @@
 - 구현: `creatorApps` 기본값에 `app_bot_*`(모든 추가 봇) 추가와 접두어 매칭(`appAllowed`). 추가 봇이 `/new`로 만든 세션의 appIds는 [그 봇, app_web](만든 봇+웹), 기본 봇·웹에서 만든 세션은 지금처럼. 봇의 역할로 `/new` 엔진·권한 제한(403 `engine_not_allowed_for_role`·`profile_not_allowed_for_role`, 허용 목록 함께 응답), 권한을 안 고르면 역할의 첫 권한. 역할 AI 안내를 `new_sessions.role_guide`(기존 DB 자동 열 추가)에 남겨 **엔진 세션을 만드는 첫 질문에만** "[역할 안내]…[질문]…"으로 붙여 보냄(이어온 기록의 질문은 원문 그대로). 메신저 거절 안내에 가능한 엔진·권한 표시.
 - 테스트 1건 추가, 전체 111/111. 모델 0.
 - **M3 실측(신산님 텔레그램 `@ieun_cyhuh_bot` 1:1, 2026-11-06 00:27~28, live 켬, Codex 모델 1회 — 여러 봇 승인 누적 Codex 1/10·Claude 0/10):** 시험 역할 `test-review`(Codex만·read_only·AI 안내 "첫 줄에 [리뷰 봇]")를 ieun01 봇에 지정. `/new claude m3-claude`→"이 봇의 역할로는 그 엔진을 만들 수 없음 (가능: codex)", `/new codex m3-review`→권한 read_only로 생성·연결, 첫 질문→"[리뷰 봇] 이 세션의 역할은 코드 리뷰 담당 시험 봇입니다."(AI 역할 안내 전달 확인), `/sessions`→m3-review "새 세션 깨어 있음". 서버 확인: default 봇에는 c_codex_test·c_claude_test만, ieun01 봇에는 n_m3-review만, 웹에는 셋 다(만든 봇+웹 소속 확인). ieun01 1:1에서 보낸 `@Test_cyhuh_01_bot /sessions`는 다른 봇을 부른 글이라 ieun01이 무시(설계대로, 기본 봇 확인은 그 봇과의 대화에서). **M3 확인.**
+
+### 2026-11-06 인계 기록
+
+- 신산님: 주간 토큰 만료로 지금까지 작업을 WORK_STATUS에 기록 요청. 맨 위 "최신 상태"를 2026-11-06 인계 요약(저장소·버전·main·실행 상태·완료 기능·이 PC 설정·모델 사용량·남은 일)으로 바꾸고, 2026-10-29 "최신 상태"는 "이전 최신 상태"로 보존.
