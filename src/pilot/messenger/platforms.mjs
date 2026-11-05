@@ -19,20 +19,35 @@ export function telegramAddress(msg, username) {
     const at = new RegExp(`(^|\\s)@${username}\\b[,:]?\\s*`, 'i');
     if (at.test(text)) { called = true; text = text.replace(at, '$1').trim(); }
     if (msg.reply_to_message?.from?.username?.toLowerCase() === username.toLowerCase()) called = true;
+    // 다른 봇(@…bot)을 멘션했거나 다른 봇 메시지에 답장했고 이 봇은 부르지 않았으면 그 봇 것이다.
+    const otherAt = [...text.matchAll(/(?:^|\s)@(\w+bot)\b/gi)].some((x) => x[1].toLowerCase() !== username.toLowerCase());
+    const otherReply = msg.reply_to_message?.from?.is_bot && msg.reply_to_message.from.username?.toLowerCase() !== username.toLowerCase();
+    if (!called && (otherAt || otherReply)) forOther = true;
   }
   return { isGroup, called, forOther, text };
 }
 
-export function discordAddress(d, botUserId) {
+// roles: { mine: Set(이 봇의 관리 역할 ID), bots: Set(서버의 모든 봇 관리 역할 ID) } — 자동 완성으로 @봇을 고르면 역할 멘션(<@&ID>)이 들어갈 수 있다.
+export function discordAddress(d, botUserId, roles = { mine: new Set(), bots: new Set() }) {
   const isGroup = Boolean(d.guild_id);
   let text = d.content ?? '';
   let called = false;
+  let forOther = false;
   if (botUserId) {
     const at = new RegExp(`<@!?${botUserId}>[,:]?\\s*`, 'g');
-    if (at.test(text) || (d.mentions ?? []).some((u) => u.id === botUserId)) { called = true; text = text.replace(at, '').trim(); }
+    if (at.test(text) || (d.mentions ?? []).some((u) => u.id === botUserId)) called = true;
+    text = text.replace(at, '');
+    const mineRole = (d.mention_roles ?? []).filter((r) => roles.mine.has(r));
+    if (mineRole.length) { called = true; for (const r of mineRole) text = text.replace(new RegExp(`<@&${r}>[,:]?\\s*`, 'g'), ''); }
+    text = text.trim();
     if (d.referenced_message?.author?.id === botUserId) called = true;
+    // 다른 봇(사용자 멘션·봇 역할 멘션·다른 봇 메시지 답장)을 불렀고 이 봇은 안 불렸으면 그 봇 것이다.
+    const otherBot = (d.mentions ?? []).some((u) => u.bot && u.id !== botUserId)
+      || (d.mention_roles ?? []).some((r) => roles.bots.has(r) && !roles.mine.has(r))
+      || (d.referenced_message?.author?.bot && d.referenced_message.author.id !== botUserId);
+    if (!called && otherBot) forOther = true;
   }
-  return { isGroup, called, forOther: false, text };
+  return { isGroup, called, forOther, text };
 }
 
 export function slackAddress(ev, botUserId) {
@@ -92,6 +107,7 @@ export function runDiscord({ token, onMessage, log, signal }) {
     let seq = null;
     let beat;
     let botUserId = null;
+    const roles = { mine: new Set(), bots: new Set() };
     ws.onmessage = (e) => {
       const p = JSON.parse(e.data);
       if (p.s != null) seq = p.s;
@@ -107,11 +123,19 @@ export function runDiscord({ token, onMessage, log, signal }) {
         log({ platform: 'discord', event: 'ready', bot: p.d.user?.username, guilds: p.d.guilds?.length ?? 0,
           invite: appId ? `https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot&permissions=68608` : null });
       }
+      // 서버의 봇 관리 역할(tags.bot_id)을 기억한다: 이 봇 것과 다른 봇 것.
+      if (p.op === 0 && (p.t === 'GUILD_CREATE' || p.t === 'GUILD_ROLE_CREATE' || p.t === 'GUILD_ROLE_UPDATE')) {
+        for (const r of p.t === 'GUILD_CREATE' ? (p.d.roles ?? []) : [p.d.role]) {
+          if (!r?.tags?.bot_id) continue;
+          roles.bots.add(r.id);
+          if (r.tags.bot_id === botUserId) roles.mine.add(r.id);
+        }
+      }
       if (p.op === 0 && p.t === 'MESSAGE_CREATE') {
         const d = p.d;
         if (d.author?.bot || !d.content) return;
         const send = (text) => rest(`/channels/${d.channel_id}/messages`, { content: text });
-        onMessage({ platform: 'discord', userId: d.author.id, chatId: d.channel_id, ...discordAddress(d, botUserId) }, send)
+        onMessage({ platform: 'discord', userId: d.author.id, chatId: d.channel_id, ...discordAddress(d, botUserId, roles) }, send)
           .catch((err) => log({ platform: 'discord', event: 'handle_error', error: String(err.message).slice(0, 80) }));
       }
       if (p.op === 7 || p.op === 9) ws.close();

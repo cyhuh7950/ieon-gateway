@@ -135,6 +135,8 @@ export function createBridge(opts) {
     const call = stripCallName(m.text, bot.callNames?.length ? bot.callNames : [m.botId ?? opts.botId ?? DEFAULT_BOT]);
     const text = (call.called ? call.text : String(m.text ?? '')).trim();
     if (!text) return;
+    // 같은 메신저의 다른 우리 봇 부르는 이름으로 시작하면 그 봇 것이다(이 봇 이름이 아닐 때).
+    if (m.isGroup && !m.called && !call.called && stripCallName(m.text, bot.otherCallNames ?? []).called) return;
     // 그룹·채널에서는 부른 봇만 답한다. 부르지 않았어도 그 방에 연결된 우리 봇이 이 봇뿐(또는 아무도 없음)이면 받는다.
     if (m.isGroup && !m.called && !call.called && otherBotConnected(m)) return;
     if (/^\/whoami\b/.test(text)) {

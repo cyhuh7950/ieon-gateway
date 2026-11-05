@@ -255,3 +255,18 @@ test('/whoami·/help에 봇 이름·역할·부르는 이름, 역할의 기본 �
   assert.match(B.said.find((s) => s.includes('기본 세션')), /기본 세션 "리뷰 전용"에 연결했습니다\(코드 리뷰 역할\)/);
   assert.equal(B.said.at(-1), 'ieun01 답');
 });
+
+test('다른 봇의 부르는 이름(또는 봇 ID)으로 시작한 글은 이 봇이 받지 않는다', async (t) => {
+  const roomStore = { rooms: { 'telegram:default:-100': 'c_a' }, save() {} };
+  const f = fakeApi({ conversations: [conv({ conversationId: 'c_a', label: '공용' })], result: { status: 'completed', answer: 'A 답' } });
+  const said = [];
+  const A = createBridge({ api: f.api, allowedUsers: { telegram: ['111'] }, roomStore, botId: 'default', pollMs: 1, waitMs: 1000,
+    botInfo: () => ({ name: '기본 봇', callNames: [], otherCallNames: ['ieun01', '리뷰'] }) });
+  const say = (text) => A.handle({ platform: 'telegram', userId: '111', chatId: '-100', isGroup: true, text }, async (s) => { said.push(s); });
+  await say('ieun01, /sessions');
+  await say('리뷰야 이거 봐');
+  assert.deepEqual(said, []);
+  assert.equal(f.calls.filter((c) => c.path.endsWith('/requests')).length, 0);
+  await say('그냥 질문'); // 이 방에 연결된 봇이 A뿐 → A가 받음
+  assert.equal(said.at(-1), 'A 답');
+});
