@@ -35,6 +35,7 @@
 
 ### 남은 일과 다음 조치
 
+0. **M4 설계 검토 결과(2026-11-06, 신산님 결정):** Teams·카카오 공용 중계, Teams 앱 비밀번호는 PC에만(PC 꺼짐 시 Teams 무응답), Oracle 배포는 Docker(방식 A). 상세는 MULTI_BOTS 6-1·6-2. 다음: 개인 Teams 사용자 지정 봇 가능 여부 확인(신산님의 이전 시험 방법 확인) → M4-a 코드. 배포는 별도 승인.
 1. **여러 봇 M4~M6**(설계 MULTI_BOTS 6~8절, 모두 별도 승인): M4 Oracle 공개 수신 중계(`ieon-gateway.sinsan.kr`, Oracle 배포 승인 필요) → M5 Teams(먼저 개인 Teams에 사용자 지정 봇 추가 가능 여부 확인, Azure Bot 등록은 신산님) → M6 카카오톡(채널 개설·콜백 승인 후).
 2. **새 세션 N5~N6**(설계 NEW_SESSIONS 9절): N5 Linux 실행 스크립트·systemd·`check` Linux판·WSL 재확인 → N6 Oracle 배포(별도 승인).
 3. ~~설명서 정리~~ **완료(2026-11-06)**: MESSENGER_MANUAL 6.2를 M3 기준(역할 제한·AI 안내·봇 세션 소속)으로, 6.5를 웹 봇 관리 기준으로 고쳤다.
