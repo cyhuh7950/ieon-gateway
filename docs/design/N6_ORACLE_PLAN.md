@@ -144,3 +144,11 @@ sudo loginctl enable-linger ieon
 - **봇 토큰 위치가 PC에서 Oracle로 옮겨간다.** 두 곳에 동시에 두지 않는다(텔레그램은 같은 토큰의 동시 수신을 거부하고 슬랙·디스코드는 중복 응답이 난다).
 - 로컬 서버·웹은 PC에서 지금처럼 쓸 수 있다(로컬 모드). Oracle 모드와 동시에 켜지 않는다.
 - 결정: (1) H→O7 순서(권장), (2) 카카오 먼저, (3) 본문 Oracle 저장 허용, (4) 토큰은 신산님이 직접 Oracle에 입력.
+
+## 11. H1 결과 (2026-11-06, 모델 호출 0)
+
+- PC: Oracle용 기기 토큰을 새로 만들었다(`.local/s2/device-token-oracle`, 64자, git 제외, **원문은 PC에만** 있고 출력·복사하지 않음).
+- Oracle `~/deploy/ieon-gateway/.local/s2/server.json`: 변경 전 백업 `server.json.bak-h1`. 병합한 것은 기기 `h_pc`의 **토큰 해시(sha256)**, PC 세션 2개(`c_codex_test`·`c_claude_test`, `hostId: h_pc`, 기존 `appIds`·`sessionRef` 그대로), `newSessionsHostId: h_sinsan`(새 세션은 Oracle 기기에 고정). 기기 목록은 `h_sinsan`(Oracle)·`h_pc`.
+- Oracle 서버 재시작 후: 서버·연결부 `active`, 세션 목록에 PC 세션 2개가 `deviceOnline=false`로 보임(PC 미연결이라 정상), 새 세션 한도·수 정상(0개), 기기 API는 무토큰·틀린 토큰 모두 401, 연결부 로그에 PC 세션 작업 시도 없음, receipts 3(변화 없음)·`live=false`.
+- 되돌리기: Oracle에서 `server.json.bak-h1`을 `server.json`으로 복구하고 서버 재시작, PC의 `device-token-oracle` 삭제.
+- 다음: H2(PC `tunnel`·Oracle용 연결부 설정·`start -Oracle` 모드, 저장소 코드·테스트), H3(PC 연결 확인과 PC 시험 thread 질문 2회).
