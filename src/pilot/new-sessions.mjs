@@ -111,6 +111,7 @@ export function removeWorkspace(config, name, path) {
 }
 
 export function workspacePath(config, name) {
-  const root = config.workspaceRoot;
+  // checkNewSession(연결부 재검사)과 같게 ~는 홈 폴더로 펼친다(안 펼치면 Linux 기본값 ~/ieon-workspaces가 bad_workspace로 거절된다).
+  const root = config.workspaceRoot.replace(/^~(?=$|[\\/])/, homedir());
   return (/^[A-Za-z]:[\\/]/.test(root) ? win32 : posix).join(root, name).replaceAll('\\', '/');
 }
