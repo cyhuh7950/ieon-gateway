@@ -46,6 +46,7 @@
 0-7. **카카오 느린 답 경로 실측(2026-11-06):** 제한 15초로 시험해 지연 안내 → `/last` 수령(3개 말풍선·줄임 안내)까지 실제 카카오에서 확인. 호출 1회 추가(누적 3/10), 시험 후 설정 복구·`stop`. 개선 후보: 처리 중일 때 `/last`를 "아직 처리 중"으로 안내. 상세는 RELAY_DEPLOY 7절.
 0-8. **Teams(M5) 가능 여부 조사(2026-11-06):** 공식 문서는 사용자 지정 앱 업로드가 켜진 개발용 Teams 테넌트와 M365 개발 계정을 전제로 한다. 개인 무료 Teams만으로는 안 될 가능성이 높아 **M5 보류**(직접 시험은 안 함). 선택지: M365 개발자 프로그램 샌드박스 또는 신산님 소유 유료 M365 비즈니스 테넌트. 이전 Teams 시험 방법 확인 대기. 상세는 MULTI_BOTS 7절.
 0-9. **N5 로컬 작성(2026-11-06):** `scripts/ieon.sh`, systemd 사용자 유닛 초안(`deploy/systemd/`), Codex 잠금 검사 Linux판(`/proc/locks`의 쓰기 잠금 확인 — 실제 Codex가 Linux에서 어떤 잠금을 쓰는지는 **WSL에서 확인 전 미검증**), `.gitattributes`(sh·service는 LF). 이 PC에서 `bash -n`·`status`·단위 테스트까지 확인, 서버 기동·WSL 접속·설치·모델 호출 없음. 다음: WSL 접속·동기화·`npm ci`·단위 테스트(승인) → WSL에서 N1~N4(모델 호출 승인). 상세는 NEW_SESSIONS 9절.
+0-10. **N5 WSL 검증 일부 완료(2026-11-06, 모델 호출 0):** WSL 동기화·`npm ci`·단위 테스트 140/140·`ieon.sh check`·잠금 검사 Linux판 실측(flock·POSIX 모두 감지) 통과. `status`의 설정 없음 오류를 발견해 수정. 남음: WSL 서버 설정·시험 토큰 생성 → `ieon.sh start`·systemd 유닛 실행 → N1~N4 실측(모델 호출 별도 승인), Claude Code 설치·로그인. 상세는 NEW_SESSIONS 9절.
 1. **여러 봇 M4~M6**(설계 MULTI_BOTS 6~8절, 모두 별도 승인): M4 Oracle 공개 수신 중계(`ieon-gateway.sinsan.kr`, Oracle 배포 승인 필요) → M5 Teams(먼저 개인 Teams에 사용자 지정 봇 추가 가능 여부 확인, Azure Bot 등록은 신산님) → M6 카카오톡(채널 개설·콜백 승인 후).
 2. **새 세션 N5~N6**(설계 NEW_SESSIONS 9절): N5 Linux 실행 스크립트·systemd·`check` Linux판·WSL 재확인 → N6 Oracle 배포(별도 승인).
 3. ~~설명서 정리~~ **완료(2026-11-06)**: MESSENGER_MANUAL 6.2를 M3 기준(역할 제한·AI 안내·봇 세션 소속)으로, 6.5를 웹 봇 관리 기준으로 고쳤다.
