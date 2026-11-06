@@ -5,6 +5,7 @@
 #   scripts/ieon.sh status                      포트·프로세스·엔진 상태·시험 대화 잠금
 #   scripts/ieon.sh messenger                   메신저 봇 시작(토큰은 .local 아래 env 파일에서 그 프로세스만 읽는다)
 #   scripts/ieon.sh check                       설치 점검: Node·부품·설정 파일, Codex·Claude Code 설치와 로그인(모델 호출 없음)
+#   scripts/ieon.sh init                        최소 설정·시험 토큰 만들기(.local이 없을 때만, live는 꺼 둠, 토큰 값은 출력하지 않음)
 #   scripts/ieon.sh claude | tui                터미널(tmux 등)에서 직접 실행할 명령을 안내한다
 # 설정·토큰은 .local/ 아래에 둔다(git 무시). 토큰 원문은 출력하지 않는다. 모든 포트는 127.0.0.1 전용이다.
 set -euo pipefail
@@ -108,6 +109,9 @@ case "$cmd" in
     sleep 3
     tail -n 3 "$RUN/messenger.log" || true
     ;;
+  init)
+    node "$ROOT/scripts/ieon-init.mjs" "$ROOT"
+    ;;
   claude)
     echo "터미널(tmux 등)에서 직접 실행하세요: cd $LOCAL/c1 && claude --dangerously-load-development-channels server:ieon"
     echo '하단이 manual mode인지 확인하세요.'
@@ -161,7 +165,7 @@ case "$cmd" in
     echo '설치 점검 통과.'
     ;;
   *)
-    sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 2
     ;;
 esac
