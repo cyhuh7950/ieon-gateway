@@ -1,6 +1,6 @@
 # N6 Oracle 배포 계획 (이어온 서버·연결부·Codex)
 
-기준: 2026-11-06. 상태: **O1(읽기 전용 조사)·O2(전용 사용자 생성)·O3(코드 전달·설치·설정) 완료.** O4(신산님 직접 로그인)부터 계속한다.
+기준: 2026-11-06. 상태: **O1~O5 완료**(조사·전용 사용자·코드 전달·로그인·유닛 기동). 서버·연결부가 켜져 있고 live는 꺼짐. **O6(모델 호출)부터는 별도 승인.**
 
 ## 1. 결정 (2026-11-06, 신산님: 권장안으로 진행)
 
@@ -84,3 +84,11 @@ sudo loginctl enable-linger ieon
 - `ieon.sh check`: Node 24·부품·설정·Codex 실행 파일·`/proc/locks` OK. **Codex 로그인 안 됨**(O4에서 신산님이 직접), Claude Code 미설치(이번 범위 밖). `status`: 서버·연결부 꺼짐, live false, 프로세스 0개.
 - 변경 범위: `/home/ieon`(코드·설정·node_modules·npm 캐시)뿐. 기존 서비스와 `ubuntu` 계정은 건드리지 않았다. 되돌리기: `/home/ieon/deploy` 삭제.
 - **O4 안내(신산님 직접):** `ssh -o User=ieon sinsan-server`로 접속해 `cd ~/deploy/ieon-gateway && ./node_modules/@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/bin/codex login --device-auth` 실행 → 화면의 주소와 코드를 신산님 PC 브라우저에서 입력·승인. 먼저 ChatGPT 보안 설정에서 디바이스 코드 로그인을 켜야 한다. 자격 증명은 서버의 `/home/ieon/.codex/`에만 저장된다(PC에서 복사하지 않음).
+
+## 8. O4·O5 결과 (2026-11-06, 모델 호출 0)
+
+- **O4(신산님 직접 로그인):** ChatGPT 보안 화면의 "Codex, Excel, PowerPoint 및 Word의 기기 코드 로그인 활성화" 토글(앱 보안 섹션 맨 아래)을 켜고 서버에서 `codex login --device-auth` 실행·승인. `check`가 "설치 점검 통과", Codex 로그인 `Logged in using ChatGPT`. 인증 파일 `~/.codex/auth.json`은 `-rw-------`, `ubuntu` 계정에서 `/home/ieon/.codex` 접근 **차단**. 이후 토글은 다시 끄도록 안내했다(로그인은 유지됨, 서버 로그인 해제는 보안 화면의 활성 세션에서).
+- **O5(유닛 설치·기동):** `ieon-server`·`ieon-connector`를 `/home/ieon/.config/systemd/user`에 설치하고 `enable --now`(linger로 부팅 후 자동 시작). 둘 다 `active`·`enabled`, 서버는 **127.0.0.1:28760만** 바인딩, 웹 `GET /` 200, 토큰 없는 API 401, 사용자 토큰으로 한도 조회 정상, 디바이스 토큰 호출은 401이 아님(인증 통과).
+- 자동 재시작: 서버·연결부를 각각 `kill -9`하자 8초 안에 새 PID로 재기동(NRestarts 1). 재시작 뒤에도 `live=false`. 연결부는 기동 직후와 서버가 끊긴 동안 `poll_error ECONNREFUSED`를 재시도하며 남기고 서버가 돌아오면 정상(유닛에 서버 준비 대기는 없고 연결부의 재시도에 맡김).
+- 자원: server 62MB, connector 60MB(RSS), 서버 전체 메모리 가용 약 6.3GB 유지. 모델 호출 기록(receipts) 0.
+- 메신저 유닛은 만들지 않았다. 되돌리기: `systemctl --user disable --now ieon-connector ieon-server` 후 유닛 파일 삭제.
