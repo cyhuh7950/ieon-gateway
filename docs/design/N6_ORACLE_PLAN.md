@@ -104,3 +104,43 @@ sudo loginctl enable-linger ieon
 - **남은 것(삭제하지 않음, `ieon` 홈 안):** 작업 폴더 `/home/ieon/ieon-workspaces/oracle-t1`(빈 폴더), Codex 기록 파일 `~/.codex/sessions/2026/11/06/rollout-2026-11-06T11-02-26-01a1ae97-….jsonl`. 사용자 `ieon`을 지우면 함께 사라진다.
 - 모델 호출은 신산님의 ChatGPT 구독 계정(서버에 로그인한 것)에 잡혔다.
 - **미확인:** Oracle에서 Claude, 메신저·중계 연결(O7), PC의 기존 세션을 Oracle 서버에 붙이는 하이브리드, 사람이 연 Codex Desktop·TUI가 실제로 잠글 때의 검사.
+
+## 10. O7 계획 — 하이브리드(PC 기존 세션 연결)와 메신저 이전 (2026-11-06, 계획만, 변경 없음)
+
+### 목표 구조
+
+```
+메신저(텔레그램·디스코드·슬랙·카카오 중계)
+        │
+   Oracle: 이어온 서버·메신저(ieon 사용자, systemd) ── 새 세션: Oracle 연결부(Codex)
+        ▲ 127.0.0.1:28760 (SSH 터널로만)
+        │ PC가 먼저 접속(터널 포트 28765)
+   PC: 연결부만 실행 ── 기존 Codex 대화·Claude 채널 세션
+```
+
+- 봇이 Oracle에서 상시 동작하므로 PC가 꺼져도 Oracle 세션은 응답한다. PC 세션은 기존처럼 "PC 연결 끊김"으로 보인다.
+- 서버는 이미 기기 여러 대(`devices`: 기기마다 `hostId`·토큰 해시)와 세션 등록별 `hostId`를 지원한다. 새 세션은 `newSessionsHostId`로 Oracle 기기에 고정한다.
+
+### 단계 (모두 별도 승인)
+
+| 단계 | 내용 | 모델 호출 | 되돌리기 |
+| --- | --- | --- | --- |
+| H1 | PC에서 Oracle용 기기 토큰 새로 생성(`.local/s2/device-token-oracle`, 원문은 PC에만). **해시만** Oracle `server.json`에 기기 `h_pc`로 추가하고 PC 세션 2개를 `hostId: h_pc`로 등록, `newSessionsHostId: h_sinsan` 고정, Oracle 서버 재시작 | 0 | server.json 되돌리고 재시작 |
+| H2 | PC에 `ieon.ps1 tunnel`(SSH `-N -L 28765:127.0.0.1:28760`, PID 관리)과 Oracle용 연결부 설정(`connector-oracle.json`, 서버 주소 `127.0.0.1:28765`)·`start -Oracle` 모드 추가(코드·테스트는 저장소에서, 로컬 서버와 동시에 켜지 않게 막음) | 0 | 코드 PR 되돌리기 |
+| H3 | 시험: Oracle API에서 PC 세션이 `deviceOnline=true`로 보이는지(모델 0), PC의 Codex 시험 thread에 질문 2회(번갈아 쓰기, Desktop에서 열지 않음) | Codex 2 | 터널·연결부 stop |
+| O7-1 | Oracle 메신저 설정: 허용 사용자 ID(비밀 아님)와 `kakaoRelayUrl`을 설정 파일에 넣고, **봇 토큰·중계 토큰은 신산님이 직접** Oracle `ieon` 홈의 env 파일에 넣는다(제가 읽거나 복사하지 않음) | 0 | 파일 삭제 |
+| O7-2 | PC 서버 DB의 봇·역할 정의(이름·부르는 이름·역할, 비밀 없음)를 API로 읽어 Oracle 서버에 다시 등록 | 0 | 봇 삭제 |
+| O7-3 | **카카오 먼저 전환:** PC 메신저 stop(같은 중계를 두 곳에서 폴링하면 질문이 갈라진다) → Oracle 메신저 기동(카카오만) → `/whoami`·`/sessions`(Oracle+PC 세션이 함께 보임)·Oracle 세션 질문 1회 | Codex 1~2 | Oracle 메신저 stop, PC 메신저 start |
+| O7-4 | 텔레그램·디스코드·슬랙 전환: 신산님이 Oracle env 파일에 봇 토큰을 넣고 PC 메신저를 끈 뒤 Oracle 메신저 재기동. 방별 연결(`rooms.json`)은 복사하거나 `/use`로 다시 연결 | 0~1 | 동일 |
+| O7-5 | systemd `ieon-messenger` 유닛 설치·자동 재시작 확인, PC의 env에서 봇 토큰 제거(신산님), PC `messenger` 명령에 Oracle 모드일 때 경고 추가 | 0 | 유닛 삭제 |
+
+제안 모델 호출 총량: **Codex 5회 이내**(H3 2 + O7-3 2 + 여유 1), Claude 0.
+
+### 위험과 결정 사항
+
+- **질문·답변 본문이 Oracle DB에 저장된다**(서버 `requests` 표). 위치는 `ieon` 홈(권한 750, 다른 서비스 계정은 읽기 불가). 지금은 PC 서버 DB에만 있다. 삭제하면 해당 세션의 본문이 지워지는 기능이 있다.
+- **Oracle 서버가 PC 실행의 제어 지점이 된다.** 서버가 뚫리면 PC 연결부의 허용 목록(allowlist) 안에서만 질문이 들어간다. PC Codex는 읽기 전용·승인 없음·네트워크 차단으로 고정이라 영향이 작다. 허용 목록은 지금처럼 시험 세션만 둔다.
+- **터널 의존:** Windows의 SSH 터널이 끊기면 PC 세션이 오프라인으로 보이고 연결부가 재시도한다. Oracle 세션은 영향이 없다.
+- **봇 토큰 위치가 PC에서 Oracle로 옮겨간다.** 두 곳에 동시에 두지 않는다(텔레그램은 같은 토큰의 동시 수신을 거부하고 슬랙·디스코드는 중복 응답이 난다).
+- 로컬 서버·웹은 PC에서 지금처럼 쓸 수 있다(로컬 모드). Oracle 모드와 동시에 켜지 않는다.
+- 결정: (1) H→O7 순서(권장), (2) 카카오 먼저, (3) 본문 Oracle 저장 허용, (4) 토큰은 신산님이 직접 Oracle에 입력.
