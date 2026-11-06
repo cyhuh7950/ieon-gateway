@@ -1,6 +1,6 @@
 # N6 Oracle 배포 계획 (이어온 서버·연결부·Codex)
 
-기준: 2026-11-06. 상태: **O1(읽기 전용 조사)·O2(전용 사용자 생성) 완료.** O3부터는 단계마다 신산님 승인 후 진행한다.
+기준: 2026-11-06. 상태: **O1(읽기 전용 조사)·O2(전용 사용자 생성)·O3(코드 전달·설치·설정) 완료.** O4(신산님 직접 로그인)부터 계속한다.
 
 ## 1. 결정 (2026-11-06, 신산님: 권장안으로 진행)
 
@@ -75,3 +75,12 @@ sudo loginctl enable-linger ieon
 - 참고: 다른 사용자의 프로세스 목록이 보인다(324개, 명령줄에 비밀이 있으면 노출될 수 있으나 이 서버의 다른 서비스 소관), `/tmp`에 다른 사용자의 읽기 가능 파일이 1개 있다(내용 확인 안 함).
 - 루프백 열림에 대한 판단: Codex 새 세션은 기본 `read_only`·`networkAccessEnabled: false`이고 `full`(명령 실행·네트워크)은 채팅에서 고를 수 없다. 그래서 위험은 낮다고 보고 방화벽(UID별 규칙)은 추가하지 않았다. `full`을 켜게 되면 `ieon` UID의 루프백 접속을 막는 방화벽 규칙을 다시 검토한다.
 - 되돌리기: `sudo loginctl disable-linger ieon && sudo userdel -r ieon`.
+
+## 7. O3 결과 (2026-11-06, 모델 호출 0)
+
+- 코드 전달: PC에서 `git archive HEAD`(main `4a76946`, 추적 파일만, `node_modules`·`.local` 제외)를 `ssh -o User=ieon`으로 `/home/ieon/deploy/ieon-gateway`에 풀었다(154개 파일, 2.8MB). 서버에는 git 저장소·자격 증명이 없다.
+- `npm ci`: 성공(`exit=0`), node_modules 382MB, 디스크 여유 25GB. arm64 Codex는 `node_modules/@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/bin/codex`(ELF aarch64)이고 `codex --version` → `codex-cli 0.165.0` 실행 확인(네트워크·모델 호출 없음). `node:sqlite`·`@openai/codex-sdk` 로드 확인.
+- `ieon.sh init`: `.local/s2/`에 시험 토큰 2개(권한 600, 값은 출력하지 않음)·`server.json`·`connector.json`·`new-sessions.json` 생성(live 꺼짐, 기존 세션 없음, 127.0.0.1 전용).
+- `ieon.sh check`: Node 24·부품·설정·Codex 실행 파일·`/proc/locks` OK. **Codex 로그인 안 됨**(O4에서 신산님이 직접), Claude Code 미설치(이번 범위 밖). `status`: 서버·연결부 꺼짐, live false, 프로세스 0개.
+- 변경 범위: `/home/ieon`(코드·설정·node_modules·npm 캐시)뿐. 기존 서비스와 `ubuntu` 계정은 건드리지 않았다. 되돌리기: `/home/ieon/deploy` 삭제.
+- **O4 안내(신산님 직접):** `ssh -o User=ieon sinsan-server`로 접속해 `cd ~/deploy/ieon-gateway && ./node_modules/@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/bin/codex login --device-auth` 실행 → 화면의 주소와 코드를 신산님 PC 브라우저에서 입력·승인. 먼저 ChatGPT 보안 설정에서 디바이스 코드 로그인을 켜야 한다. 자격 증명은 서버의 `/home/ieon/.codex/`에만 저장된다(PC에서 복사하지 않음).
