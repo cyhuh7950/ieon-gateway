@@ -1,6 +1,6 @@
 # N6 Oracle 배포 계획 (이어온 서버·연결부·Codex)
 
-기준: 2026-11-06. 상태: **계획과 O1 읽기 전용 조사만 완료. 서버에는 아무것도 만들거나 바꾸지 않았다.** O2부터는 단계마다 신산님 승인 후 진행한다.
+기준: 2026-11-06. 상태: **O1(읽기 전용 조사)·O2(전용 사용자 생성) 완료.** O3부터는 단계마다 신산님 승인 후 진행한다.
 
 ## 1. 결정 (2026-11-06, 신산님: 권장안으로 진행)
 
@@ -66,3 +66,12 @@ sudo loginctl enable-linger ieon
 ## 5. 되돌리기 전체
 
 유닛 `disable`·삭제 → 신산님 `codex logout` → `sudo loginctl disable-linger ieon` → `sudo userdel -r ieon`(홈과 작업 폴더 삭제). 중계 컨테이너·NPM·기존 서비스는 건드리지 않는다.
+
+## 6. O2 결과 (2026-11-06, 모델 호출 0)
+
+- 실행한 sudo 작업: `useradd -m -s /bin/bash -U ieon`(sudo·docker 그룹 없음, `groups: ieon`뿐), 홈 750, `passwd -l`(비밀번호 로그인 잠금), `.ssh` 700과 `authorized_keys` 600(ubuntu의 **공개키** 2개 ed25519·rsa를 복사, 개인키는 건드리지 않음), `loginctl enable-linger ieon`(Linger=yes). UID 1002.
+- 확인: `ssh -o User=ieon sinsan-server`로 키 접속 성공(비밀번호 잠금 상태에서도 가능), 홈 `/home/ieon`, `XDG_RUNTIME_DIR=/run/user/1002`, `systemctl --user` running.
+- **격리 검증(ieon 계정으로 접근 시도, 내용은 읽지 않고 성공 여부만):** 차단 — `/home/ubuntu`·`/home/ubuntu/deploy`·중계 비밀 파일·ubuntu `.ssh`·`/home/opc`·`/root`·`/etc/shadow`·`docker ps`·docker 소켓·`/var/lib/docker`·`sudo`. **열림 — 로컬 루프백 TCP 연결**(예: 127.0.0.1:5432 `shared-db`). 접속에는 해당 서비스의 계정이 필요하며 `ieon`에는 없다.
+- 참고: 다른 사용자의 프로세스 목록이 보인다(324개, 명령줄에 비밀이 있으면 노출될 수 있으나 이 서버의 다른 서비스 소관), `/tmp`에 다른 사용자의 읽기 가능 파일이 1개 있다(내용 확인 안 함).
+- 루프백 열림에 대한 판단: Codex 새 세션은 기본 `read_only`·`networkAccessEnabled: false`이고 `full`(명령 실행·네트워크)은 채팅에서 고를 수 없다. 그래서 위험은 낮다고 보고 방화벽(UID별 규칙)은 추가하지 않았다. `full`을 켜게 되면 `ieon` UID의 루프백 접속을 막는 방화벽 규칙을 다시 검토한다.
+- 되돌리기: `sudo loginctl disable-linger ieon && sudo userdel -r ieon`.
