@@ -66,6 +66,25 @@ test('제한 시간 안에 답이 안 끝나면 안내를 콜백으로 보내고
   assert.deepEqual(textsOf(r.posts[2]), ['보관된 답이 없습니다.']);
 });
 
+test('답을 만드는 중에 /last를 보내면 "없음"이 아니라 처리 중이라고 알린다', async (t) => {
+  let finish;
+  const gate = new Promise((ok) => { finish = ok; });
+  const r = await setup(t, { callbackLimitMs: 50, onMessage: async (m, send) => { if (m.text === '느림') { await gate; await send('늦은 답'); } } });
+  await r.ask('느림', 1);
+  await until(() => r.posts.length === 1);
+  await r.ask('/last', 2);
+  await until(() => r.posts.length === 2);
+  assert.match(textsOf(r.posts[1]).join(''), /만드는 중/);
+  finish();
+  await new Promise((ok) => setTimeout(ok, 100));
+  await r.ask('/last', 3);
+  await until(() => r.posts.length === 3);
+  assert.deepEqual(textsOf(r.posts[2]), ['늦은 답']);
+  await r.ask('/last', 4);
+  await until(() => r.posts.length === 4);
+  assert.deepEqual(textsOf(r.posts[3]), ['보관된 답이 없습니다.']);
+});
+
 test('/last는 다른 사용자의 보관된 답을 보여 주지 않는다', async (t) => {
   let finish;
   const gate = new Promise((ok) => { finish = ok; });

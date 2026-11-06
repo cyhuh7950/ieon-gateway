@@ -8,6 +8,7 @@ import { splitText } from './bridge.mjs';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const WAIT_NOTICE = '접수됨 — 답을 기다리는 중'; // 브리지의 중간 안내. 스킬 응답이 이미 "접수"를 알렸으므로 콜백에는 넣지 않는다.
 const SLOW = '답이 오래 걸리고 있습니다. 끝나면 /last 를 보내 받아 보세요.';
+const BUSY = '아직 답을 만드는 중입니다. 잠시 뒤 /last 를 다시 보내 주세요.';
 const BUBBLE = 1000; // simpleText 한 칸 글자 수 한도
 const MAX_OUTPUTS = 3; // 응답 하나의 말풍선 수 한도
 
@@ -31,6 +32,7 @@ export function runKakao(opts) {
     const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(10_000) });
     return r.ok;
   });
+  const busy = new Map(); // 사용자 키 → 아직 답을 만드는 중인 질문 수(/last를 "없음"과 구분하려고)
   const late = new Map(); // 사용자 키 → [{ text, at }] 콜백으로 못 보낸 답(메모리에만, 짧게)
   const stash = (user, text) => {
     const list = (late.get(user) ?? []).filter((x) => Date.now() - x.at < lateTtl);
@@ -64,15 +66,19 @@ export function runKakao(opts) {
       if (spent) stash(user, String(t)); else buf.push(String(t));
     };
     if (item.text.trim() === '/last') {
-      buf.push(take(user) || '보관된 답이 없습니다.');
+      buf.push(take(user) || (busy.get(user) ? BUSY : '보관된 답이 없습니다.'));
       return flush(false);
     }
     timer = setTimeout(() => flush(true), limit);
+    busy.set(user, (busy.get(user) ?? 0) + 1);
     try {
       await onMessage({ platform: 'kakao', userId: user, chatId: user, isGroup: false, called: true, text: item.text }, send);
     } catch (e) {
       log({ platform: 'kakao', event: 'handle_error', error: String(e.message).slice(0, 80) });
       buf.push('처리 중 오류가 났습니다.');
+    } finally {
+      busy.set(user, busy.get(user) - 1);
+      if (!busy.get(user)) busy.delete(user);
     }
     await flush(false);
   }
