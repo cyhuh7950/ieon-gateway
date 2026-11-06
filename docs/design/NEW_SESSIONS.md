@@ -184,7 +184,7 @@
 | N2 | Claude 새 세션: 세션별 프로세스와 세션 ID 보존, 잠들기·깨우기(resume) | 생성 → 대화 → 잠들기 → 깨워서 앞 대화를 기억 → 사람이 `--resume`으로 직접 열기 — **완료(2026-11-05)**: 질문마다 `claude -p`로 실행하는 방식으로 확정, 실제 5회 확인 |
 | N3 | 정리: 잠들기·보관·알림·삭제 확인, 처리 중·잠금 보호 | 시간을 줄인 설정으로 자동 잠들기·보관 확인, 잠금 세션은 그대로 — **완료(2026-11-05)**: 단위 테스트 9건, 1분 잠들기 설정으로 서버 자동 정리 실측(모델 0). 보관은 일 단위라 단위 테스트로 확인 |
 | N4 | 만드는 곳: 웹 버튼, 텔레그램·디스코드·슬랙 `/new` 등, HTTP API | 각 경로에서 만들기·연결·질문 — **완료(2026-11-05)**: 웹(만들기·질문·잠재우기)과 API(Claude 만들기·질문) 실측, 메신저는 대역 API 단위 테스트 |
-| N5 | Linux 실행(셸 스크립트·systemd)·`check`의 Linux판, WSL에서 N1~N4 재확인 | WSL에서 같은 시험 통과 — **로컬 작성 완료(2026-11-06)**: `scripts/ieon.sh`(start·stop·status·messenger·check), `deploy/systemd/` 사용자 유닛 3개·README, Codex 잠금 검사의 Linux판 `src/pilot/lock-probe.mjs`(/proc/locks 읽기, Windows는 기존 ps1), 단위 테스트(모델 0). **WSL 실행·실측은 아직**(접속·`npm ci`·모델 호출은 별도 승인) |
+| N5 | Linux 실행(셸 스크립트·systemd)·`check`의 Linux판, WSL에서 N1~N4 재확인 | WSL에서 같은 시험 통과 — **로컬 작성 완료(2026-11-06)**: `scripts/ieon.sh`(start·stop·status·messenger·check), `deploy/systemd/` 사용자 유닛 3개·README, Codex 잠금 검사의 Linux판 `src/pilot/lock-probe.mjs`(/proc/locks 읽기, Windows는 기존 ps1), 단위 테스트(모델 0). **WSL 실측 완료(2026-11-06, Codex 3회)**: S0·N1~N4·systemd 서버·연결부 유닛 통과, 잠금(flock) 실측 확인(아래 "N5 WSL 실측"). Claude·메신저는 WSL에서 하지 않음 |
 | N6 | Oracle 서버(aarch64) 설치·로그인·배포 | **별도 승인 후** 진행 |
 
 - 실증 범위: **Windows PC와 WSL까지.** Oracle(N6)은 후보 버전과 되돌리는 방법을 제시하고 별도 승인을 받는다.
@@ -198,6 +198,18 @@
 - `scripts/ieon.sh check`: Node·부품·Codex 실행 파일(0.165.0)·Codex 로그인(WSL에 이미 로그인됨)·`/proc/locks` OK, Claude Code 미설치, `.local` 설정 파일 없음 → "Codex 사용 가능·Claude 불가". `status`는 설정이 없으면 오류로 끊기는 버그를 발견해 고침(설정 없음 표시, `stop`·`start`도 설정이 없을 때 끊기지 않거나 이유를 알림).
 - **잠금 검사 Linux판 실측:** 임시 파일에 `flock`과 POSIX(`lockf`) 쓰기 잠금을 걸어 `probeLinux`가 둘 다 `WRITER_LOCK_CONFLICT`, 해제 후 `NO_WRITER_LOCK`을 내는 것을 확인(Codex 파일은 건드리지 않음).
 - **미확인:** 실제 Codex가 Linux에서 thread를 열어 두는 동안 그 잠금 파일에 OS 잠금을 거는지, `ieon.sh start`·`messenger`와 systemd 유닛 실행, WSL에서 N1~N4 실측(서버 설정·시험 토큰 생성, 모델 호출 승인 필요), Claude Code 설치·로그인.
+
+### N5 WSL 실측(S0·N1~N4·systemd) 결과 (2026-11-06, Codex 모델 호출 3회)
+
+- 준비: `scripts/ieon.sh init`으로 WSL에 최소 설정(웹·디바이스 시험 토큰 해시, 기존 세션 없음, 새 세션 켬, live 꺼짐)을 만들고 서버·연결부를 `start`로 기동(127.0.0.1 전용). 웹 `GET /` 200, 토큰 없는 API 401. WSL의 Codex 로그인은 기존 것을 사용.
+- **N1:** Codex 새 세션 `wsl-t1`(read_only) → 첫 질문 "시험 표식은 자두" → `completed`, 새 thread 생성·작업 폴더·Codex 기록 파일(`~/.codex/sessions/2026/11/06/rollout-…jsonl`) 생성. 두 번째 질문 → "자두"(같은 thread에 이어짐, thread 기록 1개).
+- **잠금 실측(핵심):** 두 번째 질문이 실행되는 약 2.0~4.3초 동안만 `~/.codex/thread-writer-locks/<id>.lock`이 생기고 `/proc/locks`에 **FLOCK ADVISORY WRITE**로 보였다. Linux판 검사는 이 구간에 `WRITER_LOCK_CONFLICT`, 끝난 뒤 파일이 사라져 `NO_LOCK_FILE`. 즉 Linux의 Codex는 flock으로 잠그고, `/proc/locks` 방식 검사가 이를 감지한다. (사람이 연 Desktop·TUI가 오래 쥐는 경우는 같은 잠금이므로 같은 방식으로 보이리라 추정하나 직접 시험하지 않음.)
+- **N3:** 잠들기 `sleeping` → 보관되지 않은 세션 `restore`는 `not_archived` 거절 → 질문하자 깨어나 "자두"(앞 대화 기억), 상태 `active`. 삭제(`close`)는 이어온 기록만 지우고 작업 폴더는 남김(기본값). 보관(archive)은 일 단위 자동이라 WSL에서는 실행하지 않음(단위 테스트로 확인).
+- **N4:** 웹 화면·HTTP API 경로(생성·질문·잠들기·삭제·한도 조회) 확인. 메신저 경로는 WSL에서 켜지 않았다(같은 봇 토큰 충돌 방지).
+- **systemd:** 사용자 유닛 `ieon-server`·`ieon-connector`를 설치해 기동(`active`), 무토큰 API 401, `kill -9` 뒤 `Restart=on-failure`로 자동 재시작(PID 변경, journal에 restart 기록), live는 계속 false. 시험 유닛은 제거. **messenger 유닛은 실행하지 않음.**
+- **시험 중 발견·수정한 버그 3건(모두 PR 병합):** (1) `ieon.sh status`가 설정이 없으면 오류로 끊김(#27). (2) `ieon.sh`가 서브셸 PID를 기록하고 프로세스 이름(`MainThread`)으로 확인해 `stop`이 서버·연결부를 못 끄고 `start`가 중복 기동(#29, Linux 회귀 테스트 추가). (3) 서버가 만든 작업 폴더 경로가 `~`를 펼치지 않아 연결부 재검사가 `bad_workspace`로 거절 — Linux 기본값 `~/ieon-workspaces`에서만 발생(#30). (2)(3)의 실패 시점에는 모델 호출이 일어나지 않았다.
+- 정리: `stop` 후 WSL의 `.local`과 `~/ieon-workspaces`(모두 이번에 만든 것)를 삭제. **남은 것:** Codex 기록 파일 1개(`~/.codex/sessions/2026/11/06/rollout-2026-11-06T09-58-07-01a1ae5c-….jsonl`)는 이어온이 지울 수 없어 남겼다.
+- **미확인:** WSL에서 Claude 새 세션(Claude Code 미설치), 메신저·중계 유닛, 사람이 연 Codex Desktop·TUI가 실제로 잠글 때의 검사, Oracle(aarch64) 환경.
 
 ### 미확인(구현 중 확인)
 

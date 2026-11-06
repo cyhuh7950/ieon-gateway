@@ -1,6 +1,6 @@
 # systemd 사용자 유닛 (N5 초안)
 
-**상태:** 초안이다. 어느 서버에도 설치하지 않았고 WSL에서도 아직 실행하지 않았다. WSL 실측 뒤에 이 문서를 갱신한다.
+**상태:** `ieon-server`·`ieon-connector`는 WSL(Ubuntu 24.04, systemd)에서 설치·기동·`kill -9` 후 자동 재시작까지 확인했다(2026-11-06, 확인 후 제거). `ieon-messenger`는 실행하지 않았고 Oracle 서버에는 설치하지 않았다.
 
 ## 유닛
 
