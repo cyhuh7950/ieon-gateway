@@ -34,6 +34,7 @@
 - 여러 봇 실증 승인(엔진별 10회, 2026-11-05): Codex 1/10, Claude 0/10.
 - 카카오 중계 실증 승인(2026-11-06, 10회 이내): Codex 시험 thread 3/10, Claude 0.
 - WSL 새 세션 실증 승인(2026-11-06, Codex 5회 이내): Codex 3/5(질문 3건), Claude 0.
+- Oracle 새 세션 실증 승인(2026-11-06, Codex 3회): Codex 3/3, Claude 0.
 
 ### 남은 일과 다음 조치
 
@@ -55,6 +56,7 @@
 0-15. **N6 O3 완료(2026-11-06):** `sinsan-server`의 전용 사용자 `ieon` 홈(`/home/ieon/deploy/ieon-gateway`)에 코드 전달(`git archive`)·`npm ci`(arm64 Codex 0.165.0 실행 확인, node:sqlite·SDK 로드 OK)·`ieon.sh init`(시험 토큰, live 꺼짐)·`check` 완료. Codex 로그인만 "안 됨"으로 남음(O4, 신산님 직접 `codex login --device-auth`). 서버 기동·모델 호출 0. 상세는 N6_ORACLE_PLAN 7절.
 0-16. **N6 O4·O5 완료(2026-11-06):** `sinsan-server`의 `ieon`이 신산님 직접 디바이스 코드 로그인으로 Codex 로그인 완료(`check` 통과, 인증 파일 600·ubuntu 차단), systemd 사용자 유닛 `ieon-server`·`ieon-connector` 설치·기동(127.0.0.1:28760만, live 꺼짐, kill -9 자동 재시작 확인, 메모리 약 120MB). 모델 호출 0. 다음: O6(새 Codex 세션 질문 2회+잠금 관찰+잠들기 후 1회, 모델 3회, 별도 승인), O7 메신저·중계 연결(별도 결정). 상세는 N6_ORACLE_PLAN 8절.
 0-17. **신산님 확인(2026-11-06):** (1) ChatGPT 보안 화면의 기기 코드 로그인 토글은 로그인 후 꺼 둠을 확인함. (2) WSL의 Codex 기록 파일(`~/.codex/sessions/2026/11/06/rollout-…01a1ae5c-….jsonl`)은 신산님 지시로 **삭제함**(그 파일 1개만, 확인 완료). Codex 내부 색인 DB `~/.codex/state_5.sqlite`·`thread_history_1.sqlite`에는 해당 thread ID가 남아 있으나 지원되지 않는 내부 DB라 수정하지 않음(Codex 목록에 기록 없는 항목으로 보일 수 있음, 사용에는 영향 없음). (3) 텔레그램 봇 토큰 2개 재발급 권고는 신산님이 인지함(실제 재발급 여부는 계속 미확인). 다음: O6 승인 대기.
+0-18. **N6 O6 완료(2026-11-06):** `sinsan-server`(aarch64)에서 새 Codex 세션 `oracle-t1`로 질문 2회(같은 thread 이어짐)+잠들기 후 1회 통과, Codex가 aarch64에서도 flock으로 잠그고 검사가 감지함을 확인, 삭제·live 끔 후 서버·연결부 정상. **모델 호출 Codex 3회(승인 3회, receipts 3건).** `ieon` 홈에 빈 작업 폴더와 Codex 기록 파일 1개 남음(`ieon` 삭제 시 함께 제거). N6 완료, 남음: O7 메신저·중계 연결·하이브리드(PC 기존 세션 연결) 결정. 상세는 N6_ORACLE_PLAN 9절.
 1. **여러 봇 M4~M6**(설계 MULTI_BOTS 6~8절, 모두 별도 승인): M4 Oracle 공개 수신 중계(`ieon-gateway.sinsan.kr`, Oracle 배포 승인 필요) → M5 Teams(먼저 개인 Teams에 사용자 지정 봇 추가 가능 여부 확인, Azure Bot 등록은 신산님) → M6 카카오톡(채널 개설·콜백 승인 후).
 2. **새 세션 N5~N6**(설계 NEW_SESSIONS 9절): N5 Linux 실행 스크립트·systemd·`check` Linux판·WSL 재확인 → N6 Oracle 배포(별도 승인).
 3. ~~설명서 정리~~ **완료(2026-11-06)**: MESSENGER_MANUAL 6.2를 M3 기준(역할 제한·AI 안내·봇 세션 소속)으로, 6.5를 웹 봇 관리 기준으로 고쳤다.
