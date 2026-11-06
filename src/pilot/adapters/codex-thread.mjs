@@ -2,21 +2,17 @@
 // - alternate: 잠금 사전 확인 → SDK resumeThread → runStreamed (X1에서 확인한 방식)
 // - shared_server: 공유 App Server에 붙어 thread가 idle일 때만 turn/start (X2에서 확인한 방식)
 // 기본은 live 실행 차단이다. allowlist 밖 thread·업무 대화는 거부한다. override를 넘기지 않는다.
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { checkNewSession } from '../new-sessions.mjs';
-import { fileURLToPath } from 'node:url';
+import { lockOutcome } from '../lock-probe.mjs';
 import { randomUUID } from 'node:crypto';
 import { EngineError } from '../contracts.mjs';
 
 const EXCLUDED = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
 const BLOCKED_SDK = new Set(['command_execution', 'file_change', 'mcp_tool_call', 'web_search']);
 const BLOCKED_APP = new Set(['commandExecution', 'fileChange', 'mcpToolCall', 'webSearch', 'dynamicToolCall']);
-const PROBE = fileURLToPath(new URL('../lock-probe.ps1', import.meta.url));
-
-export function lockProbe(threadId) {
-  return JSON.parse(execFileSync('pwsh', ['-NoProfile', '-File', PROBE, '-ThreadId', threadId], { encoding: 'utf8' })).outcome;
-}
+// Windows는 lock-probe.ps1, Linux는 /proc/locks 읽기(src/pilot/lock-probe.mjs).
+export const lockProbe = (threadId) => lockOutcome(threadId);
 
 async function runAlternate(threadId, question, deps) {
   const outcome = deps.probe(threadId);

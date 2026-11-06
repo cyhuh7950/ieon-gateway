@@ -1,0 +1,16 @@
+# 이어온 서버(사용자 유닛). 설치 방법은 같은 폴더의 README.md. 아직 어떤 서버에도 설치하지 않았다(N5 초안).
+[Unit]
+Description=이어온 서버(127.0.0.1:28760)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/deploy/ieon-gateway
+ExecStart=/usr/bin/env node src/pilot/server.mjs .local/s2/server.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

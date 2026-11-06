@@ -47,7 +47,7 @@ pwsh scripts/ieon.ps1 start            # 서버·연결부 시작, 실제 엔진
 pwsh scripts/ieon.ps1 start -Live      # 실제 엔진 실행 켬(모델 호출이 생김)
 pwsh scripts/ieon.ps1 start -Shared    # 공유 App Server도 함께 시작(동시 사용 모드용)
 pwsh scripts/ieon.ps1 status           # 포트·실제 실행 여부·시험 대화 잠금
-pwsh scripts/ieon.ps1 check            # 설치 점검: Node·부품·설정, Codex·Claude Code 설치와 로그인(모델 호출 없음)
+pwsh scripts/ieon.ps1 check            # (Linux/WSL은 scripts/ieon.sh, WSL 검증 전) 설치 점검: Node·부품·설정, Codex·Claude Code 설치와 로그인(모델 호출 없음)
 pwsh scripts/ieon.ps1 stop             # 이 스크립트가 띄운 것만 끄고 실제 실행을 끈다
 ```
 
