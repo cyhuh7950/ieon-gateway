@@ -75,4 +75,3 @@ sudo loginctl enable-linger ieon
 - 참고: 다른 사용자의 프로세스 목록이 보인다(324개, 명령줄에 비밀이 있으면 노출될 수 있으나 이 서버의 다른 서비스 소관), `/tmp`에 다른 사용자의 읽기 가능 파일이 1개 있다(내용 확인 안 함).
 - 루프백 열림에 대한 판단: Codex 새 세션은 기본 `read_only`·`networkAccessEnabled: false`이고 `full`(명령 실행·네트워크)은 채팅에서 고를 수 없다. 그래서 위험은 낮다고 보고 방화벽(UID별 규칙)은 추가하지 않았다. `full`을 켜게 되면 `ieon` UID의 루프백 접속을 막는 방화벽 규칙을 다시 검토한다.
 - 되돌리기: `sudo loginctl disable-linger ieon && sudo userdel -r ieon`.
-
