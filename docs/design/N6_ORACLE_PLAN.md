@@ -1,6 +1,6 @@
 # N6 Oracle 배포 계획 (이어온 서버·연결부·Codex)
 
-기준: 2026-11-06. 상태: **O1~O5 완료**(조사·전용 사용자·코드 전달·로그인·유닛 기동). 서버·연결부가 켜져 있고 live는 꺼짐. **O6(모델 호출)부터는 별도 승인.**
+기준: 2026-11-06. 상태: **O1~O6 완료**(조사·전용 사용자·코드 전달·로그인·유닛 기동·새 Codex 세션 스모크). 서버·연결부가 켜져 있고 live는 꺼짐. O7(메신저·중계 연결)은 별도 결정.
 
 ## 1. 결정 (2026-11-06, 신산님: 권장안으로 진행)
 
@@ -92,3 +92,15 @@ sudo loginctl enable-linger ieon
 - 자동 재시작: 서버·연결부를 각각 `kill -9`하자 8초 안에 새 PID로 재기동(NRestarts 1). 재시작 뒤에도 `live=false`. 연결부는 기동 직후와 서버가 끊긴 동안 `poll_error ECONNREFUSED`를 재시도하며 남기고 서버가 돌아오면 정상(유닛에 서버 준비 대기는 없고 연결부의 재시도에 맡김).
 - 자원: server 62MB, connector 60MB(RSS), 서버 전체 메모리 가용 약 6.3GB 유지. 모델 호출 기록(receipts) 0.
 - 메신저 유닛은 만들지 않았다. 되돌리기: `systemctl --user disable --now ieon-connector ieon-server` 후 유닛 파일 삭제.
+
+## 9. O6 결과 — Oracle(aarch64)에서 새 Codex 세션 스모크 (2026-11-06, Codex 모델 호출 3회)
+
+- 준비: `live`를 켜고 연결부를 재시작, 새 세션 `oracle-t1`(read_only) 생성.
+- **Q1:** "시험 표식은 자두" → `completed`, 답 "확인". 새 thread `01a1ae97-…` 생성, 작업 폴더 `/home/ieon/ieon-workspaces/oracle-t1`, Codex 기록 파일 1개 생성.
+- **Q2(잠금 관찰 동시):** `completed`, 답 "자두"(같은 thread, thread 기록 1개). 질문이 실행되는 약 3.3~6.2초 동안만 `~/.codex/thread-writer-locks/<id>.lock`이 생기고 `/proc/locks`에 **FLOCK ADVISORY WRITE**로 보여 검사가 `WRITER_LOCK_CONFLICT`를 냈고, 끝나자 파일이 사라져 `NO_LOCK_FILE`. WSL과 같은 동작이다(aarch64에서도 flock).
+- **Q3(잠들기 후):** `sleeping` → 질문 → 깨어나 "자두"(앞 대화 기억), 상태 `active`, thread 기록 1개 유지.
+- 정리: 세션 삭제(`deleted`, 작업 폴더는 기본 설정대로 남김), `live`를 다시 끔(`false`) 후 연결부 재시작, 서버·연결부 `active`, 새 세션 수 0. **호출 횟수(receipts) 3건 = 승인 3회.** 업무 대화는 이 서버에 없어 건드리지 않음.
+- 자원: server 66MB, connector 76MB(RSS).
+- **남은 것(삭제하지 않음, `ieon` 홈 안):** 작업 폴더 `/home/ieon/ieon-workspaces/oracle-t1`(빈 폴더), Codex 기록 파일 `~/.codex/sessions/2026/11/06/rollout-2026-11-06T11-02-26-01a1ae97-….jsonl`. 사용자 `ieon`을 지우면 함께 사라진다.
+- 모델 호출은 신산님의 ChatGPT 구독 계정(서버에 로그인한 것)에 잡혔다.
+- **미확인:** Oracle에서 Claude, 메신저·중계 연결(O7), PC의 기존 세션을 Oracle 서버에 붙이는 하이브리드, 사람이 연 Codex Desktop·TUI가 실제로 잠글 때의 검사.
