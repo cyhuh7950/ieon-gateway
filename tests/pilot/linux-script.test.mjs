@@ -2,7 +2,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -29,4 +31,20 @@ test('systemd 유닛은 승인 전 live를 바꾸지 않고 토큰·비밀을 �
     assert.match(t, /^NoNewPrivileges=true$/m, f);
     assert.ok(!/live|TOKEN|SECRET|PASSWORD|xoxb|xapp/i.test(t.replace(/^#.*$/gm, '')), f); // 주석 밖에 비밀·live 설정이 없다
   }
+});
+
+test('설정(.local)이 없는 곳에서 status는 오류로 끊기지 않고, start는 이유를 알리고 멈춘다', { skip: !hasBash }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ieon-sh-'));
+  try {
+    mkdirSync(join(dir, 'scripts')); mkdirSync(join(dir, 'src/pilot'), { recursive: true });
+    copyFileSync(root + 'scripts/ieon.sh', join(dir, 'scripts/ieon.sh'));
+    for (const f of ['lock-probe.mjs', 'lock-probe.ps1']) copyFileSync(root + 'src/pilot/' + f, join(dir, 'src/pilot', f));
+    const st = spawnSync('bash', [join(dir, 'scripts/ieon.sh'), 'status'], { encoding: 'utf8' });
+    assert.equal(st.status, 0, st.stderr);
+    assert.match(st.stdout, /설정 없음/);
+    const go = spawnSync('bash', [join(dir, 'scripts/ieon.sh'), 'start'], { encoding: 'utf8' });
+    assert.equal(go.status, 1);
+    assert.match(go.stderr, /s2\/server\.json 가 없습니다/);
+    assert.equal(spawnSync('bash', [join(dir, 'scripts/ieon.sh'), 'stop'], { encoding: 'utf8' }).status, 0); // 설정이 없어도 stop은 끊기지 않는다
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

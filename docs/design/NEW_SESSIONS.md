@@ -191,6 +191,14 @@
 - 모델 호출: 실증 동안 **Codex·Claude 각 10회까지 미리 승인**(2026-11-05). 넘을 것 같으면 그 전에 멈추고 다시 승인받는다. 사용 횟수는 WORK_STATUS에 단계별로 기록한다.
 - 시험은 시험 전용 새 세션만 쓴다. 업무 대화 `01a0dadd-…`와 기존 시험 세션은 건드리지 않는다.
 
+### N5 WSL 검증 결과 (2026-11-06, 모델 호출 0)
+
+- 환경: WSL2 Ubuntu 24.04(`daon@SINSAN`, `~/deploy/ieon-gateway`), Node 24.22.1, systemd 동작 중(`systemctl --user` running), `flock`·`python3` 있음, `pwsh` 없음. main `e89a569`로 동기화(저장소 깨끗), `npm ci` 성공(Codex 0.165.0 Linux 실행 파일 `codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex` 설치, `ieon.sh`의 검색으로 찾아짐).
+- 단위 테스트 **140/140**(Linux 전용 스크립트·잠금 테스트 포함, 모델 호출 없음).
+- `scripts/ieon.sh check`: Node·부품·Codex 실행 파일(0.165.0)·Codex 로그인(WSL에 이미 로그인됨)·`/proc/locks` OK, Claude Code 미설치, `.local` 설정 파일 없음 → "Codex 사용 가능·Claude 불가". `status`는 설정이 없으면 오류로 끊기는 버그를 발견해 고침(설정 없음 표시, `stop`·`start`도 설정이 없을 때 끊기지 않거나 이유를 알림).
+- **잠금 검사 Linux판 실측:** 임시 파일에 `flock`과 POSIX(`lockf`) 쓰기 잠금을 걸어 `probeLinux`가 둘 다 `WRITER_LOCK_CONFLICT`, 해제 후 `NO_WRITER_LOCK`을 내는 것을 확인(Codex 파일은 건드리지 않음).
+- **미확인:** 실제 Codex가 Linux에서 thread를 열어 두는 동안 그 잠금 파일에 OS 잠금을 거는지, `ieon.sh start`·`messenger`와 systemd 유닛 실행, WSL에서 N1~N4 실측(서버 설정·시험 토큰 생성, 모델 호출 승인 필요), Claude Code 설치·로그인.
+
 ### 미확인(구현 중 확인)
 
 - ~~Claude 실행 방식~~ → N2에서 **질문마다 `claude -p`** 로 확정. 채널(연구 미리보기)·상시 프로세스가 필요 없고, 질문이 없을 때 프로세스가 없으므로 잠들기는 따로 할 일이 없다(`maxActive`는 동시에 실행 중인 질문 수로 적용).

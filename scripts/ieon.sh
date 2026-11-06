@@ -26,12 +26,16 @@ codex_bin() {
 }
 
 set_live() { # $1: true|false
+  [[ -f "$CONNECTOR_CONFIG" ]] || return 0 # 설정이 없으면 바꿀 live도 없다(stop이 끊기지 않게)
   node -e '
     const fs = require("node:fs"); const p = process.argv[1];
     const c = JSON.parse(fs.readFileSync(p, "utf8")); c.live = process.argv[2] === "true";
     fs.writeFileSync(p, JSON.stringify(c, null, 2));' "$CONNECTOR_CONFIG" "$1"
 }
-get_live() { node -e 'console.log(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).live === true)' "$CONNECTOR_CONFIG"; }
+get_live() {
+  if [[ ! -f "$CONNECTOR_CONFIG" ]]; then echo '설정 없음(.local/s2/connector.json)'; return; fi
+  node -e 'console.log(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).live === true)' "$CONNECTOR_CONFIG"
+}
 
 pid_alive() { # PID 재사용 방지: 살아 있고 node/codex 프로세스일 때만
   local pid="$1" name
@@ -68,6 +72,9 @@ done
 
 case "$cmd" in
   start)
+    for f in s2/server.json s2/connector.json; do
+      [[ -f "$LOCAL/$f" ]] || { echo ".local/$f 가 없습니다. 먼저 check로 빠진 설정을 확인하세요." >&2; exit 1; }
+    done
     if $shared; then
       hash="$(tr -d '\r\n ' <"$LOCAL/x2/token.sha256")"
       bin="$(codex_bin)"
