@@ -2,9 +2,8 @@
 // 사용: node src/pilot/codex-resume-once.mjs <threadId> <receiptPath>
 // 도구 실행·파일 변경·외부 호출 항목이 시작되면 즉시 중단한다. 재시도하지 않는다.
 import { Codex } from '@openai/codex-sdk';
-import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { lockOutcome } from './lock-probe.mjs';
 
 const EXCLUDED = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
 const ALLOWED = new Set(['01a18790-63c7-73e3-a60b-6ddb60fd5be8']);
@@ -25,8 +24,7 @@ const receipt = {
 const save = () => writeFileSync(receiptPath, JSON.stringify(receipt, null, 2) + '\n');
 
 // 사전 확인: Desktop이 thread를 쥐고 있으면 재개하지 않는다.
-const probe = fileURLToPath(new URL('./lock-probe.ps1', import.meta.url));
-receipt.precheck = JSON.parse(execFileSync('pwsh', ['-NoProfile', '-File', probe, '-ThreadId', threadId], { encoding: 'utf8' })).outcome;
+receipt.precheck = lockOutcome(threadId);
 if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(receipt.precheck)) {
   receipt.outcome = 'BUSY_NOT_RUN';
   save();

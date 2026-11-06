@@ -1,0 +1,17 @@
+# 이어온 메신저 봇(사용자 유닛). 토큰은 .local 아래 env 파일에서 이 프로세스만 읽는다(유닛에 쓰지 않는다).
+[Unit]
+Description=이어온 메신저 봇
+After=ieon-server.service network-online.target
+Wants=ieon-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/deploy/ieon-gateway
+ExecStart=/usr/bin/env node src/pilot/messenger/main.mjs .local/messenger/config.json
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
