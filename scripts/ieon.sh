@@ -38,18 +38,19 @@ get_live() {
   node -e 'console.log(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).live === true)' "$CONNECTOR_CONFIG"
 }
 
-pid_alive() { # PID 재사용 방지: 살아 있고 node/codex 프로세스일 때만
-  local pid="$1" name
-  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null || return 1
-  name="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
-  [[ "$name" == node || "$name" == codex ]]
+pid_alive() { # PID 재사용 방지: 살아 있고 node/codex 프로세스일 때만(프로세스 이름은 node 24에서 MainThread로 나오므로 명령줄로 본다)
+  local pid="$1"
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
+  tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -qE '(^|/)(node|codex) '
 }
 
 start_owned() { # $1 이름, 나머지: 실행 명령
   local name="$1"; shift
   local pidfile="$RUN/$name.pid"
   if [[ -f "$pidfile" ]] && pid_alive "$(cat "$pidfile")"; then echo "$name: 이미 실행 중"; return; fi
-  (cd "$ROOT" && nohup "$@" >"$RUN/$name.out" 2>"$RUN/$name.log" </dev/null & echo $! >"$pidfile")
+  # exec로 서브셸을 그 명령으로 바꿔 $!가 실제 프로세스의 PID가 되게 한다(서브셸 PID를 적으면 stop이 못 끈다).
+  (cd "$ROOT" && exec nohup "$@" >"$RUN/$name.out" 2>"$RUN/$name.log" </dev/null) &
+  echo $! >"$pidfile"
   echo "$name: 시작(PID $(cat "$pidfile"))"
 }
 
