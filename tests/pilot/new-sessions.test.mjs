@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tempStore, owner, stranger, otherApp } from './helpers.mjs';
-import { loadNewSessionsConfig, resolveProfile, validateName } from '../../src/pilot/new-sessions.mjs';
+import { homedir } from 'node:os';
+import { loadNewSessionsConfig, resolveProfile, validateName, workspacePath, checkNewSession } from '../../src/pilot/new-sessions.mjs';
 
 const messenger = { userId: 'u_sinsan', appId: 'app_messenger' };
 const cfg = (over = {}) => loadNewSessionsConfig({ enabled: true, workspaceRoot: '/ws', ...over });
@@ -125,4 +126,15 @@ test('재시작해도 새 세션 등록이 유지된다', (t) => {
   h.store.createSession(owner, req('keep'), cfg());
   const s = h.reopen();
   assert.deepEqual(s.conversations(owner)[0].newSession, { name: 'keep', state: 'pending', profile: 'workspace' });
+});
+
+test('작업 폴더 루트가 ~로 시작해도 서버가 만든 경로를 연결부 재검사가 받아들인다(Linux 기본값)', () => {
+  const cfg = loadNewSessionsConfig({ enabled: true, workspaceRoot: '~/ieon-workspaces' });
+  const ws = workspacePath(cfg, 'wsl-t1');
+  assert.ok(!ws.startsWith('~'), ws);
+  assert.ok(ws.replaceAll('\\', '/').startsWith(homedir().replaceAll('\\', '/')), ws);
+  assert.equal(checkNewSession(cfg, { name: 'wsl-t1', profile: 'read_only', workspace: ws }).workspace.replaceAll('\\', '/'), ws);
+  // 절대 경로 루트는 그대로
+  const abs = loadNewSessionsConfig({ enabled: true, workspaceRoot: 'D:/ieon-workspaces' });
+  assert.equal(workspacePath(abs, 'a1'), 'D:/ieon-workspaces/a1');
 });
