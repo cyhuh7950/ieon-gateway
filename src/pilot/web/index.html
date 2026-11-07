@@ -155,6 +155,38 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <span></span><div class="row"><button class="primary" type="submit">역할 저장</button><button type="button" id="rDelete">역할 삭제</button><button type="button" id="rNew">새 역할</button></div>
     </form>
   </section>
+  <section aria-label="설정">
+    <h3>설정</h3>
+    <div class="muted">여기서 저장한 값이 있으면 그 값을, 없으면 PC 설정 파일 값을 씁니다. "파일 값으로"를 누르면 여기 값을 지우고 파일 값으로 돌아갑니다. 연결부 허용 목록·실제 실행·작업 폴더·명령 실행 권한(full)은 여기서 바꿀 수 없습니다.</div>
+    <h2>메신저 공통 허용 사용자 <span id="auSrc" class="muted"></span></h2>
+    <form id="auForm" class="grid2">
+      <label for="auTelegram">텔레그램</label><input type="text" id="auTelegram" placeholder="사용자 ID, 쉼표로 구분">
+      <label for="auDiscord">디스코드</label><input type="text" id="auDiscord" placeholder="사용자 ID, 쉼표로 구분">
+      <label for="auSlack">슬랙</label><input type="text" id="auSlack" placeholder="사용자 ID, 쉼표로 구분">
+      <label for="auKakao">카카오톡</label><input type="text" id="auKakao" placeholder="사용자 ID, 쉼표로 구분">
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="auReset">파일 값으로</button></div>
+    </form>
+    <h2>카카오 중계 <span id="kkSrc" class="muted"></span></h2>
+    <form id="kkForm" class="grid2">
+      <label for="kkUrl">중계 주소</label><input type="text" id="kkUrl" placeholder="https://ieon-gateway.sinsan.kr">
+      <label for="kkLimit">콜백 제한 시간(초)</label><input type="text" id="kkLimit" placeholder="5~120 (비우면 기본 55초)">
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="kkReset">파일 값으로</button></div>
+    </form>
+    <h2>새 세션 <span id="nsSrc" class="muted"></span></h2>
+    <form id="nsForm" class="grid2">
+      <span>켜기</span><label class="chk"><input type="checkbox" id="nsOn"> 새 세션 만들기를 켭니다</label>
+      <label for="nsMax">세션 수 한도</label><input type="text" id="nsMax">
+      <label for="nsActive">동시 처리 한도</label><input type="text" id="nsActive">
+      <label for="nsCodex">Codex 한도</label><input type="text" id="nsCodex">
+      <label for="nsClaude">Claude 한도</label><input type="text" id="nsClaude">
+      <label for="nsIdle">잠들기(분)</label><input type="text" id="nsIdle">
+      <label for="nsArch">보관(일)</label><input type="text" id="nsArch">
+      <label for="nsNotice">보관 예고(일 전)</label><input type="text" id="nsNotice">
+      <label for="nsDefault">기본 권한</label><select id="nsDefault"></select>
+      <span>작업 폴더</span><div id="nsRoot" class="muted"></div>
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="nsReset">파일 값으로</button></div>
+    </form>
+  </section>
 </div>
 <script>
 const ENGINE = { codex_thread: 'Codex · thread', claude_channel: 'Claude · 채널', claude_cli: 'Claude · 새 세션' };
@@ -354,7 +386,56 @@ function statusText(b) {
     b.platform === 'telegram' && s.canReadAll === false ? '그룹 일반 글 수신 꺼짐 — 부르는 이름이 동작하지 않음(BotFather /setprivacy → Disable)' : ''].filter(Boolean).join(' · ');
   return [cls, label + (extra ? ' · ' + extra : '')];
 }
+// --- 설정(P1): 웹 값이 있으면 웹 값, 없으면 파일 값 ---
+const SET_ERR = { bad_platform: '알 수 없는 메신저', bad_user_id: '사용자 ID는 영문·숫자·.@:-_ 1~64자', bad_relay_url: '중계 주소는 https 주소(아이디·비밀번호·?·# 없이)',
+  bad_callback_limit: '콜백 제한 시간은 5~120초', field_not_editable: '이 항목은 설정 파일에서만 바꿀 수 있음', profile_not_allowed: 'full 권한은 설정 파일에서만',
+  bad_limits: '한도는 1 이상의 숫자', bad_cleanup: '시간은 1 이상의 숫자' };
+const setErr = (e) => SET_ERR[e] || (String(e).startsWith('bad_new_sessions:') ? '새 세션 설정이 규칙에 맞지 않음(' + e.split(':')[1] + ')' : e);
+const srcText = (s, at) => s === 'web' ? '(웹에서 저장한 값' + (at ? ' · ' + new Date(at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '') + ')' : '(파일 값 사용 중)';
+const numOr = (v) => { const s = String(v).trim(); return s === '' ? undefined : Number(s); };
+let settingsLoaded = false;
+async function loadSettings(force) {
+  if (settingsLoaded && !force) return; // 주기 새로고침이 입력 중인 값을 덮지 않게 처음 한 번과 저장 직후에만 채운다
+  const r = await api('/v1/admin/settings'); if (r.status !== 200) return;
+  settingsLoaded = true;
+  const s = r.body;
+  $('auSrc').textContent = srcText(s.allowedUsers.source, s.allowedUsers.updatedAt);
+  const au = s.allowedUsers.value || {};
+  $('auTelegram').value = (au.telegram || []).join(', '); $('auDiscord').value = (au.discord || []).join(', ');
+  $('auSlack').value = (au.slack || []).join(', '); $('auKakao').value = (au.kakao || []).join(', ');
+  if (!s.allowedUsers.value) ['auTelegram', 'auDiscord', 'auSlack', 'auKakao'].forEach((id) => { $(id).placeholder = '파일 값 사용 중 — 입력하면 웹 값으로 바뀝니다'; });
+  $('kkSrc').textContent = srcText(s.kakao.source, s.kakao.updatedAt);
+  $('kkUrl').value = s.kakao.value?.relayUrl || ''; $('kkLimit').value = s.kakao.value?.callbackLimitMs ? s.kakao.value.callbackLimitMs / 1000 : '';
+  const ns = s.newSessions, e = ns.effective;
+  $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '(파일 값 사용 중)';
+  $('nsOn').checked = Boolean(e?.enabled);
+  $('nsMax').value = e?.limits.maxSessions ?? ''; $('nsActive').value = e?.limits.maxActive ?? '';
+  $('nsCodex').value = e?.limits.maxPerEngine?.codex ?? ''; $('nsClaude').value = e?.limits.maxPerEngine?.claude ?? '';
+  $('nsIdle').value = e?.cleanup.idleSleepMinutes ?? ''; $('nsArch').value = e?.cleanup.archiveAfterDays ?? ''; $('nsNotice').value = e?.cleanup.archiveNoticeDays ?? '';
+  $('nsDefault').innerHTML = '';
+  for (const p of e?.permissions.profiles || ['read_only', 'workspace']) $('nsDefault').append(new Option({ read_only: '읽기 전용', workspace: '작업 폴더 안 읽기·쓰기' }[p] || p, p));
+  $('nsDefault').value = e?.permissions.default === 'full' ? '' : (e?.permissions.default || 'workspace');
+  $('nsRoot').textContent = e ? e.workspaceRoot + ' (설정 파일에서만)' : '설정 파일 없음 — 켜면 기본 위치를 씁니다';
+}
+async function saveSetting(path, body, ok) {
+  const r = await api('/v1/admin/settings/' + path, { method: body === null ? 'DELETE' : 'PUT', body: body === null ? undefined : JSON.stringify(body) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? ok : setErr(r.body.error));
+  if (r.status === 200) await loadSettings(true);
+}
+$('auForm').onsubmit = (e) => { e.preventDefault(); saveSetting('allowed-users', { telegram: split($('auTelegram').value), discord: split($('auDiscord').value), slack: split($('auSlack').value), kakao: split($('auKakao').value) }, '허용 사용자를 저장했습니다 — 메신저에 1분 안에 반영됩니다'); };
+$('auReset').onclick = () => saveSetting('allowed-users', null, '허용 사용자를 파일 값으로 되돌렸습니다');
+$('kkForm').onsubmit = (e) => { e.preventDefault(); const sec = numOr($('kkLimit').value); saveSetting('kakao', { relayUrl: $('kkUrl').value.trim() || null, ...(sec !== undefined ? { callbackLimitMs: Math.round(sec * 1000) } : {}) }, '카카오 설정을 저장했습니다 — 1분 안에 카카오 봇이 다시 연결됩니다'); };
+$('kkReset').onclick = () => saveSetting('kakao', null, '카카오 설정을 파일 값으로 되돌렸습니다');
+$('nsForm').onsubmit = (e) => {
+  e.preventDefault();
+  const lim = { maxSessions: numOr($('nsMax').value), maxActive: numOr($('nsActive').value), maxPerEngine: { codex: numOr($('nsCodex').value), claude: numOr($('nsClaude').value) } };
+  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && !(typeof v === 'object' && !Object.keys(clean(v)).length)).map(([k, v]) => [k, typeof v === 'object' ? clean(v) : v]));
+  saveSetting('new-sessions', { enabled: $('nsOn').checked, limits: clean(lim), cleanup: clean({ idleSleepMinutes: numOr($('nsIdle').value), archiveAfterDays: numOr($('nsArch').value), archiveNoticeDays: numOr($('nsNotice').value) }),
+    ...($('nsDefault').value ? { permissions: { default: $('nsDefault').value } } : {}) }, '새 세션 설정을 저장했습니다 — 바로 적용됩니다');
+};
+$('nsReset').onclick = () => saveSetting('new-sessions', null, '새 세션 설정을 파일 값으로 되돌렸습니다');
 async function loadAdmin() {
+  loadSettings().catch(() => {});
   const [b, r, s] = await Promise.all([api('/v1/admin/bots'), api('/v1/admin/roles'), api('/v1/admin/sessions')]);
   if (b.status !== 200) return;
   bots = b.body.bots; roles = r.body.roles; adminSessions = s.body.sessions;

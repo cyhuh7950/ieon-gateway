@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS bots (
   extra_users TEXT NOT NULL, enabled INTEGER NOT NULL, PRIMARY KEY (platform, bot_id));
 CREATE TABLE IF NOT EXISTS bot_sessions (
   platform TEXT NOT NULL, bot_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (platform, bot_id, conversation_id));
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS locks (
   session_key TEXT PRIMARY KEY, holder_request_id TEXT NOT NULL);
 `;
@@ -533,6 +535,17 @@ export function openStore(path) {
       if (!db.prepare('DELETE FROM bots WHERE platform = ? AND bot_id = ?').run(platform, botId).changes) return { http: 404, code: 'not_found' };
       return { http: 204 };
     },
+
+    // --- P1: 웹에서 바꾼 설정(없으면 파일 값을 쓴다) ---
+    getSetting(key) {
+      const r = db.prepare('SELECT value, updated_at FROM settings WHERE key = ?').get(key);
+      return r ? { value: JSON.parse(r.value), updatedAt: r.updated_at } : null;
+    },
+    setSetting(key, value) {
+      db.prepare(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+        ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).run(key, JSON.stringify(value), new Date().toISOString());
+    },
+    deleteSetting(key) { return db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes === 1; },
 
     close() { if (db.isOpen) db.close(); },
   };
