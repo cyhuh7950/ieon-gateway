@@ -151,3 +151,48 @@ test('P1-b 기존 세션 등록: 파일 등록은 보기만, 웹 등록은 추�
   await call('/v1/sessions', { method: 'POST', body: { engine: 'codex', name: 'ns1' } });
   assert.ok(!(await call('/v1/admin/bindings')).body.bindings.some((b) => b.conversationId === 'n_ns1'));
 });
+
+test('P1-c 기기: 등록 토큰은 한 번만, 재발급하면 이전 토큰 무효, 폐기하면 거절·처리 중 질문 정리, 파일 기기는 보기만', async (t) => {
+  const { call, app, base } = await setup(t);
+  const dev = (token) => fetch(`${base}/v1/device/jobs`, { headers: { authorization: `Bearer ${token}` } }).then((r) => r.status);
+  let r = (await call('/v1/admin/devices')).body;
+  assert.deepEqual(r.devices.map((d) => [d.hostId, d.source]), [['h_sinsan', 'file']]);
+  assert.equal((await call('/v1/admin/devices/h_sinsan/revoke', { method: 'POST', body: { confirm: 'h_sinsan' } })).body.error, 'file_managed');
+  for (const [body, err] of [[{ hostId: 'bad', name: 'x' }, 'bad_host_id'], [{ hostId: 'h_pc2', name: '' }, 'bad_name'], [{ hostId: 'h_sinsan', name: 'x' }, 'host_taken']]) {
+    assert.equal((await call('/v1/admin/devices', { method: 'POST', body })).body.error, err);
+  }
+  const reg = (await call('/v1/admin/devices', { method: 'POST', body: { hostId: 'h_pc2', name: '사무실 PC' } }));
+  assert.equal(reg.status, 201);
+  assert.match(reg.body.token, /^[0-9a-f]{64}$/);
+  const tok1 = reg.body.token;
+  r = (await call('/v1/admin/devices')).body;
+  assert.ok(!JSON.stringify(r).includes(tok1)); // 목록에는 토큰이 없다
+  assert.equal(await dev(tok1), 204);
+  assert.equal((await call('/v1/admin/devices')).body.devices.find((d) => d.hostId === 'h_pc2').online, true);
+  assert.deepEqual((await call('/v1/admin/bindings')).body.hosts, ['h_sinsan', 'h_pc2']);
+  // 재발급: 이전 토큰 무효, 새 토큰 유효
+  const tok2 = (await call('/v1/admin/devices/h_pc2/reissue', { method: 'POST', body: {} })).body.token;
+  assert.notEqual(tok2, tok1);
+  assert.equal(await dev(tok1), 401);
+  assert.equal(await dev(tok2), 204);
+  // 이 기기의 세션에 질문 2개(하나는 연결부가 가져감, 하나는 대기)
+  await call('/v1/admin/bindings/c_pc2a', { method: 'PUT', body: { label: 'A', engine: 'codex_thread', hostId: 'h_pc2', sessionRef: '01b2c3d4-0000-7000-8000-00000000000a' } });
+  await call('/v1/admin/bindings/c_pc2b', { method: 'PUT', body: { label: 'B', engine: 'codex_thread', hostId: 'h_pc2', sessionRef: '01b2c3d4-0000-7000-8000-00000000000b' } });
+  const owner = { userId: 'u_sinsan', appId: 'app_web' };
+  const qa = app.store.submit(owner, 'c_pc2a', 'k-p1c-0001', { question: 'a' });
+  app.store.claim('h_pc2');
+  const qb = app.store.submit(owner, 'c_pc2b', 'k-p1c-0002', { question: 'b' });
+  // 폐기: 이름 확인
+  assert.equal((await call('/v1/admin/devices/h_pc2/revoke', { method: 'POST', body: { confirm: '틀림' } })).body.error, 'confirm_mismatch');
+  r = (await call('/v1/admin/devices/h_pc2/revoke', { method: 'POST', body: { confirm: '사무실 PC' } })).body;
+  assert.deepEqual(r, { hostId: 'h_pc2', revoked: true, unknown: 1, notExecuted: 1 });
+  assert.equal(await dev(tok2), 401);
+  assert.deepEqual([app.store.getRequest(owner, qa.requestId).status, app.store.getRequest(owner, qb.requestId).status], ['unknown', 'failed']);
+  assert.equal(app.store.getRequest(owner, qb.requestId).errorCode, 'device_revoked');
+  assert.ok(!(await call('/v1/admin/bindings')).body.hosts.includes('h_pc2'));
+  const ev = (await call('/v1/admin/devices')).body.events.map((e) => e.action);
+  assert.deepEqual(ev, ['revoke', 'reissue', 'register']);
+  // 폐기된 기기도 재발급하면 다시 쓸 수 있다
+  const tok3 = (await call('/v1/admin/devices/h_pc2/reissue', { method: 'POST', body: {} })).body.token;
+  assert.equal(await dev(tok3), 204);
+});

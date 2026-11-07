@@ -169,6 +169,18 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="bdDelete">삭제</button><button type="button" id="bdNew">새로 입력</button></div>
     </form>
   </section>
+  <section aria-label="기기">
+    <h3>기기(PC 연결부)</h3>
+    <div class="muted">server.json에 적힌 기기는 보기만 됩니다. 웹에서 등록한 기기만 재발급·폐기할 수 있습니다. 새 토큰은 이 화면에 한 번만 보이니 바로 PC의 .local\s2\device-token에 넣으세요. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
+    <table class="list"><thead><tr><th>기기 ID</th><th>이름</th><th>출처</th><th>등록일</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead><tbody id="dvRows"></tbody></table>
+    <form id="dvForm" class="row" style="margin-top:10px">
+      <input id="dvId" placeholder="새 기기 ID (h_로 시작, 예: h_office)" maxlength="42" autocomplete="off" aria-label="새 기기 ID">
+      <input id="dvName" placeholder="이름 (예: 사무실 PC)" maxlength="40" autocomplete="off" aria-label="기기 이름">
+      <button class="primary" type="submit">기기 등록</button>
+    </form>
+    <div id="dvToken" class="state warn" hidden role="alert"><b>새 토큰(한 번만 보입니다)</b><div><code id="dvTokenText"></code> <button type="button" id="dvCopy">복사</button> <button type="button" id="dvHide">닫기</button></div><div class="muted">이 값을 그 PC의 .local\s2\device-token에 넣고 연결부를 다시 켜세요. 화면을 닫으면 다시 볼 수 없습니다.</div></div>
+    <h2>최근 기록</h2><div id="dvEvents" class="muted"></div>
+  </section>
   <section aria-label="설정">
     <h3>설정</h3>
     <div class="muted">여기서 저장한 값이 있으면 그 값을, 없으면 PC 설정 파일 값을 씁니다. "파일 값으로"를 누르면 여기 값을 지우고 파일 값으로 돌아갑니다. 연결부 허용 목록·실제 실행·작업 폴더·명령 실행 권한(full)은 여기서 바꿀 수 없습니다.</div>
@@ -488,9 +500,59 @@ $('bdDelete').onclick = async () => {
   setStatus(r.status === 204 ? 'ok' : 'err', r.status === 204 ? '등록을 지웠습니다' : (BD_ERR[r.body.error] || r.body.error));
   if (r.status === 204) { editBinding(null); await loadBindings(); await load(); }
 };
+// --- 기기(P1-c) ---
+const DV_ERR = { bad_host_id: '기기 ID는 h_로 시작하고 영문 소문자·숫자·_- 41자까지', bad_name: '이름을 1~40자로', host_taken: '이미 있는 기기 ID',
+  file_managed: 'server.json에 적힌 기기는 파일에서 관리합니다', confirm_mismatch: '기기 이름이 맞지 않음', already_revoked: '이미 폐기된 기기' };
+const when = (s) => s ? new Date(s).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+function showToken(t) { $('dvTokenText').textContent = t; $('dvToken').hidden = false; }
+$('dvHide').onclick = () => { $('dvTokenText').textContent = ''; $('dvToken').hidden = true; };
+$('dvCopy').onclick = () => navigator.clipboard?.writeText($('dvTokenText').textContent).then(() => setStatus('ok', '토큰을 복사했습니다'));
+async function loadDevices() {
+  const r = await api('/v1/admin/devices'); if (r.status !== 200) return;
+  $('dvRows').innerHTML = '';
+  for (const d of r.body.devices) {
+    const tr = el('tr');
+    const state = d.revokedAt ? ['st-err', '폐기됨'] : d.online ? ['st-ok', '연결됨'] : ['muted', '연결 안 됨'];
+    [d.hostId, d.name, d.source === 'web' ? '웹' : 'server.json', when(d.createdAt), when(d.lastSeenAt)].forEach((v) => tr.append(el('td', v)));
+    tr.append(el('td', state[1], state[0]));
+    const act = el('td');
+    if (d.source === 'web') {
+      const re = el('button', d.revokedAt ? '다시 발급' : '재발급'); re.type = 'button';
+      re.onclick = async () => {
+        if (!confirm(d.hostId + ' 기기 토큰을 새로 발급합니다. 이전 토큰은 바로 쓸 수 없게 됩니다.')) return;
+        const x = await api('/v1/admin/devices/' + d.hostId + '/reissue', { method: 'POST', body: '{}' });
+        if (x.status === 200) { showToken(x.body.token); setStatus('ok', '새 토큰을 발급했습니다'); } else setStatus('err', DV_ERR[x.body.error] || x.body.error);
+        await loadDevices();
+      };
+      act.append(re);
+      if (!d.revokedAt) {
+        const rv = el('button', '폐기'); rv.type = 'button'; rv.style.marginLeft = '4px';
+        rv.onclick = async () => {
+          const typed = prompt('폐기하면 이 기기는 바로 접속할 수 없고, 처리 중이던 질문은 자동으로 다시 보내지 않고 정리됩니다. 지우려면 기기 이름 "' + d.name + '"을 입력하세요.');
+          if (typed === null) return;
+          const x = await api('/v1/admin/devices/' + d.hostId + '/revoke', { method: 'POST', body: JSON.stringify({ confirm: typed.trim() }) });
+          setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? '폐기했습니다' + (x.body.unknown || x.body.notExecuted ? ' (결과 불명 ' + x.body.unknown + '건 · 실행 안 됨 ' + x.body.notExecuted + '건)' : '') : (DV_ERR[x.body.error] || x.body.error));
+          await loadDevices(); await load();
+        };
+        act.append(rv);
+      }
+    }
+    tr.append(act); $('dvRows').append(tr);
+  }
+  const ACT = { register: '등록', reissue: '재발급', revoke: '폐기' };
+  $('dvEvents').textContent = r.body.events.length ? r.body.events.slice(0, 10).map((e) => when(e.at) + ' ' + e.hostId + ' ' + (ACT[e.action] || e.action)).join(' · ') : '기록 없음';
+}
+$('dvForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await api('/v1/admin/devices', { method: 'POST', body: JSON.stringify({ hostId: $('dvId').value.trim(), name: $('dvName').value.trim() }) });
+  if (r.status !== 201) { setStatus('err', DV_ERR[r.body.error] || r.body.error); return; }
+  $('dvId').value = ''; $('dvName').value = ''; showToken(r.body.token); setStatus('ok', '기기를 등록했습니다');
+  await loadDevices(); await loadBindings();
+};
 async function loadAdmin() {
   loadSettings().catch(() => {});
   loadBindings().catch(() => {});
+  loadDevices().catch(() => {});
   const [b, r, s] = await Promise.all([api('/v1/admin/bots'), api('/v1/admin/roles'), api('/v1/admin/sessions')]);
   if (b.status !== 200) return;
   bots = b.body.bots; roles = r.body.roles; adminSessions = s.body.sessions;
