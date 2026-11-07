@@ -74,7 +74,8 @@ export function createRelay(cfg) {
     if (!h || t - h.from > o.rateWindowMs) { hits.set(ip, { n: 1, from: t }); return false; }
     return ++h.n > o.rateLimit;
   };
-  const clientIp = (req) => (o.trustProxy ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '') || req.socket.remoteAddress || '?';
+  // 허브 내장일 때는 허브가 믿는 앞단 기준으로 계산한 주소 함수를 넘겨받는다(P5).
+  const clientIp = o.clientIp ?? ((req) => (o.trustProxy ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '') || req.socket.remoteAddress || '?');
   const flush = () => {
     if (!queue.length) return;
     const w = waiters.values().next().value;

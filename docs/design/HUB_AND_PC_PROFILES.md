@@ -164,6 +164,29 @@ Cloudflare에 묶이지 않도록 세 방식을 모두 지원하고, **허브 �
 
 넣지 않는 것: PC 안전 설정(허용 목록·`live`·작업 폴더·`full`)의 원격 변경(원칙 1), 새 기기 원격 등록(처음에는 신산님이 직접 등록).
 
+## 5-3. P5 메신저 허브 이전(카카오부터)
+
+### 5-3-1. 구현(2026-11-08, 저장소 코드)
+
+- **허브 내장 카카오 수신:** 서버 설정 `relay.envFile`이 있으면 같은 중계 코드(`src/relay/relay.mjs`)를 서버 안에서 켠다. `POST /kakao/skill/<비밀>`은 접속 제한 예외(비밀 경로 404·요청 횟수 제한·콜백 주소 허용 목록은 중계 그대로), `GET /pc/poll`은 접속 제한 대상이라 앞단을 거치면 403이고 **같은 기계의 메신저가 127.0.0.1로만** 가져간다. 요청 횟수 제한 주소는 허브가 믿는 앞단 기준(`clientIp`)으로 센다.
+- 비밀 파일(KEY=값): `KAKAO_RELAY_TOKEN`(=중계 PC 토큰, 메신저와 같은 이름. `IEON_RELAY_PC_TOKEN`이 있으면 그것)·`IEON_RELAY_KAKAO_SECRET`. 16자 미만·없음이면 서버가 시작하지 않는다. 값은 설정 파일·로그에 없다.
+- **허브 메신저 준비:** `node scripts/hub-messenger-init.mjs <폴더>` — 메신저 사용자 토큰(해시만 server.json에, server.json은 `.bak-p5-…` 백업)·`.local/messenger/bots.env`(600, 위 두 값 무작위 생성)·`.local/messenger/config.json`(서버·카카오 수신 모두 `http://127.0.0.1:28760`, 허용 사용자는 허브 웹 설정). 값은 출력하지 않고, 이미 있으면 거부.
+- 테스트 `tests/pilot/hub-kakao.test.mjs` 4건(내장 수신·접속 제한과 함께·비밀 파일 읽기와 실패 시 미기동·준비 스크립트).
+- 허브에서 메신저가 꺼져 있으면 카카오에는 중계와 같은 "PC 연결 끊김" 안내가 즉시 간다(허브에서는 "허브 메신저 꺼짐" 의미).
+
+### 5-3-2. 이전 절차(모두 별도 승인)
+
+Aidot 카카오 봇은 하나라서 허브로 옮기면 **PC 완결형(`ieon-gateway`)에서는 카카오가 빠진다**(텔레그램·디스코드·슬랙은 봇 토큰을 허브에 넣는 별도 단계).
+
+| 단계 | 하는 일 | 누가 | 되돌리기 |
+| --- | --- | --- | --- |
+| K0 | 카카오를 허브로 옮길지 결정 | 신산님 | – |
+| K1 | 코드 전달(D1 방식) → `hub-messenger-init.mjs` 실행 → `ieon-server` 재시작 → `ieon-messenger` 사용자 유닛 설치·기동 | 어울(ieon) | 유닛 중지·삭제, `server.json` 백업 복원, `.local/messenger` 삭제 |
+| K2 | 허브 웹 설정 → 허용 사용자에 카카오 사용자 ID | 신산님 | 웹에서 "파일 값으로" |
+| K3 | 오픈빌더 스킬 URL을 `https://ieun-gateway.sinsan.kr/kakao/skill/<허브 bots.env의 IEON_RELAY_KAKAO_SECRET>`로 교체(값은 신산님이 `ssh -o User=ieon sinsan-server cat ~/deploy/ieon-gateway/.local/messenger/bots.env`로 직접 확인) | 신산님 | 스킬 URL을 `ieon-gateway` 주소로 |
+| K4 | 카카오 `/whoami`·`/sessions` 확인(모델 0). 실제 질문은 별도 승인 | 신산님·어울 | – |
+| K5 | PC의 카카오 봇 끄기(PC 메신저 설정의 카카오 중계 주소 제거 또는 그대로 두되 스킬 URL이 허브라 질문이 오지 않음) | 어울 | – |
+
 ## 6. 단계 (모두 별도 승인)
 
 | 단계 | 내용 | 서버·모델 |
