@@ -54,6 +54,9 @@ export function openStore(path) {
   if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'role_guide')) {
     db.exec('ALTER TABLE new_sessions ADD COLUMN role_guide TEXT');
   }
+  // P1-b: 기존 세션 등록의 표시 이름과 출처(file = server.json, web = 웹에서 등록)
+  if (!db.prepare('PRAGMA table_info(bindings)').all().some((c) => c.name === 'label')) db.exec('ALTER TABLE bindings ADD COLUMN label TEXT');
+  if (!db.prepare('PRAGMA table_info(bindings)').all().some((c) => c.name === 'source')) db.exec("ALTER TABLE bindings ADD COLUMN source TEXT NOT NULL DEFAULT 'file'");
   if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'notified_at')) {
     db.exec('ALTER TABLE new_sessions ADD COLUMN notified_at TEXT');
   }
@@ -73,6 +76,7 @@ export function openStore(path) {
     return row && {
       conversationId: row.conversation_id, ownerUserId: row.owner_user_id,
       appIds: [...new Set([...JSON.parse(row.app_ids), ...granted])], hostId: row.host_id, engine: row.engine,
+      label: row.label ?? null, source: row.source, storedAppIds: JSON.parse(row.app_ids),
       sessionRef: row.session_ref, generation: row.generation, connectMode: row.connect_mode,
     };
   };
@@ -134,10 +138,47 @@ export function openStore(path) {
   db.prepare("UPDATE requests SET status = 'unknown' WHERE status IN ('dispatching', 'running')").run();
 
   return {
+    // server.json의 기존 세션 등록(출처 file). 서버를 켤 때마다 다시 쓴다(파일이 정본).
     addBinding(b) {
-      db.prepare(`INSERT INTO bindings (conversation_id, owner_user_id, app_ids, host_id, engine, session_ref)
-        VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (conversation_id) DO UPDATE SET app_ids = excluded.app_ids`)
-        .run(b.conversationId, b.ownerUserId, JSON.stringify(b.appIds), b.hostId, b.engine, b.sessionRef);
+      db.prepare(`INSERT INTO bindings (conversation_id, owner_user_id, app_ids, host_id, engine, session_ref, label, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'file') ON CONFLICT (conversation_id) DO UPDATE SET app_ids = excluded.app_ids,
+        label = excluded.label, source = 'file'`)
+        .run(b.conversationId, b.ownerUserId, JSON.stringify(b.appIds), b.hostId, b.engine, b.sessionRef, b.label ?? null);
+    },
+
+    // --- P1-b: 웹에서 등록하는 기존 세션(출처 web). 파일 등록·새 세션은 여기서 바꾸지 않는다. ---
+    listBindings() {
+      return db.prepare('SELECT b.conversation_id FROM bindings b LEFT JOIN new_sessions n ON n.conversation_id = b.conversation_id WHERE n.conversation_id IS NULL ORDER BY b.rowid').all()
+        .map((r) => binding(r.conversation_id))
+        .map((b) => ({ conversationId: b.conversationId, label: b.label, engine: b.engine, hostId: b.hostId, sessionRef: b.sessionRef,
+          appIds: b.storedAppIds, source: b.source, busy: locked(b) }));
+    },
+    saveBinding(ownerUserId, b) {
+      const cur = binding(b.conversationId);
+      if (cur && newSession(b.conversationId)) return { http: 409, code: 'is_new_session' };
+      if (cur && cur.source !== 'web') return { http: 409, code: 'file_managed' };
+      return tx(() => {
+        if (cur && locked(cur) && (cur.sessionRef !== b.sessionRef || cur.engine !== b.engine || cur.hostId !== b.hostId)) {
+          return { http: 409, code: 'conversation_busy' };
+        }
+        db.prepare(`INSERT INTO bindings (conversation_id, owner_user_id, app_ids, host_id, engine, session_ref, label, source)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'web') ON CONFLICT (conversation_id) DO UPDATE SET app_ids = excluded.app_ids,
+          host_id = excluded.host_id, engine = excluded.engine, session_ref = excluded.session_ref, label = excluded.label`)
+          .run(b.conversationId, ownerUserId, JSON.stringify(b.appIds), b.hostId, b.engine, b.sessionRef, b.label);
+        return { http: 200, binding: this.listBindings().find((x) => x.conversationId === b.conversationId) };
+      });
+    },
+    deleteBinding(conversationId) {
+      const cur = binding(conversationId);
+      if (!cur || newSession(conversationId)) return { http: 404, code: 'not_found' };
+      if (cur.source !== 'web') return { http: 409, code: 'file_managed' };
+      return tx(() => {
+        if (locked(cur)) return { http: 409, code: 'conversation_busy' };
+        db.prepare('DELETE FROM requests WHERE conversation_id = ?').run(conversationId);
+        db.prepare('DELETE FROM bot_sessions WHERE conversation_id = ?').run(conversationId);
+        db.prepare('DELETE FROM bindings WHERE conversation_id = ?').run(conversationId);
+        return { http: 204 };
+      });
     },
 
     submit(principal, conversationId, key, payload) {
@@ -254,7 +295,7 @@ export function openStore(path) {
         .map((b) => {
           const holder = db.prepare('SELECT holder_request_id FROM locks WHERE session_key = ?').get(sessionKey(b));
           const held = holder && request(holder.holder_request_id);
-          return { conversationId: b.conversationId, engine: b.engine, hostId: b.hostId, busy: Boolean(holder),
+          return { conversationId: b.conversationId, label: b.label, engine: b.engine, hostId: b.hostId, busy: Boolean(holder),
             // 결과 불명·권한 확인 대기는 사람이 원래 세션을 보고 정리해야 풀린다.
             ...(held && NEEDS_REVIEW.has(held.status)
               ? { heldBy: { requestId: held.request_id, status: held.status, errorCode: held.error_code } } : {}),

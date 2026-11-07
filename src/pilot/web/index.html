@@ -155,6 +155,20 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <span></span><div class="row"><button class="primary" type="submit">역할 저장</button><button type="button" id="rDelete">역할 삭제</button><button type="button" id="rNew">새 역할</button></div>
     </form>
   </section>
+  <section aria-label="기존 세션 등록">
+    <h3>기존 세션 등록</h3>
+    <div class="muted">PC에 이미 있는 Codex 대화·Claude 채널 세션을 등록합니다. server.json에 적힌 세션은 보기만 됩니다. Codex 대화는 PC 연결부 설정(connector.json)의 허용 목록에도 있어야 실제로 실행됩니다. 봇에게 보이게 하려면 봇 편집의 "볼 수 있는 기존 세션"에서 고르세요.</div>
+    <table class="list"><thead><tr><th>ID</th><th>이름</th><th>엔진</th><th>PC</th><th>세션 ID</th><th>보이는 곳</th><th>출처</th></tr></thead><tbody id="bdRows"></tbody></table>
+    <form id="bdForm" class="grid2" style="margin-top:10px">
+      <label for="bdId">ID</label><input type="text" id="bdId" placeholder="c_로 시작 (예: c_myproj)" maxlength="62">
+      <label for="bdLabel">이름</label><input type="text" id="bdLabel" maxlength="60">
+      <label for="bdEngine">엔진</label><select id="bdEngine"><option value="codex_thread">Codex 대화</option><option value="claude_channel">Claude 채널</option></select>
+      <label for="bdHost">PC</label><select id="bdHost"></select>
+      <label for="bdRef">세션 ID</label><input type="text" id="bdRef" placeholder="Codex 대화 ID(UUID) / Claude 채널은 ieon">
+      <span>보이는 곳</span><div><label class="chk"><input type="checkbox" id="bdWeb" checked> 웹</label><label class="chk"><input type="checkbox" id="bdMsg" checked> 메신저 기본 봇</label></div>
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="bdDelete">삭제</button><button type="button" id="bdNew">새로 입력</button></div>
+    </form>
+  </section>
   <section aria-label="설정">
     <h3>설정</h3>
     <div class="muted">여기서 저장한 값이 있으면 그 값을, 없으면 PC 설정 파일 값을 씁니다. "파일 값으로"를 누르면 여기 값을 지우고 파일 값으로 돌아갑니다. 연결부 허용 목록·실제 실행·작업 폴더·명령 실행 권한(full)은 여기서 바꿀 수 없습니다.</div>
@@ -434,8 +448,49 @@ $('nsForm').onsubmit = (e) => {
     ...($('nsDefault').value ? { permissions: { default: $('nsDefault').value } } : {}) }, '새 세션 설정을 저장했습니다 — 바로 적용됩니다');
 };
 $('nsReset').onclick = () => saveSetting('new-sessions', null, '새 세션 설정을 파일 값으로 되돌렸습니다');
+// --- 기존 세션 등록(P1-b) ---
+const BD_ERR = { bad_conversation_id: 'ID는 c_로 시작하고 영문·숫자·_- 61자까지', file_managed: 'server.json에 적힌 세션은 파일에서 고칩니다', is_new_session: '새 세션은 여기서 바꿀 수 없음',
+  excluded_session: '업무 대화는 등록할 수 없음', unknown_host: '모르는 PC', bad_session_ref: 'Codex는 대화 ID(UUID), Claude 채널은 영문·숫자 이름', bad_label: '이름을 1~60자로',
+  bad_engine: '엔진을 고르세요', conversation_busy: '처리 중이거나 확인 필요 질문이 있어 바꿀 수 없음', bad_app_ids: '보이는 곳을 하나 이상' };
+let bindingsList = [];
+async function loadBindings() {
+  const r = await api('/v1/admin/bindings'); if (r.status !== 200) return;
+  bindingsList = r.body.bindings;
+  const keep = $('bdHost').value; $('bdHost').innerHTML = ''; r.body.hosts.forEach((h) => $('bdHost').append(new Option(h, h))); if (keep) $('bdHost').value = keep;
+  $('bdRows').innerHTML = '';
+  for (const b of bindingsList) {
+    const tr = el('tr', null, b.source === 'web' ? 'pick' : ''); tr.tabIndex = 0;
+    [b.conversationId, b.label || '—', b.engine === 'codex_thread' ? 'Codex' : 'Claude 채널', b.hostId, b.sessionRef,
+      b.appIds.map((a) => ({ app_web: '웹', app_messenger: '메신저 기본 봇' }[a] || a)).join(', '), b.source === 'web' ? '웹' : 'server.json'].forEach((v) => tr.append(el('td', v)));
+    if (b.source === 'web') tr.onclick = tr.onkeydown = (e) => { if (e.type === 'click' || e.key === 'Enter') editBinding(b.conversationId); };
+    $('bdRows').append(tr);
+  }
+}
+function editBinding(id) {
+  const b = bindingsList.find((x) => x.conversationId === id);
+  $('bdId').value = b?.conversationId || ''; $('bdId').readOnly = Boolean(b); $('bdLabel').value = b?.label || '';
+  $('bdEngine').value = b?.engine || 'codex_thread'; if (b) $('bdHost').value = b.hostId; $('bdRef').value = b?.sessionRef || '';
+  $('bdWeb').checked = b ? b.appIds.includes('app_web') : true; $('bdMsg').checked = b ? b.appIds.includes('app_messenger') : true;
+  $('bdDelete').disabled = !b;
+}
+$('bdNew').onclick = () => editBinding(null);
+$('bdForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const id = $('bdId').value.trim();
+  const appIds = [$('bdWeb').checked && 'app_web', $('bdMsg').checked && 'app_messenger'].filter(Boolean);
+  const r = await api('/v1/admin/bindings/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ label: $('bdLabel').value.trim(), engine: $('bdEngine').value, hostId: $('bdHost').value, sessionRef: $('bdRef').value.trim() || undefined, appIds }) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '세션을 등록했습니다' + ($('bdEngine').value === 'codex_thread' ? ' — PC connector.json 허용 목록에도 넣어야 실행됩니다' : '') : (BD_ERR[r.body.error] || r.body.error));
+  if (r.status === 200) { await loadBindings(); await load(); editBinding(id); }
+};
+$('bdDelete').onclick = async () => {
+  const id = $('bdId').value.trim(); if (!id || !confirm(id + ' 등록을 지웁니다. 이어온 기록만 지워지고 원래 세션은 그대로입니다.')) return;
+  const r = await api('/v1/admin/bindings/' + encodeURIComponent(id), { method: 'DELETE' });
+  setStatus(r.status === 204 ? 'ok' : 'err', r.status === 204 ? '등록을 지웠습니다' : (BD_ERR[r.body.error] || r.body.error));
+  if (r.status === 204) { editBinding(null); await loadBindings(); await load(); }
+};
 async function loadAdmin() {
   loadSettings().catch(() => {});
+  loadBindings().catch(() => {});
   const [b, r, s] = await Promise.all([api('/v1/admin/bots'), api('/v1/admin/roles'), api('/v1/admin/sessions')]);
   if (b.status !== 200) return;
   bots = b.body.bots; roles = r.body.roles; adminSessions = s.body.sessions;

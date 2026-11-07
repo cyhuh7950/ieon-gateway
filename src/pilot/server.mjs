@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
 import { botAppId, tokenEnvNames } from './bots.mjs';
-import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions } from './settings.mjs';
+import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding } from './settings.mjs';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -65,7 +65,9 @@ export function createApp(config) {
     cleanupTimer = setInterval(cleanup, config.cleanupIntervalMs ?? 60000);
     cleanupTimer.unref();
   }
-  const labels = Object.fromEntries(config.bindings.map((b) => [b.conversationId, b.label ?? b.conversationId]));
+  // 기존 세션의 표시 이름은 DB(파일 등록은 server.json의 label, 웹 등록은 웹에서 정한 이름)에서 읽는다.
+  const labelOf = (c) => c.label ?? c.newSession?.name ?? c.conversationId;
+  const knownHosts = () => [...new Set((config.devices ?? []).map((d) => d.hostId))];
   const lastSeen = new Map();
   const online = (hostId) => Date.now() - (lastSeen.get(hostId) ?? 0) < DEVICE_FRESH_MS;
   const health = new Map();
@@ -137,7 +139,18 @@ export function createApp(config) {
         // 봇 관리 화면에서 고를 기존 세션 목록(웹 사용자가 볼 수 있는 것 = 모든 등록 세션 중 소유자 것)
         if (req.method === 'GET' && path === '/v1/admin/sessions') {
           return json(res, 200, { sessions: store.conversations(principal).map((c) => ({ conversationId: c.conversationId,
-            label: labels[c.conversationId] ?? c.newSession?.name ?? c.conversationId, engine: c.engine, newSession: Boolean(c.newSession) })) });
+            label: labelOf(c), engine: c.engine, newSession: Boolean(c.newSession) })) });
+        }
+        // P1-b: 기존 세션 등록(파일 등록은 보기만, 웹 등록은 추가·수정·삭제)
+        if (req.method === 'GET' && path === '/v1/admin/bindings') return json(res, 200, { bindings: store.listBindings(), hosts: knownHosts() });
+        const bd = path.match(/^\/v1\/admin\/bindings\/([\w-]+)$/);
+        if (bd && req.method === 'PUT') {
+          const r = store.saveBinding(principal.userId, validateBinding(bd[1], await readJson(req), knownHosts()));
+          return r.http === 200 ? json(res, 200, r.binding) : json(res, r.http, { error: r.code });
+        }
+        if (bd && req.method === 'DELETE') {
+          const r = store.deleteBinding(bd[1]);
+          return r.http === 204 ? json(res, 204) : json(res, r.http, { error: r.code });
         }
         const role = path.match(/^\/v1\/admin\/roles\/([\w-]+)$/);
         if (role && req.method === 'PUT') {
@@ -225,7 +238,7 @@ export function createApp(config) {
 
       if (req.method === 'GET' && path === '/v1/conversations') {
         return json(res, 200, { conversations: store.conversations(principal).map((c) => ({
-          conversationId: c.conversationId, label: labels[c.conversationId] ?? c.newSession?.name ?? c.conversationId, engine: c.engine,
+          conversationId: c.conversationId, label: labelOf(c), engine: c.engine,
           deviceOnline: online(c.hostId), busy: c.busy, ...(c.connectMode ? { connectMode: c.connectMode } : {}),
           ...(c.heldBy ? { heldBy: c.heldBy } : {}),
           ...(c.newSession ? { newSession: c.newSession } : {}),
