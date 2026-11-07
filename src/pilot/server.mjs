@@ -3,7 +3,7 @@
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
 import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
@@ -67,7 +67,12 @@ export function createApp(config) {
   }
   // 기존 세션의 표시 이름은 DB(파일 등록은 server.json의 label, 웹 등록은 웹에서 정한 이름)에서 읽는다.
   const labelOf = (c) => c.label ?? c.newSession?.name ?? c.conversationId;
-  const knownHosts = () => [...new Set((config.devices ?? []).map((d) => d.hostId))];
+  // 기기: server.json(파일) + 웹에서 등록한 기기(DB, 폐기되지 않은 것). P1-c
+  const fileHosts = new Set((config.devices ?? []).map((d) => d.hostId));
+  const knownHosts = () => [...new Set([...fileHosts, ...store.listDevices().filter((d) => !d.revokedAt).map((d) => d.hostId)])];
+  const deviceEntries = () => [...(config.devices ?? []), ...store.activeDeviceHashes()];
+  const newDeviceToken = () => { const token = randomBytes(32).toString('hex'); return { token, hash: createHash('sha256').update(token).digest('hex') }; };
+  const lastTouched = new Map();
   const lastSeen = new Map();
   const online = (hostId) => Date.now() - (lastSeen.get(hostId) ?? 0) < DEVICE_FRESH_MS;
   const health = new Map();
@@ -92,9 +97,14 @@ export function createApp(config) {
 
       // --- PC 연결부 API ---
       if (path.startsWith('/v1/device/')) {
-        const device = matchToken(req.headers.authorization, config.devices);
+        const device = matchToken(req.headers.authorization, deviceEntries());
         if (!device) return json(res, 401, { error: 'unauthorized' });
         lastSeen.set(device.hostId, Date.now());
+        // 웹 등록 기기는 마지막 접속 시각을 DB에도 남긴다(1분에 한 번만 쓴다).
+        if (!fileHosts.has(device.hostId) && Date.now() - (lastTouched.get(device.hostId) ?? 0) > 60000) {
+          lastTouched.set(device.hostId, Date.now());
+          store.touchDevice(device.hostId, new Date().toISOString());
+        }
         try {
           const h = JSON.parse(req.headers['x-ieon-health'] ?? 'null');
           if (h && typeof h === 'object') health.set(device.hostId, { codexShared: String(h.codexShared), claudeChannel: String(h.claudeChannel) });
@@ -140,6 +150,36 @@ export function createApp(config) {
         if (req.method === 'GET' && path === '/v1/admin/sessions') {
           return json(res, 200, { sessions: store.conversations(principal).map((c) => ({ conversationId: c.conversationId,
             label: labelOf(c), engine: c.engine, newSession: Boolean(c.newSession) })) });
+        }
+        // P1-c: 기기 목록·등록·재발급·폐기. 새 토큰은 응답에 한 번만 담고 서버에는 해시만 둔다.
+        if (req.method === 'GET' && path === '/v1/admin/devices') {
+          const web = store.listDevices();
+          return json(res, 200, { devices: [
+            ...[...fileHosts].map((h) => ({ hostId: h, name: h, source: 'file', online: online(h) })),
+            ...web.map((d) => ({ ...d, source: 'web', online: !d.revokedAt && online(d.hostId) })),
+          ], events: store.deviceEvents() });
+        }
+        if (req.method === 'POST' && path === '/v1/admin/devices') {
+          const body = await readJson(req);
+          const hostId = String(body.hostId ?? ''); const name = String(body.name ?? '').trim();
+          if (!/^h_[a-z0-9_-]{1,40}$/.test(hostId)) return json(res, 400, { error: 'bad_host_id' });
+          if (!name || name.length > 40) return json(res, 400, { error: 'bad_name' });
+          if (fileHosts.has(hostId)) return json(res, 409, { error: 'host_taken' });
+          const t = newDeviceToken();
+          const r = store.addDevice(hostId, name, t.hash, principal.userId);
+          return r.http === 201 ? json(res, 201, { hostId, name, token: t.token }) : json(res, r.http, { error: r.code });
+        }
+        const dv = path.match(/^\/v1\/admin\/devices\/([\w-]+)\/(reissue|revoke)$/);
+        if (dv && req.method === 'POST') {
+          if (fileHosts.has(dv[1])) return json(res, 409, { error: 'file_managed' });
+          if (dv[2] === 'reissue') {
+            const t = newDeviceToken();
+            const r = store.reissueDevice(dv[1], t.hash, principal.userId);
+            return r.http === 200 ? json(res, 200, { hostId: dv[1], token: t.token }) : json(res, r.http, { error: r.code });
+          }
+          const r = store.revokeDevice(dv[1], (await readJson(req)).confirm, principal.userId);
+          if (r.http === 200) lastSeen.delete(dv[1]);
+          return r.http === 200 ? json(res, 200, { hostId: dv[1], revoked: true, unknown: r.unknown, notExecuted: r.notExecuted }) : json(res, r.http, { error: r.code });
         }
         // P1-b: 기존 세션 등록(파일 등록은 보기만, 웹 등록은 추가·수정·삭제)
         if (req.method === 'GET' && path === '/v1/admin/bindings') return json(res, 200, { bindings: store.listBindings(), hosts: knownHosts() });

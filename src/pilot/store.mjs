@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS bot_sessions (
   platform TEXT NOT NULL, bot_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (platform, bot_id, conversation_id));
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS devices (
+  host_id TEXT PRIMARY KEY, name TEXT NOT NULL, token_sha256 TEXT NOT NULL, created_at TEXT NOT NULL,
+  revoked_at TEXT, last_seen_at TEXT);
+CREATE TABLE IF NOT EXISTS device_events (
+  at TEXT NOT NULL, host_id TEXT NOT NULL, action TEXT NOT NULL, user_id TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS locks (
   session_key TEXT PRIMARY KEY, holder_request_id TEXT NOT NULL);
 `;
@@ -587,6 +592,63 @@ export function openStore(path) {
         ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).run(key, JSON.stringify(value), new Date().toISOString());
     },
     deleteSetting(key) { return db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes === 1; },
+
+    // --- P1-c: 웹에서 등록한 기기(PC 연결부). 토큰은 해시만 저장한다. server.json 기기는 여기 없다. ---
+    listDevices() {
+      return db.prepare('SELECT host_id, name, created_at, revoked_at, last_seen_at FROM devices ORDER BY created_at').all()
+        .map((d) => ({ hostId: d.host_id, name: d.name, createdAt: d.created_at, revokedAt: d.revoked_at, lastSeenAt: d.last_seen_at }));
+    },
+    deviceEvents(limit = 50) {
+      return db.prepare('SELECT at, host_id, action, user_id FROM device_events ORDER BY rowid DESC LIMIT ?').all(limit)
+        .map((e) => ({ at: e.at, hostId: e.host_id, action: e.action, userId: e.user_id }));
+    },
+    // 인증용: 폐기되지 않은 기기의 토큰 해시
+    activeDeviceHashes() {
+      return db.prepare('SELECT host_id, token_sha256 FROM devices WHERE revoked_at IS NULL').all().map((d) => ({ hostId: d.host_id, tokenSha256: d.token_sha256 }));
+    },
+    addDevice(hostId, name, tokenSha256, userId) {
+      if (db.prepare('SELECT 1 FROM devices WHERE host_id = ?').get(hostId)) return { http: 409, code: 'host_taken' };
+      const now = new Date().toISOString();
+      tx(() => {
+        db.prepare('INSERT INTO devices (host_id, name, token_sha256, created_at) VALUES (?, ?, ?, ?)').run(hostId, name, tokenSha256, now);
+        db.prepare('INSERT INTO device_events (at, host_id, action, user_id) VALUES (?, ?, ?, ?)').run(now, hostId, 'register', userId);
+      });
+      return { http: 201 };
+    },
+    // 재발급: 새 해시로 바꾸면 이전 토큰은 그 순간 무효다. 폐기된 기기도 재발급하면 다시 살아난다.
+    reissueDevice(hostId, tokenSha256, userId) {
+      if (!db.prepare('SELECT 1 FROM devices WHERE host_id = ?').get(hostId)) return { http: 404, code: 'not_found' };
+      const now = new Date().toISOString();
+      tx(() => {
+        db.prepare('UPDATE devices SET token_sha256 = ?, revoked_at = NULL WHERE host_id = ?').run(tokenSha256, hostId);
+        db.prepare('INSERT INTO device_events (at, host_id, action, user_id) VALUES (?, ?, ?, ?)').run(now, hostId, 'reissue', userId);
+      });
+      return { http: 200 };
+    },
+    // 폐기: 그 기기의 실행 중이던 질문은 결과 불명, 아직 넘기지 않은 질문은 실행 안 됨으로 정리한다(자동 재전송 없음).
+    revokeDevice(hostId, confirm, userId) {
+      const d = db.prepare('SELECT name, revoked_at FROM devices WHERE host_id = ?').get(hostId);
+      if (!d) return { http: 404, code: 'not_found' };
+      if (d.revoked_at) return { http: 409, code: 'already_revoked' };
+      if (confirm !== d.name) return { http: 400, code: 'confirm_mismatch' };
+      const now = new Date().toISOString();
+      const counts = tx(() => {
+        db.prepare('UPDATE devices SET revoked_at = ? WHERE host_id = ?').run(now, hostId);
+        db.prepare('INSERT INTO device_events (at, host_id, action, user_id) VALUES (?, ?, ?, ?)').run(now, hostId, 'revoke', userId);
+        const rows = db.prepare(`SELECT r.request_id, r.status FROM requests r JOIN bindings b ON b.conversation_id = r.conversation_id
+          WHERE b.host_id = ? AND r.status IN ('queued', 'dispatching', 'running')`).all(hostId);
+        for (const r of rows) {
+          // queued는 연결부가 가져가기 전이라 실행되지 않았음이 확실하다. 나머지는 전달됐을 수 있어 결과 불명.
+          if (r.status === 'queued') {
+            db.prepare("UPDATE requests SET status = 'failed', error_code = 'device_revoked' WHERE request_id = ?").run(r.request_id);
+            db.prepare('DELETE FROM locks WHERE holder_request_id = ?').run(r.request_id);
+          } else db.prepare("UPDATE requests SET status = 'unknown', error_code = 'device_revoked' WHERE request_id = ?").run(r.request_id);
+        }
+        return { notExecuted: rows.filter((r) => r.status === 'queued').length, unknown: rows.filter((r) => r.status !== 'queued').length };
+      });
+      return { http: 200, ...counts };
+    },
+    touchDevice(hostId, at) { db.prepare('UPDATE devices SET last_seen_at = ? WHERE host_id = ?').run(at, hostId); },
 
     close() { if (db.isOpen) db.close(); },
   };
