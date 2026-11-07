@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
 import { botAppId, tokenEnvNames } from './bots.mjs';
+import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions } from './settings.mjs';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -36,17 +37,25 @@ export function createApp(config) {
   store.ensureDefaultBots();
   // 메신저 프로세스가 보고한 봇 상태(토큰 있음·연결됨·실제 봇 이름). 토큰 값은 받지 않는다. 키 "<메신저>:<봇ID>".
   const botStatus = new Map();
-  // 새 세션 만들기: server.json의 newSessionsConfigPath가 있으면 동시 실행 한도를 걸고 1분마다 정리(잠들기·보관)를 돌린다.
-  const nsCfg = config.newSessionsConfigPath && existsSync(config.newSessionsConfigPath)
-    ? loadNewSessionsConfig(JSON.parse(readFileSync(config.newSessionsConfigPath, 'utf8'))) : null;
+  // 새 세션 만들기: 파일(server.json의 newSessionsConfigPath) 값 위에 웹에서 바꾼 값(설정 표 newSessions)을 겹친다(P1).
+  // 켜져 있으면 동시 실행 한도를 걸고 1분마다 정리(잠들기·보관)를 돌린다. 웹에서 바꾸면 바로 다시 읽는다.
+  const nsFileRaw = config.newSessionsConfigPath && existsSync(config.newSessionsConfigPath)
+    ? JSON.parse(readFileSync(config.newSessionsConfigPath, 'utf8')) : null;
+  let nsCfg = null;
+  const reloadNewSessions = () => {
+    const web = store.getSetting('newSessions')?.value;
+    nsCfg = nsFileRaw || web ? loadNewSessionsConfig(mergeNewSessions(nsFileRaw ?? {}, web ?? {})) : null;
+    store.configureNewSessions(nsCfg?.enabled ? nsCfg : null);
+  };
+  reloadNewSessions();
   const notices = []; // 보관 예고. 각 항목에 at(알린 시각)을 붙이고 GET /v1/sessions/notices?after=로 가져간다.
   // 새 세션을 만들 PC: newSessionsHostId가 없으면 첫 번째 연결부(PC).
   const nsHost = config.newSessionsHostId ?? config.devices?.[0]?.hostId;
   const VIA = { app_web: 'web', app_messenger: 'chat' };
   let cleanupTimer = null;
-  if (nsCfg?.enabled) {
-    store.configureNewSessions(nsCfg);
+  {
     const cleanup = () => {
+      if (!nsCfg?.enabled) return;
       const r = store.runCleanup(nsCfg);
       const at = new Date().toISOString();
       notices.push(...r.notices.map((n) => ({ ...n, at })));
@@ -117,7 +126,7 @@ export function createApp(config) {
       }
 
       // --- 봇 관리(웹 사용자만) ---
-      if (path.startsWith('/v1/admin/')) {
+      if (path.startsWith('/v1/admin/') && !path.startsWith('/v1/admin/settings')) {
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
         if (req.method === 'GET' && path === '/v1/admin/roles') return json(res, 200, { roles: store.listRoles() });
         if (req.method === 'GET' && path === '/v1/admin/bots') {
@@ -159,9 +168,43 @@ export function createApp(config) {
         return json(res, 404, { error: 'not_found' });
       }
 
+      // --- P1 설정(웹 사용자만): 메신저 허용 사용자·카카오·새 세션. 웹 값이 없으면 파일 값(source: file) ---
+      if (path.startsWith('/v1/admin/settings')) {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        const view = () => {
+          const au = store.getSetting('messenger.allowedUsers');
+          const kk = store.getSetting('messenger.kakao');
+          const ns = store.getSetting('newSessions');
+          return {
+            allowedUsers: au ? { value: au.value, source: 'web', updatedAt: au.updatedAt } : { value: null, source: 'file' },
+            kakao: kk ? { value: kk.value, source: 'web', updatedAt: kk.updatedAt } : { value: null, source: 'file' },
+            newSessions: { web: ns?.value ?? null, updatedAt: ns?.updatedAt ?? null, fileConfigured: Boolean(nsFileRaw),
+              effective: nsCfg ? { enabled: nsCfg.enabled, limits: nsCfg.limits, permissions: { default: nsCfg.permissions.default, profiles: Object.keys(nsCfg.permissions.profiles).filter((p) => p !== 'full') },
+                cleanup: nsCfg.cleanup, workspaceRoot: nsCfg.workspaceRoot } : null },
+          };
+        };
+        if (req.method === 'GET' && path === '/v1/admin/settings') return json(res, 200, view());
+        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions)$/);
+        if (!s) return json(res, 404, { error: 'not_found' });
+        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions' }[s[1]];
+        if (req.method === 'DELETE') store.deleteSetting(key); // 파일 값으로 되돌리기
+        else if (req.method === 'PUT') {
+          const body = await readJson(req);
+          const value = s[1] === 'allowed-users' ? validateAllowedUsers(body) : s[1] === 'kakao' ? validateKakao(body) : validateNewSessionsWeb(body, nsFileRaw ?? {});
+          store.setSetting(key, value);
+        } else return json(res, 404, { error: 'not_found' });
+        if (key === 'newSessions') reloadNewSessions();
+        return json(res, 200, view());
+      }
+
       // --- 메신저 프로세스용: 봇 정의 받기·상태 보고(봇 헤더 없이 메신저 토큰으로만) ---
       if (path.startsWith('/v1/messenger/')) {
         if (user.appId !== 'app_messenger' || principal.bot) return json(res, 403, { error: 'messenger_only' });
+        // P1: 웹에서 바꾼 메신저 설정. 값이 null이면 메신저는 자기 config.json 값을 쓴다.
+        if (req.method === 'GET' && path === '/v1/messenger/config') {
+          return json(res, 200, { allowedUsers: store.getSetting('messenger.allowedUsers')?.value ?? null,
+            kakao: store.getSetting('messenger.kakao')?.value ?? null });
+        }
         if (req.method === 'GET' && path === '/v1/messenger/bots') {
           const roles = Object.fromEntries(store.listRoles().map((r) => [r.roleId, r]));
           return json(res, 200, { bots: store.listBots().filter((b) => b.enabled).map((b) => ({ ...b, role: roles[b.roleId] ?? null })) });

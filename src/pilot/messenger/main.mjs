@@ -26,7 +26,13 @@ const runner = createBotRunner({
   env, allowedUsers: config.allowedUsers ?? {}, roomsPath: config.roomsPath,
   runners: { telegram: runTelegram, discord: runDiscord, slack: runSlack,
     // 카카오는 공개 수신 중계(Oracle)에서 질문을 가져온다. 중계 주소(비밀 아님)는 설정 파일의 kakaoRelayUrl, 토큰은 .env.
-    kakao: (o) => (config.kakaoRelayUrl ? runKakao({ ...o, relayUrl: config.kakaoRelayUrl, ...(Number.isFinite(config.kakaoCallbackLimitMs) ? { callbackLimitMs: Math.min(120_000, Math.max(5_000, config.kakaoCallbackLimitMs)) } : {}) }) : o.log({ platform: 'kakao', event: 'open_error', error: 'kakaoRelayUrl_missing' })) },
+    // 웹 설정(o.settings.kakao)이 있으면 그 값, 없으면 이 파일 값(P1).
+    kakao: (o) => {
+      const relayUrl = o.settings?.kakao?.relayUrl ?? config.kakaoRelayUrl;
+      const limit = o.settings?.kakao?.callbackLimitMs ?? config.kakaoCallbackLimitMs;
+      return relayUrl ? runKakao({ ...o, relayUrl, ...(Number.isFinite(limit) ? { callbackLimitMs: Math.min(120_000, Math.max(5_000, limit)) } : {}) })
+        : o.log({ platform: 'kakao', event: 'open_error', error: 'kakaoRelayUrl_missing' });
+    } },
   log,
 });
 

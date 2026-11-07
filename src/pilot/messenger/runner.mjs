@@ -1,6 +1,6 @@
 // 여러 봇 실행기(MULTI_BOTS M1). 웹에 정의된 봇과 .env의 규칙 이름 토큰으로 봇마다 메신저 연결을 띄운다.
 // - 봇마다 공통 대화방 연결 파일을 함께 쓰고(키에 봇 ID), 서버에는 메신저 토큰 + x-ieon-bot으로 그 봇으로 접속한다.
-// - 허용 사용자: 공통(config allowedUsers) + 봇별 추가(웹).
+// - 허용 사용자: 공통(웹 설정, 없으면 config allowedUsers) + 봇별 추가(웹). 카카오 설정도 웹 값이 있으면 그 값(P1).
 // - sync()를 주기적으로 부르면 봇 추가·끄기·이름·허용 사용자 변경이 반영된다. 토큰이 바뀌면 메신저를 다시 켠다.
 // - 상태(토큰 있음·없음·중복·연결됨·실제 봇 이름)만 서버에 보고한다. 토큰 값은 보고·기록하지 않는다.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -22,6 +22,18 @@ export function createBotRunner(opts) {
   const roomStore = loadRoomStore(opts.roomsPath);
   const running = new Map(); // "<메신저>:<봇ID>" → { def, controller, bridge, state, username, canReadAll }
   let peers = []; // 마지막으로 받은 봇 정의 전체(다른 봇의 부르는 이름 확인용)
+  let serverCfg = { allowedUsers: null, kakao: null }; // 웹에서 바꾼 메신저 설정(P1). null이면 파일 값
+  const commonUsers = (platform) => (serverCfg.allowedUsers ?? opts.allowedUsers ?? {})[platform] ?? [];
+  const settings = () => ({ kakao: serverCfg.kakao });
+
+  // 웹 설정을 받는다. 서버가 이 API를 모르면(이전 버전) 파일 값만 쓴다.
+  async function loadServerConfig() {
+    try {
+      const r = await opts.api({ method: 'GET', path: '/v1/messenger/config' });
+      if (r.status === 200) return { allowedUsers: r.body.allowedUsers ?? null, kakao: r.body.kakao ?? null };
+    } catch { return serverCfg; }
+    return { allowedUsers: null, kakao: null };
+  }
   const log = opts.log ?? (() => {});
 
   async function definitions() {
@@ -36,7 +48,6 @@ export function createBotRunner(opts) {
     const runner = opts.runners[b.platform];
     if (!runner) return 'platform_not_supported';
     const entry = { def: b, controller: new AbortController(), state: 'starting', username: null, canReadAll: null };
-    const common = (opts.allowedUsers?.[b.platform] ?? []).map(String);
     entry.bridge = createBridge({ ...opts.bridgeOpts, api: opts.apiFor(b.platform, b.botId), roomStore, botId: b.botId,
       botInfo: () => ({ name: entry.def.name, callNames: entry.def.callNames ?? [], role: entry.def.role ?? null,
         // 같은 메신저의 다른 봇을 부르는 이름(부르는 이름이 없으면 봇 ID). 그 이름으로 부른 글은 이 봇이 받지 않는다.
@@ -44,7 +55,7 @@ export function createBotRunner(opts) {
           .flatMap((p) => (p.callNames?.length ? p.callNames : [p.botId])),
         // 같은 메신저의 다른 우리 봇 사용자 ID(슬랙 멘션 구분용)
         otherBotUserIds: [...running.values()].filter((o) => o !== entry && o.def.platform === b.platform && o.userId).map((o) => o.userId) }),
-      isAllowed: (m) => [...common, ...(entry.def.extraUsers ?? []).map(String)].includes(String(m.userId)) });
+      isAllowed: (m) => [...commonUsers(b.platform), ...(entry.def.extraUsers ?? [])].map(String).includes(String(m.userId)) });
     const botLog = (e) => {
       if (['started', 'ready'].includes(e.event)) {
         entry.state = 'connected';
@@ -58,7 +69,7 @@ export function createBotRunner(opts) {
       if (['open_error', 'closed_fatal'].includes(e.event)) entry.state = 'error';
       log({ ...e, botId: b.botId });
     };
-    runner({ ...b.tokens, signal: entry.controller.signal, log: botLog,
+    runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
       onMessage: (m, send) => {
         log({ platform: b.platform, botId: b.botId, event: 'message', allowed: entry.bridge.allowed(m) });
         return entry.bridge.handle({ ...m, botId: b.botId }, send);
@@ -76,6 +87,10 @@ export function createBotRunner(opts) {
     const defs = await definitions();
     if (!defs) return null;
     peers = defs;
+    const prevKakao = JSON.stringify(serverCfg.kakao);
+    serverCfg = await loadServerConfig();
+    // 카카오 중계 주소·제한 시간이 웹에서 바뀌면 카카오 봇만 다시 연결한다(허용 사용자는 다음 메시지부터 바로 반영).
+    if (JSON.stringify(serverCfg.kakao) !== prevKakao) for (const key of [...running.keys()]) if (key.startsWith('kakao:')) stop(key);
     const resolved = resolveBotTokens(defs, opts.env);
     const wanted = new Set();
     const statuses = [];
