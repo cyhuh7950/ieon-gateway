@@ -112,9 +112,9 @@
 | W8 | **완료(신산님, NPM 화면 2026-11-07 생성).** `ieon-gateway.sinsan.kr` → `http://ieon-relay:28770`, Let's Encrypt, Online |
 | W9 | **PASS(어울, 읽기만).** `ieon-gateway`: `/health` 200 `{"ok":true,"pc":false}`, `/` 404, 틀린 스킬 비밀 404, 토큰 없는 `/pc/poll` 401, HTTP→HTTPS 301, 인증서 CN=`ieon-gateway.sinsan.kr`(만료 2027-02-05) |
 | 발견 | NPM의 `ieun-gateway.sinsan.kr`이 `http://ieun-relay:28770`(아직 없는 컨테이너)을 가리켜 **모든 경로 502**. 신산님이 허브용으로 미리 바꾼 것으로 보인다. 따라서 오픈빌더 스킬 URL이 아직 `ieun-gateway`면 카카오 봇이 응답하지 못하고, PC 파일 설정의 중계 주소(`ieun-gateway`)로는 연결되지 않는다 → W10·W11을 서둘러야 한다 |
-| W10 | **미실행(승인 대기)**: 이 PC 서버 DB 설정 변경과 이어온 기동이 필요 |
-| W11 | **미확인(신산님)**: 오픈빌더 스킬 URL 주소 교체 여부를 아직 듣지 못했다 |
-| W12 | 미실행 |
+| W10 | **PASS(신산님 승인, 2026-11-08).** 이 PC 서버가 꺼진 상태에서 DB 설정 `messenger.kakao`에 `validateKakao`를 거친 `{"relayUrl":"https://ieon-gateway.sinsan.kr"}`를 저장(웹 설정 P1-a와 같은 값·위치, 웹 토큰은 다루지 않음. 이전 값 없음=파일 값 사용 중이었음) → `ieon.ps1 start`(실제 실행 끔) → `messenger` → `https://ieon-gateway.sinsan.kr/health` = `{"ok":true,"pc":true}` |
+| W11 | **PASS(신산님).** 오픈빌더 스킬 URL이 `https://ieon-gateway.sinsan.kr/kakao/skill/<비밀>`로 바뀐 것을 신산님 화면으로 확인. 카카오 `/whoami` 응답: 플랫폼 kakao, 봇 default(카카오 Aidot 시험), 허용 여부 "허용됨"(사용자 ID는 기록하지 않음). 모델 호출 0 |
+| W12 | **완료.** `ieon.ps1 stop`(메신저·연결부·서버 종료, 실제 실행 끔), 로컬 28760 응답 없음 확인 |
 
 되돌리기 보완: `ieun-gateway`가 이미 다른 대상을 가리키므로, W11을 되돌리려면 NPM의 `ieun-gateway` 전달 대상도 `ieon-relay`로 되돌려야 한다.
 
