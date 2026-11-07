@@ -1,0 +1,30 @@
+# 이어온 허브(ieun) 전달기. NPM 프록시 호스트 ieun-gateway.sinsan.kr → http://ieun-relay:28770 이 이 컨테이너를 가리킨다.
+# 허브 서버는 ieon 사용자 systemd로 돌고 Unix 소켓(/home/ieon/run/ieun-hub.sock)만 연다. 이 컨테이너는 그 소켓으로 넘기기만 한다.
+# 호스트 포트를 열지 않고 proxy-network로만 연결한다. 비밀 값이 없다.
+name: ieun-relay
+services:
+  forward:
+    build: { context: ., dockerfile: Dockerfile }
+    image: ieun-relay:0.0.1
+    container_name: ieun-relay
+    restart: unless-stopped
+    user: "1002:1002"   # ieon 사용자(UID·GID 1002)라야 소켓(660)에 붙을 수 있다
+    environment:
+      IEUN_HUB_SOCKET: /run/hub/ieun-hub.sock
+      IEUN_FORWARD_PORT: "28770"
+    volumes:
+      - /home/ieon/run:/run/hub
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 64m
+    pids_limit: 32
+    networks: [proxy-network]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:28770/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+networks:
+  proxy-network:
+    external: true

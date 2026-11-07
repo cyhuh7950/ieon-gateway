@@ -116,6 +116,29 @@ Cloudflare에 묶이지 않도록 세 방식을 모두 지원하고, **허브 �
 - 예외 경로(제한 없이 열림, 대신 토큰·서명 인증과 요청 횟수 제한): `/v1/device/*`(PC 연결부), 카카오·Teams 수신 경로.
 - Cloudflare Access를 쓰려면 그 호스트를 Cloudflare 프록시(주황 구름)로 바꾸고 Zero Trust에서 애플리케이션·정책(신산님 이메일)을 만드는 일은 신산님이 한다.
 
+### 5-1-1. P4 구현(2026-11-08)
+
+- 코드: `src/pilot/web-access.mjs`(`createWebAccess`·`clientIp`·`matchCidr`·`isExemptPath`), 서버 설정 파일 `webAccess`(위 형식 그대로), `listenSocket`(공개용 Unix 소켓 경로).
+- 판정: 예외 경로(`/health`·`/v1/device/*`·`/kakao/*`·`/teams/*`)를 빼고, 앞단(NPM·전달기)을 거친 요청은 `modes` 중 하나라도 통과해야 한다(아니면 403 `access_denied`). 앞단 없이 그 기계의 127.0.0.1로 직접 온 요청(SSH 터널 관리)은 통과한다(같은 기계의 다른 서비스도 여기 해당하므로 토큰 인증은 그대로 필요).
+- 접속 주소: 바로 붙은 상대가 `trustedProxies`(CIDR, Unix 소켓은 `"unix"`)일 때만 `X-Forwarded-For`를 오른쪽부터 따라가 믿는 앞단이 아닌 첫 주소를 쓴다. 앞단이 아닌 곳의 헤더는 무시(위조 방지). P3의 인증 실패 요청 횟수 제한도 이 주소로 센다.
+- Cloudflare Access: `https://<teamDomain>/cdn-cgi/access/certs` 공개키(1시간 캐시, 모르는 kid면 다시 받음)로 RS256 서명·`aud`·`iss`·`exp`·`nbf`를 직접 검증. `teamDomain`은 `*.cloudflareaccess.com`만 받는다.
+- Tailscale: 접속 주소가 100.64.0.0/10이면 통과. `tailscale.listenHost`를 적으면 그 주소로도 연다(기존 `extraHosts` 방식).
+- 기본 닫힘: `modes`가 비었거나 `webAccess`가 없으면 `listenSocket`을 거절(`web_access_required`)하므로 공개 경로가 생기지 않는다.
+- 허브 연결 구조(방화벽·호스트 포트 변경 없음): `NPM(ieun-gateway.sinsan.kr) → http://ieun-relay:28770(전달 컨테이너, deploy/hub) → /home/ieon/run/ieun-hub.sock(허브 서버, ieon 사용자 systemd)`. 전달기(`src/hub/forward.mjs`)는 내용을 보거나 저장하지 않고 바로 앞 상대 주소를 `X-Forwarded-For`에 붙이기만 한다. 컨테이너는 ieon(UID·GID 1002)로 돌아 소켓(660)에 붙고, 읽기 전용·권한 없음·메모리 64MB.
+- 기기 토큰 화면(5-2)은 P1-c에서 이미 구현했다.
+- 테스트 `tests/pilot/web-access.test.mjs` 5건(Windows 명명 파이프·WSL Unix 소켓 모두 통과).
+
+### 5-1-2. P4 허브 배포 절차(모두 별도 승인)
+
+| 단계 | 하는 일 | 누가 | 바뀌는 곳 | 되돌리기 |
+| --- | --- | --- | --- | --- |
+| D0 | 접속 제한 방식 결정: IP 허용 목록(신산님이 쓰는 공인 IP) · Cloudflare Access(호스트를 주황 구름으로, Zero Trust 애플리케이션·정책은 신산님) · Tailscale(Oracle을 tailnet에 넣어야 함) 중 처음 쓸 것 | 신산님 | 없음 | – |
+| D1 | 코드 전달: PC에서 묶어 scp → `/home/ieon/deploy/ieon-gateway`(O3 방식, git 자격 증명 두지 않음). 의존성 변화 없음 | 어울 | ieon 홈 | 이전 묶음으로 되돌림 |
+| D2 | 허브 설정: `/home/ieon/run`(750) 만들기, `server.json`에 `webAccess`(D0 방식, `trustedProxies: ["unix", "<proxy-network CIDR>"]`)·`listenSocket: "/home/ieon/run/ieun-hub.sock"` 추가 → `systemctl --user restart ieon-server` | 어울 | ieon 설정·서버 재시작 | 두 항목 삭제 후 재시작 |
+| D3 | 전달 컨테이너: `/home/ubuntu/deploy/ieun-relay`에 `deploy/hub`와 `src/hub/forward.mjs` 복사 → `docker compose up -d --build`(이미지 node:22-alpine은 서버에 있음) | 어울(ubuntu, docker) | 컨테이너 1개 | `docker compose down` |
+| D4 | 바깥 확인: `https://ieun-gateway.sinsan.kr/health` 200, 허용 안 된 곳에서 `/` 403, 허용된 곳에서 웹 열림, 토큰 없는 `/v1/device/jobs` 401 | 어울(읽기)·신산님(브라우저) | 없음 | – |
+| D5 | (P3 연결 시험) PC에서 허브 웹 기기 등록 → 토큰을 `.local/hub/device-token`에 → `ieon.ps1 connect https://ieun-gateway.sinsan.kr`(live 끔) → 허브 웹에서 PC 연결됨 확인 | 신산님·어울 | 허브 DB 기기 1건 | 기기 폐기 |
+
 ### 5-2. 기기 토큰 폐기·재발급 화면(결정 2026-11-08, 최소 범위)
 
 | 넣는 것 | 내용 |
