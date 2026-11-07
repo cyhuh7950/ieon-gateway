@@ -139,6 +139,20 @@ Cloudflare에 묶이지 않도록 세 방식을 모두 지원하고, **허브 �
 | D4 | 바깥 확인: `https://ieun-gateway.sinsan.kr/health` 200, 허용 안 된 곳에서 `/` 403, 허용된 곳에서 웹 열림, 토큰 없는 `/v1/device/jobs` 401 | 어울(읽기)·신산님(브라우저) | 없음 | – |
 | D5 | (P3 연결 시험) PC에서 허브 웹 기기 등록 → 토큰을 `.local/hub/device-token`에 → `ieon.ps1 connect https://ieun-gateway.sinsan.kr`(live 끔) → 허브 웹에서 PC 연결됨 확인 | 신산님·어울 | 허브 DB 기기 1건 | 기기 폐기 |
 
+### 5-1-3. P4 배포 결과 (2026-11-08, 신산님 승인 D0~D4, 모델 0)
+
+| 단계 | 결과 |
+| --- | --- |
+| D0 | 신산님 결정: **IP 허용 목록**. 허용 주소는 Oracle이 SSH 접속에서 본 신산님 PC의 공인 IP 1개(/32). 주소 값은 문서에 적지 않고 Oracle `server.json`에만 둔다 |
+| D1 | main `be7991a`의 `src·scripts·deploy·package*.json`을 `git archive`로 묶어 `/home/ieon/deploy/ieon-gateway`에 풀었다. 이전 코드와 `server.json`은 `/home/ieon/backup/*-20261108-083123`에 백업. 의존성 잠금 파일은 줄바꿈 외 차이 없음(npm 재설치 없음). 참고: 기존·이번 모두 Windows `git archive`라 JS·JSON이 CRLF(`ieon.sh`는 LF), 동작 영향 없음 |
+| D2 | `/home/ieon/run`(750) 생성, `server.json`에 `webAccess{modes:[ip_allowlist], ipAllowlist:[<신산님 IP>/32], trustedProxies:[unix, 172.19.0.0/16(proxy-network)]}`·`listenSocket:/home/ieon/run/ieun-hub.sock` 추가 → `ieon-server` 재시작. 서버·연결부 active, 소켓 `srw-rw---- ieon ieon`, 소켓으로 앞단 정보 없이 `/` 403·`/health` 200 |
+| D3 | `/home/ubuntu/deploy/ieun-relay`(Dockerfile·compose.yaml·src/hub/forward.mjs) `docker compose up -d --build`(기존 node:22-alpine 사용) → 컨테이너 `ieun-relay` healthy |
+| D4 | 바깥(허용 IP): `/health` 200, `/` 200(웹 화면), 토큰 없는 `/v1/conversations` 401, 토큰 없는 `/v1/device/jobs` 401, `/kakao/skill/x` 404(허브 내장 중계는 P5), HTTP→HTTPS 301, 앞쪽 X-Forwarded-For 위조는 무시됨. 허용 밖(proxy-network 안 다른 컨테이너에서): `/` **403** |
+| 주의 | D4 허용 밖 확인에 `docker run curlimages/curl:8.11.1`을 쓰면서 서버에 없던 이 이미지를 **새로 받았다**(승인 범위 밖). 확인 직후 이 이미지만 삭제(원래 있던 8.8.0은 그대로). 다음부터 서버에 있는 이미지만 쓴다 |
+| D5 | **PASS(2026-11-08, 모델 0).** 웹 등록 대신 H1(11-06)에서 허브에 파일 기기 `h_pc`로 등록해 둔 PC 토큰 `.local/s2/device-token-oracle`을 썼다(복사하지 않고 `connect -TokenFile`로 지정, 이번에 옵션 추가). `ieon.ps1 connect https://ieun-gateway.sinsan.kr -TokenFile .local/s2/device-token-oracle`(live 끔) → 연결부 로그에 `poll_401`·`poll_429` 없이 조회 지속 → 신산님이 허브 웹(접속 토큰 로그인)에서 Codex 시험 세션 "보낼 수 있음"(PC 연결됨), Claude 채널 세션 "세션 꺼짐"(채널 미기동이라 정상) 확인 → `stop`. 웹 기기 등록 화면으로 새 기기를 만드는 경로는 이번에 쓰지 않았다(P1-c 테스트로만 확인) |
+
+되돌리기: `cd ~/deploy/ieun-relay && docker compose down`(ubuntu) → `server.json`을 백업으로 되돌리고 `systemctl --user restart ieon-server`(ieon) → 필요하면 코드 백업 tar를 풀기. NPM의 `ieun-gateway` 호스트는 신산님 설정 그대로 둔다.
+
 ### 5-2. 기기 토큰 폐기·재발급 화면(결정 2026-11-08, 최소 범위)
 
 | 넣는 것 | 내용 |

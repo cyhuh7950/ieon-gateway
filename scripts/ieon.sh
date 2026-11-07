@@ -4,7 +4,7 @@
 #   scripts/ieon.sh stop                        이 스크립트가 띄운 프로세스만 종료하고 live를 끈다
 #   scripts/ieon.sh status                      포트·프로세스·엔진 상태·시험 대화 잠금
 #   scripts/ieon.sh messenger                   메신저 봇 시작(토큰은 .local 아래 env 파일에서 그 프로세스만 읽는다)
-#   scripts/ieon.sh connect <허브 주소> [--live]  허브형(ieun): 연결부만 켜서 허브에 HTTPS로 접속(기기 토큰은 .local/hub/device-token)
+#   scripts/ieon.sh connect <허브 주소> [--live] [--token-file=<파일>]  허브형(ieun): 연결부만 켜서 허브에 HTTPS로 접속(기기 토큰 기본 .local/hub/device-token)
 #   scripts/ieon.sh check                       설치 점검: Node·부품·설정 파일, Codex·Claude Code 설치와 로그인(모델 호출 없음)
 #   scripts/ieon.sh init                        최소 설정·시험 토큰 만들기(.local이 없을 때만, live는 꺼 둠, 토큰 값은 출력하지 않음)
 #   scripts/ieon.sh claude | tui                터미널(tmux 등)에서 직접 실행할 명령을 안내한다
@@ -71,6 +71,7 @@ for a in "$@"; do
   case "$a" in
     --shared) shared=true ;;
     --live) live=true ;;
+    --token-file=*) HUB_TOKEN="${a#--token-file=}"; [[ "$HUB_TOKEN" = /* ]] || HUB_TOKEN="$ROOT/$HUB_TOKEN" ;;
     http://*|https://*) [[ "$cmd" == connect ]] || { echo "알 수 없는 옵션: $a" >&2; exit 2; }; hub="$a" ;;
     *) echo "알 수 없는 옵션: $a" >&2; exit 2 ;;
   esac
@@ -107,10 +108,10 @@ case "$cmd" in
     fi
     if [[ -f "$RUN/connector.pid" ]] && pid_alive "$(cat "$RUN/connector.pid")"; then echo '연결부가 이미 실행 중입니다. stop 후 다시 하세요.' >&2; exit 1; fi
     [[ -f "$CONNECTOR_CONFIG" ]] || { echo '.local/s2/connector.json 가 없습니다. 먼저 check로 빠진 설정을 확인하세요.' >&2; exit 1; }
-    [[ -f "$HUB_TOKEN" ]] || { echo '.local/hub/device-token 이 없습니다. 허브 웹 봇 관리 → 기기에서 받은 토큰을 이 파일에 직접 넣으세요(권한 600).' >&2; exit 1; }
+    [[ -f "$HUB_TOKEN" ]] || { echo "기기 토큰 파일이 없습니다($HUB_TOKEN). 허브 웹 봇 관리 → 기기에서 받은 토큰을 직접 넣거나(권한 600) --token-file=로 지정하세요." >&2; exit 1; }
     set_live "$live"
     echo "$url" >"$MODE_FILE"
-    start_owned connector node src/pilot/connector.mjs .local/s2/connector.json --server "$url" --token-file .local/hub/device-token
+    start_owned connector node src/pilot/connector.mjs .local/s2/connector.json --server "$url" --token-file "$HUB_TOKEN"
     if $live; then l='켬'; else l='끔'; fi
     echo "허브 연결: $url · 실제 엔진 실행: $l"
     ;;

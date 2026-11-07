@@ -70,6 +70,8 @@ pwsh scripts/ieon.ps1 status                                          # "연결�
 pwsh scripts/ieon.ps1 stop
 ```
 
+- 토큰을 다른 파일에 두었으면 `-TokenFile <파일>`(Linux `--token-file=<파일>`)로 지정한다(복사하지 않아도 됨).
+- 허브 웹의 "접속 토큰" 칸에는 허브 서버의 사용자 토큰을 넣는다(허브 `.local/s2/user-token`, 신산님이 직접 열어 입력).
 - 허브 주소는 `https`만 받는다(`http`는 127.0.0.1·localhost만).
 - 연결부의 허용 목록·`live`·작업 폴더는 이 PC의 `.local\s2\connector.json`에만 있고 허브에서 바꿀 수 없다.
 - 허브 연결 중에는 `start`가 거절된다. 바꾸려면 `stop` 후 다시 `start`.
