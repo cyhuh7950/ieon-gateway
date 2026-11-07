@@ -4,6 +4,7 @@
 #   scripts/ieon.sh stop                        이 스크립트가 띄운 프로세스만 종료하고 live를 끈다
 #   scripts/ieon.sh status                      포트·프로세스·엔진 상태·시험 대화 잠금
 #   scripts/ieon.sh messenger                   메신저 봇 시작(토큰은 .local 아래 env 파일에서 그 프로세스만 읽는다)
+#   scripts/ieon.sh connect <허브 주소> [--live]  허브형(ieun): 연결부만 켜서 허브에 HTTPS로 접속(기기 토큰은 .local/hub/device-token)
 #   scripts/ieon.sh check                       설치 점검: Node·부품·설정 파일, Codex·Claude Code 설치와 로그인(모델 호출 없음)
 #   scripts/ieon.sh init                        최소 설정·시험 토큰 만들기(.local이 없을 때만, live는 꺼 둠, 토큰 값은 출력하지 않음)
 #   scripts/ieon.sh claude | tui                터미널(tmux 등)에서 직접 실행할 명령을 안내한다
@@ -15,6 +16,8 @@ LOCAL="$ROOT/.local"
 RUN="$LOCAL/run"
 CONNECTOR_CONFIG="$LOCAL/s2/connector.json"
 TEST_THREAD='01a18790-63c7-73e3-a60b-6ddb60fd5be8'
+HUB_TOKEN="$LOCAL/hub/device-token"
+MODE_FILE="$RUN/connector.mode"
 mkdir -p "$RUN"
 
 listening() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
@@ -63,17 +66,21 @@ stop_owned() {
 }
 
 cmd="${1:-}"; shift || true
-shared=false; live=false
+shared=false; live=false; hub=''
 for a in "$@"; do
   case "$a" in
     --shared) shared=true ;;
     --live) live=true ;;
+    http://*|https://*) [[ "$cmd" == connect ]] || { echo "알 수 없는 옵션: $a" >&2; exit 2; }; hub="$a" ;;
     *) echo "알 수 없는 옵션: $a" >&2; exit 2 ;;
   esac
 done
 
 case "$cmd" in
   start)
+    if [[ -f "$MODE_FILE" && -f "$RUN/connector.pid" ]] && pid_alive "$(cat "$RUN/connector.pid")"; then
+      echo "허브 연결 모드로 실행 중입니다($(cat "$MODE_FILE")). stop 후 start 하세요." >&2; exit 1
+    fi
     for f in s2/server.json s2/connector.json; do
       [[ -f "$LOCAL/$f" ]] || { echo ".local/$f 가 없습니다. 먼저 check로 빠진 설정을 확인하세요." >&2; exit 1; }
     done
@@ -91,8 +98,25 @@ case "$cmd" in
     if [[ "$(get_live)" == true ]]; then l='켬'; else l='끔'; fi
     echo "실제 엔진 실행: $l · 웹: http://127.0.0.1:28760"
     ;;
+  connect)
+    [[ -n "$hub" ]] || { echo '허브 주소가 필요합니다. 예: scripts/ieon.sh connect https://ieun-gateway.sinsan.kr' >&2; exit 2; }
+    url="$(cd "$ROOT" && node --input-type=module -e "import { validateServerUrl } from './src/pilot/connector.mjs'; try { console.log(validateServerUrl(process.argv[1])) } catch { process.exit(3) }" "$hub")" \
+      || { echo '허브 주소가 올바르지 않습니다(https만, http는 127.0.0.1·localhost만).' >&2; exit 1; }
+    if { [[ -f "$RUN/server.pid" ]] && pid_alive "$(cat "$RUN/server.pid")"; } || listening 28760; then
+      echo '이 PC의 이어온 서버가 켜져 있습니다. stop으로 끈 뒤 connect 하세요(로컬 서버와 허브 연결을 동시에 쓰지 않음).' >&2; exit 1
+    fi
+    if [[ -f "$RUN/connector.pid" ]] && pid_alive "$(cat "$RUN/connector.pid")"; then echo '연결부가 이미 실행 중입니다. stop 후 다시 하세요.' >&2; exit 1; fi
+    [[ -f "$CONNECTOR_CONFIG" ]] || { echo '.local/s2/connector.json 가 없습니다. 먼저 check로 빠진 설정을 확인하세요.' >&2; exit 1; }
+    [[ -f "$HUB_TOKEN" ]] || { echo '.local/hub/device-token 이 없습니다. 허브 웹 봇 관리 → 기기에서 받은 토큰을 이 파일에 직접 넣으세요(권한 600).' >&2; exit 1; }
+    set_live "$live"
+    echo "$url" >"$MODE_FILE"
+    start_owned connector node src/pilot/connector.mjs .local/s2/connector.json --server "$url" --token-file .local/hub/device-token
+    if $live; then l='켬'; else l='끔'; fi
+    echo "허브 연결: $url · 실제 엔진 실행: $l"
+    ;;
   stop)
     for n in messenger connector server app-server; do stop_owned "$n"; done
+    rm -f "$MODE_FILE"
     set_live false
     echo '실제 엔진 실행: 끔'
     ;;
@@ -102,6 +126,10 @@ case "$cmd" in
       printf '%-24s: %s\n' "${pair%:*}" "$v"
     done
     printf '%-24s: %s\n' '실제 엔진 실행' "$(get_live)"
+    if [[ -f "$RUN/connector.pid" ]] && pid_alive "$(cat "$RUN/connector.pid")"; then
+      if [[ -f "$MODE_FILE" ]]; then t="허브 $(cat "$MODE_FILE")"; else t='이 PC 서버'; fi
+    else t='꺼짐'; fi
+    printf '%-24s: %s\n' '연결부 접속 대상' "$t"
     printf '%-24s: %s\n' '시험 Codex 대화 잠금' "$(node "$ROOT/src/pilot/lock-probe.mjs" "$TEST_THREAD" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).outcome))')"
     ;;
   messenger)
