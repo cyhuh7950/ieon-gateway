@@ -1,7 +1,32 @@
 # 이어온 — 기존 에이전트 세션 연결 설계서
 
-- 버전: 0.2 / 2026-10-29 / 작성: 어울
-- 상태: **엔진별 연결 방식 결정(신산님). 실제 기동·로그인·모델 호출·구현 착수는 단계별 별도 승인**
+- 버전: **0.3 / 2026-11-08** (0.2 / 2026-10-29 본문은 아래 1절부터 그대로 유지) / 작성: 어울
+- 상태: 첫 실증 완료 후 기능이 넓어졌다. 현재 구조는 바로 아래 0절, 기능별 세부 설계는 각 문서. 실제 기동·로그인·모델 호출·서버 쓰기·배포는 단계별 별도 승인.
+
+## 0. 현재 구조 요약 (v0.3, 2026-11-08)
+
+**제품은 저장소 하나, 설치 형태 둘**이다(결정 2026-11-06, 이름 표기 "ieon=PC 완결형, ieun=허브형").
+
+| 설치 형태 | 이름·호스트 | 어디에 무엇이 있나 |
+| --- | --- | --- |
+| PC 완결형 | **ieon-gateway** · `ieon-gateway.sinsan.kr` | PC에 서버·연결부·메신저·웹. 공개 서버(sinsan-server)에는 카카오·Teams 수신 **중계(`ieon-relay`)만** |
+| 허브형 | **ieun-gateway** · `ieun-gateway.sinsan.kr` | 허브(sinsan-server)에 서버·메신저·웹·중계, PC에는 **연결부만**(허브에 HTTPS로 접속) |
+
+| 기능 | 내용 | 세부 설계 | 상태 |
+| --- | --- | --- | --- |
+| 기존 세션 연결 | Claude Code 채널(방식 1), Codex thread 재개(방식 2: 번갈아 쓰기·동시 사용) | 이 문서 1~13절 | 첫 실증 완료 |
+| 새 세션 만들기 | 이어온이 새 Codex·Claude 세션과 작업 폴더를 만들고 정리(잠들기·보관·삭제) | [NEW_SESSIONS](NEW_SESSIONS.md), Oracle [N6_ORACLE_PLAN](N6_ORACLE_PLAN.md) | N0~N6 완료 |
+| 여러 봇 | 같은 메신저의 여러 봇, 웹 봇 관리, 역할(엔진·권한 제한·AI 안내), 부른 봇만 답 | [MULTI_BOTS](MULTI_BOTS.md) | M0~M3 완료, M4·M6(카카오) 실측, M5(Teams) 보류 |
+| 공개 수신 중계 | 카카오·Teams가 보내는 메시지를 Oracle 중계가 받고 PC가 먼저 접속해 가져감 | [RELAY_DEPLOY](RELAY_DEPLOY.md) | sinsan-server 배포·카카오 실측 |
+| 설치 형태 분리 | PC 완결형·허브형, 설정의 DB·웹 이전, 허브 접속 제한(IP·Cloudflare Access·Tailscale 선택), 기기 토큰 화면 | [HUB_AND_PC_PROFILES](HUB_AND_PC_PROFILES.md) | P0 완료, **다음 P1** |
+
+**변하지 않는 원칙**: 기존 세션은 복사·fork·새 대화로 대체하지 않는다. 업무 대화 `01a0dadd-…`는 대상이 아니다. 자동 재전송·잠금 강제 해제가 없다. 토큰은 웹이 받지 않고 `.env`·비밀 파일에만 둔다. 연결부의 안전 설정(허용 목록·`live`·작업 폴더·`full`)은 기기 로컬에만 둔다.
+
+**실행 환경**: PC(Windows) `pwsh scripts/ieon.ps1`, Linux·WSL·Oracle `scripts/ieon.sh`+systemd 사용자 유닛. 포트 28760(서버)·28761(Codex 공유 App Server)·28762(Claude 채널), 모두 127.0.0.1. 저장소 `cyhuh7950/ieon-gateway`(0.0.1~).
+
+---
+
+
 - 요구 근거: 신산님의 채팅 지시와 [WORK_STATUS](../WORK_STATUS.md)의 인터뷰·결정 기록.
 - 실행 계획: [작업계획](../WORK_PLAN.md) / 실제 환경: [개발환경](../DEVELOPMENT_ENVIRONMENT.md)
 
