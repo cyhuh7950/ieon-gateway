@@ -5,6 +5,27 @@ import { appendFileSync, existsSync, openSync, fsyncSync, closeSync, readFileSyn
 import { fileURLToPath } from 'node:url';
 import { EngineError } from './contracts.mjs';
 
+// P3: 허브 주소 검사. 공개 주소는 https만, http는 이 PC(127.0.0.1·localhost)만. 사용자 정보·쿼리·조각은 거절한다.
+export function validateServerUrl(raw) {
+  let u;
+  try { u = new URL(String(raw ?? '')); } catch { throw new Error('bad_server_url'); }
+  const local = ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname);
+  if (!(u.protocol === 'https:' || (u.protocol === 'http:' && local))) throw new Error('bad_server_url');
+  if (u.username || u.password || u.search || u.hash) throw new Error('bad_server_url');
+  return u.origin + u.pathname.replace(/\/+$/, '');
+}
+
+// 명령줄: <설정> [--server <허브 주소>] [--token-file <기기 토큰 파일>]. 주어지면 설정 파일 값 대신 쓴다.
+export function connectorOptions(config, argv) {
+  const opt = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
+  const server = opt('--server');
+  return {
+    serverUrl: server ? validateServerUrl(server) : config.serverUrl,
+    deviceTokenFile: opt('--token-file') ?? config.deviceTokenFile,
+    receiptPath: server ? (config.hubReceiptPath ?? config.receiptPath) : config.receiptPath,
+  };
+}
+
 function receiptLog(path) {
   const seen = new Set(existsSync(path)
     ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l).requestId) : []);
@@ -25,6 +46,7 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
   const state = health ? await health() : null;
   const res = await fetch(`${baseUrl}/v1/device/jobs`, { headers: state ? { ...headers, 'x-ieon-health': JSON.stringify(state) } : headers });
   if (res.status === 204) return false;
+  if (res.status === 429) throw Object.assign(new Error('poll_429'), { retryAfterMs: 1000 * (Number(res.headers.get('retry-after')) || 30) });
   if (res.status !== 200) throw new Error(`poll_${res.status}`);
   const job = await res.json();
   const report = (outcome) => fetch(`${baseUrl}/v1/device/jobs/${job.requestId}/result`, {
@@ -67,20 +89,22 @@ export async function runConnector({ pollMs = 2000, signal, ...opts }) {
       if (!(await pollOnce(opts))) await new Promise((r) => setTimeout(r, pollMs));
     } catch (error) {
       opts.log?.({ event: 'poll_error', error: String(error.cause?.code ?? error.message).slice(0, 80) });
-      await new Promise((r) => setTimeout(r, pollMs * 2));
+      await new Promise((r) => setTimeout(r, error.retryAfterMs ?? pollMs * 2));
     }
   }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  const o = connectorOptions(config, process.argv.slice(3));
   const { buildAdapters } = await import('./adapters/index.mjs');
+  process.stderr.write(JSON.stringify({ ch: 'connector', event: 'start', server: o.serverUrl }) + '\n');
   await runConnector({
-    baseUrl: config.serverUrl,
-    deviceToken: readFileSync(config.deviceTokenFile, 'utf8').trim(),
+    baseUrl: o.serverUrl,
+    deviceToken: readFileSync(o.deviceTokenFile, 'utf8').trim(),
     adapters: await buildAdapters(config),
     health: () => engineHealth(config),
-    receipts: receiptLog(config.receiptPath),
+    receipts: receiptLog(o.receiptPath),
     log: (e) => process.stderr.write(JSON.stringify({ ch: 'connector', ...e }) + '\n'),
   });
 }

@@ -55,6 +55,27 @@ pwsh scripts/ieon.ps1 stop             # 이 스크립트가 띄운 것만 끄�
 - 연결부는 시작할 때만 설정을 읽는다. 실행 중에 `-Live`를 바꾸려면 `stop` 후 다시 `start`.
 - 로그: `.local\run\*.log`(질문·답변 원문은 남기지 않는다).
 
+### 허브에 연결하기(허브형 ieun, P3)
+
+허브형에서는 이 PC에 서버를 켜지 않고 **연결부만** 켜서 허브에 HTTPS로 접속한다(PC가 먼저 나가는 방식, PC에 여는 포트 없음).
+
+1. 허브 웹 → 봇 관리 → 기기에서 이 PC를 등록하고, 한 번만 보이는 기기 토큰을 `.local\hub\device-token` 파일에 직접 넣는다(채팅·문서에 붙이지 않는다).
+2. 이 PC의 이어온 서버가 켜져 있으면 `stop`으로 끈다(로컬 서버와 허브 연결을 동시에 쓰지 않는다).
+3. 연결:
+
+```powershell
+pwsh scripts/ieon.ps1 connect https://ieun-gateway.sinsan.kr          # 실제 엔진 실행 끔
+pwsh scripts/ieon.ps1 connect https://ieun-gateway.sinsan.kr -Live    # 모델 호출 허락 범위에서만
+pwsh scripts/ieon.ps1 status                                          # "연결부 접속 대상: 허브 …"
+pwsh scripts/ieon.ps1 stop
+```
+
+- 허브 주소는 `https`만 받는다(`http`는 127.0.0.1·localhost만).
+- 연결부의 허용 목록·`live`·작업 폴더는 이 PC의 `.local\s2\connector.json`에만 있고 허브에서 바꿀 수 없다.
+- 허브 연결 중에는 `start`가 거절된다. 바꾸려면 `stop` 후 다시 `start`.
+- 허브는 기기마다 1분에 240번까지 받고, 넘으면 429와 기다릴 시간을 돌려준다. 연결부는 그만큼 쉬었다가 다시 묻는다(질문을 다시 보내지는 않는다). 토큰이 틀린 요청은 접속 주소마다 1분에 30번까지 401, 그 뒤로는 429.
+- Linux: `scripts/ieon.sh connect https://… [--live]`.
+
 ### Claude 채널 세션
 
 ```powershell

@@ -48,6 +48,14 @@ flowchart LR
 3. **기기 토큰은 허브에서 발급하고 원문은 한 번만 보여 준다.** 서버에는 해시만 저장한다(지금 방식 그대로). 신산님이 PC에 직접 옮겨 둔다.
 4. **허브 웹·API는 접속 제한 뒤에 둔다.** 제한 방식은 특정 업체에 묶이지 않게 **IP 허용 목록·Cloudflare Access·Tailscale을 모두 지원하고 허브 설정 파일에서 고른다**(5-1절). 기기용 API(`/v1/device/*`)와 카카오·Teams 수신 경로는 토큰·서명 인증이므로 접속 제한 예외로 두고 요청 횟수 제한을 건다.
 
+## 3-1. P3 구현(2026-11-08): PC 연결 모드
+
+- `pwsh scripts/ieon.ps1 connect <허브 주소> [-Live]`(Linux `scripts/ieon.sh connect <주소> [--live]`): 이 PC는 **연결부만** 켜고 허브에 직접 HTTPS로 접속한다. 기기 토큰은 `.local/hub/device-token`(신산님이 허브 웹 기기 화면에서 받아 직접 넣음). 엔진·허용 목록·`live`·작업 폴더는 그대로 `.local/s2/connector.json`(원칙 1).
+- 허브 주소 검사(`validateServerUrl`): 공개 주소는 https만, http는 127.0.0.1·localhost만, 사용자 정보·쿼리·조각 거절. 연결부 명령줄 `--server`·`--token-file`이 설정 값을 대신하고, 설정에 `hubReceiptPath`가 있으면 허브용 receipt를 따로 쓴다.
+- 동시 실행 방지: connect는 이 PC 서버(PID 또는 28760 포트)가 켜져 있거나 연결부가 이미 돌고 있으면 거절하고, 허브 연결 중(`.local/run/connector.mode`)에는 start를 거절한다. stop이 둘 다 끄고 표시를 지운다. status에 "연결부 접속 대상"을 보인다.
+- 기기 API 요청 횟수 제한(서버, 1분 창): 인증된 기기는 기기별 240회, 토큰이 틀린 요청은 접속 주소별 30회까지 401, 넘으면 429·`retry-after`. 유효한 토큰을 먼저 확인하므로 같은 앞단(NPM) 뒤의 정상 기기는 실패 횟수에 막히지 않는다(접속 주소는 P4의 `trustedProxies` 처리 전까지 소켓 주소). 설정 `deviceRateLimit {perMinute, failPerMinute}`. 연결부는 429를 받으면 `retry-after`만큼 쉬고, 질문을 다시 보내지 않는다.
+- 미검증: 실제 허브(ieun-gateway)에 PC 연결부를 붙이는 시험(허브 배포 P4 이후, Codex 호출 별도 승인).
+
 ## 4. 설정 이전 목록(허브형에서 웹으로 옮길 것)
 
 **P1-a 구현(2026-11-08):** 서버 DB `settings` 표에 웹 값을 저장하고, 값이 없으면 파일 값을 쓴다("파일 값으로" = 웹 값 삭제). 웹 봇 관리 탭의 "설정" 칸, API `GET /v1/admin/settings`·`PUT|DELETE /v1/admin/settings/{allowed-users|kakao|new-sessions}`(웹만), 메신저용 `GET /v1/messenger/config`. 메신저는 1분마다 받아 허용 사용자를 바로 반영하고, 카카오 주소·제한 시간이 바뀌면 카카오 봇만 다시 연결한다. 새 세션은 켜기·한도·정리 시간·기본 권한만 웹에서 바꾸고(`full` 거절), 작업 폴더·`sessionOverrides`·삭제 확인·삭제 시 작업 폴더 지우기·프로필 정의는 파일에만 둔다. 저장하면 서버가 바로 다시 읽는다.

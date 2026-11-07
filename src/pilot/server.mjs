@@ -73,6 +73,19 @@ export function createApp(config) {
   const deviceEntries = () => [...(config.devices ?? []), ...store.activeDeviceHashes()];
   const newDeviceToken = () => { const token = randomBytes(32).toString('hex'); return { token, hash: createHash('sha256').update(token).digest('hex') }; };
   const lastTouched = new Map();
+  // P3: 기기 API 요청 횟수 제한(1분 창). 인증된 기기는 기기별, 인증 실패는 접속 주소별로 센다.
+  // 유효한 토큰은 실패 횟수와 상관없이 먼저 확인하므로, 같은 앞단(NPM) 뒤의 정상 기기는 막히지 않는다.
+  const rate = { perMinute: config.deviceRateLimit?.perMinute ?? 240, failPerMinute: config.deviceRateLimit?.failPerMinute ?? 30 };
+  const windows = new Map();
+  const overLimit = (key, limit) => {
+    const now = Date.now();
+    let w = windows.get(key);
+    if (!w || now - w.start >= 60000) { w = { start: now, n: 0 }; windows.set(key, w); }
+    w.n += 1;
+    if (windows.size > 5000) for (const [k, v] of windows) if (now - v.start >= 60000) windows.delete(k);
+    return w.n > limit ? Math.ceil((w.start + 60000 - now) / 1000) : 0;
+  };
+  const tooMany = (res, retry) => { res.setHeader('retry-after', String(Math.max(1, retry))); return json(res, 429, { error: 'rate_limited' }); };
   const lastSeen = new Map();
   const online = (hostId) => Date.now() - (lastSeen.get(hostId) ?? 0) < DEVICE_FRESH_MS;
   const health = new Map();
@@ -98,7 +111,12 @@ export function createApp(config) {
       // --- PC 연결부 API ---
       if (path.startsWith('/v1/device/')) {
         const device = matchToken(req.headers.authorization, deviceEntries());
-        if (!device) return json(res, 401, { error: 'unauthorized' });
+        if (!device) {
+          const retry = overLimit('fail:' + (req.socket.remoteAddress ?? ''), rate.failPerMinute);
+          return retry ? tooMany(res, retry) : json(res, 401, { error: 'unauthorized' });
+        }
+        const retry = overLimit('dev:' + device.hostId, rate.perMinute);
+        if (retry) return tooMany(res, retry);
         lastSeen.set(device.hostId, Date.now());
         // 웹 등록 기기는 마지막 접속 시각을 DB에도 남긴다(1분에 한 번만 쓴다).
         if (!fileHosts.has(device.hostId) && Date.now() - (lastTouched.get(device.hostId) ?? 0) > 60000) {
