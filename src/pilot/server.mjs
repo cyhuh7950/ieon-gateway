@@ -2,13 +2,14 @@
 // 사용: node src/pilot/server.mjs <configPath>
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
 import { createServer } from 'node:http';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, chmodSync } from 'node:fs';
 import { createHash, timingSafeEqual, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
 import { botAppId, tokenEnvNames } from './bots.mjs';
 import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding } from './settings.mjs';
+import { createWebAccess, isExemptPath } from './web-access.mjs';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -32,6 +33,8 @@ async function readJson(req) {
 }
 
 export function createApp(config) {
+  // P4: 허브 웹 접속 제한(설정 파일 webAccess). 없으면 지금처럼 127.0.0.1 전용 로컬 서버다.
+  const access = config.webAccess ? createWebAccess(config.webAccess) : null;
   const store = openStore(config.dbPath);
   for (const b of config.bindings) store.addBinding(b);
   store.ensureDefaultBots();
@@ -103,6 +106,14 @@ export function createApp(config) {
       const url = new URL(req.url, 'http://127.0.0.1');
       const path = url.pathname;
 
+      if (req.method === 'GET' && path === '/health') return json(res, 200, { ok: true });
+      // P4: 접속 제한. 예외 경로(기기 API·카카오·Teams·health)는 각자 토큰·서명으로 인증한다.
+      // 앞단 없이 이 PC의 127.0.0.1로 직접 온 요청(SSH 터널 관리)은 통과시킨다.
+      if (access && !isExemptPath(path)) {
+        const peer = req.socket.remoteAddress ?? '';
+        const direct = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer) && !req.headers['x-forwarded-for'];
+        if (!direct && !(await access.check(req))) return json(res, 403, { error: 'access_denied' });
+      }
       if (req.method === 'GET' && path === '/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         return res.end(readFileSync(WEB_PAGE));
@@ -112,7 +123,7 @@ export function createApp(config) {
       if (path.startsWith('/v1/device/')) {
         const device = matchToken(req.headers.authorization, deviceEntries());
         if (!device) {
-          const retry = overLimit('fail:' + (req.socket.remoteAddress ?? ''), rate.failPerMinute);
+          const retry = overLimit('fail:' + (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '')), rate.failPerMinute);
           return retry ? tooMany(res, retry) : json(res, 401, { error: 'unauthorized' });
         }
         const retry = overLimit('dev:' + device.hostId, rate.perMinute);
@@ -399,8 +410,19 @@ export function createApp(config) {
     return new Promise((r, j) => { s2.once('error', j); s2.listen(port, host, () => r(`${host}:${port}`)); });
   };
 
+  // P4: 허브 공개용 Unix 소켓. 같은 기계의 전달 컨테이너(ieun-relay)가 이 소켓으로 넘겨 준다(방화벽·호스트 포트 변경 없음).
+  // 접속 제한 방식이 하나도 없으면 열지 않는다(실수로 무방비 공개가 되지 않게 기본은 닫힘).
+  const listenSocket = (socketPath) => {
+    if (!access?.modes.length) throw new Error('web_access_required');
+    const win = process.platform === 'win32'; // Windows는 명명된 파이프(\\.\pipe\…), 시험용
+    if (!win) rmSync(socketPath, { force: true });
+    const s3 = createServer((req, res) => server.emit('request', req, res));
+    extra.push(s3);
+    return new Promise((r, j) => { s3.once('error', j); s3.listen(socketPath, () => { if (!win) chmodSync(socketPath, 0o660); r(socketPath); }); });
+  };
+
   return {
-    server, store, listenExtra, newSessions: nsCfg, notices,
+    server, store, listenExtra, listenSocket, newSessions: nsCfg, notices,
     listen: (port) => new Promise((r) => server.listen(port, '127.0.0.1', () => r(server.address().port))),
     close: () => new Promise((r) => { clearInterval(cleanupTimer); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
   };
@@ -417,7 +439,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const app = createApp(config);
   const port = await app.listen(config.port ?? 28760);
   process.stderr.write(`ieon pilot server: http://127.0.0.1:${port}\n`);
-  for (const host of config.extraHosts ?? []) {
+  const hosts = [...(config.extraHosts ?? []), ...(config.webAccess?.tailscale?.listenHost ? [config.webAccess.tailscale.listenHost] : [])];
+  for (const host of new Set(hosts)) {
     process.stderr.write(`ieon pilot server: http://${await app.listenExtra(port, host, config.extraAllowedClients)}\n`);
   }
+  if (config.listenSocket) process.stderr.write(`ieon pilot server: unix:${await app.listenSocket(config.listenSocket)}\n`);
 }
