@@ -6,13 +6,14 @@
   pwsh scripts/ieon.ps1 claude                    새 창에서 Claude 이어온 채널 세션 시작(사람이 쓰는 터미널)
   pwsh scripts/ieon.ps1 tui                       새 창에서 공유 App Server에 붙은 Codex TUI 시작
   pwsh scripts/ieon.ps1 messenger                 메신저 봇(텔레그램·디스코드·슬랙) 시작. 봇 토큰은 .local/.env에서 그 프로세스만 읽는다
-  pwsh scripts/ieon.ps1 connect <허브 주소> [-Live] 허브형(ieun): 이 PC는 연결부만 켜서 허브에 HTTPS로 접속(기기 토큰은 .local/hub/device-token)
+  pwsh scripts/ieon.ps1 connect <허브 주소> [-Live] [-TokenFile <파일>]  허브형(ieun): 이 PC는 연결부만 켜서 허브에 HTTPS로 접속(기기 토큰 기본 .local/hub/device-token)
   pwsh scripts/ieon.ps1 check                     설치 점검: Node·부품·설정 파일, Codex·Claude Code 설치와 로그인 여부(모델 호출 없음)
 설정·토큰은 .local/ 아래에 둔다(git 무시). 토큰 원문은 출력하지 않는다. 모든 포트는 127.0.0.1 전용이다.
 #>
 param(
   [Parameter(Position = 0, Mandatory)][ValidateSet('start', 'stop', 'status', 'claude', 'tui', 'messenger', 'check', 'connect')][string]$Command,
   [Parameter(Position = 1)][string]$Hub,
+  [string]$TokenFile,
   [switch]$Shared,
   [switch]$Live
 )
@@ -86,10 +87,11 @@ switch ($Command) {
     if ($LASTEXITCODE -ne 0) { throw '허브 주소가 올바르지 않습니다(https만, http는 127.0.0.1·localhost만).' }
     if ((Test-Owned 'server') -or (Get-Listening 28760)) { throw '이 PC의 이어온 서버가 켜져 있습니다. stop으로 끈 뒤 connect 하세요(로컬 서버와 허브 연결을 동시에 쓰지 않음).' }
     if (Test-Owned 'connector') { throw '연결부가 이미 실행 중입니다. stop 후 다시 하세요.' }
-    if (-not (Test-Path $HubToken)) { throw '.local\hub\device-token 이 없습니다. 허브 웹 봇 관리 → 기기에서 받은 토큰을 이 파일에 직접 넣으세요.' }
+    if ($TokenFile) { $HubToken = if ([IO.Path]::IsPathRooted($TokenFile)) { $TokenFile } else { Join-Path $Root $TokenFile } }
+    if (-not (Test-Path $HubToken)) { throw "기기 토큰 파일이 없습니다($HubToken). 허브 웹 봇 관리 → 기기에서 받은 토큰을 직접 넣거나 -TokenFile로 지정하세요." }
     Set-Live $Live.IsPresent
     Set-Content $ModeFile $url
-    Start-Owned 'connector' 'node' @('src/pilot/connector.mjs', '.local/s2/connector.json', '--server', $url, '--token-file', '.local/hub/device-token')
+    Start-Owned 'connector' 'node' @('src/pilot/connector.mjs', '.local/s2/connector.json', '--server', $url, '--token-file', $HubToken)
     Write-Output "허브 연결: $url · 실제 엔진 실행: $(if ($Live) { '켬' } else { '끔' })"
   }
   'stop' {

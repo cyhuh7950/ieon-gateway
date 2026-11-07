@@ -36,7 +36,7 @@
 | **P1** | 허용 사용자·카카오 설정·기존 세션 등록·새 세션 설정·기기 등록을 서버 DB·웹으로(파일 설정은 대체 값 유지) | 저장소 코드 | **완료(2026-11-08)**: P1-a 허용 사용자·카카오·새 세션, P1-b 기존 세션 등록, P1-c 기기 등록·재발급·폐기 |
 | P2 | 카카오 중계를 `ieon-gateway.sinsan.kr`로 이전(NPM 호스트 추가, 카카오 스킬 URL 교체), `ieun-gateway`는 허브용으로 비움 | Oracle NPM 변경, 카카오 설정 | **완료(2026-11-08)**: W8(신산님 NPM)·W9 바깥 확인 PASS·W10 PC 중계 주소 전환·W11 스킬 URL 교체와 카카오 `/whoami` 응답·W12 정리. `ieun-gateway`는 NPM에서 `ieun-relay`(아직 없음)를 가리켜 502 — P4 허브 배포에서 채운다. [RELAY_DEPLOY 8절](design/RELAY_DEPLOY.md) |
 | P3 | `ieon.ps1 connect <허브 주소>`(PC 연결부가 허브에 HTTPS 접속, 로컬 서버와 동시 실행 방지, 기기 API 요청 횟수 제한) | 저장소 코드, 이후 연결 시험(Codex 별도 승인) | **코드 완료(2026-11-08)**: connect 명령(ps1·sh)·허브 주소 검사·동시 실행 방지·기기 API 요청 횟수 제한, 테스트 4건. 실제 허브 연결 시험은 P4 배포 후(미검증) |
-| P4 | 허브 접속 제한 코드(IP 허용 목록·Cloudflare Access·Tailscale, 설정 파일 선택)·기기 토큰 화면 → 허브 배포·확인 | 저장소 코드, 이후 Oracle 쓰기 | **코드 완료(2026-11-08)**: `web-access.mjs`(세 방식·믿는 앞단·기본 닫힘)·공개용 Unix 소켓·전달기 `ieun-relay`(deploy/hub), 테스트 5건. 배포 D0~D5([HUB_AND_PC_PROFILES 5-1-2](design/HUB_AND_PC_PROFILES.md))는 승인·신산님 결정(D0) 대기 |
+| P4 | 허브 접속 제한 코드(IP 허용 목록·Cloudflare Access·Tailscale, 설정 파일 선택)·기기 토큰 화면 → 허브 배포·확인 | 저장소 코드, 이후 Oracle 쓰기 | **코드 완료(2026-11-08)**: `web-access.mjs`(세 방식·믿는 앞단·기본 닫힘)·공개용 Unix 소켓·전달기 `ieun-relay`(deploy/hub), 테스트 5건. **배포(2026-11-08)**: D0 IP 허용 목록·D1~D4 완료(허브 `https://ieun-gateway.sinsan.kr` 접속 제한 동작, [5-1-3](design/HUB_AND_PC_PROFILES.md)). D5 PC↔허브 연결 PASS(신산님 허브 화면 확인). **P4 완료** |
 | P5 | 메신저를 허브로 이전(카카오부터, 봇 토큰은 신산님이 서버 비밀 파일에 직접) | 별도 승인, 모델 호출 별도 | 대기 |
 
 ### 다음 순서
