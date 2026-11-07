@@ -10,6 +10,7 @@ import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
 import { botAppId, tokenEnvNames } from './bots.mjs';
 import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding } from './settings.mjs';
 import { createWebAccess, isExemptPath } from './web-access.mjs';
+import { createRelay } from '../relay/relay.mjs';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -35,6 +36,13 @@ async function readJson(req) {
 export function createApp(config) {
   // P4: 허브 웹 접속 제한(설정 파일 webAccess). 없으면 지금처럼 127.0.0.1 전용 로컬 서버다.
   const access = config.webAccess ? createWebAccess(config.webAccess) : null;
+  // P5: 허브 내장 카카오 수신(중계와 같은 코드). 카카오가 허브의 /kakao/skill/<비밀>을 직접 부르고,
+  // 같은 기계의 메신저가 127.0.0.1로 /pc/poll을 가져간다. 비밀 값은 main에서 비밀 파일로 읽어 넘긴다(설정 파일·로그에 없음).
+  const relay = config.relay ? createRelay({
+    pcToken: config.relay.pcToken, kakaoSecret: config.relay.kakaoSecret,
+    clientIp: (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?')),
+    log: (e) => process.stderr.write(JSON.stringify(e) + '\n'),
+  }) : null;
   const store = openStore(config.dbPath);
   for (const b of config.bindings) store.addBinding(b);
   store.ensureDefaultBots();
@@ -114,6 +122,8 @@ export function createApp(config) {
         const direct = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer) && !req.headers['x-forwarded-for'];
         if (!direct && !(await access.check(req))) return json(res, 403, { error: 'access_denied' });
       }
+      // P5: 내장 중계. /kakao/*는 접속 제한 예외(비밀 경로·요청 횟수 제한), /pc/poll은 제한 대상이라 사실상 이 기계 안에서만.
+      if (relay && (path.startsWith('/kakao/') || path === '/pc/poll')) return relay.handler(req, res);
       if (req.method === 'GET' && path === '/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         return res.end(readFileSync(WEB_PAGE));
@@ -424,7 +434,7 @@ export function createApp(config) {
   return {
     server, store, listenExtra, listenSocket, newSessions: nsCfg, notices,
     listen: (port) => new Promise((r) => server.listen(port, '127.0.0.1', () => r(server.address().port))),
-    close: () => new Promise((r) => { clearInterval(cleanupTimer); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
+    close: () => new Promise((r) => { clearInterval(cleanupTimer); relay?.close(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
   };
 }
 
@@ -436,6 +446,12 @@ export function isTailscaleAddress(host) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  // P5: 내장 중계 비밀 파일(KEY=값 줄). PC 토큰은 IEON_RELAY_PC_TOKEN, 없으면 메신저와 같은 이름 KAKAO_RELAY_TOKEN.
+  if (config.relay?.envFile) {
+    const env = Object.fromEntries(readFileSync(config.relay.envFile, 'utf8').split(/\r?\n/)
+      .map((l) => l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/)).filter(Boolean).map((m) => [m[1], m[2].replace(/^(['"])(.*)\1$/, '$2')]));
+    config.relay = { pcToken: env.IEON_RELAY_PC_TOKEN ?? env.KAKAO_RELAY_TOKEN, kakaoSecret: env.IEON_RELAY_KAKAO_SECRET };
+  }
   const app = createApp(config);
   const port = await app.listen(config.port ?? 28760);
   process.stderr.write(`ieon pilot server: http://127.0.0.1:${port}\n`);
