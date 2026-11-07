@@ -37,6 +37,26 @@ export function validateKakao(v) {
   return out;
 }
 
+// P1-b: 웹에서 등록하는 기존 세션. 업무 대화는 거절한다(AGENTS 안전 규칙). Codex 대화는 PC 연결부 허용 목록에도 있어야 실행된다.
+const EXCLUDED_THREAD = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
+export function validateBinding(id, v, knownHosts) {
+  if (!/^c_[A-Za-z0-9_-]{1,60}$/.test(id)) fail('bad_conversation_id');
+  if (!v || typeof v !== 'object') fail('bad_binding');
+  const engine = v.engine;
+  if (!['codex_thread', 'claude_channel'].includes(engine)) fail('bad_engine');
+  const label = String(v.label ?? '').trim();
+  if (!label || label.length > 60) fail('bad_label');
+  const hostId = String(v.hostId ?? '');
+  if (!knownHosts.includes(hostId)) fail('unknown_host');
+  const sessionRef = String(v.sessionRef ?? (engine === 'claude_channel' ? 'ieon' : '')).trim();
+  if (engine === 'codex_thread' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionRef)) fail('bad_session_ref');
+  if (engine === 'claude_channel' && !/^[A-Za-z0-9_-]{1,40}$/.test(sessionRef)) fail('bad_session_ref');
+  if (sessionRef.toLowerCase() === EXCLUDED_THREAD) fail('excluded_session');
+  const appIds = Array.isArray(v.appIds) ? [...new Set(v.appIds.map(String))] : ['app_web'];
+  if (!appIds.length || appIds.some((a) => !/^app_[a-z0-9_-]{1,60}$/i.test(a))) fail('bad_app_ids');
+  return { conversationId: id, engine, label, hostId, sessionRef, appIds };
+}
+
 // 새 세션 설정 중 웹에서 바꿀 수 있는 부분만 받는다. 그 밖의 키는 거절한다.
 const NS_WEB = { enabled: 1, limits: 1, cleanup: 1, permissions: 1 };
 export function validateNewSessionsWeb(v, fileRaw) {

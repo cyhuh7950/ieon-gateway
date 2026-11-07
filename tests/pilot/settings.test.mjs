@@ -110,3 +110,44 @@ test('메신저 실행기: 웹 허용 사용자가 있으면 그 값, 없으면 
   assert.equal((await say('FILE')).length, 0); // 웹 값이 있으면 파일 값은 쓰지 않는다
   assert.deepEqual(tg.settings, { kakao: null });
 });
+
+test('P1-b 기존 세션 등록: 파일 등록은 보기만, 웹 등록은 추가·수정·삭제, 업무 대화·모르는 PC는 거절', async (t) => {
+  const { call, app } = await setup(t);
+  let r = (await call('/v1/admin/bindings')).body;
+  assert.deepEqual(r.hosts, ['h_sinsan']);
+  assert.deepEqual(r.bindings.map((b) => [b.conversationId, b.label, b.source]), [['c_shared', '공용', 'file']]);
+  // 파일 등록은 웹에서 못 바꾸고 못 지운다
+  const codex = { label: '내 프로젝트', engine: 'codex_thread', hostId: 'h_sinsan', sessionRef: '01b2c3d4-0000-7000-8000-000000000001', appIds: ['app_web', 'app_messenger'] };
+  assert.equal((await call('/v1/admin/bindings/c_shared', { method: 'PUT', body: codex })).body.error, 'file_managed');
+  assert.equal((await call('/v1/admin/bindings/c_shared', { method: 'DELETE' })).body.error, 'file_managed');
+  // 검사
+  for (const [id, body, err] of [
+    ['bad id', codex, 'not_found'], ['n_x', codex, 'bad_conversation_id'],
+    ['c_x', { ...codex, sessionRef: '01a0dadd-739f-74d2-93c5-9c405cc1019b' }, 'excluded_session'],
+    ['c_x', { ...codex, hostId: 'h_other' }, 'unknown_host'],
+    ['c_x', { ...codex, sessionRef: 'not-a-uuid' }, 'bad_session_ref'],
+    ['c_x', { ...codex, label: '' }, 'bad_label'],
+    ['c_x', { ...codex, engine: 'gpt' }, 'bad_engine'],
+  ]) assert.equal((await call(`/v1/admin/bindings/${encodeURIComponent(id)}`, { method: 'PUT', body })).body.error, err, id + JSON.stringify(body).slice(0, 40));
+  // 등록 → 목록·메신저에 보임
+  r = (await call('/v1/admin/bindings/c_myproj', { method: 'PUT', body: codex })).body;
+  assert.equal(r.source, 'web');
+  const list = (await call('/v1/conversations')).body.conversations;
+  assert.deepEqual(list.find((c) => c.conversationId === 'c_myproj').label, '내 프로젝트');
+  assert.ok((await call('/v1/conversations', { token: 'msg' })).body.conversations.some((c) => c.conversationId === 'c_myproj'));
+  // 수정(웹 전용으로 범위 좁히기)
+  await call('/v1/admin/bindings/c_myproj', { method: 'PUT', body: { ...codex, label: '이름 바꿈', appIds: ['app_web'] } });
+  assert.ok(!(await call('/v1/conversations', { token: 'msg' })).body.conversations.some((c) => c.conversationId === 'c_myproj'));
+  // 서버를 다시 켠 것처럼 파일 등록을 다시 넣어도 웹 등록은 그대로
+  app.store.addBinding({ conversationId: 'c_shared', label: '공용', ownerUserId: 'u_sinsan', appIds: ['app_web', 'app_messenger'], hostId: 'h_sinsan', engine: 'codex_thread', sessionRef: 't1' });
+  assert.equal((await call('/v1/admin/bindings')).body.bindings.find((b) => b.conversationId === 'c_myproj').label, '이름 바꿈');
+  // 처리 중이면 대상 변경·삭제 거절
+  await fetch(`http://127.0.0.1:${app.server.address().port}/v1/device/jobs`, { headers: { authorization: 'Bearer dev' } });
+  app.store.submit({ userId: 'u_sinsan', appId: 'app_web' }, 'c_myproj', 'k-p1b-0001', { question: 'q' });
+  assert.equal((await call('/v1/admin/bindings/c_myproj', { method: 'PUT', body: { ...codex, sessionRef: '01b2c3d4-0000-7000-8000-000000000002' } })).body.error, 'conversation_busy');
+  assert.equal((await call('/v1/admin/bindings/c_myproj', { method: 'DELETE' })).body.error, 'conversation_busy');
+  // 새 세션은 이 경로로 못 바꾼다
+  await call('/v1/admin/settings/new-sessions', { method: 'PUT', body: { enabled: true } });
+  await call('/v1/sessions', { method: 'POST', body: { engine: 'codex', name: 'ns1' } });
+  assert.ok(!(await call('/v1/admin/bindings')).body.bindings.some((b) => b.conversationId === 'n_ns1'));
+});
