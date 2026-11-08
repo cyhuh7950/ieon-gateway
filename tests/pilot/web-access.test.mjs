@@ -7,7 +7,6 @@ import { join } from 'node:path';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { createApp } from '../../src/pilot/server.mjs';
 import { matchCidr, clientIp, createWebAccess, validateWebAccess } from '../../src/pilot/web-access.mjs';
-import { createForwarder } from '../../src/hub/forward.mjs';
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const fakeReq = (remoteAddress, headers = {}) => ({ socket: { remoteAddress }, headers });
@@ -84,21 +83,14 @@ test('허브 서버: 접속 제한 방식이 없으면 공개용 소켓을 열�
   assert.throws(() => noAccess.listenSocket(join(tmpdir(), 'y.sock')), /web_access_required/);
 });
 
-test('전달기(ieun-relay) → 허브 소켓: 접속 주소 체인이 이어져 허용 목록·Tailscale 판정이 맞고, 허브가 없으면 502', async (t) => {
-  const { app } = await hub(t, { modes: ['ip_allowlist', 'tailscale'], ipAllowlist: ['198.51.100.9'], trustedProxies: ['unix', '127.0.0.1'] });
-  const sock = process.platform === 'win32' ? `\\\\.\\pipe\\ieun-hub-test-${process.pid}` : join(mkdtempSync(join(tmpdir(), 'ieun-sock-')), 'hub.sock');
-  await app.listenSocket(sock);
-  const fwd = createForwarder({ socketPath: sock });
-  await new Promise((r) => fwd.listen(0, '127.0.0.1', r));
-  t.after(() => new Promise((r) => fwd.close(r)));
-  const base = `http://127.0.0.1:${fwd.address().port}`;
-  const get = (path, xff) => fetch(base + path, { headers: { authorization: 'Bearer web', 'x-forwarded-for': xff } }).then((r) => r.status);
-  assert.equal(await get('/v1/conversations', '198.51.100.9'), 200);   // NPM이 붙인 실제 주소 → 허용 목록
-  assert.equal(await get('/v1/conversations', '100.100.1.2'), 200);    // Tailscale 주소
+test('허브 공개 포트(W0): 접속 제한이 없으면 열지 않고, NPM(믿는 앞단)을 거친 주소로 판정하며 127.0.0.1 직접 접속 예외를 받지 않는다', async (t) => {
+  const { app: closed } = await hub(t, { modes: [] });
+  assert.throws(() => closed.listenPublic(0, '127.0.0.1'), /web_access_required/);
+  const { app } = await hub(t, { modes: ['ip_allowlist'], ipAllowlist: ['198.51.100.9'], trustedProxies: ['127.0.0.1'] });
+  const port = await app.listenPublic(0, '127.0.0.1');
+  const get = (path, xff) => fetch(`http://127.0.0.1:${port}${path}`, { headers: { authorization: 'Bearer web', ...(xff ? { 'x-forwarded-for': xff } : {}) } }).then((r) => r.status);
+  assert.equal(await get('/v1/conversations', '198.51.100.9'), 200);
   assert.equal(await get('/v1/conversations', '203.0.113.7'), 403);
-  assert.equal(await get('/health', '203.0.113.7'), 200);
-  const dead = createForwarder({ socketPath: process.platform === 'win32' ? '\\\\.\\pipe\\ieun-none' : join(tmpdir(), 'none.sock') });
-  await new Promise((r) => dead.listen(0, '127.0.0.1', r));
-  t.after(() => new Promise((r) => dead.close(r)));
-  assert.equal((await fetch(`http://127.0.0.1:${dead.address().port}/health`)).status, 502);
+  assert.equal(await get('/v1/conversations'), 403); // 공개 포트는 127.0.0.1에서 와도 예외 없음
+  assert.equal(await get('/health'), 200);
 });
