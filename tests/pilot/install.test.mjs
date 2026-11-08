@@ -68,6 +68,39 @@ test('설치 스크립트: 문법 오류 없고, 미리보기는 아무것도 �
   assert.equal(u.status, 0, u.stderr);
 });
 
+test('부품 확인: 잠금 파일과 설치된 부품을 비교한다(선택 부품은 없어도 됨)', async (t) => {
+  const { depsState } = await import('../../scripts/deps-check.mjs');
+  const d = tmp(t);
+  const a = 'node_modules/a';
+  const opt = 'node_modules/other-os';
+  const lock = (packages) => writeFileSync(join(d, 'package-lock.json'), JSON.stringify({ packages: { '': { name: 'x' }, ...packages } }));
+  const installed = (packages) => writeFileSync(join(d, 'node_modules/.package-lock.json'), JSON.stringify({ packages }));
+  lock({ [a]: { version: '1.0.0' }, [opt]: { version: '1.0.0', optional: true } });
+  assert.equal(depsState(d), 'install');
+  mkdirSync(join(d, a), { recursive: true });
+  installed({ [a]: { version: '1.0.0' } });
+  assert.equal(depsState(d), 'ok');
+  lock({ [a]: { version: '2.0.0' } });
+  assert.equal(depsState(d), 'stale', '버전이 바뀜');
+  lock({ [a]: { version: '1.0.0' }, 'node_modules/b': { version: '1.0.0' } });
+  assert.equal(depsState(d), 'stale', '부품이 늘어남');
+  lock({});
+  assert.equal(depsState(d), 'stale', '부품이 줄어듦');
+  lock({ [a]: { version: '1.0.0' } });
+  rmSync(join(d, a), { recursive: true });
+  assert.equal(depsState(d), 'stale', '폴더가 지워짐');
+});
+
+test('설치 스크립트: 부품이 없으면 미리보기에서 설치가 필요하다고 알리고 아무것도 설치하지 않는다', { skip: process.platform !== 'win32' }, (t) => {
+  const d = tmp(t);
+  mkdirSync(join(d, 'scripts'));
+  for (const f of ['scripts/install.ps1', 'scripts/deps-check.mjs', 'package-lock.json']) writeFileSync(join(d, f), readFileSync(join(root, f)));
+  const r = spawnSync('pwsh', ['-NoProfile', '-File', join(d, 'scripts/install.ps1'), '-DryRun'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /npm ci/);
+  assert.ok(!existsSync(join(d, 'node_modules')));
+});
+
 test('공개 중계 비밀 파일이 있으면 카카오 중계 PC 토큰을 내부에서 채운다(값 출력 없음)', async (t) => {
   const { readEnvFile } = await import('../../src/pilot/secrets-file.mjs');
   const d = tmp(t);

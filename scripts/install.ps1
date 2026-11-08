@@ -45,11 +45,16 @@ if ($ver -notlike 'v24.*') {
 Step "Node.js $ver"
 
 # 2) 부품
-if ($DryRun) { Step '부품 설치(npm ci) — 필요할 때만' }
-elseif (-not (Test-Path (Join-Path $Root 'node_modules\@openai\codex-sdk'))) {
+$deps = "$(node (Join-Path $Root 'scripts\deps-check.mjs') $Root)".Trim()
+if ($deps -eq 'ok') { Step '부품 최신' }
+elseif ($DryRun) { Step '부품 설치(npm ci) 필요' }
+else {
+  # 실행 중인 서버가 부품 파일을 잡고 있으면 교체가 실패하므로 먼저 끈다(연결부·메신저는 부모가 사라지면 5초 안에 끝난다).
+  if (Test-Up) { Step '부품을 바꾸려고 서버를 잠시 끕니다'; Stop-Ieon; Start-Sleep -Seconds 6 }
   Step '부품 설치 중(npm ci)…'
-  Push-Location $Root; try { npm ci --no-audit --no-fund | Out-Null } finally { Pop-Location }
-} else { Step '부품 있음' }
+  Push-Location $Root; try { npm ci --no-audit --no-fund | Out-Null; $npmCode = $LASTEXITCODE } finally { Pop-Location }
+  if ($npmCode -ne 0) { Write-Output '부품 설치에 실패했습니다. 인터넷 연결을 확인하고 이 설치를 다시 실행하세요.'; exit 1 }
+}
 
 # 3) 설정 준비(처음이면 만들고, 있으면 필요한 것만 보탬. 토큰은 내부 생성, 값은 출력하지 않음)
 if ($DryRun) { Step '설정 준비(.local): 서버·연결부·메신저 설정, 내부 토큰, 웹 입력용 봇 토큰 파일' }
