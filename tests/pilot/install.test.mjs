@@ -67,3 +67,15 @@ test('설치 스크립트: 문법 오류 없고, 미리보기는 아무것도 �
   const u = spawnSync('pwsh', ['-NoProfile', '-File', join(root, 'scripts/install.ps1'), '-Uninstall', '-DryRun'], { encoding: 'utf8' });
   assert.equal(u.status, 0, u.stderr);
 });
+
+test('공개 중계 비밀 파일이 있으면 카카오 중계 PC 토큰을 내부에서 채운다(값 출력 없음)', async (t) => {
+  const { readEnvFile } = await import('../../src/pilot/secrets-file.mjs');
+  const d = tmp(t);
+  mkdirSync(join(d, '.local', 'relay'), { recursive: true });
+  writeFileSync(join(d, '.local/relay/relay.secrets'), 'IEON_RELAY_PC_TOKEN=pc-token-0123456789abcdef\nIEON_RELAY_KAKAO_SECRET=s\n');
+  const changes = prepareWebFirst(d);
+  assert.ok(changes.includes('secrets:KAKAO_RELAY_TOKEN'));
+  assert.ok(!changes.join(' ').includes('pc-token'));
+  assert.equal(readEnvFile(join(d, '.local/messenger/bots.env')).KAKAO_RELAY_TOKEN, 'pc-token-0123456789abcdef');
+  assert.deepEqual(prepareWebFirst(d), []);
+});

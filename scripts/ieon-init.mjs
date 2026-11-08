@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readEnvFile, writeEnvValue } from '../src/pilot/secrets-file.mjs';
 
 export function initLocal(rootDir, { workspaceRoot = '~/ieon-workspaces', port = 28760 } = {}) {
   const root = resolve(rootDir);
@@ -72,6 +73,12 @@ export function prepareWebFirst(rootDir) {
       envFile: `${posix}/.local/messenger/bots.env`, roomsPath: `${posix}/.local/messenger/rooms.json`, allowedUsers: {} };
     writeFileSync(mcfgPath, JSON.stringify(mcfg, null, 2) + '\n', { flag: 'wx' });
     changes.push('created:messenger/config.json');
+  }
+  // W7: 운영자가 둔 공개 중계 비밀 파일이 있으면, 메신저가 중계에 붙을 PC 토큰을 내부에서 채운다(사용자가 옮기지 않음).
+  const relaySecrets = join(L, 'relay', 'relay.secrets');
+  if (existsSync(relaySecrets) && mcfg.envFile) {
+    const pcToken = readEnvFile(relaySecrets).IEON_RELAY_PC_TOKEN;
+    if (pcToken && !readEnvFile(mcfg.envFile).KAKAO_RELAY_TOKEN) { writeEnvValue(mcfg.envFile, 'KAKAO_RELAY_TOKEN', pcToken); changes.push('secrets:KAKAO_RELAY_TOKEN'); }
   }
   const want = {
     connectorConfigPath: `${posix}/.local/s2/connector.json`,

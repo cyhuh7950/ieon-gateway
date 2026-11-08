@@ -9,7 +9,7 @@ import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
 import { botAppId, tokenEnvNames } from './bots.mjs';
 import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding } from './settings.mjs';
-import { createWebAccess, isExemptPath } from './web-access.mjs';
+import { createWebAccess, isExemptPath, validateWebAccess } from './web-access.mjs';
 import { createRelay } from '../relay/relay.mjs';
 import { createWebAuth } from './web-auth.mjs';
 import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs';
@@ -43,7 +43,14 @@ async function readJson(req) {
 
 export function createApp(config) {
   // P4: 허브 웹 접속 제한(설정 파일 webAccess). 없으면 지금처럼 127.0.0.1 전용 로컬 서버다.
-  const access = config.webAccess ? createWebAccess(config.webAccess) : null;
+  // W7: 허브는 접속 제한을 웹 "보안" 화면에서도 바꾼다(DB 값이 있으면 그 값). 믿는 앞단·Tailscale 수신 주소는 파일 값만 쓴다.
+  let accessInner = null;
+  const access = config.webAccess ? {
+    get modes() { return accessInner.modes; },
+    clientIp: (req) => accessInner.clientIp(req),
+    check: (req) => accessInner.check(req),
+  } : null;
+  const mergeAccess = (web) => (web ? { ...config.webAccess, modes: web.modes, ipAllowlist: web.ipAllowlist ?? [], cloudflare: web.cloudflare ?? config.webAccess.cloudflare } : config.webAccess);
   // P5: 허브 내장 카카오 수신(중계와 같은 코드). 카카오가 허브의 /kakao/skill/<비밀>을 직접 부르고,
   // 같은 기계의 메신저가 127.0.0.1로 /pc/poll을 가져간다. 비밀 값은 main에서 비밀 파일로 읽어 넘긴다(설정 파일·로그에 없음).
   const relay = config.relay ? createRelay({
@@ -52,6 +59,7 @@ export function createApp(config) {
     log: (e) => process.stderr.write(JSON.stringify(e) + '\n'),
   }) : null;
   const store = openStore(config.dbPath);
+  if (access) accessInner = createWebAccess(mergeAccess(store.getSetting('security.webAccess')?.value));
   // W1: 웹 로그인(쿠키). 사용자는 토큰을 다루지 않는다.
   const auth = createWebAuth({ store, config, access, clientIp: (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?')) });
   for (const b of config.bindings) store.addBinding(b);
@@ -102,6 +110,16 @@ export function createApp(config) {
     .map((name) => ({ name, platform: b.platform, botId: b.botId, internal: internalSecret(name) })));
   // W2: 허용 목록에 없는 사람이 보낸 최근 메시지(메신저가 알려 줌). 웹의 "이 사람 허용" 버튼에 쓴다. 메시지 내용은 받지 않는다.
   const denied = new Map();
+  // W7: PC 완결형 공개 중계 — 주소는 웹 설정(카카오 중계 주소) 또는 메신저 설정 파일, 비밀 경로는 운영자가 둔 중계 비밀 파일.
+  const pcRelay = () => {
+    let url = store.getSetting('messenger.kakao')?.value?.relayUrl ?? null;
+    if (!url && config.messengerConfigPath && existsSync(config.messengerConfigPath)) {
+      try { url = JSON.parse(readFileSync(config.messengerConfigPath, 'utf8')).kakaoRelayUrl ?? null; } catch { url = null; }
+    }
+    const f = config.relaySecretsFile ?? join(dirname(config.dbPath), '..', 'relay', 'relay.secrets');
+    const secret = readEnvFile(existsSync(f) ? f : null).IEON_RELAY_KAKAO_SECRET ?? null;
+    return url ? { url: String(url).replace(/\/+$/, ''), secret } : null;
+  };
   // W3: 짝맺기. 허브(접속 제한 있음)는 PC의 요청을 받아 승인하고, PC(접속 제한 없음)는 허브에 연결한다.
   const pairing = access ? createPairing({ store, reserved: () => fileHosts }) : null;
   const hubLink = access ? null : createHubLink({ dir: config.hubLinkDir ?? join(dirname(config.dbPath), 'hub'),
@@ -255,6 +273,31 @@ export function createApp(config) {
           process.stderr.write(JSON.stringify({ ch: 'server', event: `pair_${pr[2]}d`, hostId: r.body?.hostId ?? null }) + '\n');
           return json(res, r.http, r.body);
         }
+        // W7: 허브 보안(접속 제한). 지금 접속한 곳이 막히는 변경과 방식이 하나도 없는 변경은 거절한다(잠김·무방비 방지).
+        if (path === '/v1/admin/security') {
+          if (!access) return json(res, 404, { error: 'not_found' });
+          const cur = store.getSetting('security.webAccess');
+          const view = () => { const w = mergeAccess(store.getSetting('security.webAccess')?.value);
+            return { modes: w.modes, ipAllowlist: w.ipAllowlist ?? [], cloudflare: w.cloudflare ?? null, source: store.getSetting('security.webAccess') ? 'web' : 'file', yourIp: access.clientIp(req) }; };
+          if (req.method === 'GET') return json(res, 200, view());
+          if (req.method === 'PUT' || req.method === 'DELETE') {
+            let web = null;
+            if (req.method === 'PUT') {
+              const b = await readJson(req);
+              web = { modes: Array.isArray(b.modes) ? b.modes.map(String) : [], ipAllowlist: Array.isArray(b.ipAllowlist) ? b.ipAllowlist.map((x) => String(x).trim()).filter(Boolean).slice(0, 50) : [],
+                ...(b.cloudflare ? { cloudflare: { teamDomain: String(b.cloudflare.teamDomain ?? '').trim(), aud: String(b.cloudflare.aud ?? '').trim() } } : {}) };
+              if (!web.modes.length) return json(res, 400, { error: 'closed_not_allowed' });
+            }
+            let candidate;
+            try { candidate = createWebAccess(validateWebAccess(mergeAccess(web))); } catch (e) { return json(res, 400, { error: e.message }); }
+            if (!(await candidate.check(req))) return json(res, 409, { error: 'would_lock_out' });
+            if (web) store.setSetting('security.webAccess', web); else if (cur) store.deleteSetting('security.webAccess');
+            accessInner = candidate;
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'security_changed', modes: candidate.modes }) + '\n');
+            return json(res, 200, view());
+          }
+          return json(res, 404, { error: 'not_found' });
+        }
         // W5: 허브 Codex 로그인
         if (path.startsWith('/v1/admin/codex')) {
           if (!codexLogin) return json(res, 404, { error: 'not_found' });
@@ -320,11 +363,24 @@ export function createApp(config) {
         }
         // W2: 카카오 스킬 URL(허브 내장 수신). 오픈빌더에 붙일 주소를 복사할 수 있게 준다.
         if (req.method === 'GET' && path === '/v1/admin/kakao/skill-url') {
-          if (!relay) return json(res, 404, { error: 'no_embedded_relay' });
+          // W7: PC 완결형 — 운영자가 배포한 공개 중계의 비밀 파일(PC에 있음)로 주소를 만든다. 사용자는 값을 다루지 않는다.
+          if (!relay) {
+            const k = pcRelay();
+            return k?.secret && k.url ? json(res, 200, { url: `${k.url}/kakao/skill/${k.secret}`, relay: 'public' }) : json(res, 404, { error: 'no_kakao_relay' });
+          }
           const proto = String(req.headers['x-forwarded-proto'] ?? 'http').split(',')[0].trim();
           const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim();
           const base = config.publicUrl ?? `${proto}://${host}`;
           return json(res, 200, { url: `${base}/kakao/skill/${config.relay.kakaoSecret}` });
+        }
+        // W7: PC 완결형 공개 중계 연결 상태(중계 /health의 pc 값)
+        if (req.method === 'GET' && path === '/v1/admin/kakao/relay-status') {
+          const k = relay ? null : pcRelay();
+          if (!k?.url) return json(res, 404, { error: 'no_kakao_relay' });
+          try {
+            const h = await (await fetch(`${k.url}/health`, { signal: AbortSignal.timeout(5000) })).json();
+            return json(res, 200, { url: k.url, reachable: true, pcConnected: Boolean(h.pc) });
+          } catch { return json(res, 200, { url: k.url, reachable: false, pcConnected: false }); }
         }
         // W2: 허용 목록에 없던 사람 → 그 봇의 추가 허용 사용자로 넣는다(ID를 옮겨 적지 않음).
         if (req.method === 'GET' && path === '/v1/admin/denied') {
