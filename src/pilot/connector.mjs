@@ -97,6 +97,11 @@ export async function runConnector({ pollMs = 2000, signal, ...opts }) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   (await import('./parent-watch.mjs')).watchParent(); // W6: 서버가 띄운 경우, 서버가 사라지면 함께 끝난다
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  // 허브 컨테이너(감독 프로세스가 다시 띄움)에서는 설정 파일이 바뀌면 끝나서 새 설정으로 다시 시작한다(허브 웹의 실행 스위치).
+  if (process.env.IEON_EXIT_ON_CONFIG_CHANGE === '1') {
+    const { watchFile } = await import('node:fs');
+    watchFile(process.argv[2], { interval: 2000 }, (cur, prev) => { if (cur.mtimeMs !== prev.mtimeMs) process.exit(0); });
+  }
   const o = connectorOptions(config, process.argv.slice(3));
   const { buildAdapters } = await import('./adapters/index.mjs');
   process.stderr.write(JSON.stringify({ ch: 'connector', event: 'start', server: o.serverUrl }) + '\n');

@@ -68,3 +68,18 @@ test('PC 완결형 카카오: 운영자가 둔 중계 비밀 파일로 스킬 UR
   assert.deepEqual((await get('/v1/admin/kakao/skill-url')).body, { url: `http://127.0.0.1:${rport}/kakao/skill/kakao-secret-0123456789abcdef`, relay: 'public' });
   assert.deepEqual((await get('/v1/admin/kakao/relay-status')).body, { url: `http://127.0.0.1:${rport}`, reachable: true, pcConnected: false });
 });
+
+test('허브 새 세션 실행 스위치: 허브 웹에서 허브 자신의 연결부 live만 바꾸고, PC에는 없다', async (t) => {
+  const { writeFileSync, readFileSync } = await import('node:fs');
+  const dir = mkdtempSync(join(tmpdir(), 'ieon-hl-'));
+  writeFileSync(join(dir, 'connector.json'), JSON.stringify({ serverUrl: 'http://127.0.0.1:1', live: false, codex: { allowlist: [] } }));
+  const hub = createApp({ dbPath: join(dir, 'hub.db'), users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }], devices: [], bindings: [],
+    webAccess: { modes: ['ip_allowlist'], ipAllowlist: ['198.51.100.9'], trustedProxies: ['127.0.0.1'] } });
+  const base = `http://127.0.0.1:${await hub.listen(0)}`;
+  t.after(async () => { await hub.close(); rmSync(dir, { recursive: true, force: true }); });
+  const call = (method, body) => fetch(`${base}/v1/admin/hub/engine`, { method, body: body && JSON.stringify(body), headers: { authorization: 'Bearer web', 'content-type': 'application/json', 'x-forwarded-for': '198.51.100.9' } }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  assert.deepEqual((await call('GET')).body, { live: false });
+  assert.deepEqual((await call('PUT', { live: true })).body, { live: true });
+  assert.equal(JSON.parse(readFileSync(join(dir, 'connector.json'), 'utf8')).live, true);
+  assert.equal((await call('PUT', { live: 'yes' })).body.error, 'bad_live');
+});

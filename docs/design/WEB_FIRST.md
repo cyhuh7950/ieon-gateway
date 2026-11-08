@@ -113,7 +113,7 @@
 - `src/pilot/codex-login.mjs`: 공식 `codex login status`(로그인 여부·방식만, 계정 정보 없음)와 `codex login --device-auth`를 서버가 띄우고 출력에서 로그인 주소·코드를 찾아 웹에 보여 준다(15분 제한, 취소 가능). 자격 증명은 Codex가 `CODEX_HOME`(허브 컨테이너 `/data/codex`)에 직접 저장, 이어온은 읽거나 옮기지 않는다.
 - API(허브만): `GET /v1/admin/codex`, `POST /v1/admin/codex/login`, `POST /v1/admin/codex/login/cancel`. 화면: 설정 "Codex 로그인(이 허브)" — 상태, 로그인 버튼, 주소(OpenAI 주소일 때만 링크)·코드 표시.
 - 테스트 `tests/pilot/codex-login.test.mjs` 3건(가짜 Codex 프로세스).
-- 결정 필요: 허브 새 세션을 실제로 돌리려면 허브 연결부의 실제 실행(`live`)을 켜야 한다. 원칙 6은 기기 안전 설정을 그 기기의 로컬 화면에서만 바꾸게 하는데, 허브는 브라우저로 여는 "로컬 화면"이 없다. 허브 연결부의 실제 실행을 허브 웹에서 켤 수 있게 할지(허브 자신의 연결부에 한정) 신산님 결정을 받는다.
+- 결정(2026-11-08, 신산님): 허브 자신의 연결부(허브 새 세션 전용) 실제 실행은 **허브 웹에서 켜고 끈다**(`GET|PUT /v1/admin/hub/engine`, 켤 때 확인). PC의 안전 설정은 여전히 허브에서 못 바꾼다. 허브 연결부는 `IEON_EXIT_ON_CONFIG_CHANGE`로 설정 파일이 바뀌면 끝나고 감독 프로세스가 새 설정으로 다시 띄운다.
 
 ## 5-7. W6 구현 (2026-11-08, 저장소 코드)
 

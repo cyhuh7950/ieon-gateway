@@ -298,6 +298,20 @@ export function createApp(config) {
           }
           return json(res, 404, { error: 'not_found' });
         }
+        // 허브 자신의 연결부(허브 새 세션 전용) 실제 실행 스위치. 신산님 결정(2026-11-08): 허브는 로컬 화면이 없으므로 허브 웹에서 켜고 끈다.
+        // PC의 안전 설정은 여전히 허브에서 바꿀 수 없다. 허브 연결부는 설정 파일이 바뀌면 다시 시작한다.
+        if (path === '/v1/admin/hub/engine') {
+          const cfgPath = config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json');
+          if (!access || !existsSync(cfgPath)) return json(res, 404, { error: 'not_found' });
+          if (req.method === 'GET') return json(res, 200, { live: readDevice(cfgPath).live });
+          if (req.method === 'PUT') {
+            const live = (await readJson(req)).live;
+            setLive(cfgPath, live);
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'hub_engine_live', live }) + '\n');
+            return json(res, 200, { live });
+          }
+          return json(res, 404, { error: 'not_found' });
+        }
         // W5: 허브 Codex 로그인
         if (path.startsWith('/v1/admin/codex')) {
           if (!codexLogin) return json(res, 404, { error: 'not_found' });

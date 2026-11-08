@@ -12,7 +12,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 export function hubCommands(data) {
   return [
     { name: 'server', args: ['src/pilot/server.mjs', posix.join(data, 's2/server.json')], delayMs: 0 },
-    { name: 'connector', args: ['src/pilot/connector.mjs', posix.join(data, 's2/connector.json')], delayMs: 2000 },
+    { name: 'connector', args: ['src/pilot/connector.mjs', posix.join(data, 's2/connector.json')], delayMs: 2000, env: { IEON_EXIT_ON_CONFIG_CHANGE: '1' } },
     { name: 'messenger', args: ['src/pilot/messenger/main.mjs', posix.join(data, 'messenger/config.json')], delayMs: 3000, optional: true },
   ];
 }
@@ -22,7 +22,7 @@ export function supervise(cmds, { spawnImpl = spawn, log = (e) => process.stderr
   let stopping = false;
   const start = (c, backoff = 5000) => {
     if (stopping) return;
-    const p = spawnImpl(process.execPath, c.args, { cwd: ROOT, env: childEnv(), stdio: ['ignore', 'inherit', 'inherit'] });
+    const p = spawnImpl(process.execPath, c.args, { cwd: ROOT, env: { ...childEnv(), ...(c.env ?? {}) }, stdio: ['ignore', 'inherit', 'inherit'] });
     const at = Date.now();
     children.set(c.name, p);
     log({ event: 'start', name: c.name });
