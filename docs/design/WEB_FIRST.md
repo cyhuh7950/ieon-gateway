@@ -129,6 +129,12 @@
 - PC 완결형 공개 중계(신산님 결정 2026-11-08: 운영자 배포·PC 웹은 보기만): 중계 주소(웹 설정 또는 메신저 설정)와 운영자가 둔 중계 비밀 파일(`relaySecretsFile`, 기본 `.local/relay/relay.secrets`)로 PC 웹에 스킬 URL 보기·복사(`GET /v1/admin/kakao/skill-url`, `relay: public`)와 중계 연결 상태(`GET /v1/admin/kakao/relay-status`, 중계 `/health`의 pc). 설치(`--web-first`)가 중계 PC 토큰을 메신저 봇 토큰 파일에 내부로 채운다. 중계 짝맺기·관리 화면은 만들지 않음(결정).
 - 테스트: `tests/pilot/security.test.mjs` 3건, `install.test.mjs` 1건 추가.
 
+## 5-9. W2b 구현 (2026-11-08, 저장소 코드)
+
+- 외부 프로그램 API 키(설계 2절의 예외 항목, 단계 표에 빠져 있어 추가): 봇 관리 탭 "외부 프로그램(API 키)"에서 이름을 넣고 발급 → 키를 **그때 한 번만** 보여 줌(복사), DB `api_apps`에는 해시만. 앱 ID `app_ext_<이름>`. 프로그램마다 볼 수 있는 세션을 화면에서 고른다(DB `app_sessions`, server.json의 `appIds`를 고치지 않음). 폐기하면 바로 401. 이 키로는 관리 API를 못 쓴다.
+- API: `GET|POST /v1/admin/apps`, `PUT /v1/admin/apps/{앱}/sessions`, `POST /v1/admin/apps/{앱}/revoke`.
+- 테스트 `tests/pilot/api-keys.test.mjs` 1건.
+
 ## 6. 지금까지 만든 것과의 관계
 
 - 유지: P1의 웹 설정·기존 세션 등록·기기 관리(P1-c는 짝맺기 승인 화면의 바탕), P3의 허브 주소 검사·요청 횟수 제한, P4의 접속 제한 코드, P5의 허브 내장 카카오 수신.

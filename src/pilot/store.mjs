@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS bots (
   extra_users TEXT NOT NULL, enabled INTEGER NOT NULL, PRIMARY KEY (platform, bot_id));
 CREATE TABLE IF NOT EXISTS bot_sessions (
   platform TEXT NOT NULL, bot_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (platform, bot_id, conversation_id));
+CREATE TABLE IF NOT EXISTS api_apps (
+  app_id TEXT PRIMARY KEY, name TEXT NOT NULL, token_sha256 TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT);
+CREATE TABLE IF NOT EXISTS app_sessions (
+  app_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (app_id, conversation_id));
 CREATE TABLE IF NOT EXISTS web_sessions (
   sid_sha256 TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL, expires_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS settings (
@@ -79,7 +83,11 @@ export function openStore(path) {
     const row = db.prepare('SELECT * FROM bindings WHERE conversation_id = ?').get(id);
     // 웹 봇 관리에서 봇에게 보이게 한 세션(bot_sessions)은 그 봇의 앱 ID를 appIds에 더해 준다.
     // server.json의 appIds는 서버를 켤 때마다 다시 쓰이므로 웹 설정은 따로 둔다.
-    const granted = row ? db.prepare('SELECT platform, bot_id FROM bot_sessions WHERE conversation_id = ?').all(id).map((g) => botAppId(g.platform, g.bot_id)) : [];
+    const granted = row ? [
+      ...db.prepare('SELECT platform, bot_id FROM bot_sessions WHERE conversation_id = ?').all(id).map((g) => botAppId(g.platform, g.bot_id)),
+      // W2b: 웹에서 발급한 외부 프로그램(API 키)에게 보이게 한 세션
+      ...db.prepare('SELECT a.app_id FROM app_sessions s JOIN api_apps a ON a.app_id = s.app_id WHERE s.conversation_id = ? AND a.revoked_at IS NULL').all(id).map((g) => g.app_id),
+    ] : [];
     return row && {
       conversationId: row.conversation_id, ownerUserId: row.owner_user_id,
       appIds: [...new Set([...JSON.parse(row.app_ids), ...granted])], hostId: row.host_id, engine: row.engine,
@@ -592,6 +600,32 @@ export function openStore(path) {
     setSetting(key, value) {
       db.prepare(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
         ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).run(key, JSON.stringify(value), new Date().toISOString());
+    },
+    // W2b: 외부 프로그램 API 키(웹에서 발급, 키는 해시만). 프로그램마다 볼 수 있는 세션을 따로 둔다.
+    listApiApps() {
+      return db.prepare('SELECT app_id, name, created_at, revoked_at FROM api_apps ORDER BY created_at').all().map((a) => ({ appId: a.app_id, name: a.name,
+        createdAt: a.created_at, revokedAt: a.revoked_at,
+        sessions: db.prepare('SELECT conversation_id FROM app_sessions WHERE app_id = ? ORDER BY conversation_id').all(a.app_id).map((r) => r.conversation_id) }));
+    },
+    activeApiAppHashes() { return db.prepare('SELECT app_id, token_sha256 FROM api_apps WHERE revoked_at IS NULL').all().map((a) => ({ appId: a.app_id, tokenSha256: a.token_sha256 })); },
+    addApiApp(appId, name, tokenSha256) {
+      if (db.prepare('SELECT 1 FROM api_apps WHERE app_id = ?').get(appId)) return { http: 409, code: 'app_taken' };
+      db.prepare('INSERT INTO api_apps (app_id, name, token_sha256, created_at) VALUES (?, ?, ?, ?)').run(appId, name, tokenSha256, new Date().toISOString());
+      return { http: 201 };
+    },
+    revokeApiApp(appId) {
+      const r = db.prepare('UPDATE api_apps SET revoked_at = ? WHERE app_id = ? AND revoked_at IS NULL').run(new Date().toISOString(), appId);
+      return r.changes ? { http: 200 } : { http: 404, code: 'not_found' };
+    },
+    setAppSessions(appId, ids) {
+      if (!db.prepare('SELECT 1 FROM api_apps WHERE app_id = ?').get(appId)) return { http: 404, code: 'not_found' };
+      const list = [...new Set((Array.isArray(ids) ? ids : []).map(String))];
+      if (list.some((id) => !db.prepare('SELECT 1 FROM bindings WHERE conversation_id = ?').get(id))) return { http: 400, code: 'unknown_session' };
+      tx(() => {
+        db.prepare('DELETE FROM app_sessions WHERE app_id = ?').run(appId);
+        for (const id of list) db.prepare('INSERT INTO app_sessions (app_id, conversation_id) VALUES (?, ?)').run(appId, id);
+      });
+      return { http: 200 };
     },
     // W1: 웹 로그인 세션(쿠키). 쿠키 값은 해시만 둔다.
     addWebSession(sidSha256, userId, expiresAt) {
