@@ -21,10 +21,11 @@ export function createdLog(path) {
 
 export async function buildAdapters(config) {
   const live = config.live === true;
-  // 새 세션 만들기: connector.json의 newSessions { configPath, createdPath }가 있고 그 설정이 켜져 있을 때만 쓴다.
+  // 새 세션 만들기: connector.json의 newSessions { configPath, createdPath }가 있으면 준비한다.
+  // 켜고 끄기는 서버가 판단한다(파일 값 위에 웹 설정을 겹침). 파일의 enabled로 막으면 웹에서 켜도 연결부가 거절한다(2026-11-08 허브 시험).
   const nsCfg = config.newSessions?.configPath && existsSync(config.newSessions.configPath)
     ? loadNewSessionsConfig(JSON.parse(readFileSync(config.newSessions.configPath, 'utf8'))) : null;
-  const newSessions = nsCfg?.enabled && config.newSessions.createdPath
+  const newSessions = nsCfg && config.newSessions.createdPath
     ? { config: nsCfg, created: createdLog(config.newSessions.createdPath) } : undefined;
   return {
     codex_thread: codexThreadAdapter({ live, allowlist: config.codex?.allowlist ?? [], modes: config.codex?.modes, shared: config.codex?.shared,
