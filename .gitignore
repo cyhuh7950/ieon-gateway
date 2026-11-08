@@ -17,3 +17,5 @@ node_modules/
 
 # 중계 비밀 값 파일(배포용)
 *.secrets
+# Serena 도구의 로컬 폴더(개인 도구 상태)
+.serena/
