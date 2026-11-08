@@ -28,11 +28,11 @@
 
 ### 2-1. 이어온 켜기
 
-설치(`pwsh scripts/install.ps1`, [따라 하기 1절](BEGINNER_GUIDE.md)) 뒤에는 이어온이 자동으로 켜져 있다. 실제 답을 받으려면 웹 **봇 관리 → 이 PC 설정 → 실제 실행 켜기**를 켠다(끈 상태에서는 접수·조회는 되지만 결과가 `failed`(`live_disabled`)로 끝난다). Claude 세션에 질문하려면 그 Claude 채널 세션을 켜 둔다.
+설치(`pwsh scripts/install.ps1`, [따라 하기 1절](BEGINNER_GUIDE.md)) 뒤에는 이어온이 자동으로 켜져 있다. 실제 답을 받으려면 웹 **봇 관리 → 이 PC 탭 → 실제 실행 켜기**를 켠다(끈 상태에서는 접수·조회는 되지만 결과가 `failed`(`live_disabled`)로 끝난다). Claude 세션에 질문하려면 그 Claude 채널 세션을 켜 둔다.
 
 ### 2-2. 내 프로그램 전용 API 키 받기
 
-웹 **봇 관리 → 외부 프로그램(API 키)**에서 프로그램 이름을 넣고 **키 발급**을 누른다. 키는 **그때 한 번만** 보이니 복사해 내 프로그램 설정(환경 변수 등)에 넣는다. 같은 칸에서 이 프로그램이 볼 수 있는 세션을 체크하고 **저장**한다. 필요 없어지면 **폐기**(바로 접속 불가, 다른 프로그램은 영향 없음). 설정 파일은 고치지 않는다.
+웹 **봇 관리 → 외부 프로그램 탭**에서 프로그램 이름을 넣고 **키 발급**을 누른다. 키는 **그때 한 번만** 보이니 복사해 내 프로그램 설정(환경 변수 등)에 넣는다. 같은 칸에서 이 프로그램이 볼 수 있는 세션을 체크하고 **저장**한다. 필요 없어지면 **폐기**(바로 접속 불가, 다른 프로그램은 영향 없음). 설정 파일은 고치지 않는다.
 
 ### 2-3. 연결 확인
 
@@ -295,12 +295,12 @@ curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:28760/v1/requests/<re
 
 | `errorCode` | 뜻 | 고치는 법 |
 | --- | --- | --- |
-| `live_disabled` | 실제 엔진 실행이 꺼져 있음 | 웹 "이 PC 설정 → 실제 실행 켜기" |
+| `live_disabled` | 실제 엔진 실행이 꺼져 있음 | 웹 "이 PC 탭 → 실제 실행 켜기" |
 | `desktop_holds_thread` | 번갈아 쓰기인데 그 Codex 대화가 Desktop 앱에 열려 있음 | 앱에서 그 대화만 닫고 새 키로 다시 보낸다 |
 | `thread_busy` | 동시 사용 중 TUI에서 그 대화를 처리 중 | TUI 답이 끝난 뒤 새 키로 다시 보낸다 |
 | `session_not_running` | Claude 세션이 꺼짐 | Claude 채널 세션 시작 |
 | `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경 |
-| `thread_not_allowed` | 허용 목록에 없는 Codex 대화 | 웹 "이 PC 설정"의 허용 목록에 추가 |
+| `thread_not_allowed` | 허용 목록에 없는 Codex 대화 | 웹 "이 PC 탭"의 허용 목록에 추가 |
 | `engine_not_configured`, `shared_server_not_configured` | 그 PC에 그 엔진 설정이 없음 | 번갈아 쓰기로 바꾸거나 관리자에게 문의 |
 | `channel_unauthorized`, `channel_rejected` | Claude 채널 내부 토큰 불일치·요청 거부 | 이어온 설치를 다시 실행(`pwsh scripts/install.ps1`) |
 | `turn_failed` | 엔진이 답을 만들다 실패 | 원래 세션 화면을 확인한 뒤 새 키로 다시 보낸다 |
@@ -387,4 +387,4 @@ Content-Type: application/json
 - [ ] 결과는 2초 간격으로 조회하고, 대기 한도를 넘어도 다시 보내지 않는다.
 - [ ] `unknown`·`approval_required`는 자동 재전송하지 않고 사람에게 알린다.
 - [ ] 토큰·질문·답을 로그에 남기지 않는다.
-- [ ] 다 쓰면 웹 "이 PC 설정"에서 실제 실행을 끈다.
+- [ ] 다 쓰면 웹 "이 PC 탭"에서 실제 실행을 끈다.
