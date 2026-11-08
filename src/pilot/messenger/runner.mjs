@@ -71,7 +71,10 @@ export function createBotRunner(opts) {
     };
     runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
       onMessage: (m, send) => {
-        log({ platform: b.platform, botId: b.botId, event: 'message', allowed: entry.bridge.allowed(m) });
+        const ok = entry.bridge.allowed(m);
+        log({ platform: b.platform, botId: b.botId, event: 'message', allowed: ok });
+        // W2: 허용 목록에 없는 사람은 서버에 알려 웹에서 "이 사람 허용"을 누를 수 있게 한다(내용은 보내지 않음).
+        if (!ok && m.userId) opts.api({ method: 'POST', path: '/v1/messenger/denied', body: { platform: b.platform, botId: b.botId, userId: String(m.userId), name: m.userName ?? m.name ?? null } }).catch(() => {});
         return entry.bridge.handle({ ...m, botId: b.botId }, send);
       } });
     running.set(key, entry);
@@ -91,7 +94,9 @@ export function createBotRunner(opts) {
     serverCfg = await loadServerConfig();
     // 카카오 중계 주소·제한 시간이 웹에서 바뀌면 카카오 봇만 다시 연결한다(허용 사용자는 다음 메시지부터 바로 반영).
     if (JSON.stringify(serverCfg.kakao) !== prevKakao) for (const key of [...running.keys()]) if (key.startsWith('kakao:')) stop(key);
-    const resolved = resolveBotTokens(defs, opts.env);
+    // W2: 웹에서 넣은 토큰을 매번 다시 읽는다(메신저를 다시 켜지 않아도 1분 안에 반영).
+    const env = opts.loadEnv ? opts.loadEnv() : opts.env;
+    const resolved = resolveBotTokens(defs, env);
     const wanted = new Set();
     const statuses = [];
     for (const b of resolved) {
@@ -102,7 +107,9 @@ export function createBotRunner(opts) {
         statuses.push({ platform: b.platform, botId: b.botId, state: b.status, missing: b.missing });
         continue;
       }
-      const cur = running.get(key);
+      let cur = running.get(key);
+      // 토큰이 바뀌었으면 그 봇만 다시 연결한다.
+      if (cur && JSON.stringify(cur.def.tokens) !== JSON.stringify(b.tokens)) { stop(key); cur = null; }
       if (cur) cur.def = b; // 이름·역할·부르는 이름·허용 사용자는 연결을 다시 열지 않고 바꾼다.
       else start(key, b);
       const e = running.get(key);

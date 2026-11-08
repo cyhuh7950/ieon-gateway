@@ -12,6 +12,7 @@ import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSe
 import { createWebAccess, isExemptPath } from './web-access.mjs';
 import { createRelay } from '../relay/relay.mjs';
 import { createWebAuth } from './web-auth.mjs';
+import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -87,6 +88,14 @@ export function createApp(config) {
   const deviceEntries = () => [...(config.devices ?? []), ...store.activeDeviceHashes()];
   const newDeviceToken = () => { const token = randomBytes(32).toString('hex'); return { token, hash: createHash('sha256').update(token).digest('hex') }; };
   const lastTouched = new Map();
+  // W2: 봇 토큰 비밀 파일(웹에서 입력만, 값은 다시 보여 주지 않음). 허브는 내장 수신 비밀 파일과 같은 파일을 쓴다.
+  const secretsFile = config.secretsFile ?? config.relayEnvFile ?? null;
+  // 허브 내장 카카오 수신이 쓰는 토큰은 시스템이 관리한다(웹에서 바꾸면 수신과 메신저가 어긋남).
+  const internalSecret = (name) => Boolean(relay) && (name === 'KAKAO_RELAY_TOKEN' || /^KAKAO_BOT_.+_RELAY_TOKEN$/.test(name));
+  const secretNames = () => store.listBots().flatMap((b) => Object.values(tokenEnvNames(b.platform, b.botId) ?? {})
+    .map((name) => ({ name, platform: b.platform, botId: b.botId, internal: internalSecret(name) })));
+  // W2: 허용 목록에 없는 사람이 보낸 최근 메시지(메신저가 알려 줌). 웹의 "이 사람 허용" 버튼에 쓴다. 메시지 내용은 받지 않는다.
+  const denied = new Map();
   // P3: 기기 API 요청 횟수 제한(1분 창). 인증된 기기는 기기별, 인증 실패는 접속 주소별로 센다.
   // 유효한 토큰은 실패 횟수와 상관없이 먼저 확인하므로, 같은 앞단(NPM) 뒤의 정상 기기는 막히지 않는다.
   const rate = { perMinute: config.deviceRateLimit?.perMinute ?? 240, failPerMinute: config.deviceRateLimit?.failPerMinute ?? 30 };
@@ -199,6 +208,50 @@ export function createApp(config) {
           return json(res, 200, { sessions: store.conversations(principal).map((c) => ({ conversationId: c.conversationId,
             label: labelOf(c), engine: c.engine, newSession: Boolean(c.newSession) })) });
         }
+        // W2: 봇 토큰 입력(쓰기 전용). 정의된 봇의 토큰 이름만 받는다.
+        if (req.method === 'GET' && path === '/v1/admin/secrets') {
+          const env = readEnvFile(secretsFile);
+          return json(res, 200, { configured: Boolean(secretsFile), names: secretNames().map((s) => ({ ...s, present: Boolean(env[s.name]) })) });
+        }
+        const sec = path.match(/^\/v1\/admin\/secrets\/([A-Z][A-Z0-9_]{1,80})$/);
+        if (sec && ['PUT', 'DELETE'].includes(req.method)) {
+          if (!secretsFile) return json(res, 409, { error: 'secrets_not_configured' });
+          const s = secretNames().find((x) => x.name === sec[1]);
+          if (!s) return json(res, 404, { error: 'unknown_secret' });
+          if (s.internal) return json(res, 409, { error: 'internal_secret' });
+          const value = req.method === 'PUT' ? (await readJson(req)).value : null;
+          if (value !== null && !validSecretValue(value)) return json(res, 400, { error: 'bad_secret_value' });
+          writeEnvValue(secretsFile, s.name, value);
+          process.stderr.write(JSON.stringify({ ch: 'server', event: value === null ? 'secret_deleted' : 'secret_saved', name: s.name }) + '\n');
+          return json(res, 200, { name: s.name, present: value !== null });
+        }
+        // W2: 카카오 스킬 URL(허브 내장 수신). 오픈빌더에 붙일 주소를 복사할 수 있게 준다.
+        if (req.method === 'GET' && path === '/v1/admin/kakao/skill-url') {
+          if (!relay) return json(res, 404, { error: 'no_embedded_relay' });
+          const proto = String(req.headers['x-forwarded-proto'] ?? 'http').split(',')[0].trim();
+          const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim();
+          const base = config.publicUrl ?? `${proto}://${host}`;
+          return json(res, 200, { url: `${base}/kakao/skill/${config.relay.kakaoSecret}` });
+        }
+        // W2: 허용 목록에 없던 사람 → 그 봇의 추가 허용 사용자로 넣는다(ID를 옮겨 적지 않음).
+        if (req.method === 'GET' && path === '/v1/admin/denied') {
+          const cut = Date.now() - 24 * 3600_000;
+          for (const [k, v] of denied) if (v.atMs < cut) denied.delete(k);
+          return json(res, 200, { denied: [...denied.values()].map(({ atMs, ...v }) => v) });
+        }
+        if (req.method === 'POST' && path === '/v1/admin/denied/allow') {
+          const body = await readJson(req);
+          const key = `${body.platform}:${body.botId}:${body.userId}`;
+          const d = denied.get(key);
+          if (!d) return json(res, 404, { error: 'not_found' });
+          const b = store.bot(d.platform, d.botId);
+          if (!b) return json(res, 404, { error: 'unknown_bot' });
+          const r = store.saveBot({ platform: b.platform, botId: b.botId, name: b.name, roleId: b.roleId, callNames: b.callNames,
+            extraUsers: [...new Set([...(b.extraUsers ?? []), d.userId])], enabled: b.enabled });
+          if (r.http !== 200) return json(res, r.http, { error: r.code });
+          denied.delete(key);
+          return json(res, 200, { allowed: true });
+        }
         // P1-c: 기기 목록·등록·재발급·폐기. 새 토큰은 응답에 한 번만 담고 서버에는 해시만 둔다.
         if (req.method === 'GET' && path === '/v1/admin/devices') {
           const web = store.listDevices();
@@ -309,6 +362,18 @@ export function createApp(config) {
         if (req.method === 'GET' && path === '/v1/messenger/bots') {
           const roles = Object.fromEntries(store.listRoles().map((r) => [r.roleId, r]));
           return json(res, 200, { bots: store.listBots().filter((b) => b.enabled).map((b) => ({ ...b, role: roles[b.roleId] ?? null })) });
+        }
+        // W2: 허용 목록에 없는 사람이 보낸 메시지(사람 ID·이름만, 내용 없음)
+        if (req.method === 'POST' && path === '/v1/messenger/denied') {
+          const b = await readJson(req);
+          const platform = String(b.platform ?? ''); const botId = String(b.botId ?? ''); const userId = String(b.userId ?? '');
+          if (!store.bot(platform, botId) || !/^[\w.:@-]{1,128}$/.test(userId)) return json(res, 400, { error: 'bad_denied' });
+          const key = `${platform}:${botId}:${userId}`;
+          const prev = denied.get(key);
+          denied.set(key, { platform, botId, userId, name: b.name ? String(b.name).slice(0, 60) : (prev?.name ?? null),
+            at: new Date().toISOString(), atMs: Date.now(), count: (prev?.count ?? 0) + 1 });
+          if (denied.size > 50) denied.delete(denied.keys().next().value);
+          return json(res, 204);
         }
         if (req.method === 'POST' && path === '/v1/messenger/bots/status') {
           const body = await readJson(req);
@@ -468,6 +533,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (config.relay?.envFile) {
     const env = Object.fromEntries(readFileSync(config.relay.envFile, 'utf8').split(/\r?\n/)
       .map((l) => l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/)).filter(Boolean).map((m) => [m[1], m[2].replace(/^(['"])(.*)\1$/, '$2')]));
+    config.relayEnvFile = config.relay.envFile; // W2: 봇 토큰도 이 파일에 쓴다(secretsFile이 따로 없으면)
     config.relay = { pcToken: env.IEON_RELAY_PC_TOKEN ?? env.KAKAO_RELAY_TOKEN, kakaoSecret: env.IEON_RELAY_KAKAO_SECRET };
   }
   const app = createApp(config);
