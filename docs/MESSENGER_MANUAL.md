@@ -1,5 +1,7 @@
 # 이어온 메신저 설정 설명서 (텔레그램·디스코드·슬랙)
 
+> 2026-11-08 웹 중심 재설계: **봇 토큰·허용 사용자·봇 등록은 모두 웹 화면(봇 관리)에서** 한다. 설정 파일을 고치거나 메신저를 명령으로 다시 켤 필요가 없다(메신저는 이어온 서버가 띄우고, 1분마다 웹 설정을 다시 읽는다).
+
 - 기준: 2026-11-05 main · 대상: 신산님
 - 함께 보기: [사용 설명서](MANUAL.md)(서버·연결부·웹), [작업 기록](WORK_STATUS.md)
 
@@ -15,48 +17,30 @@
 - 로그인은 토큰 대신 **메신저 사용자 ID 허용 목록**이다. 목록 밖 사용자에게는 `/whoami` 외에 아무 응답도 하지 않는다.
 - 질문 규칙은 웹과 같다: 사용 중이면 거절, 결과 불명이면 다시 보내지 않음, Codex 질문은 읽기 전용.
 
-## 2. 관련 파일
+## 2. 어디서 설정하나
 
-| 파일 | 내용 | 누가 고치나 |
+| 하는 일 | 화면 |
+| --- | --- |
+| 봇 토큰 넣기·바꾸기·지우기 | 봇 관리 → 봇 목록에서 봇 고르기 → 편집 칸 **토큰**(저장한 값은 다시 보이지 않음) |
+| 봇 추가·이름·역할·부르는 이름·볼 수 있는 세션·켜기 | 봇 관리 → 봇 목록·편집 칸 |
+| 허용 사용자 | 봇 관리 → 설정 → **허용 요청**에서 "허용"(또는 공통 허용 사용자 칸) |
+| 카카오 스킬 URL | 봇 관리 → 설정 → **카카오 스킬 URL** 복사 |
+
+토큰은 채팅·문서·스크린샷에 남기지 않는다. 기록(`.local\run\server.log`)에는 토큰·질문·답 원문이 없다.
+
+## 3. 켜고 끄기·상태
+
+메신저는 이어온 서버가 함께 띄운다(설치 후 자동). 따로 켜고 끌 필요가 없다. 봇 상태는 **봇 관리 → 봇 목록의 상태** 칸에서 본다.
+
+| 상태 | 뜻 | 할 일 |
 | --- | --- | --- |
-| `.local\.env` | 봇 토큰. 기본 봇: `TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_APP_TOKEN`(xapp-…), `SLACK_BOT_TOKEN`(xoxb-…). 추가 봇은 규칙 이름(6.2) | 신산님 직접(Claude·어울은 읽지 않음) |
-| `.local\messenger\config.json` | 서버 주소, 이어온 접속 토큰 파일, 허용 사용자 ID(`allowedUsers`) | 신산님 또는 Claude(사용자 ID는 비밀 아님) |
-| `.local\messenger\rooms.json` | 대화방 ↔ 세션 연결(`/use`가 자동 저장). 키는 `<메신저>:<봇 ID>:<대화방>`(옛 형식은 처음 켤 때 `default` 봇으로 자동 변환) | 자동 |
-| 이어온 서버 DB(`.local\s2\pilot.db`) | 봇 목록·이름·역할·봇별 추가 허용 사용자(6.2) | 웹 봇 관리(M2) 또는 관리 API |
-| `.local\run\messenger.log` | 기동·연결·메시지 도착 기록(토큰·질문·답 원문 없음) | 자동 |
+| 연결됨 | 정상 | — |
+| 토큰 없음 · 빠진 토큰 이름 | 그 봇의 토큰을 아직 안 넣음 | 편집 칸 **토큰**에 넣기(1분 안에 연결) |
+| 토큰 중복 | 같은 토큰이 두 봇에 들어 있음(둘 다 안 켬) | 봇마다 다른 토큰으로 |
+| 텔레그램 그룹 일반 글 수신 꺼짐 | 그룹 일반 글을 못 받음 | 4.1의 `/setprivacy` → Disable |
 
-`.local\`은 git에 올라가지 않는다. 토큰은 채팅·문서·스크린샷에 남기지 않는다.
-
-## 3. 켜고 끄기
-
-```powershell
-cd D:\Project\ieon-gateway
-pwsh scripts/ieon.ps1 start          # 서버·연결부(실제 엔진 실행 끔)
-pwsh scripts/ieon.ps1 messenger      # 메신저 봇
-pwsh scripts/ieon.ps1 stop           # 모두 끄기(봇 포함)
-```
-
-`messenger` 출력 예(`.local\run\messenger.log`, 토큰 값은 나오지 않는다):
-
-```
-{"event":"bots","bots":[{"bot":"telegram:default","state":"starting"},{"bot":"telegram:ieun01","state":"starting"},
-  {"bot":"slack:ieun01","state":"token_missing","missing":["SLACK_BOT_IEUN01_APP_TOKEN","SLACK_BOT_IEUN01_BOT_TOKEN"]}]}
-{"platform":"telegram","event":"started","bot":"@Test_cyhuh_01_bot","canReadAll":true,"botId":"default"}
-{"platform":"telegram","event":"started","bot":"@ieun_cyhuh_bot","canReadAll":true,"botId":"ieun01"}
-{"platform":"discord","event":"ready","bot":"코드리뷰","guilds":0,"invite":"https://discord.com/oauth2/authorize?client_id=…","botId":"ieun01"}
-{"platform":"slack","event":"ready","bot":"ieonreview","team":"sinsan","botId":"ieun01"}
-```
-
-| 로그 | 뜻 | 할 일 |
-| --- | --- | --- |
-| `"bot":"<메신저>:<봇 ID>"` | 이어온이 아는 봇(서버에 등록된 봇) | — |
-| `"state":"starting"` → 1분 뒤 `"connected"` | 연결 중 → 연결됨(상태는 1분마다 다시 보고) | — |
-| `"state":"token_missing"`, `missing` | 그 이름의 토큰이 `.env`에 없거나 비어 있음 | `missing`에 나온 이름으로 `.env`에 넣고 메신저 다시 켜기 |
-| `"state":"duplicate_token"` | 같은 토큰 값이 두 봇에 들어 있음(둘 다 안 켬) | 봇마다 다른 토큰으로 |
-| `"canReadAll":false` | 텔레그램 그룹 일반 글을 못 받음 | 4.1의 `/setprivacy` → Disable |
-| `"guilds":0` | 디스코드 봇이 아직 어느 서버에도 없음 | 4.2의 초대 |
-- 토큰·공통 허용 목록(`config.json`)을 바꾼 뒤에는 `stop` → `start` → `messenger`로 다시 켠다. 서버에 등록한 봇 정보(이름·끄기·봇별 허용 사용자)는 1분 안에 저절로 반영된다.
-- 실제 답을 받으려면 연결부의 실제 엔진 실행이 켜져 있어야 한다(`start -Live`, 모델 호출 승인 범위에서만). 꺼져 있으면 봇이 "연결부에서 실제 실행이 꺼져 있음"으로 답한다.
+- 실제 답을 받으려면 **이 PC 설정 → 실제 실행 켜기**가 켜져 있어야 한다. 꺼져 있으면 봇이 "연결부에서 실제 실행이 꺼져 있음"으로 답한다.
+- 같은 봇 토큰을 PC와 허브에 동시에 넣지 않는다(두 곳이 같은 봇을 동시에 받으면 메시지가 나뉜다).
 
 ## 4. 메신저별 봇 만들기
 
@@ -64,7 +48,7 @@ pwsh scripts/ieon.ps1 stop           # 모두 끄기(봇 포함)
 
 1. 텔레그램에서 `@BotFather`를 열고 `/newbot`을 보낸다.
 2. 표시 이름과 사용자 이름(끝이 `bot`, 예: `Test_cyhuh_01_bot`)을 정하면 토큰이 나온다.
-3. `.env`에 `TELEGRAM_BOT_TOKEN=<토큰>`을 넣는다.
+3. 이어온 **봇 관리 → 텔레그램 default → 토큰**에 넣고 저장한다.
 4. 봇 찾기: 텔레그램 검색에서 `@사용자이름`을 찾거나 기동 로그의 `open` 링크를 연다. **시작(Start)**을 누른다. 대화 목록에 봇이 일반 대화처럼 보인다.
 5. 그룹에서 쓰려면: BotFather에서 `/setprivacy` → 봇 선택 → **Disable**(그래야 그룹의 일반 글을 봇이 읽는다). 성공하면 "Success! The new status is: DISABLED."가 나온다. 그룹에 봇을 초대한다. 그룹의 **주제(Topic)**마다 다른 세션을 연결할 수 있다.
    - **이미 그룹에 들어가 있던 봇은 내보냈다가 다시 넣어야** 바뀐 설정이 그 그룹에 적용된다.
@@ -73,7 +57,7 @@ pwsh scripts/ieon.ps1 stop           # 모두 끄기(봇 포함)
 ### 4.2 디스코드
 
 1. https://discord.com/developers/applications → **New Application** → 이름 입력.
-2. 왼쪽 **Bot** → **Reset Token**으로 토큰 발급 → `.env`의 `DISCORD_BOT_TOKEN`.
+2. 왼쪽 **Bot** → **Reset Token**으로 토큰 발급 → 이어온 **봇 관리 → 디스코드 봇 → 토큰**.
 3. 같은 **Bot** 화면에서 **Message Content Intent**를 켠다(꺼져 있으면 메시지 내용을 못 읽는다). 한국어 화면에서는 "메시지 콘텐츠 인텐트".
 4. 봇을 내 서버에 초대: 기동 로그의 `invite` 링크를 열거나, **OAuth2 → URL Generator**(한국어 "OAuth2 URL 생성기")에서 고른다.
    - 스코프: `bot` 하나
@@ -122,8 +106,8 @@ settings:
   token_rotation_enabled: false
 ```
 
-3. **Basic Information → App-Level Tokens → Generate Token and Scopes**: 이름 `socket`, scope `connections:write` → `xapp-…` → `.env`의 `SLACK_APP_TOKEN`.
-4. **Install App → Install to <워크스페이스>** → **Bot User OAuth Token**(`xoxb-…`) → `.env`의 `SLACK_BOT_TOKEN`.
+3. **Basic Information → App-Level Tokens → Generate Token and Scopes**: 이름 `socket`, scope `connections:write` → `xapp-…` → 이어온 **봇 관리 → 슬랙 봇 → 토큰**의 앱 토큰 칸.
+4. **Install App → Install to <워크스페이스>** → **Bot User OAuth Token**(`xoxb-…`) → 같은 곳의 봇 토큰 칸.
 5. 봇 쓰기:
    - 1:1: 왼쪽 사이드바 **Apps**에서 앱을 열고 **Messages** 탭에 쓴다(안 보이면 **+ Add apps**에서 검색).
    - 채널: 채널 화면 맨 위의 채널 이름(`# bot` 등) → 채널 정보 창의 **Agents & apps** 탭(예전 화면은 Integrations) → **Add agents and apps**로 추가. 또는 채널 입력창에 `/invite @앱이름` — 표시 이름이 정확해야 하므로 자동 완성 목록에서 고른다.
@@ -135,10 +119,10 @@ settings:
 
 ## 5. 처음 연결하기(공통 순서)
 
-1. 봇 토큰을 `.env`에 넣고 `start` → `messenger`.
-2. 각 메신저에서 봇에게 `/whoami`(슬랙 `!whoami`)를 보낸다. 답: 플랫폼·사용자 ID·대화방·허용 여부.
-3. 사용자 ID를 `.local\messenger\config.json`의 `allowedUsers`에 넣는다(예: `"telegram": ["7253893482"]`). Claude에게 ID를 알려 주면 대신 넣는다.
-4. `stop` → `start` → `messenger`로 다시 켠다.
+1. 봇 토큰을 웹 **봇 관리**의 그 봇 **토큰** 칸에 넣는다(1분 안에 연결).
+2. 각 메신저에서 봇에게 아무 말이나(또는 `/whoami`, 슬랙 `!whoami`) 보낸다.
+3. 웹 **봇 관리 → 설정 → 허용 요청**에 내가 뜨면 **허용**. 사용자 ID를 옮겨 적지 않는다.
+4. (다시 켤 필요 없음)
 5. `/sessions`로 목록을 보고 `/use <번호>`로 이 대화방을 세션에 연결한다. 이후 일반 글은 그 세션에 질문으로 간다.
 
 | 명령(슬랙은 `!`) | 동작 |
@@ -220,22 +204,12 @@ settings:
 
   App-Level Token은 이름 `socket`, scope `connections:write` 하나(`xapp-…`). Install App 후 Bot User OAuth Token(`xoxb-…`).
 
-**③ 토큰을 `.local\.env`에 규칙 이름으로 넣기**(신산님 직접, 채팅에 붙이지 않는다)
-
-| 메신저 | 변수 이름 규칙 | 봇 ID `ieun01` 예 |
-| --- | --- | --- |
-| 텔레그램 | `TELEGRAM_BOT_<ID>_TOKEN` | `TELEGRAM_BOT_IEUN01_TOKEN` |
-| 디스코드 | `DISCORD_BOT_<ID>_TOKEN` | `DISCORD_BOT_IEUN01_TOKEN` |
-| 슬랙 | `SLACK_BOT_<ID>_APP_TOKEN`(xapp-…), `SLACK_BOT_<ID>_BOT_TOKEN`(xoxb-…) | `SLACK_BOT_IEUN01_APP_TOKEN`, `SLACK_BOT_IEUN01_BOT_TOKEN` |
-
-- `<ID>`는 봇 ID를 대문자로, `-`를 `_`로(`code-review` → `CODE_REVIEW`).
-- 기본 봇(`default`)은 지금 이름(`TELEGRAM_BOT_TOKEN` 등)을 그대로 쓴다.
-- 자주 하는 실수: 슬랙 순서를 `SLACK_APP_<ID>_TOKEN`처럼 바꿔 쓰기, 봇 ID 철자가 메신저마다 다름(`IEUN01`/`EUN01`), `xapp`·`xoxb` 값 뒤바뀜, 값이 비어 있음.
+**③ 토큰은 ④에서 봇을 추가한 뒤 그 봇의 토큰 칸에 넣는다**(채팅에 붙이지 않는다). 토큰 이름 규칙은 이어온이 알아서 정한다.
 
 **④ 이어온에 봇 등록(웹 봇 관리)**
 
-1. 웹 화면(`http://127.0.0.1:28760`)에 들어가 위쪽 오른쪽 **봇 관리**를 누른다(웹 토큰으로 접속했을 때만 보인다).
-2. **봇 목록** 아래에서 메신저를 고르고 **새 봇 ID**를 넣는다. 입력하는 동안 넣어야 할 **토큰 변수 이름**이 보인다. **봇 추가**.
+1. 웹 화면(바탕화면 **이어온**)에서 위쪽 오른쪽 **봇 관리**를 누른다.
+2. **봇 목록** 아래에서 메신저를 고르고 **새 봇 ID**를 넣고 **봇 추가**.
 3. 목록에서 그 봇을 누르면 편집 칸이 열린다.
    - **이름**: 이어온에서 쓰는 이름(한글 가능)
    - **역할**: 역할 목록에서 고름(없어도 됨)
@@ -243,34 +217,14 @@ settings:
    - **추가 허용 사용자**: 이 봇에만 더 허용할 메신저 사용자 ID(쉼표 구분)
    - **볼 수 있는 기존 세션**: 이 봇의 `/sessions`에 보일 세션을 체크
    - **켜기**: 끄면 메신저가 이 봇을 띄우지 않는다
-   - **토큰 변수**·**상태**: 넣어야 할 토큰 이름과 메신저가 보고한 상태(연결됨·토큰 없음·토큰 중복·실제 봇 이름·텔레그램 그룹 일반 글 수신 꺼짐)
-4. **저장** → 메신저에 1분 안에 반영된다(새 토큰을 넣었으면 메신저를 다시 켠다).
+   - **토큰**: 메신저에서 받은 토큰을 넣고 저장(다시 보이지 않음, 바꾸려면 새로 넣기·지우기)
+   - **상태**: 연결됨·토큰 없음·토큰 중복·실제 봇 이름·텔레그램 그룹 일반 글 수신 꺼짐
+4. **저장** → 메신저에 1분 안에 반영된다(토큰도 1분 안에 반영, 다시 켤 필요 없음).
 5. **역할 목록**: 역할 ID·이름·설명·만들 수 있는 엔진·허용 권한(읽기 전용·작업 폴더 안 읽기·쓰기)·AI 역할 안내·기본 세션을 정해 **역할 저장**. 쓰는 봇이 있는 역할은 지울 수 없다.
 
-같은 일을 관리 API로도 할 수 있다(PowerShell, 이어온 서버가 켜져 있을 때).
+**⑤ 확인**
 
-```powershell
-$h = @{ Authorization = "Bearer $((Get-Content D:\Project\ieon-gateway\.local\s2\user-token -Raw).Trim())" }
-$body = [Text.Encoding]::UTF8.GetBytes('{"name":"ieun01 시험 봇"}')
-foreach ($p in 'telegram', 'discord', 'slack') {
-  Invoke-RestMethod "http://127.0.0.1:28760/v1/admin/bots/$p/ieun01" -Method Put -Headers $h -ContentType 'application/json; charset=utf-8' -Body $body
-}
-```
-
-- 주소의 마지막이 봇 ID다. 메신저마다 따로 등록한다(같은 ID여도 메신저가 다르면 다른 봇).
-- 끄기: 본문을 `{"name":"…","enabled":false}`로. 지우기: `-Method Delete`. `default` 봇은 지울 수 없다.
-- 봇에게만 추가로 허용할 사용자: `{"name":"…","extraUsers":["<메신저 사용자 ID>"]}`(공통 허용 목록에 더해짐).
-- 부르는 이름: `{"name":"…","callNames":["리뷰","리뷰봇"]}`(한글 가능, 같은 메신저의 다른 봇과 겹치면 거절). 지정하지 않으면 봇 ID(`ieun01`)로 부른다.
-
-**⑤ 메신저 다시 켜고 확인**
-
-```powershell
-pwsh scripts/ieon.ps1 stop
-pwsh scripts/ieon.ps1 start
-pwsh scripts/ieon.ps1 messenger
-```
-
-- 3절 표대로 로그에서 봇마다 `connected`·`started`·`ready`를 확인한다.
+- 봇 목록의 상태가 봇마다 "연결됨"인지 본다.
 - 그 봇에게 `/whoami`(슬랙 `!whoami`) → **봇 ID**와 **대화방** 키(`<메신저>:<봇 ID>:<대화방>`)가 봇마다 다르게 나오면 정상이다.
 - 봇마다 `/sessions`가 다르게 나온다: 기존 세션은 서버 등록의 `appIds`에 그 봇(`app_bot_<메신저>_<봇 ID>`)이 있어야 보인다. 기본 봇은 지금처럼 `app_messenger`.
 
@@ -289,11 +243,11 @@ pwsh scripts/ieon.ps1 messenger
 
 ### 6.3 다른 사람(또는 내 다른 계정) 허용
 
-그 사람이 `/whoami`로 확인한 ID를 `allowedUsers`에 추가하고 다시 켠다. 허용된 사람은 연결된 세션에 질문할 수 있으므로 신산님 본인 계정만 넣는 것을 원칙으로 한다.
+그 사람이 봇에게 말을 걸면 웹 **설정 → 허용 요청**에 뜬다. **허용**을 누르면 그 봇의 추가 허용 사용자가 된다. 허용된 사람은 연결된 세션에 질문할 수 있으므로 신산님 본인 계정만 넣는 것을 원칙으로 한다.
 
 ### 6.4 메신저에서 새 세션 만들기
 
-이어온이 새 Codex·Claude 세션을 만들어 주는 기능이다. 먼저 [따라 하기 설명서](BEGINNER_GUIDE.md) 6-A-1로 기능을 켠다.
+이어온이 새 Codex·Claude 세션을 만들어 주는 기능이다. 먼저 웹 **봇 관리 → 설정 → 새 세션**에서 기능을 켠다.
 
 | 명령(슬랙은 `!`) | 하는 일 |
 | --- | --- |
@@ -309,20 +263,11 @@ pwsh scripts/ieon.ps1 messenger
 
 ### 6.5 기존 세션(Codex 대화·Claude 세션)을 봇 목록에 추가
 
-봇 목록(`/sessions`)은 이어온 서버에 등록된 세션이다. 등록은 설정 파일로, **어느 봇에 보일지는 웹 봇 관리**에서 정한다.
+봇 목록(`/sessions`)은 이어온 서버에 등록된 세션이다. 모두 웹에서 한다.
 
-1. `.local\s2\server.json`의 `bindings`에 항목을 추가한다.
-   ```json
-   { "conversationId": "c_codex_work2", "label": "보여 줄 이름", "ownerUserId": "u_sinsan",
-     "appIds": ["app_web", "app_messenger"], "hostId": "h_sinsan",
-     "engine": "codex_thread", "sessionRef": "<Codex 대화 ID>" }
-   ```
-   `appIds`에 `app_messenger`가 있으면 기본 봇(`default`)에 보인다. 추가 봇에 보이게 하려면 서버를 다시 켠 뒤 **웹 봇 관리 → 그 봇 → 볼 수 있는 기존 세션**에서 체크하고 저장한다(서버 DB에 저장되어 `server.json`을 다시 적용해도 유지된다).
-2. Codex 대화면 `.local\s2\connector.json`에도 넣는다.
-   - `codex.allowlist`에 대화 ID 추가(없으면 실행 거부).
-   - `codex.workingDirectories`에 `"<대화 ID>": "<원래 작업 폴더>"` 추가(없으면 이어온 폴더에서 실행됨).
-   - 업무 대화 `01a0dadd-739f-74d2-93c5-9c405cc1019b`는 넣지 않는다(코드에서도 거부).
-3. `stop` → `start` → `messenger` 후 `/sessions`에 보이는지 확인.
+1. Codex 대화면 **봇 관리 → 이 PC 설정**의 허용 목록에 대화 ID(와 작업 폴더)를 추가한다(이 PC에서 연 화면).
+2. **봇 관리 → 기존 세션 등록**에서 이름·엔진·PC·세션 ID를 넣고 저장한다.
+3. **봇 관리 → 그 봇 → 볼 수 있는 기존 세션**에서 체크하고 저장한다.
 
 ## 7. 문제 해결
 
@@ -332,19 +277,19 @@ pwsh scripts/ieon.ps1 messenger
 | 봇이 아무 답도 안 함 | 허용 목록에 없음, 봇 미기동, 디스코드 Message Content Intent 꺼짐, 텔레그램 그룹 privacy 켜짐 | `/whoami`로 허용 여부 확인, `messenger.log` 확인 |
 | 슬랙 1:1에서 엉뚱한 답 | 같은 앱에 다른 프로그램(`slack run` 등)이 접속 | 그 프로그램 종료 또는 이어온 전용 앱 생성 |
 | `/invite @이름` → "A valid member name is required" | 표시 이름과 다름 | 자동 완성에서 고르거나 Integrations → Add an App |
-| "연결부에서 실제 실행이 꺼져 있음" | 연결부 live 꺼짐 | 승인 범위에서 `stop` → `start -Live` → `messenger` |
+| "연결부에서 실제 실행이 꺼져 있음" | 실제 실행 꺼짐 | 웹 "이 PC 설정 → 실제 실행 켜기"(허브 새 세션은 허브 웹의 실행 스위치) |
 | "Desktop에서 이 대화를 열고 있어 보내지 않았음" | 번갈아 쓰기 대화를 Codex 앱이 열고 있음 | 앱에서 그 대화를 닫고 다시 질문 |
-| "엔진 꺼짐"(Claude) | Claude 채널 세션 미실행 | `pwsh scripts/ieon.ps1 claude` |
+| "엔진 꺼짐"(Claude) | Claude 채널 세션 미실행 | Claude 채널 세션 시작([MANUAL](MANUAL.md) "Claude 채널 세션") |
 | "결과를 확인할 수 없음" | 결과 불명 | 원래 세션 확인 후 `/review done` 또는 `/review not` |
 | 같은 세션에 여러 메신저에서 동시에 질문 → 하나만 처리 | 세션당 한 번에 하나 | 답을 받은 뒤 다음 질문 |
-| 추가 봇이 안 켜짐(로그 `token_missing`) | 토큰 이름이 규칙과 다르거나 값이 비어 있음 | `missing`에 나온 이름 그대로 `.env`에 넣고 메신저 다시 켜기 |
+| 추가 봇이 안 켜짐(상태 "토큰 없음") | 그 봇의 토큰을 아직 안 넣음 | 봇 편집 칸 **토큰**에 넣기 |
 | 추가 봇이 아예 로그에 없음 | 이어온 서버에 그 봇을 등록하지 않았거나 꺼져 있음 | 웹 봇 관리에서 추가·켜기(6.2 ④) |
 | 같은 채널에서 두 봇이 함께 답함 | 그 방에 아직 어느 봇도 세션에 연결되지 않음 | 부르는 이름·멘션으로 각 봇을 `/use` |
 | 그룹에서 아무 봇도 답하지 않음 | 두 봇이 모두 연결돼 있는데 부르지 않음 | 부르는 이름·멘션으로 부르기 |
 | 텔레그램 그룹에서 봇이 일반 글에 반응 안 함 | privacy 켜짐, 또는 설정을 바꾼 뒤 그룹에 다시 넣지 않음 | `/setprivacy` → Disable 후 그룹에서 봇을 내보냈다가 다시 추가 |
 | 디스코드 추가 봇이 채널에 없음(로그 `guilds`:0) | 서버에 초대하지 않음 | 4.2의 OAuth2 URL로 초대 |
 | 슬랙 채널에 `my-app (local)`이 답함 | 예전 Slack CLI 예제(`slack run`)가 같은 앱에 붙음 | 그 프로그램 끄기, 채널 **Agents & apps**에서 그 앱 제거 |
-| `/new`에 "새 세션 만들기가 꺼져 있음" | 기능 꺼짐 | [따라 하기 설명서](BEGINNER_GUIDE.md) 6-A-1 → `stop` → `start -Live` → `messenger` |
+| `/new`에 "새 세션 만들기가 꺼져 있음" | 기능 꺼짐 | 웹 "설정 → 새 세션"에서 켜기 |
 | `/close` 링크를 눌렀더니 같은 안내만 다시 나옴 | 텔레그램이 `/close`만 링크로 만든다 | `/close <이름> 확인`을 직접 입력 |
 | 보관 예고가 안 옴 | 봇을 다시 켠 뒤 그 대화방에서 아직 아무 말도 없음 | 그 방에 아무 메시지나 한 번 보내 두기 |
 

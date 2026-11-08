@@ -28,67 +28,20 @@
 
 ### 2-1. 이어온 켜기
 
-```powershell
-cd D:\Project\ieon-gateway
-pwsh scripts/ieon.ps1 start -Live
-```
+설치(`pwsh scripts/install.ps1`, [따라 하기 1절](BEGINNER_GUIDE.md)) 뒤에는 이어온이 자동으로 켜져 있다. 실제 답을 받으려면 웹 **봇 관리 → 이 PC 설정 → 실제 실행 켜기**를 켠다(끈 상태에서는 접수·조회는 되지만 결과가 `failed`(`live_disabled`)로 끝난다). Claude 세션에 질문하려면 그 Claude 채널 세션을 켜 둔다.
 
-- 연습만 할 때는 `-Live` 없이 켠다. 접수·조회는 되지만 결과가 `failed`(`live_disabled`)로 끝난다.
-- Claude 세션에 질문하려면 `pwsh scripts/ieon.ps1 claude`도 켜 둔다.
+### 2-2. 내 프로그램 전용 API 키 받기
 
-### 2-2. 내 프로그램 전용 토큰 만들기 (권장)
-
-웹 화면 토큰을 같이 써도 동작하지만, 프로그램마다 토큰을 따로 두면 나중에 그 프로그램만 끊을 수 있다.
-
-**① 이어온을 끈다.**
-
-```powershell
-pwsh scripts/ieon.ps1 stop
-```
-
-**② 토큰을 만든다.** 아래에서 `myapp`을 내 프로그램 이름(영문 소문자)으로 바꾼다.
-
-```powershell
-$App = 'myapp'
-$L = 'D:\Project\ieon-gateway\.local'
-New-Item -ItemType Directory -Force "$L\apps" | Out-Null
-$bytes = [byte[]]::new(32); [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-$token = -join ($bytes | ForEach-Object { $_.ToString('x2') })
-Set-Content "$L\apps\$App.token" $token -NoNewline -Encoding ascii
-$hash = -join ([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($token)) | ForEach-Object { $_.ToString('x2') })
-"tokenSha256: $hash"
-```
-
-토큰 원문은 `.local\apps\myapp.token`에 저장되고, 화면에는 해시만 나온다. 해시를 복사해 둔다.
-
-**③ 서버에 등록한다.** `notepad .local\s2\server.json`으로 열어 두 곳을 고친다.
-
-- `users` 목록에 한 줄 추가(앞 항목 끝에 쉼표):
-  ```json
-  { "userId": "u_sinsan", "appId": "app_myapp", "tokenSha256": "<②에서 나온 해시>" }
-  ```
-- 이 프로그램이 쓸 세션마다 `bindings`의 `appIds`에 `"app_myapp"`을 추가:
-  ```json
-  "appIds": ["app_web", "app_messenger", "app_myapp"]
-  ```
-  `appIds`에 없는 세션은 이 프로그램에서 **보이지 않는다**(목록에서 빠지고, 질문하면 404).
-
-**④ 다시 켠다.**
-
-```powershell
-pwsh scripts/ieon.ps1 start -Live
-```
-
-**끊고 싶을 때:** `users`에서 그 줄을 지우고 `stop` → `start`. 다른 프로그램은 영향을 받지 않는다.
+웹 **봇 관리 → 외부 프로그램(API 키)**에서 프로그램 이름을 넣고 **키 발급**을 누른다. 키는 **그때 한 번만** 보이니 복사해 내 프로그램 설정(환경 변수 등)에 넣는다. 같은 칸에서 이 프로그램이 볼 수 있는 세션을 체크하고 **저장**한다. 필요 없어지면 **폐기**(바로 접속 불가, 다른 프로그램은 영향 없음). 설정 파일은 고치지 않는다.
 
 ### 2-3. 연결 확인
 
 ```powershell
-$token = (Get-Content D:\Project\ieon-gateway\.local\apps\myapp.token -Raw).Trim()
+$token = $env:IEON_API_KEY   # 발급한 키를 넣어 둔 환경 변수
 Invoke-RestMethod http://127.0.0.1:28760/v1/conversations -Headers @{ Authorization = "Bearer $token" } | ConvertTo-Json -Depth 5
 ```
 
-세션 목록이 나오면 성공이다. `401`이 나오면 토큰이나 해시가 틀렸고, 목록이 비어 있으면 `appIds` 등록을 빠뜨린 것이다.
+세션 목록이 나오면 성공이다. `401`이 나오면 키가 틀렸거나 폐기됐고, 목록이 비어 있으면 2-2에서 세션을 체크하지 않은 것이다.
 
 ---
 
@@ -212,12 +165,12 @@ Authorization: Bearer <토큰>
 ## 5. 예제 코드
 
 아래 예제는 모두 같은 일을 한다: 세션 목록 보기 → 질문 접수 → 결과가 나올 때까지 조회.
-`c_claude_main`은 2-3에서 확인한 내 세션 이름으로, 토큰 파일 경로는 내 프로그램 토큰으로 바꾼다.
+`c_claude_main`은 2-3에서 확인한 내 세션 이름으로 바꾸고, 키는 환경 변수 `IEON_API_KEY`에 둔다.
 
 ### 5-1. PowerShell
 
 ```powershell
-$token = (Get-Content D:\Project\ieon-gateway\.local\apps\myapp.token -Raw).Trim()
+$token = $env:IEON_API_KEY
 $h = @{ Authorization = "Bearer $token" }
 $base = 'http://127.0.0.1:28760'
 
@@ -244,7 +197,7 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
 const BASE = 'http://127.0.0.1:28760';
-const TOKEN = readFileSync('D:/Project/ieon-gateway/.local/apps/myapp.token', 'utf8').trim();
+const TOKEN = process.env.IEON_API_KEY;
 const headers = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
 
 async function api(method, path, body, extra = {}) {
@@ -329,12 +282,12 @@ curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:28760/v1/requests/<re
 | 코드 | `error` | 원인 | 고치는 법 |
 | --- | --- | --- | --- |
 | 400 | `bad_request` | `Idempotency-Key` 없음·형식 틀림, 질문 비어 있음, 8,000자 초과 | 요청을 고친다 |
-| 401 | `unauthorized` | 토큰 없음·틀림·삭제됨 | 토큰 파일과 `server.json` 해시 확인 |
+| 401 | `unauthorized` | 키 없음·틀림·폐기됨 | 웹 "외부 프로그램(API 키)"에서 새로 발급 |
 | 404 | `not_found` | 없는 세션, 또는 `appIds`에 내 프로그램이 없음 | 2-2 ③ 확인 |
 | 409 | `conversation_busy` | 이 세션이 다른 질문을 처리 중이거나 "확인 필요" 잠금 | 끝난 뒤 보낸다. 잠금이면 7장 |
 | 409 | `idempotency_conflict` | 같은 키로 다른 질문을 보냄 | 질문마다 새 키를 쓴다 |
-| 503 | `device_unavailable` | 연결부가 꺼짐 | `pwsh scripts/ieon.ps1 start` |
-| 503 | `session_not_running` | Claude 세션이 꺼짐 | `pwsh scripts/ieon.ps1 claude` |
+| 503 | `device_unavailable` | 연결부가 꺼짐 | 그 PC가 켜져 있는지(허브형이면 PC의 "허브에 연결" 상태) |
+| 503 | `session_not_running` | Claude 세션이 꺼짐 | Claude 채널 세션 시작 |
 | 503 | `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경 |
 | 500 | `internal` | 서버 내부 오류 | `.local\run\server.log` 확인 |
 
@@ -342,14 +295,14 @@ curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:28760/v1/requests/<re
 
 | `errorCode` | 뜻 | 고치는 법 |
 | --- | --- | --- |
-| `live_disabled` | 실제 엔진 실행이 꺼져 있음 | `stop` → `start -Live` |
+| `live_disabled` | 실제 엔진 실행이 꺼져 있음 | 웹 "이 PC 설정 → 실제 실행 켜기" |
 | `desktop_holds_thread` | 번갈아 쓰기인데 그 Codex 대화가 Desktop 앱에 열려 있음 | 앱에서 그 대화만 닫고 새 키로 다시 보낸다 |
 | `thread_busy` | 동시 사용 중 TUI에서 그 대화를 처리 중 | TUI 답이 끝난 뒤 새 키로 다시 보낸다 |
-| `session_not_running` | Claude 세션이 꺼짐 | `pwsh scripts/ieon.ps1 claude` |
+| `session_not_running` | Claude 세션이 꺼짐 | Claude 채널 세션 시작 |
 | `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경 |
-| `thread_not_allowed` | `connector.json` 허용 목록에 없는 Codex 대화 | 처음 쓰는 사람용 설명서 6-3으로 등록 |
-| `engine_not_configured`, `shared_server_not_configured` | 연결부 설정이 빠짐 | `connector.json`의 `claude`·`codex.shared` 확인 |
-| `channel_unauthorized`, `channel_rejected` | Claude 채널 토큰 불일치·요청 거부 | `.local\c1\token`과 `connector.json`의 `claude.tokenFile`이 같은 파일인지 확인 |
+| `thread_not_allowed` | 허용 목록에 없는 Codex 대화 | 웹 "이 PC 설정"의 허용 목록에 추가 |
+| `engine_not_configured`, `shared_server_not_configured` | 그 PC에 그 엔진 설정이 없음 | 번갈아 쓰기로 바꾸거나 관리자에게 문의 |
+| `channel_unauthorized`, `channel_rejected` | Claude 채널 내부 토큰 불일치·요청 거부 | 이어온 설치를 다시 실행(`pwsh scripts/install.ps1`) |
 | `turn_failed` | 엔진이 답을 만들다 실패 | 원래 세션 화면을 확인한 뒤 새 키로 다시 보낸다 |
 | `not_executed` | 사람이 "실행되지 않음"으로 정리함 | 필요하면 새 키로 다시 보낸다 |
 
@@ -428,10 +381,10 @@ Content-Type: application/json
 
 ## 9. 내 프로그램을 만들 때 체크리스트
 
-- [ ] 전용 토큰을 만들고 `users`와 쓸 세션의 `appIds`에 등록했다.
-- [ ] 토큰을 코드에 직접 쓰지 않고 파일·환경 변수에서 읽는다.
+- [ ] 웹에서 전용 API 키를 발급하고 쓸 세션을 체크했다.
+- [ ] 키를 코드에 직접 쓰지 않고 환경 변수에서 읽는다.
 - [ ] 질문마다 새 `Idempotency-Key`를 만들고, 접수 결과를 모를 때만 같은 키로 재시도한다.
 - [ ] 결과는 2초 간격으로 조회하고, 대기 한도를 넘어도 다시 보내지 않는다.
 - [ ] `unknown`·`approval_required`는 자동 재전송하지 않고 사람에게 알린다.
 - [ ] 토큰·질문·답을 로그에 남기지 않는다.
-- [ ] 다 쓰면 `pwsh scripts/ieon.ps1 stop`으로 실제 엔진 실행을 끈다.
+- [ ] 다 쓰면 웹 "이 PC 설정"에서 실제 실행을 끈다.

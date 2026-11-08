@@ -1,7 +1,8 @@
 # 이어온 사용 설명서 (요약판)
 
-- 기준: 2026-11-05 main · 대상: 신산님(SINSAN PC 1대, 사용자 1명)
-- 범위: 서버는 이 PC 안(127.0.0.1)에서 돈다. 밖에서는 허용한 Tailscale 기기와 허용한 메신저 사용자(텔레그램·디스코드·슬랙)만 쓸 수 있다. Oracle 배치는 아직 없다.
+- 기준: 2026-11-08(웹 중심 재설계 W0~W8) · 대상: 신산님
+- 원칙: **모든 설정은 웹 화면에서, 토큰은 이어온이 내부에서 처리한다.** 사용자가 설정 파일을 고치거나 토큰을 옮기지 않는다([WEB_FIRST](design/WEB_FIRST.md)).
+- 형태: PC 완결형(내 PC의 `http://127.0.0.1:28760`)과 허브형(`https://ieun-gateway.sinsan.kr` + PC 연결).
 - 기능 두 가지: **기존 세션 연결**(이 PC에 이미 있는 Codex 대화·Claude Code 세션에 질문)과 **새 세션 만들기**(이어온이 새 Codex·Claude 세션과 작업 폴더를 만듦, 기본 꺼짐).
 - 처음이라면 [따라 하기 설명서](BEGINNER_GUIDE.md)(설치·설정 포함), 내 프로그램 연결은 [개발 프로그램 연동 설명서](API_GUIDE.md)를 본다.
 - 판정 근거: [첫 실증 결과서](validation/FIRST_CONTINUITY_RESULT.md), 설계: [DESIGN](design/DESIGN.md)
@@ -24,59 +25,24 @@
 
 ## 2. 처음 한 번 준비
 
-1. 저장소: `D:\Project\ieon-gateway`, Node 24, `npm install`로 `@openai/codex-sdk 0.165.0` 설치(이미 완료).
-2. 설정·토큰은 `.local\`(git에 올라가지 않음)에 있다. 원문 토큰은 화면·채팅·로그에 붙여 넣지 않는다.
-
-| 파일 | 용도 |
-| --- | --- |
-| `.local\s2\server.json` | 서버 포트·DB 경로·허용 사용자·PC·대화 목록(토큰은 해시만) |
-| `.local\s2\connector.json` | 연결부 설정: 실제 실행(`live`), Codex 허용 대화·작업 폴더·공유 서버, Claude 채널 주소 |
-| `.local\s2\user-token` | 웹 접속 토큰 |
-| `.local\s2\device-token` | 연결부 토큰 |
-| `.local\x2\token`, `token.sha256` | 공유 App Server 토큰과 해시 |
-| `.local\c1\` | Claude 채널 시험 폴더(`.mcp.json`, 채널 토큰) |
-
-3. Codex 대화를 이어 쓰려면 `connector.json`의 `codex.allowlist`에 그 대화 ID를 넣고, 원래 작업 폴더를 `codex.workingDirectories`에 적는다. **업무 대화 `01a0dadd-…`는 넣지 않는다**(코드에서도 거부한다).
+[따라 하기 1절](BEGINNER_GUIDE.md): 이어온 폴더에서 `pwsh scripts/install.ps1` 한 번. 부품 설치·설정과 내부 토큰 생성·로그온 자동 시작·바탕화면 바로 가기까지 한다. 설정·토큰은 `.local\`(git 제외)에 있고 화면에 나오지 않는다. **업무 대화 `01a0dadd-…`는 허용 목록에 넣지 않는다**(코드에서도 거부).
 
 ## 3. 켜고 끄기
 
-PowerShell에서 저장소 폴더 기준으로 실행한다.
+- 이어온은 **로그온하면 창 없이 자동으로 켜진다**(작업 스케줄러 `ieon-gateway`). 서버가 연결부와 메신저를 함께 띄우고, 하나가 끝나면 다시 띄운다.
+- AI 호출은 **봇 관리 → 이 PC 설정 → 실제 실행 켜기**로만 켜고 끈다(이 PC에서 연 화면만, 켤 때 확인).
+- Codex 허용 대화·연결 방식·작업 폴더도 같은 칸에서 추가·빼기. 바꾸면 연결부가 새 설정으로 다시 시작한다.
+- 자동 시작 없애기: `pwsh scripts/install.ps1 -Uninstall`(설정·기록은 남음).
+- 로그: `.local\run\server.log`(질문·답변·토큰 원문은 남기지 않는다).
 
-```powershell
-pwsh scripts/ieon.ps1 start            # 서버·연결부 시작, 실제 엔진 실행은 꺼짐
-pwsh scripts/ieon.ps1 start -Live      # 실제 엔진 실행 켬(모델 호출이 생김)
-pwsh scripts/ieon.ps1 start -Shared    # 공유 App Server도 함께 시작(동시 사용 모드용)
-pwsh scripts/ieon.ps1 status           # 포트·실제 실행 여부·시험 대화 잠금
-pwsh scripts/ieon.ps1 check            # (Linux/WSL은 scripts/ieon.sh, WSL 검증 전) 설치 점검: Node·부품·설정, Codex·Claude Code 설치와 로그인(모델 호출 없음)
-pwsh scripts/ieon.ps1 stop             # 이 스크립트가 띄운 것만 끄고 실제 실행을 끈다
-```
+### 허브에 연결하기(허브형)
 
-- `-Live`는 모델 호출을 허락한 범위에서만 켜고 끝나면 `stop`한다.
-- 연결부는 시작할 때만 설정을 읽는다. 실행 중에 `-Live`를 바꾸려면 `stop` 후 다시 `start`.
-- 로그: `.local\run\*.log`(질문·답변 원문은 남기지 않는다).
-
-### 허브에 연결하기(허브형 ieun, P3)
-
-허브형에서는 이 PC에 서버를 켜지 않고 **연결부만** 켜서 허브에 HTTPS로 접속한다(PC가 먼저 나가는 방식, PC에 여는 포트 없음).
-
-1. 허브 웹 → 봇 관리 → 기기에서 이 PC를 등록하고, 한 번만 보이는 기기 토큰을 `.local\hub\device-token` 파일에 직접 넣는다(채팅·문서에 붙이지 않는다).
-2. 이 PC의 이어온 서버가 켜져 있으면 `stop`으로 끈다(로컬 서버와 허브 연결을 동시에 쓰지 않는다).
-3. 연결:
-
-```powershell
-pwsh scripts/ieon.ps1 connect https://ieun-gateway.sinsan.kr          # 실제 엔진 실행 끔
-pwsh scripts/ieon.ps1 connect https://ieun-gateway.sinsan.kr -Live    # 모델 호출 허락 범위에서만
-pwsh scripts/ieon.ps1 status                                          # "연결부 접속 대상: 허브 …"
-pwsh scripts/ieon.ps1 stop
-```
-
-- 토큰을 다른 파일에 두었으면 `-TokenFile <파일>`(Linux `--token-file=<파일>`)로 지정한다(복사하지 않아도 됨).
-- 허브 웹의 "접속 토큰" 칸에는 허브 서버의 사용자 토큰을 넣는다(허브 `.local/s2/user-token`, 신산님이 직접 열어 입력).
-- 허브 주소는 `https`만 받는다(`http`는 127.0.0.1·localhost만).
-- 연결부의 허용 목록·`live`·작업 폴더는 이 PC의 `.local\s2\connector.json`에만 있고 허브에서 바꿀 수 없다.
-- 허브 연결 중에는 `start`가 거절된다. 바꾸려면 `stop` 후 다시 `start`.
-- 허브는 기기마다 1분에 240번까지 받고, 넘으면 429와 기다릴 시간을 돌려준다. 연결부는 그만큼 쉬었다가 다시 묻는다(질문을 다시 보내지는 않는다). 토큰이 틀린 요청은 접속 주소마다 1분에 30번까지 401, 그 뒤로는 429.
-- Linux: `scripts/ieon.sh connect https://… [--live]`.
+1. 이 PC 화면 **봇 관리 → 허브에 연결**: 허브 주소와 이 PC 이름 → "연결" → 6자리 코드.
+2. 허브 화면 **봇 관리 → 기기 → 연결 요청**: 같은 코드면 **승인**(같은 PC를 다시 연결하면 "기존 기기 대체").
+3. 승인되면 토큰은 허브에서 이 PC로 내부 전달되고, 이 PC 서버가 허브용 연결부를 띄운다. 재부팅 뒤에도 자동으로 다시 연결된다. "연결 끊기"·"다시 연결"·"허브 잊기"는 같은 칸에서.
+- 허브 연결 중에는 이 PC 서버가 자기 작업을 내주지 않는다(같은 PC가 두 서버의 질문을 함께 실행하지 않게).
+- 이 PC의 안전 설정(허용 목록·실제 실행·작업 폴더)은 허브에서 바꿀 수 없다.
+- 허브 주소는 `https`만 받는다. 허브는 기기마다 1분 240번까지 받고 넘으면 429(연결부는 기다렸다 다시 묻고, 질문을 다시 보내지 않음).
 
 ### Claude 채널 세션
 
@@ -91,7 +57,9 @@ pwsh scripts/ieon.ps1 claude
 - 이 창에는 질문을 직접 입력하지 않는다(입력해도 이어온으로 답이 가지 않는다).
 - 끝낼 때 `/exit`. 세션이 꺼지면 채널도 꺼진다.
 
-### Codex 동시 사용(TUI)
+### Codex 동시 사용(TUI, 고급)
+
+공유 App Server와 Codex TUI를 함께 띄우는 개발용 기능이라 아직 웹 화면이 없다. 보통은 "번갈아 쓰기"를 쓴다. 쓰려면 먼저 `pwsh scripts/install.ps1 -Uninstall`로 자동 시작을 내린 뒤(연결부가 둘이 되지 않게) 아래를 실행하고, 끝나면 `stop` 후 `pwsh scripts/install.ps1`로 되돌린다.
 
 ```powershell
 pwsh scripts/ieon.ps1 start -Shared
@@ -100,14 +68,10 @@ pwsh scripts/ieon.ps1 tui
 
 - 이 모드의 대화는 **Codex Desktop 앱에서 열지 않는다**(잠금 충돌).
 - hook 확인 화면이 나오면 "Continue without trusting"을 고른다.
-- 끝낼 때 TUI를 닫고 `stop`.
 
 ## 4. 웹 화면 쓰기
 
-1. 브라우저에서 `http://127.0.0.1:28760`을 열고 접속 토큰을 넣는다. 토큰 복사:
-   ```powershell
-   Get-Content D:\Project\ieon-gateway\.local\s2\user-token -Raw | Set-Clipboard
-   ```
+1. 바탕화면 **이어온**(또는 `http://127.0.0.1:28760`)을 연다. 이 PC에서 연 화면은 자동 로그인된다. 허브는 관리자 비밀번호로 로그인한다(처음에는 "관리자 만들기").
 2. 왼쪽 목록에서 세션을 고른다. 배지로 엔진을 구분한다(`Codex · thread`, `Claude · 채널`).
 3. 질문을 입력하고 **보내기**. "접수됨 — 답을 기다리는 중" 뒤에 답이 표시된다.
 
@@ -117,9 +81,9 @@ pwsh scripts/ieon.ps1 tui
 | --- | --- | --- |
 | 보낼 수 있음 | 엔진 준비됨 | 질문 가능 |
 | 처리 중 | 이 세션의 질문이 실행 중 | 끝날 때까지 기다림 |
-| PC 연결 끊김 | 연결부가 꺼져 있음 | `start` |
-| 세션 꺼짐 | Claude 채널 세션이 꺼져 있음 | `claude`로 세션 시작 |
-| 공유 서버 꺼짐 | 동시 사용 모드인데 공유 App Server가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 전환 |
+| PC 연결 끊김 | 연결부가 꺼져 있음 | 그 PC가 켜져 있는지, 허브형이면 PC 화면 "허브에 연결"이 연결됨인지 |
+| 세션 꺼짐 | Claude 채널 세션이 꺼져 있음 | Claude 채널 세션 시작(위 "Claude 채널 세션") |
+| 공유 서버 꺼짐 | 동시 사용 모드인데 공유 App Server가 꺼짐 | 번갈아 쓰기로 전환(이 PC 설정) |
 
 ### Codex 연결 모드 바꾸기
 
@@ -131,7 +95,7 @@ Codex 세션을 고르면 "Codex 연결 모드"가 보인다.
 
 ### 휴대폰에서 쓰기(Tailscale)
 
-- `.local\s2\server.json`에 `"extraHosts": ["<이 PC Tailscale 주소>"]`, `"extraAllowedClients": ["<휴대폰 Tailscale 주소>"]`를 두면 `start` 때 그 주소에서도 열린다. Tailscale 주소(100.64.0.0/10)만 허용되며 0.0.0.0·집 와이파이 주소로는 열리지 않는다. 허용 목록 밖 기기는 403.
+- **권장: 휴대폰에서는 허브형을 쓴다**(허브 웹 "보안"에서 접속 제한). 아래 PC 직접 공개는 고급 설정이라 아직 웹 화면이 없고 관리자가 설치 때 설정 파일에 넣는다: `extraHosts`(이 PC Tailscale 주소)·`extraAllowedClients`(휴대폰 Tailscale 주소)를 두면 그 주소에서도 열린다. Tailscale 주소(100.64.0.0/10)만 허용되며 0.0.0.0·집 와이파이 주소로는 열리지 않는다. 허용 목록 밖 기기는 403.
 - 휴대폰에서 Tailscale을 켜고 `http://<이 PC Tailscale 주소>:28760`을 연다. 통신은 Tailscale이 암호화한다.
 - 쓰지 않을 때는 두 항목을 지우거나 `stop`으로 끈다.
 
@@ -139,11 +103,11 @@ Codex 세션을 고르면 "Codex 연결 모드"가 보인다.
 
 자세한 봇 만들기·추가·문제 해결은 [메신저 설정 설명서](MESSENGER_MANUAL.md)를 본다.
 
-봇은 메신저마다 하나다. 대화방(텔레그램 그룹·주제, 디스코드 채널, 슬랙 채널)마다 세션 하나를 연결하거나, 봇과의 1:1 대화에서 `/use`로 대상 세션을 고른다. 모두 이 PC에서 메신저로 먼저 접속하므로 공개 주소·Tailscale이 필요 없다. 카카오톡은 공개 HTTPS 서버가 필요해 지금은 지원하지 않는다.
+봇은 메신저마다 여러 개 둘 수 있다(봇 관리). 대화방(텔레그램 그룹·주제, 디스코드 채널, 슬랙 채널)마다 세션 하나를 연결하거나, 봇과의 1:1 대화에서 `/use`로 대상 세션을 고른다. 모두 이 PC에서 메신저로 먼저 접속하므로 공개 주소·Tailscale이 필요 없다. 카카오톡은 공개 중계(PC 완결형) 또는 허브(허브형)를 거친다.
 
-1. 봇 토큰을 `.local\.env`에 넣는다(신산님 직접): `TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_APP_TOKEN`(xapp-…), `SLACK_BOT_TOKEN`(xoxb-…). 있는 것만 켜진다.
-2. `pwsh scripts/ieon.ps1 start` 후 `pwsh scripts/ieon.ps1 messenger`. 로그 첫 줄에 켜진 메신저와 빠진 토큰 이름이 나온다(값은 나오지 않는다).
-3. 메신저에서 봇에게 `/whoami`를 보내 사용자 ID를 확인하고, `.local\messenger\config.json`의 `allowedUsers`에 넣은 뒤 `stop`→`start`→`messenger`. 허용 목록 밖 사용자에게는 `/whoami` 외에 응답하지 않는다.
+1. **봇 관리**에서 그 메신저의 봇을 고르고 편집 칸 **토큰**에 봇 토큰을 넣는다(저장한 값은 다시 보이지 않음). 1분 안에 연결된다.
+2. 메신저에서 봇에게 아무 말이나 보내고, **설정 → 허용 요청**에 뜨면 **허용**. 허용 목록 밖 사용자에게는 `/whoami` 외에 응답하지 않는다.
+3. 카카오톡은 **설정 → 카카오 스킬 URL**의 복사 버튼 값을 오픈빌더 스킬 URL에 붙인다.
 4. 명령어: `/sessions`, `/use <번호>`(이 대화방을 세션에 연결), `/status`, `/review done|not`(확인 필요 정리), `/help`. 그 밖의 글은 연결된 세션에 질문으로 간다. 슬랙에서는 `/` 대신 `!`(예: `!sessions`)를 쓴다.
 
 메신저별 준비:
@@ -159,8 +123,8 @@ Codex 세션을 고르면 "Codex 연결 모드"가 보인다.
 직접 만든 프로그램은 웹 화면·메신저 봇과 같은 HTTP API를 부른다. 엔진을 직접 부르지 않는다. 서버에 질문을 접수하면 연결부가 가져가 Codex 대화·Claude 채널 세션에 넣고, 프로그램은 결과를 조회한다.
 
 - 주소: `http://127.0.0.1:28760`(Tailscale 허용 기기는 `http://<이 PC Tailscale 주소>:28760`).
-- 인증: 모든 `/v1/` 요청에 `Authorization: Bearer <사용자 토큰>`. 토큰이 틀리면 401.
-- 프로그램 전용 토큰을 권한다. 임의의 긴 토큰을 만들어 저장소 밖이나 `.local\` 아래에 두고, `.local\s2\server.json`의 `users`에 `{"userId": "u_sinsan", "appId": "app_<프로그램>", "tokenSha256": "<토큰의 sha256 hex>"}`를 추가하고, 그 프로그램이 쓸 세션의 `bindings[].appIds`에도 `app_<프로그램>`을 넣은 뒤 `stop`→`start`(빠뜨리면 목록에서 빠지고 404). 원문은 설정에 두지 않는다. 그 항목만 지우면 그 프로그램의 접근만 끊긴다.
+- 인증: 모든 `/v1/` 요청에 `Authorization: Bearer <API 키>`. 키가 틀리거나 폐기됐으면 401.
+- API 키는 **봇 관리 → 외부 프로그램(API 키)**에서 프로그램마다 발급한다(한 번만 보임). 그 프로그램이 볼 세션을 체크해 저장하고, 필요 없어지면 폐기. 설정 파일은 고치지 않는다.
 
 | 요청 | 하는 일 | 응답 |
 | --- | --- | --- |
@@ -175,7 +139,7 @@ Codex 세션을 고르면 "Codex 연결 모드"가 보인다.
 질문 접수에는 `Idempotency-Key` 헤더가 필요하다(영문·숫자·`_`·`-` 8~64자, 질문마다 새 값). 같은 키를 다시 보내면 새로 실행하지 않는다. 네트워크 오류로 접수 결과를 모를 때는 **같은 키로** 다시 보낸다.
 
 ```powershell
-$token = (Get-Content D:\Project\ieon-gateway\.local\s2\user-token -Raw).Trim()
+$token = $env:IEON_API_KEY   # 웹에서 발급한 키를 내 프로그램 환경 변수에 둔다
 $h = @{ Authorization = "Bearer $token" }
 $base = 'http://127.0.0.1:28760'
 Invoke-RestMethod "$base/v1/conversations" -Headers $h
@@ -193,19 +157,19 @@ $s
 
 접수 오류: 400 `bad_request`(키·질문 누락, 질문 길이 초과), 404 `not_found`(없거나 허용되지 않은 세션), 503 `device_unavailable`(연결부 꺼짐), `session_not_running`(Claude 세션 꺼짐), `shared_server_down`(공유 App Server 꺼짐), 409 `conversation_busy`(처리 중·확인 필요 잠금), `idempotency_conflict`(같은 키에 다른 질문).
 
-실제 답을 받으려면 `start -Live`로 켜야 하고, Claude 세션은 `claude`로 띄워 둔다. 새 세션을 쓰려면 `server.json` 대화 목록과 `connector.json` 허용 목록에 먼저 등록한다.
+실제 답을 받으려면 **이 PC 설정 → 실제 실행 켜기**를 켜야 하고, Claude 세션은 채널 세션을 띄워 둔다. 기존 Codex 대화는 **이 PC 설정**의 허용 목록과 **기존 세션 등록**에 먼저 넣는다.
 
 ### 새 세션 만들기
 
-이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만드는 기능(기본 꺼짐). 켜기·사용법은 [따라 하기 설명서](BEGINNER_GUIDE.md) 6-A, 설계는 [NEW_SESSIONS](design/NEW_SESSIONS.md).
+이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만드는 기능(기본 꺼짐). 켜기는 **봇 관리 → 설정 → 새 세션**, 설계는 [NEW_SESSIONS](design/NEW_SESSIONS.md).
 
 - 웹 **새 세션 만들기**, 메신저 `/new codex|claude <이름>`, API `POST /v1/sessions`.
 - 정리: 30분 유휴 잠듦(질문하면 깨어남) → 14일 미사용 보관(꺼내야 질문 가능) → 삭제는 이름 확인. 웹 잠재우기·보관함·삭제 버튼, 메신저 `/sleep`·`/archived`·`/restore`·`/close`·`/limits`.
-- 기본 권한은 작업 폴더 안 읽기·쓰기. `full`은 설정 파일 `sessionOverrides`로만.
+- 기본 권한은 작업 폴더 안 읽기·쓰기. `full`(명령 실행·네트워크)은 안전을 위해 화면에서 고를 수 없다.
 
 ### 봇 관리(여러 봇)
 
-웹 화면 위쪽 **봇 관리**에서 메신저 봇 목록·이름·부르는 이름·역할·볼 수 있는 기존 세션·추가 허용 사용자·켜기를 정한다. 봇 토큰은 화면에 넣지 않고 `.local\.env`에 규칙 이름으로 넣는다. 자세한 순서는 [메신저 설정 설명서](MESSENGER_MANUAL.md) 6.2.
+웹 화면 위쪽 **봇 관리**에서 메신저 봇 목록·이름·부르는 이름·역할·볼 수 있는 기존 세션·추가 허용 사용자·켜기를 정한다. 봇 토큰도 같은 화면의 토큰 칸에서 넣는다(다시 보이지 않음). 자세한 순서는 [메신저 설정 설명서](MESSENGER_MANUAL.md) 6.2.
 
 ## 5. 결과가 이상할 때
 
@@ -214,7 +178,7 @@ $s
 | Desktop에서 이 대화를 열고 있어 보내지 않았음 | 번갈아 쓰기인데 Desktop이 대화를 잡고 있음 | Desktop에서 그 대화를 닫고 다시 보냄 |
 | 공유 서버에서 이 대화가 사용 중이라 보내지 않았음 | 동시 사용 중 사람이 TUI에서 처리 중 | TUI 답이 끝난 뒤 다시 보냄 |
 | 세션이 실행 중이 아님 | Claude 채널 세션 꺼짐 | `claude`로 세션 시작 |
-| 연결부에서 실제 실행이 꺼져 있음 | `-Live` 없이 시작함 | 승인 범위에서 `stop` → `start -Live` |
+| 연결부에서 실제 실행이 꺼져 있음 | 실제 실행 꺼짐 | 웹 "이 PC 설정 → 실제 실행 켜기" |
 | 결과를 확인할 수 없음 | 전송 후 결과를 받지 못함(끊김·시간 초과) | 아래 "확인 필요 정리" |
 | 처리 중에 TUI 입력이 합류해 답이 섞였을 수 있음 | 동시 사용 중 이어온 처리 도중 TUI에서 Enter로 입력함 | TUI 화면에서 결과 확인 후 "확인 필요 정리" |
 | 원래 세션에서 권한 확인이 필요해 멈춤 | 모델이 도구·파일 작업을 시작하려 함 | 원래 세션에서 처리 후 "확인 필요 정리" |
@@ -255,3 +219,14 @@ $s
 ## 8. 개발 작업 절차(참고)
 
 작업 branch는 최신 `origin/main`에서 주체별 접두어로 만든다(Codex `codex/<목적>`, Claude Code `claude/<목적>`). commit·push 후 `pr-request/<branch 최신 sha>/<branch>` 태그(현재 main 가리킴)를 push하면 자동 PR로 병합된다. 병합 확인 → main에서 `node --test tests/pilot/*.test.mjs` → branch·작업 폴더 정리 후 다음 작업. 자세한 규칙은 [AGENTS.md](../AGENTS.md).
+
+## 부록. 개발·문제 해결용 명령
+
+보통은 쓰지 않는다. 설치(`install.ps1`)로 띄운 이어온과 함께 쓰지 말고, 쓰기 전에 `pwsh scripts/install.ps1 -Uninstall`로 자동 시작을 내린다.
+
+```powershell
+pwsh scripts/ieon.ps1 start [-Shared] [-Live]   # 서버·연결부를 직접 띄움(개발용)
+pwsh scripts/ieon.ps1 status                    # 포트·실제 실행·시험 대화 잠금
+pwsh scripts/ieon.ps1 check                     # 설치 점검(모델 호출 없음)
+pwsh scripts/ieon.ps1 stop
+```
