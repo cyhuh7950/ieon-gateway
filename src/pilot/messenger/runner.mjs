@@ -56,16 +56,20 @@ export function createBotRunner(opts) {
         // 같은 메신저의 다른 우리 봇 사용자 ID(슬랙 멘션 구분용)
         otherBotUserIds: [...running.values()].filter((o) => o !== entry && o.def.platform === b.platform && o.userId).map((o) => o.userId) }),
       isAllowed: (m) => [...commonUsers(b.platform), ...(entry.def.extraUsers ?? [])].map(String).includes(String(m.userId)) });
+    // 상태가 바뀌면 다음 주기(1분)를 기다리지 않고 바로 보고한다.
+    const report = () => opts.api({ method: 'POST', path: '/v1/messenger/bots/status', body: { bots: [{ platform: b.platform, botId: b.botId,
+      state: entry.state, missing: [], username: entry.username, canReadAll: entry.canReadAll }] } }).catch(() => {});
     const botLog = (e) => {
       if (['started', 'ready'].includes(e.event)) {
-        entry.state = 'connected';
+        entry.state = entry.conflict ? 'conflict' : 'connected';
         entry.username = e.bot ?? entry.username;
         if (typeof e.canReadAll === 'boolean') entry.canReadAll = e.canReadAll;
         if (e.botUserId) entry.userId = e.botUserId;
-        // 연결되면 다음 주기(1분)를 기다리지 않고 바로 상태를 보고한다.
-        opts.api({ method: 'POST', path: '/v1/messenger/bots/status', body: { bots: [{ platform: b.platform, botId: b.botId,
-          state: entry.state, missing: [], username: entry.username, canReadAll: entry.canReadAll }] } }).catch(() => {});
+        report();
       }
+      // 다른 곳에서 같은 봇을 받고 있음: 연결은 됐어도 메시지가 나뉘므로 "연결됨"으로 보이지 않게 한다.
+      if (e.event === 'conflict' && !entry.conflict) { entry.conflict = true; entry.state = 'conflict'; report(); }
+      if (e.event === 'conflict_clear' && entry.conflict) { entry.conflict = false; entry.state = 'connected'; report(); }
       if (['open_error', 'closed_fatal'].includes(e.event)) entry.state = 'error';
       log({ ...e, botId: b.botId });
     };
