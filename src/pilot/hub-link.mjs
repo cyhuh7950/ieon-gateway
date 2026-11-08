@@ -6,6 +6,7 @@ import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, write
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateServerUrl } from './connector.mjs';
+import { childEnv } from './parent-watch.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -25,7 +26,7 @@ export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spa
     mkdirSync(dir, { recursive: true });
     const out = openSync(join(dir, 'connector.log'), 'a');
     child = spawnImpl(process.execPath, ['src/pilot/connector.mjs', connectorConfigPath, '--server', i.hubUrl, '--token-file', tokenFile],
-      { cwd: ROOT, stdio: ['ignore', out, out] });
+      { cwd: ROOT, env: childEnv(), stdio: ['ignore', out, out] });
     log({ event: 'hub_connector_start', hub: i.hubUrl });
     child.on('exit', (code) => {
       child = null;

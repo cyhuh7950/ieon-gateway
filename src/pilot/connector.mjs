@@ -95,6 +95,7 @@ export async function runConnector({ pollMs = 2000, signal, ...opts }) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  (await import('./parent-watch.mjs')).watchParent(); // W6: 서버가 띄운 경우, 서버가 사라지면 함께 끝난다
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
   const o = connectorOptions(config, process.argv.slice(3));
   const { buildAdapters } = await import('./adapters/index.mjs');

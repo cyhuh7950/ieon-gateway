@@ -17,6 +17,7 @@ export function parseEnv(text) {
   return env;
 }
 
+(await import('../parent-watch.mjs')).watchParent(); // W6: 서버가 띄운 경우, 서버가 사라지면 함께 끝난다
 const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const env = parseEnv(readFileSync(config.envFile, 'utf8'));
 const log = (e) => process.stderr.write(JSON.stringify({ ch: 'messenger', at: new Date().toISOString(), ...e }) + '\n');
