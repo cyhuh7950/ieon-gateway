@@ -100,6 +100,14 @@
 - 테스트 `tests/pilot/pairing.test.mjs` 5건(허브·PC 서버를 함께 띄운 짝맺기 전체, 거절·접속 제한·횟수 제한, 연결부 관리, 허브 모드 204, 승인 방식).
 - 남은 것: PC의 `connectorConfigPath` 자동 설정은 W6(설치)에서. 그전에는 PC `server.json`에 값이 있어야 연결부를 띄운다.
 
+## 5-5. W4 구현 (2026-11-08, 저장소 코드)
+
+- `src/pilot/device-settings.mjs`: 연결부 설정(`connectorConfigPath`)의 `live`·Codex `allowlist`·`modes`·`workingDirectories`만 읽고 바꾼다(다른 항목 유지, 임시 파일 후 바꿔치기). 업무 대화·형식이 틀린 ID·상대 경로·없는 폴더는 거절, 동시 사용은 공유 App Server 설정이 있는 PC만.
+- API(PC만, 허브에는 없음): `GET /v1/admin/local/device`, `PUT /v1/admin/local/device/live`, `PUT|DELETE /v1/admin/local/device/codex/{대화 ID}`. 바꾸는 요청은 **이 PC의 127.0.0.1에서 앞단 없이 연 화면**만(Tailscale 등은 보기만, `local_only`).
+- 로컬 연결부 관리: 설정 `manageLocalConnector`면 서버가 로컬 연결부를 띄우고(끝나면 5초 뒤 다시), 기기 설정을 바꾸면 로컬·허브 연결부를 새 설정으로 다시 시작. 서버가 띄운 것이 아니면 "다시 시작하면 적용"으로 알린다(W6 설치가 이 설정을 켠다).
+- 화면: 봇 관리 탭 "이 PC 설정"(실제 실행 스위치·켤 때 확인, Codex 허용 목록 표·추가·빼기).
+- 테스트 `tests/pilot/device-settings.test.mjs` 4건.
+
 ## 6. 지금까지 만든 것과의 관계
 
 - 유지: P1의 웹 설정·기존 세션 등록·기기 관리(P1-c는 짝맺기 승인 화면의 바탕), P3의 허브 주소 검사·요청 횟수 제한, P4의 접속 제한 코드, P5의 허브 내장 카카오 수신.

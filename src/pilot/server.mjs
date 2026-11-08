@@ -15,6 +15,7 @@ import { createWebAuth } from './web-auth.mjs';
 import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs';
 import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
+import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
 import { dirname, join } from 'node:path';
 
 const MAX_QUESTION = 8000;
@@ -104,6 +105,17 @@ export function createApp(config) {
   const hubLink = access ? null : createHubLink({ dir: config.hubLinkDir ?? join(dirname(config.dbPath), 'hub'),
     connectorConfigPath: config.connectorConfigPath, log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') });
   const ipOf = (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?'));
+  // W4: 이 PC의 로컬 연결부를 서버가 띄운다(설정 manageLocalConnector). 기기 설정을 바꾸면 다시 띄운다.
+  const localConnector = !access && config.manageLocalConnector && config.connectorConfigPath
+    ? createLocalConnector({ connectorConfigPath: config.connectorConfigPath, log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') }) : null;
+  const localDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') && !req.headers['x-forwarded-for'];
+  // 기기 설정이 바뀌면 그 설정을 읽는 연결부를 다시 띄운다. 이 서버가 띄운 것이 아니면 다시 켜야 한다고 알린다.
+  const applyDevice = async () => {
+    let restarted = false;
+    if (localConnector?.running()) { await localConnector.restart(); restarted = true; }
+    if (hubLink?.hubMode()) { hubLink.disconnect(); hubLink.reconnect(); restarted = true; }
+    return { restarted, restartRequired: !restarted };
+  };
   // P3: 기기 API 요청 횟수 제한(1분 창). 인증된 기기는 기기별, 인증 실패는 접속 주소별로 센다.
   // 유효한 토큰은 실패 횟수와 상관없이 먼저 확인하므로, 같은 앞단(NPM) 뒤의 정상 기기는 막히지 않는다.
   const rate = { perMinute: config.deviceRateLimit?.perMinute ?? 240, failPerMinute: config.deviceRateLimit?.failPerMinute ?? 30 };
@@ -238,6 +250,32 @@ export function createApp(config) {
           if (r.error) return json(res, r.http, { error: r.error });
           process.stderr.write(JSON.stringify({ ch: 'server', event: `pair_${pr[2]}d`, hostId: r.body?.hostId ?? null }) + '\n');
           return json(res, r.http, r.body);
+        }
+        // W4: 이 PC의 기기 설정(실제 실행·Codex 허용 목록·연결 방식·작업 폴더). 허브 웹에는 없다. 바꾸는 것은 이 PC에서 연 화면만.
+        if (path.startsWith('/v1/admin/local/device')) {
+          if (access) return json(res, 404, { error: 'not_found' });
+          const cfgPath = config.connectorConfigPath;
+          if (!cfgPath || !existsSync(cfgPath)) return json(res, 404, { error: 'no_connector_config' });
+          if (req.method === 'GET' && path === '/v1/admin/local/device') {
+            return json(res, 200, { ...readDevice(cfgPath), managed: Boolean(localConnector), running: localConnector?.running() ?? null });
+          }
+          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (req.method === 'PUT' && path === '/v1/admin/local/device/live') {
+            const live = (await readJson(req)).live;
+            setLive(cfgPath, live);
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'device_live', live }) + '\n');
+            return json(res, 200, { live, ...(await applyDevice()) });
+          }
+          const ct = path.match(/^\/v1\/admin\/local\/device\/codex\/([0-9a-fA-F-]{36})$/);
+          if (ct && req.method === 'PUT') {
+            upsertCodexThread(cfgPath, { threadId: ct[1], ...(await readJson(req)) });
+            return json(res, 200, { ...readDevice(cfgPath), ...(await applyDevice()) });
+          }
+          if (ct && req.method === 'DELETE') {
+            if (!removeCodexThread(cfgPath, ct[1])) return json(res, 404, { error: 'not_found' });
+            return json(res, 200, { ...readDevice(cfgPath), ...(await applyDevice()) });
+          }
+          return json(res, 404, { error: 'not_found' });
         }
         // W3: 이 PC를 허브에 연결(PC 로컬 웹만)
         if (path.startsWith('/v1/admin/local/hub')) {
@@ -560,8 +598,8 @@ export function createApp(config) {
   return {
     server, store, listenExtra, listenSocket, listenPublic, newSessions: nsCfg, notices,
     listen: (port) => new Promise((r) => server.listen(port, '127.0.0.1', () => r(server.address().port))),
-    hubLink,
-    close: () => new Promise((r) => { clearInterval(cleanupTimer); relay?.close(); hubLink?.close(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
+    hubLink, localConnector,
+    close: () => new Promise((r) => { clearInterval(cleanupTimer); relay?.close(); hubLink?.close(); localConnector?.stop(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
   };
 }
 
@@ -582,6 +620,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
   const app = createApp(config);
   const port = await app.listen(config.port ?? 28760);
+  // W4: 로컬 연결부도 이 서버가 띄운다(설정 manageLocalConnector).
+  if (app.localConnector) process.stderr.write(JSON.stringify({ ch: 'server', event: 'local_connector', started: app.localConnector.start() }) + '\n');
   // W3: 이미 짝맺은 허브가 있으면 연결부를 다시 띄운다(재부팅 뒤 사용자가 할 일 없음).
   if (app.hubLink) process.stderr.write(JSON.stringify({ ch: 'server', event: 'hub_link_resume', result: app.hubLink.resume() }) + '\n');
   process.stderr.write(`ieon pilot server: http://127.0.0.1:${port}\n`);
