@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>이어온 실증</title>
+<title>이어온</title>
+<link rel="icon" href="/favicon.ico">
 <style>
 :root { --bg:#f3f5f7; --surface:#fff; --surface-alt:#f7f9fb; --text:#22252b; --muted:#596472; --border:#dfe3e8;
   --primary:#24344d; --accent:#0f766e; --focus:#2563eb; --success:#17654d; --warning:#815b0d; --danger:#a12b37; }
@@ -47,6 +48,12 @@ nav.tabs button[aria-pressed="true"] { background:var(--primary); color:#fff; bo
 .admin { max-width:1200px; margin:0 auto; padding:16px; display:grid; gap:16px; }
 .admin section { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 16px; }
 .admin h3 { font-size:14px; margin:4px 0 10px; }
+nav.atabs { display:flex; flex-wrap:wrap; gap:6px; position:sticky; top:0; z-index:5; background:var(--bg); padding:4px 0; }
+nav.atabs button { border:1px solid var(--border); background:var(--surface); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
+nav.atabs button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+.subcard { border-top:1px solid var(--border); margin-top:12px; padding-top:4px; }
+#status { position:fixed; top:58px; left:50%; transform:translateX(-50%); z-index:50; width:min(640px, calc(100% - 32px)); pointer-events:none; }
+#status .state { box-shadow:0 4px 14px rgba(0,0,0,.12); pointer-events:auto; }
 table.list { width:100%; border-collapse:collapse; }
 table.list th, table.list td { text-align:left; border-bottom:1px solid var(--border); padding:6px 8px; vertical-align:top; }
 table.list tr.pick { cursor:pointer; }
@@ -61,7 +68,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
 </style>
 </head>
 <body>
-<header><h1>이어온</h1><span class="muted">기존 세션 이어쓰기 · 로컬 실증</span>
+<header><h1>이어온</h1><span class="muted" id="modeTag"></span>
   <nav class="tabs" id="tabs" hidden><button type="button" id="tabSessions" aria-pressed="true">세션</button><button type="button" id="tabAdmin" aria-pressed="false">봇 관리</button><button type="button" id="logoutBtn">로그아웃</button></nav></header>
 <div class="layout">
   <aside aria-label="세션 목록">
@@ -120,66 +127,21 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   </main>
 </div>
 <div class="admin" id="admin" hidden>
-  <section aria-label="봇 목록">
-    <h3>봇 목록</h3>
-    <div class="muted">봇을 고르면 아래 편집 칸의 "토큰"에 메신저에서 받은 봇 토큰을 넣을 수 있습니다. 저장한 토큰은 다시 보이지 않고, 1분 안에 봇이 연결됩니다.</div>
-    <table class="list"><thead><tr><th>메신저</th><th>봇 ID</th><th>이름</th><th>역할</th><th>부르는 이름</th><th>상태</th></tr></thead><tbody id="botRows"></tbody></table>
-    <form id="botAdd" class="row" style="margin-top:10px">
-      <select id="addPlatform" aria-label="메신저"><option value="telegram">텔레그램</option><option value="discord">디스코드</option><option value="slack">슬랙</option><option value="kakao">카카오톡</option></select>
-      <input id="addBotId" placeholder="새 봇 ID (영문 소문자·숫자·-)" maxlength="32" autocomplete="off" aria-label="새 봇 ID">
-      <button class="primary" type="submit">봇 추가</button>
-    </form>
-    <div id="addHint" class="muted"></div>
-  </section>
-  <section id="botEdit" hidden aria-label="봇 편집">
-    <h3 id="botEditTitle"></h3>
-    <form id="botForm" class="grid2">
-      <label for="bName">이름</label><input type="text" id="bName" maxlength="30">
-      <label for="bRole">역할</label><select id="bRole"></select>
-      <label for="bCalls">부르는 이름</label><input type="text" id="bCalls" placeholder="쉼표로 구분 (예: 리뷰, 리뷰봇)">
-      <label for="bUsers">추가 허용 사용자</label><input type="text" id="bUsers" placeholder="메신저 사용자 ID, 쉼표로 구분 (공통 허용 목록에 더해짐)">
-      <span>볼 수 있는 기존 세션</span><div id="bSessions"></div>
-      <span>켜기</span><label class="chk"><input type="checkbox" id="bEnabled"> 이 봇을 켭니다</label>
-      <span>토큰</span><div id="bTokens"></div>
-      <span>상태</span><div id="bStatus"></div>
-      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="bDelete">봇 삭제</button></div>
-    </form>
-  </section>
-  <section aria-label="역할 목록">
-    <h3>역할 목록</h3>
-    <table class="list"><thead><tr><th>역할 ID</th><th>이름</th><th>만들 수 있는 엔진</th><th>허용 권한</th><th>기본 세션</th></tr></thead><tbody id="roleRows"></tbody></table>
-    <form id="roleForm" class="grid2" style="margin-top:10px">
-      <label for="rId">역할 ID</label><input type="text" id="rId" placeholder="영문 소문자·숫자·- (예: review)" maxlength="32">
-      <label for="rName">이름</label><input type="text" id="rName" maxlength="30">
-      <label for="rDesc">설명</label><input type="text" id="rDesc" maxlength="200">
-      <span>만들 수 있는 엔진</span><div><label class="chk"><input type="checkbox" name="rEng" value="codex" checked> Codex</label><label class="chk"><input type="checkbox" name="rEng" value="claude" checked> Claude</label></div>
-      <span>허용 권한</span><div><label class="chk"><input type="checkbox" name="rProf" value="workspace" checked> 작업 폴더 안 읽기·쓰기</label><label class="chk"><input type="checkbox" name="rProf" value="read_only" checked> 읽기 전용</label><span class="muted">(명령 실행·인터넷은 설정 파일에서만)</span></div>
-      <label for="rGuide">AI 역할 안내</label><textarea id="rGuide" maxlength="2000" placeholder="이 역할 봇에서 만든 새 세션의 첫 질문 앞에 붙습니다"></textarea>
-      <label for="rDefault">기본 세션</label><select id="rDefault"></select>
-      <span></span><div class="row"><button class="primary" type="submit">역할 저장</button><button type="button" id="rDelete">역할 삭제</button><button type="button" id="rNew">새 역할</button></div>
-    </form>
-  </section>
-  <section aria-label="기존 세션 등록">
-    <h3>기존 세션 등록</h3>
-    <div class="muted">PC에 이미 있는 Codex 대화·Claude 채널 세션을 등록합니다. 설치 때 들어온 세션은 보기만 됩니다. Codex 대화는 그 PC 화면의 "이 PC 설정" 허용 목록에도 있어야 실제로 실행됩니다. 봇에게 보이게 하려면 봇 편집의 "볼 수 있는 기존 세션"에서 고르세요.</div>
-    <table class="list"><thead><tr><th>ID</th><th>이름</th><th>엔진</th><th>PC</th><th>세션 ID</th><th>보이는 곳</th><th>출처</th></tr></thead><tbody id="bdRows"></tbody></table>
-    <form id="bdForm" class="grid2" style="margin-top:10px">
-      <label for="bdId">ID</label><input type="text" id="bdId" placeholder="c_로 시작 (예: c_myproj)" maxlength="62">
-      <label for="bdLabel">이름</label><input type="text" id="bdLabel" maxlength="60">
-      <label for="bdEngine">엔진</label><select id="bdEngine"><option value="codex_thread">Codex 대화</option><option value="claude_channel">Claude 채널</option></select>
-      <label for="bdHost">PC</label><select id="bdHost"></select>
-      <label for="bdRef">세션 ID</label><input type="text" id="bdRef" placeholder="Codex 대화 ID(UUID) / Claude 채널은 ieon">
-      <span>보이는 곳</span><div><label class="chk"><input type="checkbox" id="bdWeb" checked> 웹</label><label class="chk"><input type="checkbox" id="bdMsg" checked> 메신저 기본 봇</label></div>
-      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="bdDelete">삭제</button><button type="button" id="bdNew">새로 입력</button></div>
-    </form>
-  </section>
-  <section aria-label="기기">
-    <h3>기기(PC 연결부)</h3>
-    <div class="muted">새 PC는 그 PC의 이어온 화면에서 "허브에 연결"을 누르면 아래 "연결 요청"에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
-    <div id="pairBox" hidden><h2>연결 요청</h2><div id="pairRows"></div></div>
-    <table class="list"><thead><tr><th>기기 ID</th><th>이름</th><th>출처</th><th>등록일</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead><tbody id="dvRows"></tbody></table>
+  <nav class="atabs" id="atabs" aria-label="관리 메뉴">
+    <button type="button" data-atab="pc">이 PC</button>
+    <button type="button" data-atab="bots">봇</button>
+    <button type="button" data-atab="messenger">메신저·카카오</button>
+    <button type="button" data-atab="sessions">세션 등록</button>
+    <button type="button" data-atab="newsess">새 세션</button>
+    <button type="button" data-atab="roles">역할</button>
+    <button type="button" data-atab="devices">기기</button>
+    <button type="button" data-atab="hubsec">허브 보안·Codex</button>
+    <button type="button" data-atab="apps">외부 프로그램</button>
+  </nav>
+  <section class="atab" data-atab="pc" hidden aria-label="이 PC">
+    <h3>이 PC</h3>
     <div id="devBox" hidden>
-      <h2>이 PC 설정</h2>
+      <h2>실제 실행·Codex 허용 목록</h2>
       <div class="muted">이 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. 이 화면(이 PC에서 연 것)에서만 바꿀 수 있고 허브 웹에서는 바꿀 수 없습니다.</div>
       <div class="row"><label class="chk"><input type="checkbox" id="devLive"> 실제 실행 켜기(AI 호출이 생김)</label><span id="devConn" class="muted"></span></div>
       <table class="list"><thead><tr><th>Codex 대화 ID</th><th>연결 방식</th><th>작업 폴더</th><th></th></tr></thead><tbody id="devThreads"></tbody></table>
@@ -201,11 +163,38 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       </form>
       <div class="row"><button type="button" id="hlReconnect">다시 연결</button><button type="button" id="hlStop">연결 끊기</button><button type="button" id="hlForget">허브 잊기</button></div>
     </div>
-    <h2>최근 기록</h2><div id="dvEvents" class="muted"></div>
   </section>
-  <section aria-label="설정">
-    <h3>설정</h3>
-    <div class="muted">여기서 저장한 값이 있으면 그 값을, 없으면 PC 설정 파일 값을 씁니다. "파일 값으로"를 누르면 여기 값을 지우고 파일 값으로 돌아갑니다. 연결부 허용 목록·실제 실행·작업 폴더·명령 실행 권한(full)은 여기서 바꿀 수 없습니다.</div>
+  <section class="atab" data-atab="bots" hidden aria-label="봇">
+    <h3>봇</h3>
+    <div class="muted">봇을 고르면 아래 편집 칸의 "토큰"에 메신저에서 받은 봇 토큰을 넣을 수 있습니다. 저장한 토큰은 다시 보이지 않고, 1분 안에 봇이 연결됩니다.</div>
+    <table class="list"><thead><tr><th>메신저</th><th>봇 ID</th><th>이름</th><th>역할</th><th>부르는 이름</th><th>상태</th></tr></thead><tbody id="botRows"></tbody></table>
+    <form id="botAdd" class="row" style="margin-top:10px">
+      <select id="addPlatform" aria-label="메신저"><option value="telegram">텔레그램</option><option value="discord">디스코드</option><option value="slack">슬랙</option><option value="kakao">카카오톡</option></select>
+      <input id="addBotId" placeholder="새 봇 ID (영문 소문자·숫자·-)" maxlength="32" autocomplete="off" aria-label="새 봇 ID">
+      <button class="primary" type="submit">봇 추가</button>
+    </form>
+    <div id="addHint" class="muted"></div>
+    <div id="botEdit" hidden class="subcard">
+    <h2 id="botEditTitle"></h2>
+    <form id="botForm" class="grid2">
+      <label for="bName">이름</label><input type="text" id="bName" maxlength="30">
+      <label for="bRole">역할</label><select id="bRole"></select>
+      <label for="bCalls">부르는 이름</label><input type="text" id="bCalls" placeholder="쉼표로 구분 (예: 리뷰, 리뷰봇)">
+      <label for="bUsers">추가 허용 사용자</label><input type="text" id="bUsers" placeholder="메신저 사용자 ID, 쉼표로 구분 (공통 허용 목록에 더해짐)">
+      <span>볼 수 있는 기존 세션</span><div id="bSessions"></div>
+      <span>켜기</span><label class="chk"><input type="checkbox" id="bEnabled"> 이 봇을 켭니다</label>
+      <span>토큰</span><div id="bTokens"></div>
+      <span>상태</span><div id="bStatus"></div>
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="bDelete">봇 삭제</button></div>
+    </form>
+    </div>
+  </section>
+  <section class="atab" data-atab="messenger" hidden aria-label="메신저·카카오">
+    <h3>메신저·카카오</h3>
+    <h2>허용 요청</h2>
+    <div class="muted">허용 목록에 없는 사람이 봇에게 보낸 최근 메시지(24시간)입니다. "허용"을 누르면 그 봇의 추가 허용 사용자로 들어갑니다.</div>
+    <div id="deniedRows"></div>
+        <div class="muted">여기서 저장한 값이 있으면 그 값을, 없으면 설치 때 정한 값을 씁니다. "파일 값으로"를 누르면 여기 값을 지우고 설치 때 값으로 돌아갑니다.</div>
     <h2>메신저 공통 허용 사용자 <span id="auSrc" class="muted"></span></h2>
     <form id="auForm" class="grid2">
       <label for="auTelegram">텔레그램</label><input type="text" id="auTelegram" placeholder="사용자 ID, 쉼표로 구분">
@@ -214,14 +203,74 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="auKakao">카카오톡</label><input type="text" id="auKakao" placeholder="사용자 ID, 쉼표로 구분">
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="auReset">파일 값으로</button></div>
     </form>
-    <h2>외부 프로그램(API 키)</h2>
-    <div class="muted">내가 만든 프로그램이 이어온에 질문하게 하려면 여기서 키를 발급하세요. 키는 발급할 때 한 번만 보이니 그 프로그램 설정에 바로 넣으세요. 프로그램마다 볼 수 있는 세션을 고르고, 필요 없어지면 폐기합니다.</div>
-    <div id="appRows"></div>
-    <form id="appAdd" class="row"><input id="appName" placeholder="프로그램 이름 (예: 내 자동화)" maxlength="40" autocomplete="off" aria-label="프로그램 이름"><button class="primary" type="submit">키 발급</button></form>
-    <div id="appKey" class="state warn" hidden role="alert"><b>새 API 키(한 번만 보입니다)</b><div><code id="appKeyText"></code> <button type="button" id="appKeyCopy">복사</button> <button type="button" id="appKeyHide">닫기</button></div></div>
-    <h2>허용 요청</h2>
-    <div class="muted">허용 목록에 없는 사람이 봇에게 보낸 최근 메시지(24시간)입니다. "허용"을 누르면 그 봇의 추가 허용 사용자로 들어갑니다.</div>
-    <div id="deniedRows"></div>
+    <div id="skillBox" hidden>
+      <h2>카카오 스킬 URL</h2>
+      <div id="relayState" class="muted"></div>
+      <div class="muted">카카오 오픈빌더 스킬의 URL 칸에 이 주소를 붙여 넣으세요. 비밀 경로가 들어 있으니 다른 곳에 올리지 마세요.</div>
+      <div class="row"><button type="button" id="skillShow">보기</button><button type="button" id="skillCopy">복사</button></div>
+      <div id="skillUrl" class="muted" style="word-break:break-all"></div>
+    </div>
+    <h2>카카오 중계 <span id="kkSrc" class="muted"></span></h2>
+    <form id="kkForm" class="grid2">
+      <label for="kkUrl">중계 주소</label><input type="text" id="kkUrl" placeholder="https://ieon-gateway.sinsan.kr">
+      <label for="kkLimit">콜백 제한 시간(초)</label><input type="text" id="kkLimit" placeholder="5~120 (비우면 기본 55초)">
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="kkReset">파일 값으로</button></div>
+    </form>
+  </section>
+  <section class="atab" data-atab="sessions" hidden aria-label="세션 등록">
+    <h3>세션 등록</h3>
+    <div class="muted">PC에 이미 있는 Codex 대화·Claude 채널 세션을 등록합니다. 설치 때 들어온 세션은 보기만 됩니다. Codex 대화는 그 PC 화면의 "이 PC 설정" 허용 목록에도 있어야 실제로 실행됩니다. 봇에게 보이게 하려면 봇 편집의 "볼 수 있는 기존 세션"에서 고르세요.</div>
+    <table class="list"><thead><tr><th>ID</th><th>이름</th><th>엔진</th><th>PC</th><th>세션 ID</th><th>보이는 곳</th><th>출처</th></tr></thead><tbody id="bdRows"></tbody></table>
+    <form id="bdForm" class="grid2" style="margin-top:10px">
+      <label for="bdId">ID</label><input type="text" id="bdId" placeholder="c_로 시작 (예: c_myproj)" maxlength="62">
+      <label for="bdLabel">이름</label><input type="text" id="bdLabel" maxlength="60">
+      <label for="bdEngine">엔진</label><select id="bdEngine"><option value="codex_thread">Codex 대화</option><option value="claude_channel">Claude 채널</option></select>
+      <label for="bdHost">PC</label><select id="bdHost"></select>
+      <label for="bdRef">세션 ID</label><input type="text" id="bdRef" placeholder="Codex 대화 ID(UUID) / Claude 채널은 ieon">
+      <span>보이는 곳</span><div><label class="chk"><input type="checkbox" id="bdWeb" checked> 웹</label><label class="chk"><input type="checkbox" id="bdMsg" checked> 메신저 기본 봇</label></div>
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="bdDelete">삭제</button><button type="button" id="bdNew">새로 입력</button></div>
+    </form>
+  </section>
+  <section class="atab" data-atab="newsess" hidden aria-label="새 세션">
+    <h3>새 세션</h3>
+    <h2>설정 <span id="nsSrc" class="muted"></span></h2>
+    <form id="nsForm" class="grid2">
+      <span>켜기</span><label class="chk"><input type="checkbox" id="nsOn"> 새 세션 만들기를 켭니다</label>
+      <label for="nsMax">세션 수 한도</label><input type="text" id="nsMax">
+      <label for="nsActive">동시 처리 한도</label><input type="text" id="nsActive">
+      <label for="nsCodex">Codex 한도</label><input type="text" id="nsCodex">
+      <label for="nsClaude">Claude 한도</label><input type="text" id="nsClaude">
+      <label for="nsIdle">잠들기(분)</label><input type="text" id="nsIdle">
+      <label for="nsArch">보관(일)</label><input type="text" id="nsArch">
+      <label for="nsNotice">보관 예고(일 전)</label><input type="text" id="nsNotice">
+      <label for="nsDefault">기본 권한</label><select id="nsDefault"></select>
+      <span>작업 폴더</span><div id="nsRoot" class="muted"></div>
+      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="nsReset">파일 값으로</button></div>
+    </form>
+  </section>
+  <section class="atab" data-atab="roles" hidden aria-label="역할">
+    <h3>역할</h3>
+    <table class="list"><thead><tr><th>역할 ID</th><th>이름</th><th>만들 수 있는 엔진</th><th>허용 권한</th><th>기본 세션</th></tr></thead><tbody id="roleRows"></tbody></table>
+    <form id="roleForm" class="grid2" style="margin-top:10px">
+      <label for="rId">역할 ID</label><input type="text" id="rId" placeholder="영문 소문자·숫자·- (예: review)" maxlength="32">
+      <label for="rName">이름</label><input type="text" id="rName" maxlength="30">
+      <label for="rDesc">설명</label><input type="text" id="rDesc" maxlength="200">
+      <span>만들 수 있는 엔진</span><div><label class="chk"><input type="checkbox" name="rEng" value="codex" checked> Codex</label><label class="chk"><input type="checkbox" name="rEng" value="claude" checked> Claude</label></div>
+      <span>허용 권한</span><div><label class="chk"><input type="checkbox" name="rProf" value="workspace" checked> 작업 폴더 안 읽기·쓰기</label><label class="chk"><input type="checkbox" name="rProf" value="read_only" checked> 읽기 전용</label><span class="muted">(명령 실행·인터넷은 설정 파일에서만)</span></div>
+      <label for="rGuide">AI 역할 안내</label><textarea id="rGuide" maxlength="2000" placeholder="이 역할 봇에서 만든 새 세션의 첫 질문 앞에 붙습니다"></textarea>
+      <label for="rDefault">기본 세션</label><select id="rDefault"></select>
+      <span></span><div class="row"><button class="primary" type="submit">역할 저장</button><button type="button" id="rDelete">역할 삭제</button><button type="button" id="rNew">새 역할</button></div>
+    </form>
+  </section>
+  <section class="atab" data-atab="devices" hidden aria-label="기기">
+    <h3>기기</h3>
+    <div class="muted">새 PC는 그 PC의 이어온 화면에서 "허브에 연결"을 누르면 아래 "연결 요청"에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
+    <div id="pairBox" hidden><h2>연결 요청</h2><div id="pairRows"></div></div>
+    <table class="list"><thead><tr><th>기기 ID</th><th>이름</th><th>출처</th><th>등록일</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead><tbody id="dvRows"></tbody></table>
+    <h2>최근 기록</h2><div id="dvEvents" class="muted"></div>
+  </section>
+  <section class="atab" data-atab="hubsec" hidden aria-label="허브 보안·Codex">
+    <h3>허브 보안·Codex</h3>
     <div id="secBox" hidden>
       <h2>보안(허브 접속 제한) <span id="secSrc" class="muted"></span></h2>
       <div class="muted">이 허브 웹을 열 수 있는 곳을 정합니다. 하나라도 통과하면 열립니다. 지금 접속한 곳이 막히는 변경은 저장되지 않습니다. 지금 내 주소: <b id="secIp"></b></div>
@@ -240,33 +289,13 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <div class="row"><button type="button" id="cxStart" class="primary">로그인</button><button type="button" id="cxCancel">취소</button></div>
       <div class="row" id="hubEngineRow" hidden><label class="chk"><input type="checkbox" id="hubLive"> 허브 새 세션 실제 실행 켜기(AI 호출이 생김)</label></div>
     </div>
-    <div id="skillBox" hidden>
-      <h2>카카오 스킬 URL</h2>
-      <div id="relayState" class="muted"></div>
-      <div class="muted">카카오 오픈빌더 스킬의 URL 칸에 이 주소를 붙여 넣으세요. 비밀 경로가 들어 있으니 다른 곳에 올리지 마세요.</div>
-      <div class="row"><button type="button" id="skillShow">보기</button><button type="button" id="skillCopy">복사</button></div>
-      <div id="skillUrl" class="muted" style="word-break:break-all"></div>
-    </div>
-    <h2>카카오 중계 <span id="kkSrc" class="muted"></span></h2>
-    <form id="kkForm" class="grid2">
-      <label for="kkUrl">중계 주소</label><input type="text" id="kkUrl" placeholder="https://ieon-gateway.sinsan.kr">
-      <label for="kkLimit">콜백 제한 시간(초)</label><input type="text" id="kkLimit" placeholder="5~120 (비우면 기본 55초)">
-      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="kkReset">파일 값으로</button></div>
-    </form>
-    <h2>새 세션 <span id="nsSrc" class="muted"></span></h2>
-    <form id="nsForm" class="grid2">
-      <span>켜기</span><label class="chk"><input type="checkbox" id="nsOn"> 새 세션 만들기를 켭니다</label>
-      <label for="nsMax">세션 수 한도</label><input type="text" id="nsMax">
-      <label for="nsActive">동시 처리 한도</label><input type="text" id="nsActive">
-      <label for="nsCodex">Codex 한도</label><input type="text" id="nsCodex">
-      <label for="nsClaude">Claude 한도</label><input type="text" id="nsClaude">
-      <label for="nsIdle">잠들기(분)</label><input type="text" id="nsIdle">
-      <label for="nsArch">보관(일)</label><input type="text" id="nsArch">
-      <label for="nsNotice">보관 예고(일 전)</label><input type="text" id="nsNotice">
-      <label for="nsDefault">기본 권한</label><select id="nsDefault"></select>
-      <span>작업 폴더</span><div id="nsRoot" class="muted"></div>
-      <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="nsReset">파일 값으로</button></div>
-    </form>
+  </section>
+  <section class="atab" data-atab="apps" hidden aria-label="외부 프로그램">
+    <h3>외부 프로그램</h3>
+    <div class="muted">내가 만든 프로그램이 이어온에 질문하게 하려면 여기서 키를 발급하세요. 키는 발급할 때 한 번만 보이니 그 프로그램 설정에 바로 넣으세요. 프로그램마다 볼 수 있는 세션을 고르고, 필요 없어지면 폐기합니다.</div>
+    <div id="appRows"></div>
+    <form id="appAdd" class="row"><input id="appName" placeholder="프로그램 이름 (예: 내 자동화)" maxlength="40" autocomplete="off" aria-label="프로그램 이름"><button class="primary" type="submit">키 발급</button></form>
+    <div id="appKey" class="state warn" hidden role="alert"><b>새 API 키(한 번만 보입니다)</b><div><code id="appKeyText"></code> <button type="button" id="appKeyCopy">복사</button> <button type="button" id="appKeyHide">닫기</button></div></div>
   </section>
 </div>
 <script>
@@ -326,13 +355,38 @@ $('login').onsubmit = async (e) => {
   setStatus('', ''); authState = { ...authState, setupRequired: false }; startApp();
 };
 $('logoutBtn').onclick = async () => { await authPost('/v1/auth/logout'); location.reload(); };
+// 관리 탭: 제목별로 한 화면씩. 이 PC 탭은 PC에서만, 허브 보안·Codex 탭은 허브에서만 보인다.
+function showAtab(name) {
+  const btns = [...document.querySelectorAll('#atabs button')].filter((b) => !b.hidden);
+  if (!btns.some((b) => b.dataset.atab === name)) name = btns[0]?.dataset.atab;
+  for (const b of document.querySelectorAll('#atabs button')) b.setAttribute('aria-pressed', String(b.dataset.atab === name));
+  for (const s of document.querySelectorAll('section.atab')) s.hidden = s.dataset.atab !== name;
+  try { localStorage.setItem('ieon_atab', name); } catch { /* 저장 못 해도 동작 */ }
+}
+for (const b of document.querySelectorAll('#atabs button')) b.onclick = () => showAtab(b.dataset.atab);
+function applyMode() {
+  const hub = authState?.mode === 'hub';
+  $('modeTag').textContent = hub ? '허브 · ' + location.host : '이 PC';
+  document.title = '이어온 — ' + (hub ? '허브' : '이 PC');
+  document.querySelector('#atabs [data-atab="pc"]').hidden = hub;
+  document.querySelector('#atabs [data-atab="hubsec"]').hidden = !hub;
+  let saved = null; try { saved = localStorage.getItem('ieon_atab'); } catch { saved = null; }
+  showAtab(saved || (hub ? 'bots' : 'pc'));
+}
 async function boot() {
   authState = await fetch('/v1/auth/state', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
+  applyMode();
   if (authState?.loggedIn) return startApp();
   if (authState?.localAuto && (await authPost('/v1/auth/local')).status === 200) return startApp();
   showLogin();
 }
-function setStatus(kind, text) { $('status').innerHTML = ''; if (!text) return; const d = document.createElement('div'); d.className = 'state ' + kind; d.textContent = text; $('status').append(d); }
+let statusTimer = null;
+function setStatus(kind, text) {
+  $('status').innerHTML = ''; clearTimeout(statusTimer); if (!text) return;
+  const d = document.createElement('div'); d.className = 'state ' + kind; d.textContent = text; $('status').append(d);
+  // 화면 어디서 눌러도 보이도록 위쪽에 떠 있고, 성공·안내는 6초 뒤 사라진다(오류는 다음 동작까지 남김).
+  if (kind !== 'err') statusTimer = setTimeout(() => { $('status').innerHTML = ''; }, 6000);
+}
 async function loadLimits() {
   const r = await api('/v1/sessions/limits');
   $('newBox').hidden = r.status !== 200;
