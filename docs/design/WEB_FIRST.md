@@ -75,6 +75,14 @@
 - 되돌리기: 백업에서 `/home/ieon` 복원·사용자 재생성은 번거로우므로, 문제 시 `hub/data/*.bak-w0` 설정으로 되돌리고 컨테이너를 다시 띄운다.
 - 미확인: 허브 Oracle 새 세션(Codex 로그인 전이라 꺼 둠, W5), 카카오 최종 확인(인수 테스트).
 
+## 5-2. W1 구현 (2026-11-08, 저장소 코드)
+
+- `src/pilot/web-auth.mjs`: `/v1/auth/state`(mode·setupRequired·loggedIn·localAuto)·`/v1/auth/local`(PC, 이 PC의 127.0.0.1 직접 접속만)·`/v1/auth/setup`(관리자가 없을 때 한 번, PC는 이 PC에서만, 허브는 접속 제한 통과한 곳)·`/v1/auth/login`(5회 실패 15분 잠금, 429)·`/v1/auth/logout`·`/v1/auth/password`(바꾸면 다른 로그인 모두 끊김). 모든 POST는 Origin 검사.
+- 쿠키 `ieon_sid`(HttpOnly·SameSite=Strict·12시간, `X-Forwarded-Proto: https`면 Secure), DB `web_sessions`에 해시만. 관리자 비밀번호는 설정 `auth.admin`(scrypt). 로그인·실패는 시각·주소만 로그.
+- 쿠키로 온 변경 요청(PUT·POST·DELETE)은 Origin 호스트가 요청 호스트와 같아야 한다(`bad_origin` 403). 메신저·연결부·외부 앱의 Bearer 토큰은 그대로(내부 토큰).
+- 웹 화면: "접속 토큰" 칸 제거. 시작하면 상태를 보고 자동 로그인 → 관리자 만들기(비밀번호 두 번) → 비밀번호 로그인 순. 위쪽에 로그아웃.
+- 테스트 `tests/pilot/web-auth.test.mjs` 4건.
+
 ## 6. 지금까지 만든 것과의 관계
 
 - 유지: P1의 웹 설정·기존 세션 등록·기기 관리(P1-c는 짝맺기 승인 화면의 바탕), P3의 허브 주소 검사·요청 횟수 제한, P4의 접속 제한 코드, P5의 허브 내장 카카오 수신.

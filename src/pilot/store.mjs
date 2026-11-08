@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS bots (
   extra_users TEXT NOT NULL, enabled INTEGER NOT NULL, PRIMARY KEY (platform, bot_id));
 CREATE TABLE IF NOT EXISTS bot_sessions (
   platform TEXT NOT NULL, bot_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (platform, bot_id, conversation_id));
+CREATE TABLE IF NOT EXISTS web_sessions (
+  sid_sha256 TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL, expires_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS devices (
@@ -591,6 +593,17 @@ export function openStore(path) {
       db.prepare(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
         ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).run(key, JSON.stringify(value), new Date().toISOString());
     },
+    // W1: 웹 로그인 세션(쿠키). 쿠키 값은 해시만 둔다.
+    addWebSession(sidSha256, userId, expiresAt) {
+      db.prepare("DELETE FROM web_sessions WHERE expires_at < ?").run(Date.now());
+      db.prepare("INSERT INTO web_sessions (sid_sha256, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)").run(sidSha256, userId, new Date().toISOString(), expiresAt);
+    },
+    webSession(sidSha256) {
+      const r = db.prepare("SELECT user_id, expires_at FROM web_sessions WHERE sid_sha256 = ?").get(sidSha256);
+      return r && r.expires_at > Date.now() ? { userId: r.user_id } : null;
+    },
+    deleteWebSession(sidSha256) { db.prepare("DELETE FROM web_sessions WHERE sid_sha256 = ?").run(sidSha256); },
+    deleteAllWebSessions() { db.prepare("DELETE FROM web_sessions").run(); },
     deleteSetting(key) { return db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes === 1; },
 
     // --- P1-c: 웹에서 등록한 기기(PC 연결부). 토큰은 해시만 저장한다. server.json 기기는 여기 없다. ---
