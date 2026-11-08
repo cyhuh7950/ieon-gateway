@@ -62,3 +62,17 @@ test('허브에만 Codex 로그인 화면이 있다(PC에는 없음)', async (t)
   assert.deepEqual(await r.json(), { login: { loggedIn: false, method: null }, job: { state: 'idle' } });
   assert.equal((await get(pcUrl)).status, 404);
 });
+
+test('로그인 실패 구분(2026-11-08 허브 실측): 오류 줄의 주소는 로그인 주소로 잡지 않고, 접속 실패를 따로 알린다', async () => {
+  const { loginFailure } = await import('../../src/pilot/codex-login.mjs');
+  const net = 'Error logging in with device code: error sending request for url (https://auth.openai.com/api/accounts/deviceauth/usercode)\n';
+  assert.deepEqual(parseDeviceAuth(net), { url: null, code: null });
+  assert.equal(loginFailure(net), 'network');
+  assert.equal(loginFailure('device code login is not enabled\n'), 'login_failed');
+  assert.equal(parseDeviceAuth('Open (https://auth.openai.com/codex/device).\n').url, 'https://auth.openai.com/codex/device');
+});
+
+test('허브 이미지는 HTTPS 인증서 묶음을 설치한다(없으면 Codex가 OpenAI에 접속하지 못함)', async () => {
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync(new URL('../../deploy/hub/Dockerfile', import.meta.url), 'utf8'), /apt-get install[^\n]*ca-certificates/);
+});

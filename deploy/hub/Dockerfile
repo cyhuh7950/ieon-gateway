@@ -2,6 +2,8 @@
 # 빌드 맥락은 저장소 루트(compose.yaml의 context). 서버에 이미 있는 node:24-bookworm-slim을 쓴다.
 FROM node:24-bookworm-slim
 WORKDIR /app
+# slim 이미지에는 HTTPS 인증서 묶음이 없다. Codex 실행 파일은 이 묶음으로 OpenAI에 접속한다(없으면 로그인·AI 호출 실패).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY src/ ./src/
