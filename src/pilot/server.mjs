@@ -11,6 +11,7 @@ import { botAppId, tokenEnvNames } from './bots.mjs';
 import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding } from './settings.mjs';
 import { createWebAccess, isExemptPath } from './web-access.mjs';
 import { createRelay } from '../relay/relay.mjs';
+import { createWebAuth } from './web-auth.mjs';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -44,6 +45,8 @@ export function createApp(config) {
     log: (e) => process.stderr.write(JSON.stringify(e) + '\n'),
   }) : null;
   const store = openStore(config.dbPath);
+  // W1: 웹 로그인(쿠키). 사용자는 토큰을 다루지 않는다.
+  const auth = createWebAuth({ store, config, access, clientIp: (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?')) });
   for (const b of config.bindings) store.addBinding(b);
   store.ensureDefaultBots();
   // 메신저 프로세스가 보고한 봇 상태(토큰 있음·연결됨·실제 봇 이름). 토큰 값은 받지 않는다. 키 "<메신저>:<봇ID>".
@@ -162,7 +165,13 @@ export function createApp(config) {
 
       // --- 사용자(웹·외부 앱) API ---
       if (!path.startsWith('/v1/')) return json(res, 404, { error: 'not_found' });
-      const user = matchToken(req.headers.authorization, config.users);
+      if (await auth.handle(req, res, path, { json, readJson })) return;
+      let user = matchToken(req.headers.authorization, config.users);
+      if (!user) {
+        const p = auth.principal(req);
+        if (p?.error) return json(res, 403, { error: p.error });
+        user = p;
+      }
       if (!user) return json(res, 401, { error: 'unauthorized' });
       const principal = { userId: user.userId, appId: user.appId };
       // 여러 봇: 메신저 토큰으로 온 요청이 x-ieon-bot: <메신저>:<봇ID>를 붙이면, 웹에 정의돼 있고 켜진 봇일 때만
