@@ -23,7 +23,8 @@ const log = (e) => process.stderr.write(JSON.stringify({ ch: 'messenger', at: ne
 const runner = createBotRunner({
   api: serverApi(config.serverUrl, config.userTokenFile),
   apiFor: (platform, botId) => serverApi(config.serverUrl, config.userTokenFile, `${platform}:${botId}`),
-  env, allowedUsers: config.allowedUsers ?? {}, roomsPath: config.roomsPath,
+  env, loadEnv: () => { try { return parseEnv(readFileSync(config.envFile, 'utf8')); } catch { return env; } },
+  allowedUsers: config.allowedUsers ?? {}, roomsPath: config.roomsPath,
   runners: { telegram: runTelegram, discord: runDiscord, slack: runSlack,
     // 카카오는 공개 수신 중계(Oracle)에서 질문을 가져온다. 중계 주소(비밀 아님)는 설정 파일의 kakaoRelayUrl, 토큰은 .env.
     // 웹 설정(o.settings.kakao)이 있으면 그 값, 없으면 이 파일 값(P1).
