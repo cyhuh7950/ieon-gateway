@@ -85,3 +85,15 @@ test('보관 예고: after 이후 것만, 내 세션 것만 돌려준다', async
   assert.deepEqual((await call('/v1/sessions/notices')).body.notices.map((n) => n.name), ['soon']);
   assert.deepEqual((await call('/v1/sessions/notices?after=2026-11-16T00:00:00.000Z')).body.notices, []);
 });
+
+test('새 세션 켜기는 서버가 판단한다: 설정 파일이 꺼짐이어도 연결부는 새 세션을 준비한다(웹에서 켠 경우 동작)', async (t) => {
+  const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { buildAdapters } = await import('../../src/pilot/adapters/index.mjs');
+  const d = mkdtempSync(join(tmpdir(), 'ieon-ns-'));
+  t.after(() => rmSync(d, { recursive: true, force: true }));
+  writeFileSync(join(d, 'ns.json'), JSON.stringify({ enabled: false, workspaceRoot: d }));
+  const a = await buildAdapters({ live: false, codex: { allowlist: [] }, newSessions: { configPath: join(d, 'ns.json'), createdPath: join(d, 'c.jsonl') } });
+  await assert.rejects(a.codex_thread.run({ sessionRef: null, question: 'q', newSession: { name: 'x' } }), (e) => e.code === 'live_disabled');
+});
