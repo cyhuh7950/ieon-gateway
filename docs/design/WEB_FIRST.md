@@ -123,6 +123,12 @@
 - 테스트 `tests/pilot/install.test.mjs` 4건(설정 준비 처음·기존, 부모 감시, 설치 스크립트 미리보기).
 - `ieon.ps1`은 개발·문제 해결용으로 남긴다.
 
+## 5-8. W7 구현 (2026-11-08, 저장소 코드)
+
+- 허브 보안 화면: `GET|PUT|DELETE /v1/admin/security`(허브만). 웹에서 방식·허용 IP·Cloudflare 값을 바꾸면 DB `security.webAccess`에 저장하고 바로 적용, 서버를 다시 켜도 유지. 믿는 앞단·Tailscale 수신 주소는 파일 값만. **지금 접속한 곳이 막히는 변경(`would_lock_out`)과 방식이 하나도 없는 변경(`closed_not_allowed`)은 거절**. 화면에 "지금 내 주소"와 "내 주소 추가" 버튼.
+- PC 완결형 공개 중계(신산님 결정 2026-11-08: 운영자 배포·PC 웹은 보기만): 중계 주소(웹 설정 또는 메신저 설정)와 운영자가 둔 중계 비밀 파일(`relaySecretsFile`, 기본 `.local/relay/relay.secrets`)로 PC 웹에 스킬 URL 보기·복사(`GET /v1/admin/kakao/skill-url`, `relay: public`)와 중계 연결 상태(`GET /v1/admin/kakao/relay-status`, 중계 `/health`의 pc). 설치(`--web-first`)가 중계 PC 토큰을 메신저 봇 토큰 파일에 내부로 채운다. 중계 짝맺기·관리 화면은 만들지 않음(결정).
+- 테스트: `tests/pilot/security.test.mjs` 3건, `install.test.mjs` 1건 추가.
+
 ## 6. 지금까지 만든 것과의 관계
 
 - 유지: P1의 웹 설정·기존 세션 등록·기기 관리(P1-c는 짝맺기 승인 화면의 바탕), P3의 허브 주소 검사·요청 횟수 제한, P4의 접속 제한 코드, P5의 허브 내장 카카오 수신.

@@ -58,7 +58,7 @@ test('봇 토큰 웹 입력: 정의된 봇의 토큰 이름만 받고, 값은 �
   assert.equal((await s.call('/v1/admin/secrets/TELEGRAM_BOT_TOKEN', { method: 'PUT', body: { value: 'x' }, token: 'msg' })).body.error, 'admin_only');
   assert.equal((await s.call('/v1/admin/secrets/TELEGRAM_BOT_TOKEN', { method: 'DELETE' })).body.present, false);
   assert.equal(readEnvFile(s.secretsFile).TELEGRAM_BOT_TOKEN, undefined);
-  assert.equal((await s.call('/v1/admin/kakao/skill-url')).body.error, 'no_embedded_relay');
+  assert.equal((await s.call('/v1/admin/kakao/skill-url')).body.error, 'no_kakao_relay');
 });
 
 test('허브 내장 카카오: 카카오 수신 토큰은 이어온이 관리(웹에서 못 바꿈), 스킬 URL은 접속한 주소로 만들어 준다', async (t) => {
