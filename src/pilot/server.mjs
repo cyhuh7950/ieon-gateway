@@ -17,6 +17,7 @@ import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
 import { createCodexLogin } from './codex-login.mjs';
+import { supervise } from '../hub/run.mjs';
 import { dirname, join } from 'node:path';
 
 const MAX_QUESTION = 8000;
@@ -633,6 +634,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = await app.listen(config.port ?? 28760);
   // W4: 로컬 연결부도 이 서버가 띄운다(설정 manageLocalConnector).
   if (app.localConnector) process.stderr.write(JSON.stringify({ ch: 'server', event: 'local_connector', started: app.localConnector.start() }) + '\n');
+  // W6: 메신저도 이 서버가 띄운다(설정 manageMessenger). 봇 토큰은 웹에서 넣고, 메신저가 1분마다 다시 읽는다.
+  if (config.manageMessenger && config.messengerConfigPath && existsSync(config.messengerConfigPath)) {
+    supervise([{ name: 'messenger', args: ['src/pilot/messenger/main.mjs', config.messengerConfigPath], delayMs: 2000 }]);
+  }
   // W3: 이미 짝맺은 허브가 있으면 연결부를 다시 띄운다(재부팅 뒤 사용자가 할 일 없음).
   if (app.hubLink) process.stderr.write(JSON.stringify({ ch: 'server', event: 'hub_link_resume', result: app.hubLink.resume() }) + '\n');
   process.stderr.write(`ieon pilot server: http://127.0.0.1:${port}\n`);

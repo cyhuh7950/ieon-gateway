@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { childEnv } from '../pilot/parent-watch.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -21,7 +22,7 @@ export function supervise(cmds, { spawnImpl = spawn, log = (e) => process.stderr
   let stopping = false;
   const start = (c, backoff = 5000) => {
     if (stopping) return;
-    const p = spawnImpl(process.execPath, c.args, { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
+    const p = spawnImpl(process.execPath, c.args, { cwd: ROOT, env: childEnv(), stdio: ['ignore', 'inherit', 'inherit'] });
     const at = Date.now();
     children.set(c.name, p);
     log({ event: 'start', name: c.name });

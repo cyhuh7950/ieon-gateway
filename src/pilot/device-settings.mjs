@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, renameSync, writeFileSync, statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { childEnv } from './parent-watch.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const EXCLUDED_THREAD = '01a0dadd-739f-74d2-93c5-9c405cc1019b'; // 업무 대화(AGENTS 안전 규칙)
@@ -69,7 +70,7 @@ export function createLocalConnector({ connectorConfigPath, spawnImpl = spawn, l
   const start = () => {
     if (child || !connectorConfigPath || !existsSync(connectorConfigPath)) return Boolean(child);
     want = true;
-    child = spawnImpl(process.execPath, ['src/pilot/connector.mjs', connectorConfigPath], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
+    child = spawnImpl(process.execPath, ['src/pilot/connector.mjs', connectorConfigPath], { cwd: ROOT, env: childEnv(), stdio: ['ignore', 'ignore', 'inherit'] });
     log({ event: 'local_connector_start' });
     child.on('exit', (code) => { child = null; log({ event: 'local_connector_exit', code }); if (want) setTimeout(() => { if (want && !child) start(); }, 5000).unref?.(); });
     return true;

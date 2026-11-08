@@ -115,6 +115,14 @@
 - 테스트 `tests/pilot/codex-login.test.mjs` 3건(가짜 Codex 프로세스).
 - 결정 필요: 허브 새 세션을 실제로 돌리려면 허브 연결부의 실제 실행(`live`)을 켜야 한다. 원칙 6은 기기 안전 설정을 그 기기의 로컬 화면에서만 바꾸게 하는데, 허브는 브라우저로 여는 "로컬 화면"이 없다. 허브 연결부의 실제 실행을 허브 웹에서 켤 수 있게 할지(허브 자신의 연결부에 한정) 신산님 결정을 받는다.
 
+## 5-7. W6 구현 (2026-11-08, 저장소 코드)
+
+- `scripts/install.ps1`(한 번만): Node 24 확인 → 부품(`npm ci`, 없을 때만) → `ieon-init.mjs --web-first`(처음이면 만들고 있으면 빠진 것만 보탬, 토큰 내부 생성·출력 없음) → 작업 스케줄러 `ieon-gateway`(로그온할 때, `wscript`로 창 없이 `node src/pilot/server.mjs`) 등록·시작 → 바탕화면 `이어온.url` → 브라우저 열기. `-Uninstall`(자동 시작·바로 가기 제거, 서버 종료, 설정·기록 유지), `-DryRun`(미리보기). 끄기는 28760을 연 `server.mjs` node만 골라서(다른 작업자 프로젝트를 건드리지 않게).
+- `prepareWebFirst`: 메신저 사용자 토큰·봇 토큰 파일(`bots.env`, 웹 입력용)·메신저 설정, 서버 설정에 `connectorConfigPath`·`manageLocalConnector`·`messengerConfigPath`·`manageMessenger`·`secretsFile`(기존 메신저가 쓰던 파일 그대로). 기존 토큰·설정은 바꾸지 않는다.
+- 서버가 로컬 연결부·메신저를 띄우고, 자식은 `IEON_PARENT_PID`로 부모를 감시해 서버가 사라지면 5초 안에 끝난다(`src/pilot/parent-watch.mjs`, Windows 강제 종료 대비).
+- 테스트 `tests/pilot/install.test.mjs` 4건(설정 준비 처음·기존, 부모 감시, 설치 스크립트 미리보기).
+- `ieon.ps1`은 개발·문제 해결용으로 남긴다.
+
 ## 6. 지금까지 만든 것과의 관계
 
 - 유지: P1의 웹 설정·기존 세션 등록·기기 관리(P1-c는 짝맺기 승인 화면의 바탕), P3의 허브 주소 검사·요청 횟수 제한, P4의 접속 제한 코드, P5의 허브 내장 카카오 수신.
