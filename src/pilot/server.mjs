@@ -236,6 +236,8 @@ export function createApp(config) {
         const a = matchToken(req.headers.authorization, store.activeApiAppHashes());
         if (a) user = { userId: (config.users ?? []).find((u) => u.appId === 'app_web')?.userId ?? 'u_sinsan', appId: a.appId };
       }
+      // 키(Authorization)를 보냈는데 맞지 않으면 쿠키로 대신 통과시키지 않는다(폐기한 키가 브라우저 로그인으로 살아나지 않게).
+      if (!user && req.headers.authorization) return json(res, 401, { error: 'unauthorized' });
       if (!user) {
         const p = auth.principal(req);
         if (p?.error) return json(res, 403, { error: p.error });

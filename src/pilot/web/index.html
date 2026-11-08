@@ -161,7 +161,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   </section>
   <section aria-label="기존 세션 등록">
     <h3>기존 세션 등록</h3>
-    <div class="muted">PC에 이미 있는 Codex 대화·Claude 채널 세션을 등록합니다. server.json에 적힌 세션은 보기만 됩니다. Codex 대화는 PC 연결부 설정(connector.json)의 허용 목록에도 있어야 실제로 실행됩니다. 봇에게 보이게 하려면 봇 편집의 "볼 수 있는 기존 세션"에서 고르세요.</div>
+    <div class="muted">PC에 이미 있는 Codex 대화·Claude 채널 세션을 등록합니다. 설치 때 들어온 세션은 보기만 됩니다. Codex 대화는 그 PC 화면의 "이 PC 설정" 허용 목록에도 있어야 실제로 실행됩니다. 봇에게 보이게 하려면 봇 편집의 "볼 수 있는 기존 세션"에서 고르세요.</div>
     <table class="list"><thead><tr><th>ID</th><th>이름</th><th>엔진</th><th>PC</th><th>세션 ID</th><th>보이는 곳</th><th>출처</th></tr></thead><tbody id="bdRows"></tbody></table>
     <form id="bdForm" class="grid2" style="margin-top:10px">
       <label for="bdId">ID</label><input type="text" id="bdId" placeholder="c_로 시작 (예: c_myproj)" maxlength="62">
@@ -176,7 +176,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   <section aria-label="기기">
     <h3>기기(PC 연결부)</h3>
     <div class="muted">새 PC는 그 PC의 이어온 화면에서 "허브에 연결"을 누르면 아래 "연결 요청"에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
-    <h2>연결 요청</h2><div id="pairRows"></div>
+    <div id="pairBox" hidden><h2>연결 요청</h2><div id="pairRows"></div></div>
     <table class="list"><thead><tr><th>기기 ID</th><th>이름</th><th>출처</th><th>등록일</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead><tbody id="dvRows"></tbody></table>
     <div id="devBox" hidden>
       <h2>이 PC 설정</h2>
@@ -620,6 +620,8 @@ async function loadDevices() {
 const PAIR_ERR = { code_mismatch: '코드가 맞지 않습니다', not_found: '요청이 없거나 시간이 지났습니다', hub_unreachable: '허브에 접속하지 못했습니다(주소·인터넷 확인)',
   bad_server_url: '허브 주소는 https://로 시작해야 합니다', bad_name: '이 PC 이름을 1~40자로 넣으세요', too_many_pending: '허브에 대기 중인 요청이 많습니다. 잠시 뒤 다시 하세요', rate_limited: '잠시 뒤 다시 하세요' };
 async function loadPairings() {
+  $('pairBox').hidden = authState?.mode !== 'hub'; // 연결 요청은 허브 화면에만
+  if ($('pairBox').hidden) return;
   const r = await api('/v1/admin/pairings'); const box = $('pairRows'); box.innerHTML = '';
   const list = r.status === 200 ? r.body.pairings : [];
   if (!list.length) { box.append(el('div', '대기 중인 요청 없음', 'muted')); return; }
@@ -765,6 +767,8 @@ async function loadDenied() {
 // W5: 허브 Codex 로그인(기기 코드). 주소는 OpenAI 로그인 주소일 때만 링크로 만든다.
 const OPENAI_LINK = /^https:\/\/(auth\.openai\.com|chatgpt\.com|[a-z0-9.-]+\.openai\.com)\//;
 async function loadCodex() {
+  // 허브에서는 상태를 확인하는 동안에도 칸을 보여 준다(첫 확인은 Codex를 띄우느라 몇 초 걸릴 수 있음).
+  if (authState?.mode === 'hub' && $('cxBox').hidden) { $('cxBox').hidden = false; $('cxState').textContent = '확인 중…'; }
   const r = await api('/v1/admin/codex'); $('cxBox').hidden = r.status !== 200; if (r.status !== 200) return;
   const { login, job } = r.body; const box = $('cxState'); box.innerHTML = '';
   box.append(el('div', login.loggedIn ? '로그인됨' + (login.method === 'chatgpt' ? '(ChatGPT 계정)' : '') : '로그인 안 됨', login.loggedIn ? 'state ok' : 'state warn'));

@@ -161,3 +161,34 @@ test('승인 방식: server.json 기기 ID는 피하고, 기존 웹 기기를 �
   assert.equal((await get('/v1/admin/devices')).devices.filter((d) => d.source === 'web').length, 1);
   assert.equal((await post(`/v1/admin/pairings/zzzzzzzzzzzz/approve`, { code: '1' })).error, 'not_found');
 });
+
+test('연결부 관리 회귀(2026-11-08 기본 시험): 끊고 바로 다시 연결한 뒤 이전 연결부의 종료가 늦게 와도 연결부는 하나만 남는다', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'ieon-w3x-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, 'connector.json'), '{}');
+  const spawned = [];
+  const spawnImpl = (_bin, args) => { const p = new EventEmitter(); p.args = args; p.kill = () => { p.killed = true; }; spawned.push(p); return p; };
+  const fetchImpl = async (url) => ({ status: url.endsWith('/start') ? 201 : 200,
+    json: async () => (url.endsWith('/start') ? { pairId: 'p'.repeat(43), code: '123456', expiresAt: new Date(Date.now() + 60000).toISOString() } : { status: 'approved', hostId: 'h_home', token: 'a'.repeat(64) }) });
+  const link = createHubLink({ dir, connectorConfigPath: join(dir, 'connector.json'), spawnImpl, fetchImpl, pollMs: 600000 });
+  t.after(() => link.close());
+  await link.connect({ hubUrl: 'https://ieun-gateway.sinsan.kr', name: '집' });
+  await link.pollOnce();
+  assert.equal(spawned.length, 1);
+  link.disconnect(); link.reconnect();          // 설정을 바꿀 때와 같은 순서
+  assert.equal(spawned.length, 2);
+  spawned[0].emit('exit', 1);                    // 이전 연결부의 종료가 늦게 도착
+  assert.equal(link.status().connector, 'running');
+  await new Promise((ok) => setTimeout(ok, 5300));
+  assert.equal(spawned.length, 2);               // 추가로 띄우지 않는다
+  const { createLocalConnector } = await import('../../src/pilot/device-settings.mjs');
+  const local = [];
+  const lc = createLocalConnector({ connectorConfigPath: join(dir, 'connector.json'),
+    spawnImpl: (_b, args) => { const p = new EventEmitter(); p.args = args; p.kill = () => { p.killed = true; }; local.push(p); return p; } });
+  lc.start(); const r = lc.restart(); await r; // 종료 알림이 오지 않으면 3초 뒤 진행
+  local[0].emit('exit', 0);                      // 늦게 온 이전 종료
+  assert.equal(lc.running(), true);
+  await new Promise((ok) => setTimeout(ok, 5300));
+  assert.equal(local.length, 2);
+  await lc.stop();
+});

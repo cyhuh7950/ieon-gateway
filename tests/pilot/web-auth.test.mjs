@@ -53,6 +53,8 @@ test('PC: 이 PC에서 연 화면은 토큰 없이 자동 로그인(쿠키), 쿠
   assert.equal((await s.call('/v1/admin/settings/allowed-users', { method: 'PUT', body, origin: null })).body.error, 'bad_origin');
   assert.equal((await s.call('/v1/admin/settings/allowed-users', { method: 'PUT', body, origin: 'https://evil.example' })).body.error, 'bad_origin');
   assert.equal((await s.call('/v1/admin/settings/allowed-users', { method: 'PUT', body })).status, 200);
+  // 키를 보냈는데 틀리면 쿠키가 있어도 401(폐기한 키가 브라우저 로그인으로 살아나지 않게)
+  assert.equal((await s.call('/v1/conversations', { bearer: 'wrong-key' })).status, 401);
   // 메신저·외부 앱의 Bearer 토큰은 그대로
   assert.equal((await s.call('/v1/messenger/config', { bearer: 'msg', withCookie: false })).status, 200);
   // 로그아웃하면 그 쿠키는 더 못 쓴다

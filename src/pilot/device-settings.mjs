@@ -70,9 +70,11 @@ export function createLocalConnector({ connectorConfigPath, spawnImpl = spawn, l
   const start = () => {
     if (child || !connectorConfigPath || !existsSync(connectorConfigPath)) return Boolean(child);
     want = true;
-    child = spawnImpl(process.execPath, ['src/pilot/connector.mjs', connectorConfigPath], { cwd: ROOT, env: childEnv(), stdio: ['ignore', 'ignore', 'inherit'] });
+    const c = spawnImpl(process.execPath, ['src/pilot/connector.mjs', connectorConfigPath], { cwd: ROOT, env: childEnv(), stdio: ['ignore', 'ignore', 'inherit'] });
+    child = c;
     log({ event: 'local_connector_start' });
-    child.on('exit', (code) => { child = null; log({ event: 'local_connector_exit', code }); if (want) setTimeout(() => { if (want && !child) start(); }, 5000).unref?.(); });
+    // 지금 연결부의 종료일 때만 처리(늦게 온 이전 연결부의 종료 알림이 새 연결부를 놓치지 않게)
+    c.on('exit', (code) => { if (child !== c) return; child = null; log({ event: 'local_connector_exit', code }); if (want) setTimeout(() => { if (want && !child) start(); }, 5000).unref?.(); });
     return true;
   };
   const stop = () => new Promise((ok) => {
