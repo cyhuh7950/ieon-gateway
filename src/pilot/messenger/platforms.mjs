@@ -66,12 +66,21 @@ export function slackAddress(ev, botUserId) {
   return { isGroup, called, forOther: false, text, mentionIds, parentUserId: ev.parent_user_id ?? null };
 }
 
-export function runTelegram({ token, onMessage, log, signal }) {
+// 봇을 끄거나 토큰을 바꾸면 웹소켓을 닫는다. 닫지 않으면 "꺼짐"인데도 메시지를 계속 받는다(2026-11-08 허브 시험에서 발견).
+function closeOnAbort(ws, signal) {
+  if (!signal) return () => {};
+  const close = () => ws.close();
+  signal.addEventListener('abort', close, { once: true });
+  return () => signal.removeEventListener('abort', close);
+}
+
+export function runTelegram({ token, onMessage, log, signal, retryMs = 5000 }) {
   const api = (method, body) => fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
   }).then((r) => r.json());
   (async () => {
     let offset = 0;
+    let conflict = false; // 409: 다른 곳에서 같은 봇을 받고 있다
     // 봇 이름(공개 정보)만 알려 준다. 메신저에서 이 이름으로 검색해 대화를 시작한다.
     const me = await api('getMe', {}).catch(() => null);
     // canReadAll: 그룹 일반 글 수신(privacy mode 해제) 여부. 꺼져 있으면 부르는 이름으로 부를 수 없다.
@@ -80,7 +89,13 @@ export function runTelegram({ token, onMessage, log, signal }) {
     while (!signal?.aborted) {
       try {
         const r = await api('getUpdates', { offset, timeout: 30, allowed_updates: ['message'] });
-        if (!r.ok) { log({ platform: 'telegram', event: 'poll_error', code: r.error_code }); await sleep(5000); continue; }
+        if (!r.ok) {
+          if (r.error_code === 409) conflict = true;
+          log({ platform: 'telegram', event: r.error_code === 409 ? 'conflict' : 'poll_error', code: r.error_code });
+          await sleep(retryMs);
+          continue;
+        }
+        if (conflict) { conflict = false; log({ platform: 'telegram', event: 'conflict_clear' }); }
         for (const u of r.result) {
           offset = u.update_id + 1;
           const msg = u.message;
@@ -106,6 +121,7 @@ export function runDiscord({ token, onMessage, log, signal }) {
   const connect = (attempt = 0) => {
     if (signal?.aborted) return;
     const ws = new WebSocket('wss://gateway.discord.gg/?v=10&encoding=json');
+    const forget = closeOnAbort(ws, signal);
     let seq = null;
     let beat;
     let botUserId = null;
@@ -144,6 +160,7 @@ export function runDiscord({ token, onMessage, log, signal }) {
     };
     ws.onclose = (e) => {
       clearInterval(beat);
+      forget();
       log({ platform: 'discord', event: 'closed', code: e.code });
       // 4004(토큰 오류)·4014(권한 없는 intent)는 다시 붙어도 실패하므로 멈춘다.
       if ([4004, 4013, 4014].includes(e.code)) return;
@@ -154,7 +171,7 @@ export function runDiscord({ token, onMessage, log, signal }) {
   connect();
 }
 
-export function runSlack({ appToken, botToken, onMessage, log, signal }) {
+export function runSlack({ appToken, botToken, onMessage, log, signal, recheckMs = 60000 }) {
   const web = (method, body, tokenValue) => fetch(`https://slack.com/api/${method}`, {
     method: 'POST', headers: { authorization: `Bearer ${tokenValue}`, 'content-type': 'application/json; charset=utf-8' }, body: JSON.stringify(body ?? {}),
   }).then((r) => r.json());
@@ -168,11 +185,17 @@ export function runSlack({ appToken, botToken, onMessage, log, signal }) {
       return setTimeout(() => connect(attempt + 1), Math.min(60000, 2000 * 2 ** attempt));
     }
     const ws = new WebSocket(open.url);
+    const forget = closeOnAbort(ws, signal);
+    let recheck;
     ws.onmessage = (e) => {
       const p = JSON.parse(e.data);
       if (p.envelope_id) ws.send(JSON.stringify({ envelope_id: p.envelope_id }));
       if (p.type === 'hello') {
         attempt = 0;
+        // 같은 앱에 연결이 둘 이상이면 메시지가 나뉜다. 연결 수는 접속할 때만 알려 주므로, 겹친 동안에는 다시 접속해 끝났는지 확인한다.
+        const overlapped = (p.num_connections ?? 1) > 1;
+        log({ platform: 'slack', event: overlapped ? 'conflict' : 'conflict_clear', connections: p.num_connections ?? null });
+        if (overlapped) recheck = setTimeout(() => ws.close(), recheckMs);
         web('auth.test', {}, botToken).then((a) => { botUserId = a.ok ? a.user_id : null; log({ platform: 'slack', event: 'ready', bot: a.ok ? a.user : null, team: a.ok ? a.team : null, botUserId }); });
       }
       if (p.type === 'disconnect') ws.close();
@@ -182,7 +205,7 @@ export function runSlack({ appToken, botToken, onMessage, log, signal }) {
       onMessage({ platform: 'slack', userId: ev.user, chatId: ev.channel, ...slackAddress(ev, botUserId) }, send)
         .catch((err) => log({ platform: 'slack', event: 'handle_error', error: String(err.message).slice(0, 80) }));
     };
-    ws.onclose = () => { log({ platform: 'slack', event: 'closed' }); setTimeout(() => connect(attempt + 1), Math.min(60000, 2000 * 2 ** attempt)); };
+    ws.onclose = () => { clearTimeout(recheck); forget(); log({ platform: 'slack', event: 'closed' }); setTimeout(() => connect(attempt + 1), Math.min(60000, 2000 * 2 ** attempt)); };
     ws.onerror = () => {};
   };
   connect();

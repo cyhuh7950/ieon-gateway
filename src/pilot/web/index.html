@@ -528,7 +528,7 @@ for (const r of document.getElementsByName('mode')) {
 // --- 봇 관리(웹 사용자만, MULTI_BOTS M2-W) ---
 const PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', teams: 'Teams', kakao: '카카오톡' };
 const STATE = { connected: ['st-ok', '연결됨'], starting: ['st-warn', '시작 중'], token_missing: ['st-err', '토큰 없음'],
-  duplicate_token: ['st-err', '토큰 중복'], error: ['st-err', '연결 오류'], platform_not_supported: ['st-err', '지원 안 함'] };
+  duplicate_token: ['st-err', '토큰 중복'], conflict: ['st-err', '충돌 · 다른 곳에서 같은 봇을 켜 둠'], error: ['st-err', '연결 오류'], platform_not_supported: ['st-err', '지원 안 함'] };
 const ADMIN_ERR = { bad_bot_id: '봇 ID는 영문 소문자·숫자·- 2~32자', bad_name: '이름을 1~30자로', unknown_role: '없는 역할',
   bad_call_name: '부르는 이름은 한글·영문·숫자 1~20자(명령어 이름 불가)', duplicate_call_name: '같은 부르는 이름이 두 번 있음',
   call_name_taken: '다른 봇이 쓰는 부르는 이름', default_bot: '기본 봇은 지울 수 없음', unknown_session: '없는 세션',
