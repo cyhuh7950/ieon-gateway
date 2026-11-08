@@ -176,16 +176,27 @@ Cloudflare에 묶이지 않도록 세 방식을 모두 지원하고, **허브 �
 
 ### 5-3-2. 이전 절차(모두 별도 승인)
 
-Aidot 카카오 봇은 하나라서 허브로 옮기면 **PC 완결형(`ieon-gateway`)에서는 카카오가 빠진다**(텔레그램·디스코드·슬랙은 봇 토큰을 허브에 넣는 별도 단계).
+**두 설치 형태 모두 카카오를 지원한다**(신산님 지적 2026-11-08). PC 완결형은 `ieon-gateway` 중계 → PC 메신저, 허브형은 `ieun-gateway` 내장 수신 → 허브 메신저. 어느 쪽을 쓸지는 **오픈빌더 스킬 URL이 가리키는 곳**으로 고르는 사용 선택이다(스킬 하나에는 URL이 하나라 같은 봇이 같은 순간 두 곳으로 가지는 않는다. 동시에 쓰려면 카카오 채널·봇을 하나 더 만든다). 텔레그램·디스코드·슬랙도 같은 방식으로, 봇 토큰을 넣은 쪽에서 동작한다.
 
 | 단계 | 하는 일 | 누가 | 되돌리기 |
 | --- | --- | --- | --- |
-| K0 | 카카오를 허브로 옮길지 결정 | 신산님 | – |
+| K0 | Aidot 봇의 스킬 URL을 어느 쪽에 둘지 선택 | 신산님 | – |
 | K1 | 코드 전달(D1 방식) → `hub-messenger-init.mjs` 실행 → `ieon-server` 재시작 → `ieon-messenger` 사용자 유닛 설치·기동 | 어울(ieon) | 유닛 중지·삭제, `server.json` 백업 복원, `.local/messenger` 삭제 |
 | K2 | 허브 웹 설정 → 허용 사용자에 카카오 사용자 ID | 신산님 | 웹에서 "파일 값으로" |
 | K3 | 오픈빌더 스킬 URL을 `https://ieun-gateway.sinsan.kr/kakao/skill/<허브 bots.env의 IEON_RELAY_KAKAO_SECRET>`로 교체(값은 신산님이 `ssh -o User=ieon sinsan-server cat ~/deploy/ieon-gateway/.local/messenger/bots.env`로 직접 확인) | 신산님 | 스킬 URL을 `ieon-gateway` 주소로 |
 | K4 | 카카오 `/whoami`·`/sessions` 확인(모델 0). 실제 질문은 별도 승인 | 신산님·어울 | – |
-| K5 | PC의 카카오 봇 끄기(PC 메신저 설정의 카카오 중계 주소 제거 또는 그대로 두되 스킬 URL이 허브라 질문이 오지 않음) | 어울 | – |
+| K5 | PC 쪽은 바꾸지 않는다. 스킬 URL을 `ieon-gateway`로 되돌리면 PC 완결형 카카오가 그대로 동작한다(전환 = 스킬 URL 주소·비밀 경로 교체) | – | – |
+
+### 5-3-3. 진행 결과 (2026-11-08, 모델 0)
+
+| 단계 | 결과 |
+| --- | --- |
+| K0 | 신산님 승인. 이후 신산님 정정: 두 형태 모두 카카오 지원, 스킬 URL로 고르는 문제 |
+| K1 | **PASS.** 코드 전달(백업 `/home/ieon/backup/*-20261108-085927`) → `hub-messenger-init.mjs`(토큰·`bots.env` 600, server.json 백업 `.bak-p5-20261107T235927`) → `ieon-server` 재시작(소켓·내장 수신) → `ieon-messenger` 사용자 유닛 설치·enable(active). 바깥 확인: 틀린 비밀 `/kakao/skill/…` 404, 무토큰 `/pc/poll` 401 |
+| K2 | 허브 웹에서 신산님이 카카오 봇 `kakao:default` 추가 → 허브 메신저 `started`, 웹 상태 "연결됨 · 카카오 중계 연결". 처음에 봇 ID 빈 칸으로 추가해 `not_found`가 났다 → 화면에서 빈·틀린 ID를 먼저 안내하도록 수정. 허용 사용자에 `sinsan65`(카카오 ID 형식 아님)를 넣어 아래 K4에서 "허용 목록에 없음" |
+| K3 | 신산님이 스킬 URL 주소를 `ieun-gateway`로 바꿨으나 비밀 경로가 `ieon-relay` 값이라 404("skill exec error") → 허브 `bots.env`의 값으로 교체(신산님 직접, PowerShell에서는 서버 경로를 작은따옴표로) → 허브 메신저 미등록 상태에서 "PC 연결 안 됨" 즉시 안내 확인 |
+| K4 | **PASS(왕복).** 봇테스트 `/whoami` → 허브 로그 `relay queued` → 메신저 `message` → 콜백 응답: 플랫폼 kakao, 봇 default, 허용 여부 "허용 목록에 없음"(허용 사용자 미설정). **미확인:** 허용 사용자에 카카오 ID를 넣은 뒤 "허용됨"과 `/sessions` |
+| 현재 | Aidot 스킬 URL은 `ieun-gateway`(허브형)를 가리킨다. PC 완결형으로 쓰려면 스킬 URL을 `ieon-gateway` 주소·그 비밀 경로로 되돌린다 |
 
 ## 6. 단계 (모두 별도 승인)
 

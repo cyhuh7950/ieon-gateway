@@ -38,6 +38,10 @@ test('허용 사용자·카카오: 웹 값이 없으면 file, 저장하면 web, 
   // 검사
   assert.equal((await call('/v1/admin/settings/allowed-users', { method: 'PUT', body: { kakaotalk: ['1'] } })).body.error, 'bad_platform');
   assert.equal((await call('/v1/admin/settings/allowed-users', { method: 'PUT', body: { telegram: ['a b'] } })).body.error, 'bad_user_id');
+  // 카카오 사용자 ID는 66자(16진수)다 — 받아야 한다(2026-11-08 허브 실측에서 거절되던 문제)
+  const kakaoId = 'ae'.padEnd(66, '0f');
+  assert.deepEqual((await call('/v1/admin/settings/allowed-users', { method: 'PUT', body: { kakao: [kakaoId] } })).body.allowedUsers.value, { kakao: [kakaoId] });
+  assert.equal((await call('/v1/admin/settings/allowed-users', { method: 'PUT', body: { kakao: ['x'.repeat(129)] } })).body.error, 'bad_user_id');
   assert.equal((await call('/v1/admin/settings/kakao', { method: 'PUT', body: { relayUrl: 'http://evil.example/x' } })).body.error, 'bad_relay_url');
   assert.equal((await call('/v1/admin/settings/kakao', { method: 'PUT', body: { relayUrl: 'https://u:p@h.example' } })).body.error, 'bad_relay_url');
   assert.equal((await call('/v1/admin/settings/kakao', { method: 'PUT', body: { relayUrl: 'https://ieon-gateway.sinsan.kr', callbackLimitMs: 1000 } })).body.error, 'bad_callback_limit');

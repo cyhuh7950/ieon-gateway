@@ -553,7 +553,7 @@ export function openStore(path) {
         const clash = [b.botId, ...calls].map(normalizeCallName).find((n) => theirs.includes(n));
         if (clash) return { http: 409, code: 'call_name_taken', callName: clash, botId: other.bot_id };
       }
-      const users = Array.isArray(b.extraUsers) ? b.extraUsers.map(String).filter((u) => /^[\w.-]{1,64}$/.test(u)) : [];
+      const users = Array.isArray(b.extraUsers) ? b.extraUsers.map(String).filter((u) => /^[\w.:@-]{1,128}$/.test(u)) : []; // 카카오 사용자 ID는 66자
       db.prepare(`INSERT INTO bots (platform, bot_id, name, role_id, call_names, extra_users, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (platform, bot_id) DO UPDATE SET name = excluded.name, role_id = excluded.role_id, call_names = excluded.call_names,
         extra_users = excluded.extra_users, enabled = excluded.enabled`)

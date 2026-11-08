@@ -15,7 +15,7 @@ export function validateAllowedUsers(v) {
     if (!PLATFORMS.includes(p)) fail('bad_platform');
     if (!Array.isArray(ids) || ids.length > 200) fail('bad_allowed_users');
     const list = [...new Set(ids.map((x) => String(x).trim()).filter(Boolean))];
-    if (list.some((x) => !/^[\w.@:-]{1,64}$/.test(x))) fail('bad_user_id');
+    if (list.some((x) => !/^[\w.@:-]{1,128}$/.test(x))) fail('bad_user_id');
     out[p] = list;
   }
   return out;
