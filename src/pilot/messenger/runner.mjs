@@ -44,6 +44,33 @@ export function createBotRunner(opts) {
     return LEGACY;
   }
 
+  // 허용 목록에 없는 메시지가 오면 그 자리에서 허용 목록만 다시 읽는다. 웹에서 "허용"을 누른 직후 다음 주기(1분)까지 거절되지 않게 한다.
+  // 모르는 사람이 메시지를 쏟아 내도 서버를 두드리지 않도록 동시에 하나, 최소 간격을 둔다. 토큰·연결은 건드리지 않는다.
+  let refreshing = null;
+  let refreshedAt = -Infinity;
+  const allowRefreshMs = opts.allowRefreshMs ?? 2000;
+  function refreshAllowed() {
+    if (refreshing) return refreshing;
+    if (Date.now() - refreshedAt < allowRefreshMs) return Promise.resolve();
+    refreshing = (async () => {
+      try {
+        const r = await opts.api({ method: 'GET', path: '/v1/messenger/bots' });
+        if (r.status === 200) {
+          for (const b of r.body.bots) {
+            const e = running.get(`${b.platform}:${b.botId}`);
+            if (e) e.def = { ...e.def, extraUsers: b.extraUsers ?? [] };
+          }
+        }
+        const c = await loadServerConfig();
+        serverCfg = { ...serverCfg, allowedUsers: c.allowedUsers };
+      } catch { /* 서버가 꺼져 있으면 지난 목록으로 판단한다 */ } finally {
+        refreshedAt = Date.now();
+        refreshing = null;
+      }
+    })();
+    return refreshing;
+  }
+
   function start(key, b) {
     const runner = opts.runners[b.platform];
     if (!runner) return 'platform_not_supported';
@@ -74,7 +101,8 @@ export function createBotRunner(opts) {
       log({ ...e, botId: b.botId });
     };
     runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
-      onMessage: (m, send) => {
+      onMessage: async (m, send) => {
+        if (!entry.bridge.allowed(m)) await refreshAllowed();
         const ok = entry.bridge.allowed(m);
         log({ platform: b.platform, botId: b.botId, event: 'message', allowed: ok });
         // W2: 허용 목록에 없는 사람은 서버에 알려 웹에서 "이 사람 허용"을 누를 수 있게 한다(내용은 보내지 않음).
