@@ -66,6 +66,15 @@
 | W7 | PC 완결형 공개 중계 짝맺기·관리 화면, 허브 "보안" 화면(접속 제한 변경) | 저장소 코드 → Oracle 배포 |
 | W8 | 설명서(BEGINNER_GUIDE·MANUAL·MESSENGER_MANUAL) 다시 쓰기: 명령 대신 화면 조작 | 문서 |
 
+## 5-1. W0 결과 (2026-11-08, 신산님 승인, 모델 0)
+
+- 코드(#58): 서버 `publicListen`(접속 제한 방식이 있어야만 열림, 이 포트의 요청은 127.0.0.1 예외 없음), `src/hub/run.mjs`(서버·연결부·메신저를 한 컨테이너에서 띄우고 끝난 것만 다시 켬), `scripts/hub-migrate.mjs`(경로 `/data`로, 소켓→공개 포트, 새 세션 끔), `deploy/hub`(이미지 `ieun-hub:0.0.1`, node:24-bookworm-slim, 컨테이너 이름 `ieun-relay`, ubuntu UID 1001, 호스트 포트 없음). 소켓 전달기 `src/hub/forward.mjs` 제거.
+- Oracle: 저장소를 `~/deploy/ieon-gateway`에 풀고(기존 `relay/`는 그대로) 이미지 빌드(npm 부품 내려받기) → `ieon` 사용자 유닛 3개 disable·중지, 옛 전달기 컨테이너 내림 → `/home/ieon/deploy/ieon-gateway/.local`(run 제외)을 `hub/data`로 복사·소유자 ubuntu·권한 700/600 → 경로 변경 → 컨테이너 기동(healthy). 중단 약 1분.
+- 확인: 바깥(허용 IP) `/health` 200·`/` 200·토큰 없는 API·기기·`/pc/poll` 401·틀린 카카오 비밀 404, 허용 밖(proxy-network 다른 컨테이너, 서버에 있던 curl 이미지) 403. 카카오 봇 `started`, 이전 뒤 카카오 메시지 1건 `allowed: true`. 데이터를 그대로 옮겨 허브 로그인·PC 기기 등록·카카오 스킬 URL은 바뀌지 않음.
+- 정리: `/home/ieon` 전체를 `~/deploy/ieon-gateway/backups/ieon-home-20261108.tgz`(600)로 백업 → linger 해제·`userdel -r ieon`. `~/deploy/ieun-relay`·이미지 `ieun-relay:0.0.1` 삭제. Codex 로그인은 옮기지 않았다(W5에서 웹으로).
+- 되돌리기: 백업에서 `/home/ieon` 복원·사용자 재생성은 번거로우므로, 문제 시 `hub/data/*.bak-w0` 설정으로 되돌리고 컨테이너를 다시 띄운다.
+- 미확인: 허브 Oracle 새 세션(Codex 로그인 전이라 꺼 둠, W5), 카카오 최종 확인(인수 테스트).
+
 ## 6. 지금까지 만든 것과의 관계
 
 - 유지: P1의 웹 설정·기존 세션 등록·기기 관리(P1-c는 짝맺기 승인 화면의 바탕), P3의 허브 주소 검사·요청 횟수 제한, P4의 접속 제한 코드, P5의 허브 내장 카카오 수신.
