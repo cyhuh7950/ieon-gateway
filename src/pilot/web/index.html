@@ -615,6 +615,7 @@ $('addPlatform').onchange = $('addBotId').oninput;
 $('botAdd').onsubmit = async (e) => {
   e.preventDefault();
   const platform = $('addPlatform').value, botId = $('addBotId').value.trim();
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])$/.test(botId)) { setStatus('err', '봇 ID를 입력하세요(영문 소문자·숫자·-, 기본 봇은 default)'); return; }
   const r = await api('/v1/admin/bots/' + platform + '/' + encodeURIComponent(botId), { method: 'PUT', body: JSON.stringify({ name: botId }) });
   if (r.status !== 200) { setStatus('err', ADMIN_ERR[r.body.error] || r.body.error); return; }
   setStatus('ok', '봇을 추가했습니다. .env에 ' + envHint(platform, botId) + '를 넣고 메신저를 다시 켜세요.');
