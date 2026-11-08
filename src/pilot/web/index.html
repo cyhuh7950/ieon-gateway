@@ -217,6 +217,12 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     <h2>허용 요청</h2>
     <div class="muted">허용 목록에 없는 사람이 봇에게 보낸 최근 메시지(24시간)입니다. "허용"을 누르면 그 봇의 추가 허용 사용자로 들어갑니다.</div>
     <div id="deniedRows"></div>
+    <div id="cxBox" hidden>
+      <h2>Codex 로그인(이 허브)</h2>
+      <div class="muted">허브에서 새 Codex 세션을 만들려면 이 허브가 신산님의 ChatGPT 계정으로 Codex에 로그인되어 있어야 합니다. "로그인"을 누르면 주소와 코드가 나오니, 그 주소를 열어 코드를 넣고 승인하세요. ChatGPT 보안 설정에서 "기기 코드 로그인"이 켜져 있어야 합니다.</div>
+      <div id="cxState"></div>
+      <div class="row"><button type="button" id="cxStart" class="primary">로그인</button><button type="button" id="cxCancel">취소</button></div>
+    </div>
     <div id="skillBox" hidden>
       <h2>카카오 스킬 URL</h2>
       <div class="muted">카카오 오픈빌더 스킬의 URL 칸에 이 주소를 붙여 넣으세요. 비밀 경로가 들어 있으니 다른 곳에 올리지 마세요.</div>
@@ -710,6 +716,24 @@ async function loadDenied() {
     row.append(b); box.append(row);
   }
 }
+// W5: 허브 Codex 로그인(기기 코드). 주소는 OpenAI 로그인 주소일 때만 링크로 만든다.
+const OPENAI_LINK = /^https:\/\/(auth\.openai\.com|chatgpt\.com|[a-z0-9.-]+\.openai\.com)\//;
+async function loadCodex() {
+  const r = await api('/v1/admin/codex'); $('cxBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  const { login, job } = r.body; const box = $('cxState'); box.innerHTML = '';
+  box.append(el('div', login.loggedIn ? '로그인됨' + (login.method === 'chatgpt' ? '(ChatGPT 계정)' : '') : '로그인 안 됨', login.loggedIn ? 'state ok' : 'state warn'));
+  if (job.state === 'waiting') {
+    const d = el('div', null, 'state warn');
+    if (job.url) { d.append(el('div', '1) 이 주소를 여세요: ')); const a = el('a', job.url); if (OPENAI_LINK.test(job.url)) { a.href = job.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; } d.append(a); }
+    d.append(el('div', job.code ? '2) 이 코드를 넣고 승인하세요: ' + job.code : '로그인 주소를 준비하는 중…'));
+    box.append(d); setTimeout(() => loadCodex().catch(() => {}), 3000);
+  } else if (job.state === 'done') box.append(el('div', '로그인했습니다. 설정의 "새 세션"을 켜면 허브에서 새 Codex 세션을 만들 수 있습니다.', 'state ok'));
+  else if (job.state === 'failed') box.append(el('div', job.error === 'timeout' ? '시간이 지나 취소됐습니다. 다시 로그인하세요.' : '로그인하지 못했습니다. ChatGPT 보안 설정의 기기 코드 로그인을 확인하고 다시 하세요.', 'state err'));
+  $('cxStart').hidden = job.state === 'waiting'; $('cxCancel').hidden = job.state !== 'waiting';
+  $('cxStart').textContent = login.loggedIn ? '다시 로그인' : '로그인';
+}
+$('cxStart').onclick = async () => { await api('/v1/admin/codex/login', { method: 'POST', body: '{}' }); loadCodex(); };
+$('cxCancel').onclick = async () => { await api('/v1/admin/codex/login/cancel', { method: 'POST', body: '{}' }); loadCodex(); };
 async function loadSkill() { const r = await api('/v1/admin/kakao/skill-url'); $('skillBox').hidden = r.status !== 200; $('skillUrl').textContent = ''; $('skillUrl').dataset.url = r.status === 200 ? r.body.url : ''; }
 $('skillShow').onclick = () => { $('skillUrl').textContent = $('skillUrl').textContent ? '' : $('skillUrl').dataset.url; };
 $('skillCopy').onclick = async () => { try { await navigator.clipboard.writeText($('skillUrl').dataset.url); setStatus('ok', '스킬 URL을 복사했습니다'); } catch { setStatus('err', '복사하지 못했습니다 — 보기를 눌러 직접 선택하세요'); } };
@@ -719,6 +743,7 @@ async function loadAdmin() {
   loadPairings().catch(() => {});
   loadHubLink().catch(() => {});
   loadDevice().catch(() => {});
+  loadCodex().catch(() => {});
   loadDenied().catch(() => {});
   loadSkill().catch(() => {});
   loadBindings().catch(() => {});

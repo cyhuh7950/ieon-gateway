@@ -16,6 +16,7 @@ import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs
 import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
+import { createCodexLogin } from './codex-login.mjs';
 import { dirname, join } from 'node:path';
 
 const MAX_QUESTION = 8000;
@@ -108,6 +109,8 @@ export function createApp(config) {
   // W4: 이 PC의 로컬 연결부를 서버가 띄운다(설정 manageLocalConnector). 기기 설정을 바꾸면 다시 띄운다.
   const localConnector = !access && config.manageLocalConnector && config.connectorConfigPath
     ? createLocalConnector({ connectorConfigPath: config.connectorConfigPath, log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') }) : null;
+  // W5: 허브 웹의 Codex 로그인(기기 코드). 허브에만 있다(PC는 그 PC의 Codex 앱 로그인을 그대로 쓴다).
+  const codexLogin = access ? (config.codexLogin ?? createCodexLogin({ log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') })) : null;
   const localDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') && !req.headers['x-forwarded-for'];
   // 기기 설정이 바뀌면 그 설정을 읽는 연결부를 다시 띄운다. 이 서버가 띄운 것이 아니면 다시 켜야 한다고 알린다.
   const applyDevice = async () => {
@@ -250,6 +253,14 @@ export function createApp(config) {
           if (r.error) return json(res, r.http, { error: r.error });
           process.stderr.write(JSON.stringify({ ch: 'server', event: `pair_${pr[2]}d`, hostId: r.body?.hostId ?? null }) + '\n');
           return json(res, r.http, r.body);
+        }
+        // W5: 허브 Codex 로그인
+        if (path.startsWith('/v1/admin/codex')) {
+          if (!codexLogin) return json(res, 404, { error: 'not_found' });
+          if (req.method === 'GET' && path === '/v1/admin/codex') return json(res, 200, { login: await codexLogin.status(), job: codexLogin.view() });
+          if (req.method === 'POST' && path === '/v1/admin/codex/login') return json(res, 200, codexLogin.start());
+          if (req.method === 'POST' && path === '/v1/admin/codex/login/cancel') return json(res, 200, codexLogin.cancel());
+          return json(res, 404, { error: 'not_found' });
         }
         // W4: 이 PC의 기기 설정(실제 실행·Codex 허용 목록·연결 방식·작업 폴더). 허브 웹에는 없다. 바꾸는 것은 이 PC에서 연 화면만.
         if (path.startsWith('/v1/admin/local/device')) {
