@@ -65,7 +65,7 @@
 | W7 | PC 완결형 중계(운영자 배포·PC 웹은 보기만, 신산님 결정)·허브 보안 화면 | **코드 완료(2026-11-08)**, 테스트 4건. 허브 배포는 승인 대기 |
 | W8 | 설명서 다시 쓰기(명령 대신 화면 조작) | **완료(2026-11-08)**: BEGINNER_GUIDE 새로 씀, MANUAL·MESSENGER_MANUAL·API_GUIDE의 토큰·설정 파일·명령 안내를 화면 안내로 |
 | 기본 시험 | 어울이 시험용 허브·PC로 화면 흐름 전부 시험, 발견한 버그 수정 | **완료(2026-11-08)**: [ACCEPTANCE_WEB_FIRST 기본 시험](validation/ACCEPTANCE_WEB_FIRST.md) |
-| 인수 | 신산님 인수 테스트(카카오톡 최종 테스트 포함) | **다음 단계로 이관(2026-11-08, 신산님 결정)**. 이번 계획(웹 중심 재설계)은 기본 시험까지로 닫음. 항목표·미검증 목록은 [ACCEPTANCE_WEB_FIRST](validation/ACCEPTANCE_WEB_FIRST.md) |
+| 인수 | 신산님 인수 테스트(카카오톡 최종 테스트 포함) | **완료(2026-11-08)**: 1~11단계 PASS, 지적 5건 한 번에 수정. 선택 단계(AI 실제 질문·허브 Codex 로그인·API 키)는 신산님 결정으로 건너뜀(미검증). [결과](validation/ACCEPTANCE_WEB_FIRST.md) |
 
 ---
 

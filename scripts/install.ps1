@@ -79,6 +79,8 @@ if (-not $ok) { Write-Output "서버가 시작되지 않았습니다. $Run\serve
 Step '서버 시작됨(실제 실행은 꺼짐)'
 
 # 6) 바로 가기와 브라우저
-Set-Content -Path $Shortcut -Value "[InternetShortcut]`r`nURL=$Url`r`n" -Encoding ascii
+# 바로 가기에 이어온 아이콘을 붙인다(브라우저 기본 아이콘 대신)
+$Icon = Join-Path $Root 'src\pilot\web\ieon.ico'
+Set-Content -Path $Shortcut -Value "[InternetShortcut]`r`nURL=$Url`r`nIconFile=$Icon`r`nIconIndex=0`r`n" -Encoding ascii
 if (-not $NoBrowser) { Start-Process $Url }
 Write-Output "설치를 마쳤습니다. 바탕화면의 '이어온'을 열면 됩니다. 나머지 설정은 웹 화면의 '봇 관리'에서 하세요."

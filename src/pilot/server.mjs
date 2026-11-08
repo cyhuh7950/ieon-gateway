@@ -23,6 +23,7 @@ import { dirname, join } from 'node:path';
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
 const WEB_PAGE = fileURLToPath(new URL('./web/index.html', import.meta.url));
+const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 
 const sha = (s) => createHash('sha256').update(s).digest();
 const matchToken = (header, entries) => {
@@ -178,6 +179,11 @@ export function createApp(config) {
       }
       // P5: 내장 중계. /kakao/*는 접속 제한 예외(비밀 경로·요청 횟수 제한), /pc/poll은 제한 대상이라 사실상 이 기계 안에서만.
       if (relay && (path.startsWith('/kakao/') || path === '/pc/poll')) return relay.handler(req, res);
+      // 이어온 아이콘(브라우저 탭·바로 가기)
+      if (req.method === 'GET' && path === '/favicon.ico') {
+        res.writeHead(200, { 'content-type': 'image/x-icon', 'cache-control': 'max-age=86400' });
+        return res.end(readFileSync(WEB_ICON));
+      }
       if (req.method === 'GET' && path === '/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         return res.end(readFileSync(WEB_PAGE));
