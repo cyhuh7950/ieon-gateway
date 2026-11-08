@@ -13,6 +13,9 @@ import { createWebAccess, isExemptPath } from './web-access.mjs';
 import { createRelay } from '../relay/relay.mjs';
 import { createWebAuth } from './web-auth.mjs';
 import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs';
+import { createPairing } from './pairing.mjs';
+import { createHubLink } from './hub-link.mjs';
+import { dirname, join } from 'node:path';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -96,6 +99,11 @@ export function createApp(config) {
     .map((name) => ({ name, platform: b.platform, botId: b.botId, internal: internalSecret(name) })));
   // W2: 허용 목록에 없는 사람이 보낸 최근 메시지(메신저가 알려 줌). 웹의 "이 사람 허용" 버튼에 쓴다. 메시지 내용은 받지 않는다.
   const denied = new Map();
+  // W3: 짝맺기. 허브(접속 제한 있음)는 PC의 요청을 받아 승인하고, PC(접속 제한 없음)는 허브에 연결한다.
+  const pairing = access ? createPairing({ store, reserved: () => fileHosts }) : null;
+  const hubLink = access ? null : createHubLink({ dir: config.hubLinkDir ?? join(dirname(config.dbPath), 'hub'),
+    connectorConfigPath: config.connectorConfigPath, log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') });
+  const ipOf = (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?'));
   // P3: 기기 API 요청 횟수 제한(1분 창). 인증된 기기는 기기별, 인증 실패는 접속 주소별로 센다.
   // 유효한 토큰은 실패 횟수와 상관없이 먼저 확인하므로, 같은 앞단(NPM) 뒤의 정상 기기는 막히지 않는다.
   const rate = { perMinute: config.deviceRateLimit?.perMinute ?? 240, failPerMinute: config.deviceRateLimit?.failPerMinute ?? 30 };
@@ -160,6 +168,8 @@ export function createApp(config) {
           const h = JSON.parse(req.headers['x-ieon-health'] ?? 'null');
           if (h && typeof h === 'object') health.set(device.hostId, { codexShared: String(h.codexShared), claudeChannel: String(h.claudeChannel) });
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }
+        // W3: 이 PC가 허브에 연결돼 있으면 이 PC 서버는 작업을 내주지 않는다(한 PC가 두 서버의 질문을 함께 실행하지 않게).
+        if (req.method === 'GET' && path === '/v1/device/jobs' && hubLink?.hubMode()) return json(res, 204);
         if (req.method === 'GET' && path === '/v1/device/jobs') {
           const job = store.claim(device.hostId);
           return job ? json(res, 200, job) : json(res, 204);
@@ -170,6 +180,17 @@ export function createApp(config) {
           return updated ? json(res, 200, { status: updated.status }) : json(res, 409, { error: 'not_reportable' });
         }
         return json(res, 404, { error: 'not_found' });
+      }
+
+      // --- W3: 짝맺기(허브). PC가 부른다. 토큰은 관리자 승인 뒤 그 PC에 한 번만 간다. ---
+      if (pairing && req.method === 'POST' && (path === '/v1/pair/start' || path === '/v1/pair/poll')) {
+        const retry = overLimit(`pair:${path}:${ipOf(req)}`, path === '/v1/pair/start' ? 10 : 60);
+        if (retry) return tooMany(res, retry);
+        const body = await readJson(req);
+        const r = path === '/v1/pair/start' ? pairing.start({ name: body.name, from: ipOf(req) }) : pairing.poll(body.pairId);
+        if (r.error) return json(res, r.http, { error: r.error });
+        if (path === '/v1/pair/start') process.stderr.write(JSON.stringify({ ch: 'server', event: 'pair_requested', from: ipOf(req) }) + '\n');
+        return json(res, r.http, r.body);
       }
 
       // --- 사용자(웹·외부 앱) API ---
@@ -207,6 +228,28 @@ export function createApp(config) {
         if (req.method === 'GET' && path === '/v1/admin/sessions') {
           return json(res, 200, { sessions: store.conversations(principal).map((c) => ({ conversationId: c.conversationId,
             label: labelOf(c), engine: c.engine, newSession: Boolean(c.newSession) })) });
+        }
+        // W3: 허브 기기 화면의 연결 요청(짝맺기) 승인·거절
+        if (req.method === 'GET' && path === '/v1/admin/pairings') return json(res, 200, { pairings: pairing ? pairing.pending() : [] });
+        const pr = path.match(/^\/v1\/admin\/pairings\/([\w-]{6,64})\/(approve|reject)$/);
+        if (pr && req.method === 'POST') {
+          if (!pairing) return json(res, 404, { error: 'not_found' });
+          const r = pr[2] === 'approve' ? await (async () => { const b = await readJson(req); return pairing.approve(pr[1], b.code, principal.userId, b.replaceHostId || null); })() : pairing.reject(pr[1]);
+          if (r.error) return json(res, r.http, { error: r.error });
+          process.stderr.write(JSON.stringify({ ch: 'server', event: `pair_${pr[2]}d`, hostId: r.body?.hostId ?? null }) + '\n');
+          return json(res, r.http, r.body);
+        }
+        // W3: 이 PC를 허브에 연결(PC 로컬 웹만)
+        if (path.startsWith('/v1/admin/local/hub')) {
+          if (!hubLink) return json(res, 404, { error: 'not_found' });
+          if (req.method === 'GET' && path === '/v1/admin/local/hub') return json(res, 200, hubLink.status());
+          if (req.method === 'POST' && path === '/v1/admin/local/hub/connect') {
+            const body = await readJson(req);
+            try { return json(res, 200, await hubLink.connect({ hubUrl: body.hubUrl, name: body.name })); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
+          }
+          if (req.method === 'POST' && path === '/v1/admin/local/hub/disconnect') return json(res, 200, hubLink.disconnect({ forget: (await readJson(req)).forget === true }));
+          if (req.method === 'POST' && path === '/v1/admin/local/hub/reconnect') return json(res, 200, { connector: hubLink.reconnect() });
+          return json(res, 404, { error: 'not_found' });
         }
         // W2: 봇 토큰 입력(쓰기 전용). 정의된 봇의 토큰 이름만 받는다.
         if (req.method === 'GET' && path === '/v1/admin/secrets') {
@@ -517,7 +560,8 @@ export function createApp(config) {
   return {
     server, store, listenExtra, listenSocket, listenPublic, newSessions: nsCfg, notices,
     listen: (port) => new Promise((r) => server.listen(port, '127.0.0.1', () => r(server.address().port))),
-    close: () => new Promise((r) => { clearInterval(cleanupTimer); relay?.close(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
+    hubLink,
+    close: () => new Promise((r) => { clearInterval(cleanupTimer); relay?.close(); hubLink?.close(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
   };
 }
 
@@ -538,6 +582,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
   const app = createApp(config);
   const port = await app.listen(config.port ?? 28760);
+  // W3: 이미 짝맺은 허브가 있으면 연결부를 다시 띄운다(재부팅 뒤 사용자가 할 일 없음).
+  if (app.hubLink) process.stderr.write(JSON.stringify({ ch: 'server', event: 'hub_link_resume', result: app.hubLink.resume() }) + '\n');
   process.stderr.write(`ieon pilot server: http://127.0.0.1:${port}\n`);
   const hosts = [...(config.extraHosts ?? []), ...(config.webAccess?.tailscale?.listenHost ? [config.webAccess.tailscale.listenHost] : [])];
   for (const host of new Set(hosts)) {
