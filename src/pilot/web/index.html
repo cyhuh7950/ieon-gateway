@@ -832,7 +832,7 @@ async function loadCodex() {
     d.append(el('div', job.code ? '2) 이 코드를 넣고 승인하세요: ' + job.code : '로그인 주소를 준비하는 중…'));
     box.append(d); setTimeout(() => loadCodex().catch(() => {}), 3000);
   } else if (job.state === 'done') box.append(el('div', '로그인했습니다. 설정의 "새 세션"을 켜면 허브에서 새 Codex 세션을 만들 수 있습니다.', 'state ok'));
-  else if (job.state === 'failed') box.append(el('div', job.error === 'timeout' ? '시간이 지나 취소됐습니다. 다시 로그인하세요.' : '로그인하지 못했습니다. ChatGPT 보안 설정의 기기 코드 로그인을 확인하고 다시 하세요.', 'state err'));
+  else if (job.state === 'failed') box.append(el('div', job.error === 'timeout' ? '시간이 지나 취소됐습니다. 다시 로그인하세요.' : job.error === 'network' ? '허브가 Codex 로그인 서버에 접속하지 못했습니다. 잠시 뒤 다시 하고, 계속되면 관리자에게 알려 주세요.' : '로그인하지 못했습니다. ChatGPT 보안 설정의 기기 코드 로그인을 확인하고 다시 하세요.', 'state err'));
   $('cxStart').hidden = job.state === 'waiting'; $('cxCancel').hidden = job.state !== 'waiting';
   $('cxStart').textContent = login.loggedIn ? '다시 로그인' : '로그인';
 }

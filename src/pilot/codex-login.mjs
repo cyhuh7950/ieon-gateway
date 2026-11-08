@@ -10,11 +10,15 @@ export const codexEntry = () => require.resolve('@openai/codex/bin/codex.js');
 
 // 기기 코드 로그인 출력에서 주소와 코드를 찾는다(형식이 조금 바뀌어도 되도록 느슨하게).
 export function parseDeviceAuth(text) {
-  const t = strip(text);
-  const url = (t.match(/https:\/\/[^\s"'<>]+/) ?? [])[0] ?? null;
+  // 오류 줄에 든 주소를 로그인 주소로 잘못 보여 주지 않는다(2026-11-08 허브 실측).
+  const t = strip(text).split(/\r?\n/).filter((l) => !/error/i.test(l)).join('\n');
+  const url = (t.match(/https:\/\/[^\s"'<>]+/) ?? [])[0]?.replace(/[).,;]+$/, '') ?? null;
   const code = (t.match(/\b[A-Z0-9]{4,5}-[A-Z0-9]{4,5}\b/) ?? [])[0] ?? null;
   return { url, code };
 }
+
+// 실패 원인 구분: 로그인 서버에 닿지 못한 것(허브 네트워크·인증서)과 그 밖의 실패(계정 설정 등)
+export const loginFailure = (text) => (/error sending request|certificate|dns error|connection (refused|reset)/i.test(strip(text)) ? 'network' : 'login_failed');
 
 export function createCodexLogin({ env = process.env, spawnImpl = spawn, entry = codexEntry, timeoutMs = 15 * 60_000, log = () => {} } = {}) {
   let job = null; // { child, state, url, code, startedAt, error }
@@ -47,7 +51,7 @@ export function createCodexLogin({ env = process.env, spawnImpl = spawn, entry =
       t.unref?.();
       child.on('exit', (code) => {
         clearTimeout(t);
-        if (cur.state === 'waiting') { cur.state = code === 0 ? 'done' : 'failed'; cur.error = code === 0 ? null : 'login_failed'; }
+        if (cur.state === 'waiting') { cur.state = code === 0 ? 'done' : 'failed'; cur.error = code === 0 ? null : loginFailure(out); }
         log({ event: 'codex_login', state: cur.state });
       });
       log({ event: 'codex_login', state: 'started' });
