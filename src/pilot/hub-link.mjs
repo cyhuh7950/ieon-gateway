@@ -25,10 +25,14 @@ export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spa
     wantRunning = true;
     mkdirSync(dir, { recursive: true });
     const out = openSync(join(dir, 'connector.log'), 'a');
-    child = spawnImpl(process.execPath, ['src/pilot/connector.mjs', connectorConfigPath, '--server', i.hubUrl, '--token-file', tokenFile],
+    const c = spawnImpl(process.execPath, ['src/pilot/connector.mjs', connectorConfigPath, '--server', i.hubUrl, '--token-file', tokenFile],
       { cwd: ROOT, env: childEnv(), stdio: ['ignore', out, out] });
+    child = c;
     log({ event: 'hub_connector_start', hub: i.hubUrl });
-    child.on('exit', (code) => {
+    // 끝난 것이 지금 연결부일 때만 처리한다. 다시 띄운 뒤 늦게 온 이전 연결부의 종료 알림이 새 연결부를 놓치게 하면
+    // 추적되지 않는 연결부가 쌓인다(2026-11-08 기본 시험에서 발견).
+    c.on('exit', (code) => {
+      if (child !== c) return;
       child = null;
       log({ event: 'hub_connector_exit', code });
       if (wantRunning) setTimeout(() => { if (wantRunning && !child) startConnector(); }, 5000).unref?.();
