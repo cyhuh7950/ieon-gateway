@@ -57,9 +57,13 @@ else { Step (node (Join-Path $Root 'scripts\ieon-init.mjs') --web-first $Root) }
 
 # 4) 로그온 시 창 없이 서버 시작(서버가 연결부·메신저를 함께 띄운다)
 New-Item -ItemType Directory -Force $Run | Out-Null
-$cmd = "cmd /c cd /d ""$Root"" && node src\pilot\server.mjs .local\s2\server.json 2>> .local\run\server.log"
-$vbsText = "CreateObject(""WScript.Shell"").Run ""$($cmd.Replace('"', '""'))"", 0, False"
+# 서버 실행은 .cmd 파일에 두고, VBS는 그 파일을 창 없이 실행만 한다(경로에 빈칸이 있어도 되게 따옴표를 문자로 붙인다).
+$CmdFile = Join-Path $Run 'start-server.cmd'
+$cmdText = "@echo off`r`ncd /d `"$Root`"`r`nnode src\pilot\server.mjs .local\s2\server.json 2>> .local\run\server.log`r`n"
+$q = '"'
+$vbsText = 'CreateObject("WScript.Shell").Run ' + $q + $q + $q + $CmdFile + $q + $q + $q + ', 0, False'
 if ($DryRun) { Step "자동 시작 등록: 작업 '$Task'(로그온할 때, 창 없음)"; Step "바로 가기: $Shortcut"; return }
+Set-Content -Path $CmdFile -Value $cmdText -Encoding oem -NoNewline
 Set-Content -Path $Vbs -Value $vbsText -Encoding unicode
 $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument """$Vbs"""
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME

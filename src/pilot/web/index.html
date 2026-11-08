@@ -214,6 +214,11 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="auKakao">카카오톡</label><input type="text" id="auKakao" placeholder="사용자 ID, 쉼표로 구분">
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="auReset">파일 값으로</button></div>
     </form>
+    <h2>외부 프로그램(API 키)</h2>
+    <div class="muted">내가 만든 프로그램이 이어온에 질문하게 하려면 여기서 키를 발급하세요. 키는 발급할 때 한 번만 보이니 그 프로그램 설정에 바로 넣으세요. 프로그램마다 볼 수 있는 세션을 고르고, 필요 없어지면 폐기합니다.</div>
+    <div id="appRows"></div>
+    <form id="appAdd" class="row"><input id="appName" placeholder="프로그램 이름 (예: 내 자동화)" maxlength="40" autocomplete="off" aria-label="프로그램 이름"><button class="primary" type="submit">키 발급</button></form>
+    <div id="appKey" class="state warn" hidden role="alert"><b>새 API 키(한 번만 보입니다)</b><div><code id="appKeyText"></code> <button type="button" id="appKeyCopy">복사</button> <button type="button" id="appKeyHide">닫기</button></div></div>
     <h2>허용 요청</h2>
     <div class="muted">허용 목록에 없는 사람이 봇에게 보낸 최근 메시지(24시간)입니다. "허용"을 누르면 그 봇의 추가 허용 사용자로 들어갑니다.</div>
     <div id="deniedRows"></div>
@@ -716,6 +721,34 @@ function renderTokens(platform, botId) {
     box.append(row);
   }
 }
+// W2b: 외부 프로그램 API 키
+async function loadApps() {
+  const r = await api('/v1/admin/apps'); const box = $('appRows'); box.innerHTML = '';
+  const list = r.status === 200 ? r.body.apps : [];
+  if (!list.length) { box.append(el('div', '발급한 키 없음', 'muted')); return; }
+  for (const a of list) {
+    const wrap = el('div', null, 'state'); wrap.append(el('b', a.name + ' (' + a.appId + ')' + (a.revokedAt ? ' · 폐기됨' : '')));
+    if (!a.revokedAt) {
+      const ses = el('div');
+      for (const s2 of adminSessions) { const l = el('label', null, 'chk'); const c = document.createElement('input'); c.type = 'checkbox'; c.value = s2.conversationId; c.checked = a.sessions.includes(s2.conversationId); l.append(c, document.createTextNode(' ' + s2.label)); ses.append(l); }
+      const save = el('button', '볼 수 있는 세션 저장'); save.type = 'button';
+      save.onclick = async () => { const x = await api('/v1/admin/apps/' + a.appId + '/sessions', { method: 'PUT', body: JSON.stringify({ sessions: [...ses.querySelectorAll('input:checked')].map((c) => c.value) }) });
+        setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? '저장했습니다' : x.body.error); loadApps(); };
+      const rv = el('button', '폐기'); rv.type = 'button';
+      rv.onclick = async () => { if (!confirm(a.name + ' 키를 폐기합니다. 그 프로그램은 바로 접속할 수 없게 됩니다.')) return; await api('/v1/admin/apps/' + a.appId + '/revoke', { method: 'POST', body: '{}' }); loadApps(); };
+      wrap.append(ses, save, rv);
+    }
+    box.append(wrap);
+  }
+}
+$('appAdd').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await api('/v1/admin/apps', { method: 'POST', body: JSON.stringify({ name: $('appName').value.trim() }) });
+  if (r.status !== 201) return setStatus('err', r.body.error === 'bad_name' ? '프로그램 이름을 1~40자로 넣으세요' : r.body.error);
+  $('appName').value = ''; $('appKeyText').textContent = r.body.key; $('appKey').hidden = false; setStatus('ok', '키를 발급했습니다. 아래에서 볼 수 있는 세션을 고르세요.'); loadApps();
+};
+$('appKeyCopy').onclick = () => navigator.clipboard?.writeText($('appKeyText').textContent).then(() => setStatus('ok', '키를 복사했습니다'));
+$('appKeyHide').onclick = () => { $('appKeyText').textContent = ''; $('appKey').hidden = true; };
 async function loadDenied() {
   const r = await api('/v1/admin/denied'); const box = $('deniedRows'); box.innerHTML = '';
   const list = r.status === 200 ? r.body.denied : [];
@@ -792,6 +825,7 @@ async function loadAdmin() {
   loadSecurity().catch(() => {});
   loadHubEngine().catch(() => {});
   loadDenied().catch(() => {});
+  setTimeout(() => loadApps().catch(() => {}), 300); // 세션 목록(adminSessions)을 먼저 받는다
   loadSkill().catch(() => {});
   loadBindings().catch(() => {});
   loadDevices().catch(() => {});

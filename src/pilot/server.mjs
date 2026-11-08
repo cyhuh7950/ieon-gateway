@@ -231,6 +231,11 @@ export function createApp(config) {
       if (!path.startsWith('/v1/')) return json(res, 404, { error: 'not_found' });
       if (await auth.handle(req, res, path, { json, readJson })) return;
       let user = matchToken(req.headers.authorization, config.users);
+      // W2b: 웹에서 발급한 외부 프로그램 API 키
+      if (!user) {
+        const a = matchToken(req.headers.authorization, store.activeApiAppHashes());
+        if (a) user = { userId: (config.users ?? []).find((u) => u.appId === 'app_web')?.userId ?? 'u_sinsan', appId: a.appId };
+      }
       if (!user) {
         const p = auth.principal(req);
         if (p?.error) return json(res, 403, { error: p.error });
@@ -357,6 +362,29 @@ export function createApp(config) {
           if (req.method === 'POST' && path === '/v1/admin/local/hub/disconnect') return json(res, 200, hubLink.disconnect({ forget: (await readJson(req)).forget === true }));
           if (req.method === 'POST' && path === '/v1/admin/local/hub/reconnect') return json(res, 200, { connector: hubLink.reconnect() });
           return json(res, 404, { error: 'not_found' });
+        }
+        // W2b: 외부 프로그램 API 키 — 웹에서 발급(키는 이때 한 번만 보여 줌)·볼 수 있는 세션 고르기·폐기. server.json을 고치지 않는다.
+        if (req.method === 'GET' && path === '/v1/admin/apps') return json(res, 200, { apps: store.listApiApps() });
+        if (req.method === 'POST' && path === '/v1/admin/apps') {
+          const name = String((await readJson(req)).name ?? '').trim();
+          if (!name || name.length > 40 || /[\r\n]/.test(name)) return json(res, 400, { error: 'bad_name' });
+          const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'app';
+          let appId = `app_ext_${slug}`;
+          for (let i = 2; store.listApiApps().some((a) => a.appId === appId); i++) appId = `app_ext_${slug}_${i}`;
+          const t = newDeviceToken();
+          const r = store.addApiApp(appId, name, t.hash);
+          if (r.http !== 201) return json(res, r.http, { error: r.code });
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'api_app_created', appId }) + '\n');
+          return json(res, 201, { appId, name, key: t.token });
+        }
+        const ap = path.match(/^\/v1\/admin\/apps\/(app_ext_[a-z0-9_]{1,40})\/(sessions|revoke)$/);
+        if (ap && req.method === 'PUT' && ap[2] === 'sessions') {
+          const r = store.setAppSessions(ap[1], (await readJson(req)).sessions);
+          return r.http === 200 ? json(res, 200, { sessions: store.listApiApps().find((a) => a.appId === ap[1]).sessions }) : json(res, r.http, { error: r.code });
+        }
+        if (ap && req.method === 'POST' && ap[2] === 'revoke') {
+          const r = store.revokeApiApp(ap[1]);
+          return r.http === 200 ? json(res, 200, { revoked: true }) : json(res, r.http, { error: r.code });
         }
         // W2: 봇 토큰 입력(쓰기 전용). 정의된 봇의 토큰 이름만 받는다.
         if (req.method === 'GET' && path === '/v1/admin/secrets') {
