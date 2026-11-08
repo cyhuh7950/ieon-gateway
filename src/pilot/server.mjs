@@ -119,7 +119,7 @@ export function createApp(config) {
       // 앞단 없이 이 PC의 127.0.0.1로 직접 온 요청(SSH 터널 관리)은 통과시킨다.
       if (access && !isExemptPath(path)) {
         const peer = req.socket.remoteAddress ?? '';
-        const direct = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer) && !req.headers['x-forwarded-for'];
+        const direct = !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer) && !req.headers['x-forwarded-for'];
         if (!direct && !(await access.check(req))) return json(res, 403, { error: 'access_denied' });
       }
       // P5: 내장 중계. /kakao/*는 접속 제한 예외(비밀 경로·요청 횟수 제한), /pc/poll은 제한 대상이라 사실상 이 기계 안에서만.
@@ -431,8 +431,17 @@ export function createApp(config) {
     return new Promise((r, j) => { s3.once('error', j); s3.listen(socketPath, () => { if (!win) chmodSync(socketPath, 0o660); r(socketPath); }); });
   };
 
+  // W0: 허브 Docker 컨테이너의 공개 포트(NPM이 같은 Docker 망에서 부름). 접속 제한 방식이 있어야만 연다(기본 닫힘).
+  // 이 포트로 온 요청은 127.0.0.1 직접 접속으로 보지 않으므로 항상 접속 제한을 거친다.
+  const listenPublic = (port, host) => {
+    if (!access?.modes.length) throw new Error('web_access_required');
+    const s4 = createServer((req, res) => { req.ieonPublic = true; server.emit('request', req, res); });
+    extra.push(s4);
+    return new Promise((r, j) => { s4.once('error', j); s4.listen(port, host, () => r(s4.address().port)); });
+  };
+
   return {
-    server, store, listenExtra, listenSocket, newSessions: nsCfg, notices,
+    server, store, listenExtra, listenSocket, listenPublic, newSessions: nsCfg, notices,
     listen: (port) => new Promise((r) => server.listen(port, '127.0.0.1', () => r(server.address().port))),
     close: () => new Promise((r) => { clearInterval(cleanupTimer); relay?.close(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
   };
@@ -460,4 +469,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.stderr.write(`ieon pilot server: http://${await app.listenExtra(port, host, config.extraAllowedClients)}\n`);
   }
   if (config.listenSocket) process.stderr.write(`ieon pilot server: unix:${await app.listenSocket(config.listenSocket)}\n`);
+  if (config.publicListen) {
+    const p = await app.listenPublic(config.publicListen.port, config.publicListen.host ?? '0.0.0.0');
+    process.stderr.write(`ieon pilot server: public ${config.publicListen.host ?? '0.0.0.0'}:${p}\n`);
+  }
 }
