@@ -175,14 +175,20 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   </section>
   <section aria-label="기기">
     <h3>기기(PC 연결부)</h3>
-    <div class="muted">server.json에 적힌 기기는 보기만 됩니다. 웹에서 등록한 기기만 재발급·폐기할 수 있습니다. 새 토큰은 이 화면에 한 번만 보이니 바로 PC의 .local\s2\device-token에 넣으세요. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
+    <div class="muted">새 PC는 그 PC의 이어온 화면에서 "허브에 연결"을 누르면 아래 "연결 요청"에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
+    <h2>연결 요청</h2><div id="pairRows"></div>
     <table class="list"><thead><tr><th>기기 ID</th><th>이름</th><th>출처</th><th>등록일</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead><tbody id="dvRows"></tbody></table>
-    <form id="dvForm" class="row" style="margin-top:10px">
-      <input id="dvId" placeholder="새 기기 ID (h_로 시작, 예: h_office)" maxlength="42" autocomplete="off" aria-label="새 기기 ID">
-      <input id="dvName" placeholder="이름 (예: 사무실 PC)" maxlength="40" autocomplete="off" aria-label="기기 이름">
-      <button class="primary" type="submit">기기 등록</button>
-    </form>
-    <div id="dvToken" class="state warn" hidden role="alert"><b>새 토큰(한 번만 보입니다)</b><div><code id="dvTokenText"></code> <button type="button" id="dvCopy">복사</button> <button type="button" id="dvHide">닫기</button></div><div class="muted">이 값을 그 PC의 .local\s2\device-token에 넣고 연결부를 다시 켜세요. 화면을 닫으면 다시 볼 수 없습니다.</div></div>
+    <div id="hubLinkBox" hidden>
+      <h2>허브에 연결</h2>
+      <div class="muted">허브형(ieun)을 쓸 때 이 PC를 허브에 연결합니다. 허브 주소와 이 PC 이름을 넣고 "연결"을 누르면 6자리 코드가 나옵니다. 허브 웹의 기기 화면에서 같은 코드를 승인하면 끝납니다.</div>
+      <div id="hubLinkState"></div>
+      <form id="hubLinkForm" class="row">
+        <input id="hlUrl" placeholder="https://ieun-gateway.sinsan.kr" autocomplete="off" aria-label="허브 주소">
+        <input id="hlName" placeholder="이 PC 이름 (예: 집 PC)" maxlength="40" autocomplete="off" aria-label="이 PC 이름">
+        <button class="primary" type="submit">연결</button>
+      </form>
+      <div class="row"><button type="button" id="hlReconnect">다시 연결</button><button type="button" id="hlStop">연결 끊기</button><button type="button" id="hlForget">허브 잊기</button></div>
+    </div>
     <h2>최근 기록</h2><div id="dvEvents" class="muted"></div>
   </section>
   <section aria-label="설정">
@@ -545,11 +551,10 @@ $('bdDelete').onclick = async () => {
 const DV_ERR = { bad_host_id: '기기 ID는 h_로 시작하고 영문 소문자·숫자·_- 41자까지', bad_name: '이름을 1~40자로', host_taken: '이미 있는 기기 ID',
   file_managed: 'server.json에 적힌 기기는 파일에서 관리합니다', confirm_mismatch: '기기 이름이 맞지 않음', already_revoked: '이미 폐기된 기기' };
 const when = (s) => s ? new Date(s).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-function showToken(t) { $('dvTokenText').textContent = t; $('dvToken').hidden = false; }
-$('dvHide').onclick = () => { $('dvTokenText').textContent = ''; $('dvToken').hidden = true; };
-$('dvCopy').onclick = () => navigator.clipboard?.writeText($('dvTokenText').textContent).then(() => setStatus('ok', '토큰을 복사했습니다'));
+let webDevices = [];
 async function loadDevices() {
   const r = await api('/v1/admin/devices'); if (r.status !== 200) return;
+  webDevices = r.body.devices.filter((d) => d.source === 'web');
   $('dvRows').innerHTML = '';
   for (const d of r.body.devices) {
     const tr = el('tr');
@@ -558,14 +563,6 @@ async function loadDevices() {
     tr.append(el('td', state[1], state[0]));
     const act = el('td');
     if (d.source === 'web') {
-      const re = el('button', d.revokedAt ? '다시 발급' : '재발급'); re.type = 'button';
-      re.onclick = async () => {
-        if (!confirm(d.hostId + ' 기기 토큰을 새로 발급합니다. 이전 토큰은 바로 쓸 수 없게 됩니다.')) return;
-        const x = await api('/v1/admin/devices/' + d.hostId + '/reissue', { method: 'POST', body: '{}' });
-        if (x.status === 200) { showToken(x.body.token); setStatus('ok', '새 토큰을 발급했습니다'); } else setStatus('err', DV_ERR[x.body.error] || x.body.error);
-        await loadDevices();
-      };
-      act.append(re);
       if (!d.revokedAt) {
         const rv = el('button', '폐기'); rv.type = 'button'; rv.style.marginLeft = '4px';
         rv.onclick = async () => {
@@ -583,13 +580,51 @@ async function loadDevices() {
   const ACT = { register: '등록', reissue: '재발급', revoke: '폐기' };
   $('dvEvents').textContent = r.body.events.length ? r.body.events.slice(0, 10).map((e) => when(e.at) + ' ' + e.hostId + ' ' + (ACT[e.action] || e.action)).join(' · ') : '기록 없음';
 }
-$('dvForm').onsubmit = async (e) => {
+// W3: 짝맺기. 허브에서는 연결 요청을 승인하고, PC에서는 허브에 연결한다. 토큰은 화면에 나오지 않는다.
+const PAIR_ERR = { code_mismatch: '코드가 맞지 않습니다', not_found: '요청이 없거나 시간이 지났습니다', hub_unreachable: '허브에 접속하지 못했습니다(주소·인터넷 확인)',
+  bad_server_url: '허브 주소는 https://로 시작해야 합니다', bad_name: '이 PC 이름을 1~40자로 넣으세요', too_many_pending: '허브에 대기 중인 요청이 많습니다. 잠시 뒤 다시 하세요', rate_limited: '잠시 뒤 다시 하세요' };
+async function loadPairings() {
+  const r = await api('/v1/admin/pairings'); const box = $('pairRows'); box.innerHTML = '';
+  const list = r.status === 200 ? r.body.pairings : [];
+  if (!list.length) { box.append(el('div', '대기 중인 요청 없음', 'muted')); return; }
+  for (const q of list) {
+    const row = el('div', null, 'row');
+    row.append(el('span', q.name + ' · 코드 ' + q.code + ' · ' + when(q.createdAt)));
+    // 같은 PC를 다시 짝맺으면 기존 기기를 골라 세션 등록을 그대로 쓴다
+    const pick = document.createElement('select'); pick.setAttribute('aria-label', '등록 방식');
+    pick.append(new Option('새 기기로', ''));
+    for (const d of webDevices) pick.append(new Option('기존 기기 대체: ' + d.name + ' (' + d.hostId + ')', d.hostId));
+    row.append(pick);
+    const ok = el('button', '승인'); ok.type = 'button'; ok.className = 'primary';
+    ok.onclick = async () => { if (!confirm('"' + q.name + '" PC 화면의 코드가 ' + q.code + '와 같습니까?')) return;
+      const x = await api('/v1/admin/pairings/' + q.id + '/approve', { method: 'POST', body: JSON.stringify({ code: q.code, replaceHostId: pick.value || null }) });
+      setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? '승인했습니다 — 그 PC가 곧 연결됩니다(' + x.body.hostId + ')' : (PAIR_ERR[x.body.error] || x.body.error)); loadPairings(); loadDevices(); loadBindings(); };
+    const no = el('button', '거절'); no.type = 'button';
+    no.onclick = async () => { await api('/v1/admin/pairings/' + q.id + '/reject', { method: 'POST', body: '{}' }); loadPairings(); };
+    row.append(ok, no); box.append(row);
+  }
+}
+async function loadHubLink() {
+  const r = await api('/v1/admin/local/hub'); $('hubLinkBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  const s = r.body; const box = $('hubLinkState'); box.innerHTML = '';
+  const line = s.state === 'pairing' ? ['state warn', '허브 웹의 기기 화면에서 이 코드를 승인하세요: ' + s.code]
+    : s.state === 'paired' ? [s.connector === 'running' ? 'state ok' : 'state', '허브 ' + s.hubUrl + ' · ' + s.hostId + ' · ' + (s.connector === 'running' ? '연결됨' : '연결 끊김') + (s.canRun ? '' : ' (이 PC의 연결부 설정이 없어 실행할 수 없음)')]
+    : ['muted', s.error === 'rejected' ? '허브에서 거절했습니다' : s.error === 'expired' ? '시간이 지났습니다. 다시 연결하세요' : '허브에 연결되어 있지 않습니다'];
+  box.append(el('div', line[1], line[0]));
+  $('hubLinkForm').hidden = s.state === 'paired'; $('hlReconnect').hidden = !(s.state === 'paired' && s.connector !== 'running');
+  $('hlStop').hidden = s.connector !== 'running'; $('hlForget').hidden = s.state !== 'paired';
+  if (s.state === 'pairing') setTimeout(() => loadHubLink().catch(() => {}), 3000);
+}
+$('hubLinkForm').onsubmit = async (e) => {
   e.preventDefault();
-  const r = await api('/v1/admin/devices', { method: 'POST', body: JSON.stringify({ hostId: $('dvId').value.trim(), name: $('dvName').value.trim() }) });
-  if (r.status !== 201) { setStatus('err', DV_ERR[r.body.error] || r.body.error); return; }
-  $('dvId').value = ''; $('dvName').value = ''; showToken(r.body.token); setStatus('ok', '기기를 등록했습니다');
-  await loadDevices(); await loadBindings();
+  const r = await api('/v1/admin/local/hub/connect', { method: 'POST', body: JSON.stringify({ hubUrl: $('hlUrl').value.trim(), name: $('hlName').value.trim() }) });
+  if (r.status !== 200) return setStatus('err', PAIR_ERR[r.body.error] || r.body.error);
+  setStatus('ok', '허브에 요청했습니다. 허브 웹의 기기 화면에서 코드 ' + r.body.code + '를 승인하세요.'); loadHubLink();
 };
+$('hlReconnect').onclick = async () => { await api('/v1/admin/local/hub/reconnect', { method: 'POST', body: '{}' }); loadHubLink(); };
+$('hlStop').onclick = async () => { await api('/v1/admin/local/hub/disconnect', { method: 'POST', body: '{}' }); loadHubLink(); };
+$('hlForget').onclick = async () => { if (!confirm('이 PC의 허브 연결 정보를 지웁니다. 다시 쓰려면 짝맺기를 새로 해야 합니다.')) return;
+  await api('/v1/admin/local/hub/disconnect', { method: 'POST', body: JSON.stringify({ forget: true }) }); loadHubLink(); };
 // W2: 봇 토큰은 여기서 입력만 한다. 저장한 값은 다시 보여 주지 않는다(있음/없음).
 let secrets = [];
 const SEC_ERR = { internal_secret: '이 값은 이어온이 관리합니다', bad_secret_value: '토큰 형식이 맞지 않습니다(앞뒤 공백·줄바꿈 없이)', unknown_secret: '이 봇의 토큰 이름이 아닙니다', secrets_not_configured: '이 서버에는 토큰 파일이 정해져 있지 않습니다' };
@@ -634,6 +669,8 @@ $('skillCopy').onclick = async () => { try { await navigator.clipboard.writeText
 async function loadAdmin() {
   loadSettings().catch(() => {});
   loadSecrets().catch(() => {});
+  loadPairings().catch(() => {});
+  loadHubLink().catch(() => {});
   loadDenied().catch(() => {});
   loadSkill().catch(() => {});
   loadBindings().catch(() => {});

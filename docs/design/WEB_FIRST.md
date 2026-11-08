@@ -92,6 +92,14 @@
 - 화면: 봇 편집의 "토큰 변수" 안내를 "토큰" 입력 칸(비밀번호 칸, 저장·지우기)으로 바꿈, ".env에 넣으라"는 문구 제거. 설정에 "허용 요청"·"카카오 스킬 URL".
 - 테스트 `tests/pilot/web-secrets.test.mjs` 5건.
 
+## 5-4. W3 구현 (2026-11-08, 저장소 코드)
+
+- 허브(`src/pilot/pairing.mjs`): `POST /v1/pair/start`(이름 → 짝맺기 ID 32바이트·6자리 코드, 10분, 대기 최대 5건, 주소당 1분 10회)·`POST /v1/pair/poll`(승인되면 hostId·토큰을 **한 번만** 주고 지움, 1분 60회). 두 경로만 접속 제한 예외(승인은 관리자만). 관리자: `GET /v1/admin/pairings`·`POST /v1/admin/pairings/{id}/approve`(코드 일치, `replaceHostId`로 기존 웹 기기 토큰 교체 가능)·`/reject`. 새 기기 ID는 이름에서 만들고 server.json 기기·기존 웹 기기와 겹치지 않게.
+- PC(`src/pilot/hub-link.mjs`): 로컬 웹 `/v1/admin/local/hub`(상태)·`/connect`(허브 주소·이 PC 이름)·`/disconnect`(`forget`이면 토큰·정보 삭제)·`/reconnect`. 승인되면 토큰을 `<DB 폴더>/hub/device-token`(600)·`hub.json`에 저장하고, 설정 `connectorConfigPath`의 연결부를 `--server 허브 --token-file`로 이 서버가 직접 띄움(끝나면 5초 뒤 다시, 서버를 켤 때 이미 짝맺었으면 자동 재연결). 허브 연결 중에는 이 PC 서버가 작업 조회에 204만 준다(두 서버의 질문을 함께 실행하지 않음).
+- 화면: 허브 기기 화면에서 직접 등록·재발급(토큰 표시) 제거 → "연결 요청"(이름·코드·등록 방식 선택·승인·거절). PC 로컬 웹 "허브에 연결"(주소·이름·코드 표시·다시 연결·연결 끊기·허브 잊기). 폐기는 그대로.
+- 테스트 `tests/pilot/pairing.test.mjs` 5건(허브·PC 서버를 함께 띄운 짝맺기 전체, 거절·접속 제한·횟수 제한, 연결부 관리, 허브 모드 204, 승인 방식).
+- 남은 것: PC의 `connectorConfigPath` 자동 설정은 W6(설치)에서. 그전에는 PC `server.json`에 값이 있어야 연결부를 띄운다.
+
 ## 6. 지금까지 만든 것과의 관계
 
 - 유지: P1의 웹 설정·기존 세션 등록·기기 관리(P1-c는 짝맺기 승인 화면의 바탕), P3의 허브 주소 검사·요청 횟수 제한, P4의 접속 제한 코드, P5의 허브 내장 카카오 수신.
