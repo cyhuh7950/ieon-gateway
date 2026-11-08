@@ -51,7 +51,7 @@
 | 선택 단계(AI 실제 질문·허브 Codex 로그인·API 키) | 인수 때 건너뜀(신산님 결정) → **같은 날 밤 시험해 PASS**(Codex 2회, WORK_STATUS 0-60) | 허브 기록, 연결부 `job_done completed` |
 | 끄기·켜기(`install.ps1 -Uninstall` → `install.ps1`) | PASS — 자동 시작·바로 가기 제거와 복구, 허브 자동 재연결, 실제 실행 꺼짐 유지(WORK_STATUS 0-60) | 어울 확인 |
 | 허브 텔레그램 봇 | PASS — PC 봇을 허브로 옮겨 `/whoami`, 허용 요청, 허용 뒤 `allowed:true`(WORK_STATUS 0-62) | 허브 기록, 신산님 |
-| 허브 디스코드·슬랙 봇 | **미검증** — 수신·허용 저장까지 확인, 허용 뒤 `allowed:true`는 아직 없음(WORK_STATUS 0-65) | 허브 기록 |
+| 허브 디스코드·슬랙 봇 | PASS — `/whoami`, 허용 요청, 허용 뒤 `allowed:true`(WORK_STATUS 0-67) | 허브 기록, 신산님 |
 | PC 재부팅 뒤 자동 시작 | **보류(신산님 결정)** — 미검증, 다음 재부팅 때 확인 | — |
 
 ### 인수 지적 수정 (2026-11-08, 한 번에)
