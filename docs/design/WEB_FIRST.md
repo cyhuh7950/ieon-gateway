@@ -135,6 +135,15 @@
 - API: `GET|POST /v1/admin/apps`, `PUT /v1/admin/apps/{앱}/sessions`, `POST /v1/admin/apps/{앱}/revoke`.
 - 테스트 `tests/pilot/api-keys.test.mjs` 1건.
 
+## 5-10. W8 결과와 웹으로 옮기지 않은 것 (2026-11-08)
+
+- 설명서: [BEGINNER_GUIDE](../BEGINNER_GUIDE.md)를 웹 중심으로 새로 썼다(설치 한 줄 → 화면 조작). [MANUAL](../MANUAL.md)·[MESSENGER_MANUAL](../MESSENGER_MANUAL.md)·[API_GUIDE](../API_GUIDE.md)에서 `.env`·`server.json`·`connector.json`·토큰 파일·`ieon.ps1` 안내를 화면 안내로 바꾸고, 개발용 명령은 MANUAL 부록으로 옮겼다.
+- 웹으로 옮기지 않은 것(이유):
+  - Claude 채널 세션 띄우기(`ieon.ps1 claude`): 사용자가 쓰는 Claude Code 자체를 터미널에 여는 일이다(이어온 설정이 아님).
+  - Codex 동시 사용(공유 App Server + TUI): 개발용 고급 기능. 쓰려면 자동 시작을 내리고 `ieon.ps1`로 띄운다(설명서에 주의 표시).
+  - PC 직접 Tailscale 공개(`extraHosts`): 고급 설정. 휴대폰은 허브형(보안 화면) 사용을 권장.
+  - 허브 서버 설치·업데이트: 운영자 작업.
+
 ## 6. 지금까지 만든 것과의 관계
 
 - 유지: P1의 웹 설정·기존 세션 등록·기기 관리(P1-c는 짝맺기 승인 화면의 바탕), P3의 허브 주소 검사·요청 횟수 제한, P4의 접속 제한 코드, P5의 허브 내장 카카오 수신.
