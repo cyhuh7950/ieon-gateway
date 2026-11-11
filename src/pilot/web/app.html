@@ -96,6 +96,17 @@ details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:
 .mrow button.primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
 .field { display:flex; flex-direction:column; gap:4px; margin-top:10px; font-size:13px; }
 .field input { border:1px solid var(--border); background:var(--surface-alt); border-radius:10px; padding:9px 11px; }
+/* U4 처음 설정 3단계 */
+.setup { position:fixed; inset:0; background:var(--bg); display:grid; place-items:center; padding:16px; z-index:22; overflow:auto; }
+.scard { width:min(560px,100%); background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:26px; box-shadow:var(--shadow); }
+.scard h1 { font-size:21px; margin:12px 0 4px; }
+.check { display:flex; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--border); border-radius:12px; margin-top:10px; }
+.check .st { margin-left:auto; font-size:13px; white-space:nowrap; }
+.check .st.ok { color:var(--ok); } .check .st.warn { color:var(--warn); }
+.sfoot { display:flex; justify-content:space-between; align-items:center; margin-top:18px; font-size:13px; color:var(--muted); }
+.dots { display:flex; gap:6px; } .dots i { width:7px; height:7px; border-radius:99px; background:var(--border); } .dots i.on { width:20px; background:var(--accent); }
+.bigbtn { width:100%; border:0; border-radius:12px; padding:12px; background:var(--accent); color:var(--on-accent); font-weight:600; margin-top:16px; }
+.linkbtn { border:0; background:none; color:var(--muted); padding:4px 0; text-decoration:underline; }
 .welcome { margin:auto; text-align:center; color:var(--muted); max-width:420px; padding:24px; }
 .compose { display:flex; gap:8px; padding:12px 18px 18px; align-items:flex-end; }
 .compose textarea { flex:1; resize:none; max-height:180px; border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:12px 14px; line-height:1.5; }
@@ -165,6 +176,43 @@ details.adv[open] summary { margin-bottom:10px; }
       </form>
     </details>
     <div class="mrow"><button type="button" id="connClose">닫기</button></div>
+  </div>
+</div>
+
+<!-- U4 처음 설정: 연결한 대화가 없는 이 PC 화면에서 한 번. 꼭 할 일은 "대화 하나 고르기"뿐 -->
+<section class="setup" id="setup" hidden aria-labelledby="setupTitle">
+  <div class="scard">
+    <div class="logo" aria-hidden="true">이</div>
+    <div id="s1">
+      <h1 id="setupTitle">이어온을 시작해요</h1>
+      <p class="muted small" style="margin:0">쓰던 Codex 대화를 웹과 메신저에서 이어서 써요. 이 PC에서 필요한 것을 확인했어요.</p>
+      <div class="check"><div class="av codex_thread" aria-hidden="true">Cx</div><div><b>Codex</b><div class="small muted" id="sCodexHint">확인 중…</div></div><span class="st" id="sCodex">…</span></div>
+      <div class="check"><div class="av claude_channel" aria-hidden="true">Cl</div><div><b>Claude Code</b><div class="small muted">채널 연결은 나중에 할 수 있어요</div></div><span class="st">나중에</span></div>
+      <button type="button" class="bigbtn" id="s1Next">계속</button>
+    </div>
+    <div id="s2" hidden>
+      <h1>이어 쓸 대화를 고르세요</h1>
+      <p class="muted small" style="margin:0">이 PC에서 최근에 쓴 Codex 대화예요. 고른 대화만 이어온이 다뤄요.</p>
+      <div id="sList"></div>
+      <p class="small muted">목록에 없으면 나중에 "＋ 대화 연결 → 고급"에서 대화 ID를 넣을 수 있어요.</p>
+    </div>
+    <div id="s3" hidden>
+      <h1>준비됐어요</h1>
+      <p class="muted small" style="margin:0">이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요.</p>
+      <div class="check"><div class="av" style="background:#229ED9" aria-hidden="true">✈</div><div><b>메신저로도 쓰기</b><div class="small muted">텔레그램·디스코드·슬랙·카카오톡</div></div><a class="st" href="/classic#bots">설정하기</a></div>
+      <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>밖에서도 쓰기(허브)</b><div class="small muted">PC가 꺼져 있을 때도 새 세션이 답해요</div></div><a class="st" href="/classic#pc">설정하기</a></div>
+      <button type="button" class="bigbtn" id="s3Open">대화 열기</button>
+    </div>
+    <div class="sfoot"><button type="button" class="linkbtn" id="sSkip">나중에 하기</button><div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div><span id="sStep">1 / 3</span></div>
+  </div>
+</section>
+
+<!-- U4 첫 질문 확인(UD1): AI 응답이 꺼져 있을 때 웹에서 처음 보낼 때 한 번 -->
+<div class="scrim" id="firstAsk" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="faTitle">
+    <h2 id="faTitle">AI가 이 질문에 답해요</h2>
+    <p class="muted" style="margin:6px 0 0">보내면 이 PC의 Codex·Claude가 같은 대화에서 이어서 답해요. 쓰는 만큼 사용량이 차감돼요. 위쪽 "AI 응답" 스위치로 언제든 끌 수 있어요.</p>
+    <div class="mrow"><button type="button" id="faCancel">취소</button><button type="button" class="primary" id="faOk">켜고 보내기</button></div>
   </div>
 </div>
 
@@ -307,6 +355,8 @@ async function boot() {
 async function startApp() {
   $('login').hidden = true; $('app').hidden = false;
   await Promise.all([load(), loadDevice(), loadDenied()]).catch(() => {});
+  let done = false; try { done = localStorage.getItem('ieon_setup_done') === '1'; } catch { done = false; }
+  if (device && (location.hash === '#setup' || (!convs.length && !done))) openSetup();
 }
 
 // --- AI 응답 스위치(이 PC 화면에서만. 허브·휴대폰에서는 서버가 404로 답해 숨긴다) ---
@@ -316,8 +366,8 @@ async function loadDevice() {
   $('liveSwitch').hidden = !device;
   if (device) { $('liveSwitch').setAttribute('aria-checked', String(device.live)); $('liveLabel').textContent = device.live ? 'AI 응답 켜짐' : 'AI 응답 꺼짐'; }
 }
-async function setLive(on) {
-  if (on && !confirm('AI 응답을 켜면 질문마다 Codex·Claude가 호출돼요. 켤까요?')) return false;
+async function setLive(on, { confirmed = false } = {}) {
+  if (on && !confirmed && !confirm('AI 응답을 켜면 질문마다 Codex·Claude가 호출돼요. 켤까요?')) return false;
   const r = await api('/v1/admin/local/device/live', { method: 'PUT', body: JSON.stringify({ live: on }) });
   toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'AI 응답을 ' + (on ? '켰어요' : '껐어요') : (r.body.error === 'local_only' ? '이 PC에서 연 화면에서만 바꿀 수 있어요' : '바꾸지 못했어요: ' + r.body.error));
   await loadDevice(); await refresh();
@@ -392,13 +442,14 @@ function openConnect() {
   if (!device) { location.href = '/classic#sessions'; return; } // 허브 화면 등: 지금은 예전 화면에서
   $('connect').hidden = false; loadThreads();
 }
-async function loadThreads() {
-  const box = $('connList'); box.replaceChildren(el('p', '이 PC의 대화를 찾는 중…', 'muted small'));
+async function loadThreads(box = $('connList'), onPick = (body) => connect(body)) {
+  const again = () => loadThreads(box, onPick);
+  box.replaceChildren(el('p', '이 PC의 대화를 찾는 중… (10초쯤 걸려요)', 'muted small'));
   const r = await api('/v1/admin/local/threads').catch(() => null);
   box.replaceChildren();
   if (!r || r.status !== 200) {
     box.append(el('p', CONN_ERR[r?.body?.error] || '대화 목록을 불러오지 못했어요.', 'muted small'));
-    box.append(btn('다시 시도', loadThreads)); return;
+    box.append(btn('다시 시도', again)); return;
   }
   if (!r.body.threads.length) { box.append(el('p', '이 PC에서 찾은 Codex 대화가 없어요. "고급"에서 대화 ID를 직접 넣을 수 있어요.', 'muted small')); return; }
   for (const th of r.body.threads) {
@@ -406,17 +457,38 @@ async function loadThreads() {
     const av = el('div', 'Cx', 'av codex_thread'); av.setAttribute('aria-hidden', 'true');
     const mid = el('div'); mid.style.minWidth = '0'; mid.append(el('div', th.title, 't'), el('div', th.workingDirectory || '작업 폴더 정보 없음', 's'));
     b.append(av, mid, el('span', th.connected ? '연결됨' : ago(th.updatedAt), 'r'));
-    b.onclick = () => connect({ threadId: th.threadId, label: th.title, workingDirectory: th.workingDirectory });
+    b.onclick = () => onPick({ threadId: th.threadId, label: th.title, workingDirectory: th.workingDirectory });
     box.append(b);
   }
 }
-async function connect(body) {
+async function connect(body, { open = true } = {}) {
   const r = await api('/v1/admin/connections', { method: 'POST', body: JSON.stringify(body) });
-  if (r.status !== 200) return toast('err', CONN_ERR[r.body.error] || '연결하지 못했어요: ' + r.body.error);
+  if (r.status !== 200) { toast('err', CONN_ERR[r.body.error] || '연결하지 못했어요: ' + r.body.error); return null; }
   $('connect').hidden = true; $('connId').value = ''; $('connName').value = '';
   toast('ok', r.body.created ? '"' + body.label + '" 대화를 연결했어요' : '이미 연결된 대화예요');
-  await select(r.body.conversationId);
+  if (open) await select(r.body.conversationId);
+  return r.body.conversationId;
 }
+
+// --- U4 처음 설정 3단계 ---
+let setupConv = null;
+function setupStep(n) {
+  for (const i of [1, 2, 3]) $('s' + i).hidden = i !== n;
+  [...document.querySelectorAll('#setup .dots i')].forEach((d, i) => d.classList.toggle('on', i === n - 1));
+  $('sStep').textContent = n + ' / 3';
+}
+function closeSetup() { $('setup').hidden = true; try { localStorage.setItem('ieon_setup_done', '1'); } catch { /* 저장 못 해도 동작 */ } if (location.hash === '#setup') history.replaceState(null, '', location.pathname); }
+async function openSetup() {
+  $('setup').hidden = false; setupStep(1); setupConv = null;
+  $('sCodex').textContent = '…'; $('sCodex').className = 'st'; $('sCodexHint').textContent = '확인 중…';
+  const r = await api('/v1/admin/local/engines').catch(() => null);
+  const ok = r?.status === 200 && r.body.codex.loggedIn;
+  $('sCodex').textContent = ok ? '✓ 준비됨' : '로그인 필요'; $('sCodex').className = 'st ' + (ok ? 'ok' : 'warn');
+  $('sCodexHint').textContent = ok ? '이 PC의 Codex에 로그인돼 있어요' : 'Codex 앱에서 로그인한 뒤 계속하세요(계속해도 돼요)';
+}
+$('s1Next').onclick = () => { setupStep(2); loadThreads($('sList'), async (body) => { const id = await connect(body, { open: false }); if (id) { setupConv = id; setupStep(3); } }); };
+$('s3Open').onclick = async () => { closeSetup(); await load(); if (setupConv) await select(setupConv); };
+$('sSkip').onclick = closeSetup;
 $('addBtn').onclick = openConnect;
 $('connClose').onclick = () => { $('connect').hidden = true; };
 $('connect').addEventListener('click', (e) => { if (e.target === $('connect')) $('connect').hidden = true; });
@@ -466,7 +538,7 @@ function cardView(k, c) {
     return card;
   }
   if (k.kind === 'live_off') {
-    const card = makeCard('warn', 'AI 응답이 꺼져 있어요', '켜기 전에는 질문을 보내도 AI가 답하지 않아요. 켜면 질문마다 Codex·Claude가 호출돼요.',
+    const card = makeCard('warn', 'AI 응답이 꺼져 있어요', '이 화면에서 질문을 보내면 켜도 되는지 한 번 물어봐요. 메신저에서 온 질문은 켜기 전에는 답하지 않아요.',
       device ? [btn('AI 응답 켜기', async () => { if (await setLive(true)) record(card, 'AI 응답 켬'); })] : []);
     return card;
   }
@@ -533,8 +605,19 @@ $('compose').onsubmit = (e) => {
   send(question);
 };
 // 질문은 사용자가 보내기·다시 보내기를 누를 때만 나간다(매번 새 중복 방지 키). 결과 불명은 다시 보내지 않는다.
+function askFirst() {
+  return new Promise((ok) => {
+    $('firstAsk').hidden = false;
+    const done = (v) => { $('firstAsk').hidden = true; $('faOk').onclick = null; $('faCancel').onclick = null; ok(v); };
+    $('faOk').onclick = () => done(true); $('faCancel').onclick = () => done(false);
+  });
+}
 async function send(question) {
   const id = current;
+  if (device && device.live === false) {
+    if (!(await askFirst())) { qa.value = question; return; }
+    if (!(await setLive(true, { confirmed: true }))) { qa.value = question; return; }
+  }
   const { status, body } = await api('/v1/conversations/' + id + '/requests', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ question }) });
   if (status !== 202) { retry = { conversationId: id, question, code: body.error }; renderCards(true); return; }
   retry = null;
