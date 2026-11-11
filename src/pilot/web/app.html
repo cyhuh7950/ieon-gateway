@@ -67,10 +67,20 @@ details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:
 .steps { align-self:flex-start; display:flex; gap:6px; flex-wrap:wrap; font-size:12px; }
 .steps span { padding:2px 8px; border-radius:99px; background:var(--surface-alt); border:1px solid var(--border); color:var(--muted); }
 .steps span.done { color:var(--ok); border-color:currentColor; }
-.notice { align-self:stretch; border:1px solid currentColor; border-radius:12px; padding:10px 14px; font-size:14px; }
-.notice.warn { color:var(--warn); background:var(--warn-soft); } .notice.err { color:var(--err); background:var(--err-soft); }
-.notice .acts { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
-.notice .acts button { border:1px solid currentColor; background:var(--surface); color:inherit; border-radius:10px; padding:5px 12px; font-size:13px; }
+/* U2 카드: 처리할 일을 대화 위쪽에 모은다. 누른 결과는 카드 안에 한 줄 기록으로 남는다. */
+.cards { display:flex; flex-direction:column; gap:8px; padding:12px 18px 0; }
+.cards:empty { display:none; }
+.card2 { border:1px solid currentColor; border-radius:12px; padding:10px 14px; font-size:14px; }
+.card2.warn { color:var(--warn); background:var(--warn-soft); } .card2.err { color:var(--err); background:var(--err-soft); } .card2.info { color:var(--text); background:var(--surface); border-color:var(--border); }
+.card2 b { display:block; margin-bottom:2px; }
+.card2 .acts { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; }
+.card2 .acts button, .card2 .acts a { border:1px solid currentColor; background:var(--surface); color:inherit; border-radius:10px; padding:5px 12px; font-size:13px; text-decoration:none; }
+.card2 .done { font-size:13px; color:var(--ok); margin-top:6px; }
+.cnt { display:inline-block; min-width:18px; padding:0 6px; margin-left:6px; border-radius:99px; background:var(--warn); color:var(--surface); font-size:11px; font-weight:700; text-align:center; vertical-align:2px; }
+.denied { margin:0 12px 8px; border:1px solid var(--warn); background:var(--warn-soft); color:var(--warn); border-radius:12px; padding:8px 10px; font-size:13px; }
+.denied .drow { display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap; }
+.denied .drow span { flex:1; min-width:120px; }
+.denied button { border:1px solid currentColor; background:var(--surface); color:inherit; border-radius:8px; padding:3px 9px; font-size:12px; }
 .welcome { margin:auto; text-align:center; color:var(--muted); max-width:420px; padding:24px; }
 .compose { display:flex; gap:8px; padding:12px 18px 18px; align-items:flex-end; }
 .compose textarea { flex:1; resize:none; max-height:180px; border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:12px 14px; line-height:1.5; }
@@ -130,6 +140,7 @@ details.adv[open] summary { margin-bottom:10px; }
   <aside class="side" aria-label="연결한 대화">
     <div class="side-top"><div class="logo" aria-hidden="true">이</div><div><div class="name">이어온</div><div class="where" id="where"></div></div></div>
     <a class="addbtn" href="/classic#sessions" title="지금은 예전 화면의 세션 등록에서 연결합니다">＋ 대화 연결</a>
+    <div class="denied" id="denied" hidden aria-label="메신저 허용 요청"></div>
     <div class="list" id="list"></div>
     <div class="side-bottom">
       <a href="/classic#bots"><span aria-hidden="true">✈</span>메신저</a>
@@ -148,6 +159,7 @@ details.adv[open] summary { margin-bottom:10px; }
       <button type="button" class="switch" role="switch" aria-checked="false" id="liveSwitch" hidden><span class="knob"></span><span id="liveLabel">AI 응답 꺼짐</span></button>
       <button type="button" class="iconbtn" id="panelBtn" aria-expanded="false" hidden>연결 설정</button>
     </div>
+    <div class="cards" id="cards" aria-live="polite" aria-label="처리할 일"></div>
     <div class="msgs" id="msgs" aria-live="polite"><div class="welcome" id="welcome">왼쪽에서 대화를 고르면 이어서 질문할 수 있어요.</div></div>
     <form class="compose" id="compose">
       <textarea id="question" rows="1" placeholder="메시지" aria-label="메시지" disabled></textarea>
@@ -190,6 +202,7 @@ const NS_STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping:
 const ERR = {
   conversation_busy: ['warn', '이 대화에서 처리 중인 질문이 있어 보낼 수 없어요.'],
   device_unavailable: ['err', 'PC 연결이 끊겨 보낼 수 없어요. PC가 켜져 있는지 확인하세요.'],
+  hub_mode: ['warn', '이 PC는 허브에 연결돼 있어 여기서 보낸 질문은 처리하지 않아요. 허브 화면이나 허브에 연결된 메신저 봇에서 보내세요.'],
   desktop_holds_thread: ['warn', 'Codex 앱에서 이 대화를 열고 있어 보내지 않았어요. 앱에서 닫은 뒤 다시 보내세요.'],
   thread_busy: ['warn', '공유 서버에서 이 대화가 사용 중이라 보내지 않았어요.'],
   thread_not_open: ['warn', '공유 서버에 이 대화가 열려 있지 않아요.'],
@@ -261,7 +274,7 @@ async function boot() {
 }
 async function startApp() {
   $('login').hidden = true; $('app').hidden = false;
-  await Promise.all([load(), loadDevice()]).catch(() => {});
+  await Promise.all([load(), loadDevice(), loadDenied()]).catch(() => {});
 }
 
 // --- AI 응답 스위치(이 PC 화면에서만. 허브·휴대폰에서는 서버가 404로 답해 숨긴다) ---
@@ -271,13 +284,14 @@ async function loadDevice() {
   $('liveSwitch').hidden = !device;
   if (device) { $('liveSwitch').setAttribute('aria-checked', String(device.live)); $('liveLabel').textContent = device.live ? 'AI 응답 켜짐' : 'AI 응답 꺼짐'; }
 }
-$('liveSwitch').onclick = async () => {
-  const on = !device?.live;
-  if (on && !confirm('AI 응답을 켜면 질문마다 Codex·Claude가 호출돼요. 켤까요?')) return;
+async function setLive(on) {
+  if (on && !confirm('AI 응답을 켜면 질문마다 Codex·Claude가 호출돼요. 켤까요?')) return false;
   const r = await api('/v1/admin/local/device/live', { method: 'PUT', body: JSON.stringify({ live: on }) });
   toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'AI 응답을 ' + (on ? '켰어요' : '껐어요') : (r.body.error === 'local_only' ? '이 PC에서 연 화면에서만 바꿀 수 있어요' : '바꾸지 못했어요: ' + r.body.error));
-  loadDevice();
-};
+  await loadDevice(); await refresh();
+  return r.status === 200;
+}
+$('liveSwitch').onclick = () => setLive(!device?.live);
 
 // --- 대화 목록 ---
 function stateOf(c) {
@@ -300,7 +314,9 @@ async function load() {
     const av = el('div', AV[c.engine] || '?', 'av ' + c.engine); av.setAttribute('aria-hidden', 'true');
     const box = el('div'); box.style.minWidth = '0';
     const [k, s] = stateOf(c);
-    box.append(el('div', c.label, 't'), el('div', (ENGINE[c.engine] || c.engine) + ' · ' + s, 's' + (k ? ' ' + k : '')));
+    const t = el('div', c.label, 't');
+    if (c.attention > 0) { const n = el('span', String(c.attention), 'cnt'); n.setAttribute('aria-label', '처리할 일 ' + c.attention + '개'); t.append(n); }
+    box.append(t, el('div', (ENGINE[c.engine] || c.engine) + ' · ' + s, 's' + (k ? ' ' + k : '')));
     b.append(av, box); b.onclick = () => select(c.conversationId); list.append(b);
   }
   if (arch.length) {
@@ -314,7 +330,7 @@ async function load() {
     list.append(d);
   }
   if (current && !convs.some((c) => c.conversationId === current)) { current = null; showEmpty(); }
-  else if (current) renderHead();
+  else if (current) { renderHead(); loadCards().catch(() => {}); }
 }
 function showEmpty() {
   $('title').textContent = '대화를 고르세요'; $('engineChip').hidden = true; $('stateChip').hidden = true; $('panelBtn').hidden = true; setPanel(false);
@@ -332,58 +348,123 @@ async function select(id) {
   if (!body.messages.length) box.append(el('div', '아직 이어온에서 주고받은 메시지가 없어요. 아래에 질문을 쓰면 같은 대화에서 이어서 답해요.', 'welcome'));
   for (const m of body.messages) { box.append(el('div', m.question, 'bubble me')); box.append(el('div', m.answer ?? '(보관하지 않은 답변)', 'bubble ai')); }
   renderHead(); box.scrollTop = box.scrollHeight;
+  cardsKey = ''; await loadCards();
 }
-function addNotice(kind, text, actions) {
-  const n = el('div', null, 'notice ' + kind); n.setAttribute('role', 'status'); n.append(el('div', text));
-  if (actions?.length) { const a = el('div', null, 'acts'); for (const [label, fn] of actions) { const b = el('button', label); b.type = 'button'; b.onclick = () => fn(n); a.append(b); } n.append(a); }
-  $('msgs').append(n); $('msgs').scrollTop = $('msgs').scrollHeight; return n;
+// --- U2 카드: 서버가 대화별로 모아 준 처리할 일 + 이번에 보내다 막힌 질문(다시 보내기) ---
+const BLOCKING = new Set(['hub_mode', 'device_offline', 'engine_off', 'held', 'archived']);
+let cards = [], cardsKey = '', retry = null; // retry: { conversationId, question, code }
+const done = []; // 누른 결과 기록 { conversationId, title, text, at } — 이 화면을 연 동안 그 대화의 카드 자리에 남는다
+const hhmm = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+const record = (card, text) => {
+  done.push({ conversationId: current, title: card.getAttribute('aria-label'), text, at: hhmm() });
+  if (done.length > 20) done.shift();
+  renderCards(true);
+};
+function makeCard(kind, title, text, actions) {
+  const c = el('div', null, 'card2 ' + kind); c.setAttribute('role', 'group'); c.setAttribute('aria-label', title);
+  c.append(el('b', title)); if (text) c.append(el('div', text));
+  if (actions?.length) { const a = el('div', null, 'acts'); for (const x of actions) a.append(x); c.append(a); }
+  return c;
 }
-let shownNotice = null;
+function btn(label, fn) { const b = el('button', label); b.type = 'button'; b.onclick = fn; return b; }
+function cardView(k, c) {
+  if (k.kind === 'hub_mode') {
+    const acts = [];
+    if (/^https?:\/\//.test(k.hubUrl || '')) { const a = el('a', '허브 화면 열기'); a.href = k.hubUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; acts.push(a); }
+    return makeCard('warn', '이 PC는 허브에 연결돼 있어요', '여기서 보낸 질문은 처리하지 않아요. 허브 화면이나 허브에 연결된 메신저 봇에서 보내세요. 허브 연결을 끊으려면 설정 → 이 PC에서 "연결 끊기".', acts);
+  }
+  if (k.kind === 'device_offline') return makeCard('err', 'PC 연결이 끊겼어요', '이 대화가 있는 PC가 꺼져 있거나 이어온이 멈췄어요. PC를 켜고, 그 PC의 이어온 화면에서 "연결됨"인지 확인하세요.');
+  if (k.kind === 'engine_off') return k.engine === 'claude_channel'
+    ? makeCard('err', 'Claude 세션이 꺼져 있어요', '이 대화는 Claude Code를 이어온 채널과 함께 켜 둔 동안만 받아요. 이 PC에서 Claude 채널 세션을 다시 켜세요(설명서 "Claude 채널 세션").')
+    : makeCard('err', '공유 서버가 꺼져 있어요', '동시 사용 모드는 공유 App Server가 켜져 있어야 해요. 연결 설정 → 고급에서 "번갈아 쓰기"로 바꿀 수도 있어요.');
+  if (k.kind === 'held') {
+    const text = k.status === 'approval_required' ? '원래 세션에서 권한 확인이 필요해 멈춘 질문이 있어요. 원래 앱에서 처리한 뒤 정리하세요. 자동으로 승인하지 않아요.'
+      : k.errorCode === 'turn_joined_by_other_input' ? '처리 중에 TUI 입력이 합류해 결과를 확정하지 못했어요. TUI에서 결과를 본 뒤 정리하세요. 자동으로 다시 보내지 않아요.'
+        : '결과를 확인하지 못한 질문이 있어요. 원래 앱에서 실행됐는지 확인한 뒤 정리하세요. 자동으로 다시 보내지 않아요.';
+    const card = makeCard('warn', '확인이 필요한 질문', text, [btn('실행됐어요', () => review(card, k.requestId, true)), btn('실행되지 않았어요', () => review(card, k.requestId, false))]);
+    return card;
+  }
+  if (k.kind === 'archived') {
+    const card = makeCard('warn', '보관된 세션이에요', '꺼내면 다시 질문할 수 있어요.', [btn('꺼내기', async () => {
+      const r = await api('/v1/sessions/' + c.conversationId + '/restore', { method: 'POST' });
+      if (r.status !== 200) return toast('err', '꺼낼 수 없어요: ' + r.body.error);
+      record(card, '보관함에서 꺼냄'); refresh();
+    })]);
+    return card;
+  }
+  if (k.kind === 'live_off') {
+    const card = makeCard('warn', 'AI 응답이 꺼져 있어요', '켜기 전에는 질문을 보내도 AI가 답하지 않아요. 켜면 질문마다 Codex·Claude가 호출돼요.',
+      device ? [btn('AI 응답 켜기', async () => { if (await setLive(true)) record(card, 'AI 응답 켬'); })] : []);
+    return card;
+  }
+  return null;
+}
+function retryCard() {
+  const { code, question } = retry;
+  const [kind, text] = ERR[code] || ['err', '보내지 못했어요: ' + code];
+  const acts = ['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit'].includes(code)
+    ? [btn('다시 보내기', () => { const q = retry.question; retry = null; renderCards(true); send(q); }), btn('닫기', () => { retry = null; renderCards(true); })]
+    : [btn('닫기', () => { retry = null; renderCards(true); })];
+  return makeCard(kind, '보내지 못한 질문', text + ' (질문: "' + (question.length > 40 ? question.slice(0, 40) + '…' : question) + '")', acts);
+}
+// 같은 카드가 계속 다시 그려지지 않게, 내용이 바뀔 때만 그린다(누른 기록이 5초 새로고침에 지워지지 않게).
+function renderCards(force) {
+  const c = conv(); const box = $('cards');
+  const mine = retry && c && retry.conversationId === c.conversationId ? retry : null;
+  const mineDone = done.filter((d) => c && d.conversationId === c.conversationId);
+  const key = (c?.conversationId || '') + JSON.stringify(cards) + (mine ? mine.code + mine.question : '') + mineDone.length;
+  if (!force && key === cardsKey) return;
+  cardsKey = key; box.replaceChildren();
+  if (!c) return;
+  for (const k of cards) { const v = cardView(k, c); if (v) box.append(v); }
+  if (mine) box.append(retryCard());
+  for (const d of mineDone.slice(-3)) { const v = makeCard('info', d.title, null); v.append(el('div', '✓ ' + d.text + ' · ' + d.at, 'done')); box.append(v); }
+}
+async function loadCards() {
+  if (!current) { cards = []; return renderCards(); }
+  const id = current;
+  const r = await api('/v1/conversations/' + id + '/cards').catch(() => null);
+  if (id !== current) return;
+  cards = r && r.status === 200 ? r.body.cards : [];
+  renderCards(); renderSendable();
+}
+function renderSendable() {
+  const c = conv(); if (!c) return;
+  const blocked = cards.some((k) => BLOCKING.has(k.kind));
+  const can = c.deviceOnline && c.engineReady !== false && !c.busy && !pending && !blocked;
+  $('question').disabled = !can; $('send').disabled = !can;
+}
 function renderHead() {
   const c = conv(); if (!c) return;
   $('title').textContent = c.label;
   $('engineChip').hidden = false; $('engineChip').textContent = ENGINE[c.engine] || c.engine;
-  const [k, s] = stateOf(c);
-  $('stateChip').hidden = false; $('stateChip').textContent = s;
+  $('stateChip').hidden = false; $('stateChip').textContent = stateOf(c)[1];
   $('panelBtn').hidden = false;
-  const can = c.deviceOnline && c.engineReady !== false && !c.busy && !pending;
-  $('question').disabled = !can; $('send').disabled = !can;
   $('question').placeholder = c.label + '에게 메시지';
-  renderPanel(c);
-  // 보낼 수 없는 이유는 대화 안에 안내로 보인다(같은 이유는 한 번만).
-  const key = c.conversationId + ':' + (pending ? 'pending' : k + s + (c.heldBy?.requestId || ''));
-  if (shownNotice === key) return;
-  shownNotice = key;
-  document.querySelectorAll('#msgs .notice.state').forEach((n) => n.remove());
-  if (pending) return;
-  let n = null;
-  if (!c.deviceOnline) n = addNotice('err', ERR.device_unavailable[1]);
-  else if (c.engineReady === false) n = addNotice('err', ERR[c.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down'][1]);
-  else if (c.heldBy) {
-    const text = c.heldBy.status === 'approval_required' ? '원래 세션에서 권한 확인이 필요해 멈춘 질문이 있어요. 자동으로 승인하지 않아요.'
-      : c.heldBy.errorCode === 'turn_joined_by_other_input' ? '처리 중에 TUI 입력이 합류해 결과를 확정하지 못한 질문이 있어요. 자동으로 다시 보내지 않아요.'
-        : '결과를 확인하지 못한 질문이 있어요. 원래 앱에서 실행됐는지 확인한 뒤 정리하세요. 자동으로 다시 보내지 않아요.';
-    n = addNotice('warn', text, [['실행됐어요', () => review(true)], ['실행되지 않았어요', () => review(false)]]);
-  } else if (c.busy) n = addNotice('warn', ERR.conversation_busy[1]);
-  if (n) n.classList.add('state');
+  renderPanel(c); renderSendable();
 }
-async function review(executed) {
-  const c = conv(); if (!c?.heldBy) return;
-  const r = await api('/v1/requests/' + c.heldBy.requestId + '/review', { method: 'POST', body: JSON.stringify({ executed }) });
+async function review(card, requestId, executed) {
+  const r = await api('/v1/requests/' + requestId + '/review', { method: 'POST', body: JSON.stringify({ executed }) });
   if (r.status !== 200) return toast('err', '정리할 수 없어요: ' + r.body.error);
-  toast('ok', executed ? '실행된 것으로 정리했어요. 받지 못한 답은 저장하지 않았어요' : '실행되지 않은 것으로 정리했어요. 필요하면 직접 다시 보내세요');
-  shownNotice = null; load();
+  record(card, executed ? '실행된 것으로 정리함(받지 못한 답은 저장하지 않음)' : '실행되지 않은 것으로 정리함(필요하면 직접 다시 보내세요)');
+  refresh();
 }
+async function refresh() { await load(); await loadCards(); }
 const qa = $('question');
 qa.addEventListener('input', () => { qa.style.height = 'auto'; qa.style.height = Math.min(qa.scrollHeight, 180) + 'px'; });
 qa.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('compose').requestSubmit(); } });
-$('compose').onsubmit = async (e) => {
+$('compose').onsubmit = (e) => {
   e.preventDefault();
   const question = qa.value.trim(); if (!question || !current || pending) return;
+  qa.value = ''; qa.style.height = 'auto';
+  send(question);
+};
+// 질문은 사용자가 보내기·다시 보내기를 누를 때만 나간다(매번 새 중복 방지 키). 결과 불명은 다시 보내지 않는다.
+async function send(question) {
   const id = current;
   const { status, body } = await api('/v1/conversations/' + id + '/requests', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ question }) });
-  if (status !== 202) { const [k, t] = ERR[body.error] || ['err', '보낼 수 없어요: ' + body.error]; addNotice(k, t); return; }
-  qa.value = ''; qa.style.height = 'auto';
+  if (status !== 202) { retry = { conversationId: id, question, code: body.error }; renderCards(true); return; }
+  retry = null;
   pending = body.requestId;
   document.querySelectorAll('#msgs .welcome').forEach((w) => w.remove());
   $('msgs').append(el('div', question, 'bubble me'));
@@ -396,12 +477,12 @@ $('compose').onsubmit = async (e) => {
       await new Promise((r) => setTimeout(r, 2000));
       const r = (await api('/v1/requests/' + pending)).body;
       if (r.status === 'completed') { s2.textContent = '✓ 완료'; s2.className = 'done'; out.textContent = r.answer ?? '(보관하지 않은 답변)'; out.classList.remove('wait'); break; }
-      if (r.status === 'failed') { out.remove(); s2.textContent = '보내지 못함'; const [k, t] = ERR[r.errorCode] || ['err', '실행하지 못했어요: ' + r.errorCode]; addNotice(k, t); break; }
+      if (r.status === 'failed') { out.remove(); s2.textContent = '보내지 못함'; retry = { conversationId: id, question, code: r.errorCode }; break; }
       if (r.status === 'unknown') { out.remove(); s2.textContent = '확인 필요'; break; }
       if (r.status === 'approval_required') { out.remove(); s2.textContent = '권한 확인 대기'; break; }
     }
-  } finally { pending = null; shownNotice = null; if (current === id) await load(); }
-};
+  } finally { pending = null; if (current === id) await refresh(); }
+}
 
 // --- 연결 설정 패널 ---
 function setPanel(open) { $('panel').hidden = !open; $('panelBtn').setAttribute('aria-expanded', String(open)); }
@@ -441,9 +522,29 @@ $('nsDelete').onclick = async () => {
   toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '"' + c.newSession.name + '"을 삭제했어요' : (NS_ERR[r.body.error] || r.body.error)); load();
 };
 
+const PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', kakao: '카카오톡' };
+const ignored = new Set();
+async function loadDenied() {
+  const r = await api('/v1/admin/denied').catch(() => null);
+  const list = r && r.status === 200 ? r.body.denied.filter((d) => !ignored.has(d.platform + ':' + d.botId + ':' + d.userId)) : [];
+  const box = $('denied'); box.replaceChildren(); box.hidden = !list.length;
+  if (!list.length) return;
+  box.append(el('b', '메신저에서 허용을 기다리는 사람 ' + list.length));
+  for (const d of list.slice(0, 3)) {
+    const row = el('div', null, 'drow');
+    row.append(el('span', (PLAT[d.platform] || d.platform) + ' · ' + (d.name || d.userId)));
+    row.append(btn('허용', async () => {
+      const x = await api('/v1/admin/denied/allow', { method: 'POST', body: JSON.stringify({ platform: d.platform, botId: d.botId, userId: d.userId }) });
+      toast(x.status === 200 ? 'ok' : 'err', x.status === 200 ? (d.name || d.userId) + '님을 허용했어요. 메신저에서 다시 보내 보세요' : '허용하지 못했어요: ' + x.body.error); loadDenied();
+    }));
+    row.append(btn('무시', () => { ignored.add(d.platform + ':' + d.botId + ':' + d.userId); loadDenied(); }));
+    box.append(row);
+  }
+  if (list.length > 3) box.append(el('div', '외 ' + (list.length - 3) + '명 — 설정 → 메신저에서 볼 수 있어요'));
+}
 boot();
 setInterval(() => { if (!$('app').hidden && !pending) load().catch(() => {}); }, 5000);
-setInterval(() => { if (!$('app').hidden) loadDevice().catch(() => {}); }, 30000);
+setInterval(() => { if (!$('app').hidden) { loadDevice().catch(() => {}); loadDenied().catch(() => {}); } }, 30000);
 </script>
 </body>
 </html>

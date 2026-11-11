@@ -166,6 +166,23 @@ export function createApp(config) {
     return true;
   };
 
+  // U2: 이 PC의 실제 실행(AI 응답) 설정. 허브·설정 없음은 null(카드로 알리지 않음).
+  const localLive = () => {
+    if (access || !config.connectorConfigPath || !existsSync(config.connectorConfigPath)) return null;
+    try { return readDevice(config.connectorConfigPath).live; } catch { return null; }
+  };
+  // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
+  const cardsFor = (c, live) => {
+    const cards = [];
+    if (hubLink?.hubMode()) cards.push({ kind: 'hub_mode', hubUrl: hubLink.status().hubUrl ?? null });
+    else if (!online(c.hostId)) cards.push({ kind: 'device_offline' });
+    else if (engineReady(c) === false) cards.push({ kind: 'engine_off', engine: c.engine });
+    if (c.heldBy) cards.push({ kind: 'held', requestId: c.heldBy.requestId, status: c.heldBy.status, errorCode: c.heldBy.errorCode ?? null });
+    if (c.newSession?.state === 'archived') cards.push({ kind: 'archived' });
+    if (live === false && !hubLink?.hubMode()) cards.push({ kind: 'live_off' });
+    return cards;
+  };
+
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
@@ -591,13 +608,21 @@ export function createApp(config) {
       }
 
       if (req.method === 'GET' && path === '/v1/conversations') {
+        const live = localLive();
         return json(res, 200, { conversations: store.conversations(principal).map((c) => ({
           conversationId: c.conversationId, label: labelOf(c), engine: c.engine,
           deviceOnline: online(c.hostId), busy: c.busy, ...(c.connectMode ? { connectMode: c.connectMode } : {}),
           ...(c.heldBy ? { heldBy: c.heldBy } : {}),
           ...(c.newSession ? { newSession: c.newSession } : {}),
           ...(engineReady(c) === undefined ? {} : { engineReady: engineReady(c) }),
+          attention: cardsFor(c, live).length,
         })) });
+      }
+      // U2: 대화 안의 카드. 보낼 수 없는 이유·확인 필요 등 사용자가 처리할 일을 대화별로 모아 준다(동작은 기존 API).
+      const cardsPath = path.match(/^\/v1\/conversations\/([\w-]+)\/cards$/);
+      if (req.method === 'GET' && cardsPath) {
+        const conv = store.conversations(principal).find((c) => c.conversationId === cardsPath[1]);
+        return conv ? json(res, 200, { cards: cardsFor(conv, localLive()) }) : json(res, 404, { error: 'not_found' });
       }
       // --- 새 세션 만들기(설계 NEW_SESSIONS) ---
       if (path === '/v1/sessions' || path.startsWith('/v1/sessions/')) {
@@ -647,6 +672,8 @@ export function createApp(config) {
         if (!key || !/^[\w-]{8,64}$/.test(key) || !question || question.length > MAX_QUESTION) return json(res, 400, { error: 'bad_request' });
         const conv = store.conversations(principal).find((c) => c.conversationId === m[1]);
         if (!conv) return json(res, 404, { error: 'not_found' });
+        // 이 PC가 허브에 연결돼 있으면 이 PC 서버는 작업을 내주지 않으므로, 받아 두면 처리되지 않은 채 남는다 → 처음부터 받지 않는다(U2).
+        if (hubLink?.hubMode()) return json(res, 409, { error: 'hub_mode' });
         if (!online(conv.hostId)) return json(res, 503, { error: 'device_unavailable' });
         if (engineReady(conv) === false) {
           return json(res, 503, { error: conv.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down' });
