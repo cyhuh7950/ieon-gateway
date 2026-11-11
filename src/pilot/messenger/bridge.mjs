@@ -10,6 +10,7 @@ const MAX_CHUNK = { telegram: 3800, discord: 1900, slack: 3800, kakao: 950 };
 const ERR = {
   conversation_busy: '이 세션에서 처리 중인 질문이 있어 보낼 수 없음',
   device_unavailable: 'PC 연결이 끊겨 보낼 수 없음',
+  hub_mode: '이 PC는 허브에 연결돼 있어 여기서 받은 질문은 처리하지 않음 — 허브에 연결된 봇이나 허브 화면에서 보내기',
   desktop_holds_thread: 'Desktop에서 이 대화를 열고 있어 보내지 않았음 — Desktop에서 대화를 닫고 다시 보내기',
   thread_busy: '공유 서버에서 이 대화가 사용 중이라 보내지 않았음',
   thread_not_open: '공유 서버에 이 대화가 열려 있지 않음',
