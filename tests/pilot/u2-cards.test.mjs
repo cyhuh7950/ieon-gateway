@@ -61,10 +61,12 @@ test('허브에 연결된 PC는 질문을 받지 않고(처리되지 않은 채 
   await s.poll();
   s.app.hubLink.hubMode = () => true;
   assert.deepEqual(await s.cards('c_codex'), ['hub_mode'], 'AI 응답 꺼짐보다 허브 연결이 먼저, 꺼짐 카드는 내지 않음');
+  assert.equal((await s.call('/v1/conversations')).body.hubMode, true, '목록도 허브 연결을 알려 상태 문구가 카드와 같게');
   const r = await s.call('/v1/conversations/c_codex/requests', { method: 'POST', body: { question: '비밀 질문' }, headers: { 'idempotency-key': 'k-hubmode-0001' } });
   assert.equal(r.status, 409);
   assert.equal(r.body.error, 'hub_mode');
   s.app.hubLink.hubMode = () => false;
+  assert.equal((await s.call('/v1/conversations')).body.hubMode, undefined);
   const ok = await s.call('/v1/conversations/c_codex/requests', { method: 'POST', body: { question: '비밀 질문' }, headers: { 'idempotency-key': 'k-hubmode-0002' } });
   assert.equal(ok.status, 202);
   const held = JSON.stringify((await s.call('/v1/conversations/c_codex/cards')).body);
@@ -88,4 +90,5 @@ test('화면: 카드는 위쪽에 모으고, 누른 결과를 남기며, 다시 
   assert.ok(retryCodes, '다시 보내기는 보내지 않은 것이 확실한 경우만');
   assert.ok(!/retry = \{[^}]*unknown/.test(APP));
   assert.ok(APP.includes("'/v1/admin/denied/allow'"), '메신저 허용 요청을 그 자리에서');
+  assert.ok(APP.includes("if (hubMode) return ['warn'"), '허브 연결 중 목록 상태');
 });
