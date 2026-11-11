@@ -609,7 +609,8 @@ export function createApp(config) {
 
       if (req.method === 'GET' && path === '/v1/conversations') {
         const live = localLive();
-        return json(res, 200, { conversations: store.conversations(principal).map((c) => ({
+        // hubMode: 이 PC가 허브에 연결돼 있어 여기서는 질문을 받지 않음(목록·상단 상태가 카드와 같은 말을 하도록).
+        return json(res, 200, { ...(hubLink?.hubMode() ? { hubMode: true } : {}), conversations: store.conversations(principal).map((c) => ({
           conversationId: c.conversationId, label: labelOf(c), engine: c.engine,
           deviceOnline: online(c.hostId), busy: c.busy, ...(c.connectMode ? { connectMode: c.connectMode } : {}),
           ...(c.heldBy ? { heldBy: c.heldBy } : {}),
