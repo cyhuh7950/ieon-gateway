@@ -2,16 +2,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SERVER = fileURLToPath(new URL('../../src/pilot/ieon-channel.mjs', import.meta.url));
-const PORT = 18799;
-const BASE = `http://127.0.0.1:${PORT}`;
+// 고정 포트는 다른 프로그램과 겹칠 수 있다(2026-11-11 WSL 중계가 18799를 씀) → 빈 포트를 골라 쓴다.
+const freePort = () => new Promise((ok, fail) => { const s = createServer(); s.once('error', fail); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => ok(port)); }); });
 
 test('이어온 채널: 전달·reply·중복·인증', async () => {
+  const PORT = await freePort();
+  const BASE = `http://127.0.0.1:${PORT}`;
   const dir = mkdtempSync(join(tmpdir(), 'ieon-c1-'));
   const tokenFile = join(dir, 'token');
   writeFileSync(tokenFile, 'test-token-0123456789');
