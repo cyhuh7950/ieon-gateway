@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어온 쉬운 화면 시안 v1</title>
+<style>
+:root {
+  --bg:#f3f5f7; --surface:#fff; --surface-alt:#f7f9fb; --text:#1f2329; --muted:#5b6573; --border:#dfe3e8;
+  --accent:#0f766e; --accent-soft:#e6f4f2; --on-accent:#fff; --warn:#8a5a00; --warn-soft:#fdf3dc; --ok:#17654d;
+  --shadow:0 12px 40px rgba(20,30,40,.14); --radius:14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0f1214; --surface:#171b1e; --surface-alt:#1d2226; --text:#e8ecef; --muted:#9aa6b1; --border:#2a3136;
+  --accent:#2bb3a5; --accent-soft:#16312e; --on-accent:#06201d; --warn:#f0c46a; --warn-soft:#33290f; --ok:#5fd0a8; --shadow:0 12px 40px rgba(0,0,0,.5);
+} }
+:root[data-theme="dark"] {
+  --bg:#0f1214; --surface:#171b1e; --surface-alt:#1d2226; --text:#e8ecef; --muted:#9aa6b1; --border:#2a3136;
+  --accent:#2bb3a5; --accent-soft:#16312e; --on-accent:#06201d; --warn:#f0c46a; --warn-soft:#33290f; --ok:#5fd0a8; --shadow:0 12px 40px rgba(0,0,0,.5);
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; height:100vh; display:flex; flex-direction:column; background:var(--bg); color:var(--text); font:15px/1.55 "Pretendard","Malgun Gothic",system-ui,sans-serif; }
+button { font:inherit; color:inherit; cursor:pointer; }
+button:focus-visible, input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.muted { color:var(--muted); }
+.small { font-size:13px; }
+
+/* 시안 안내 줄(실제 화면에는 없음) */
+.demo { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:8px 16px; background:var(--surface-alt); border-bottom:1px dashed var(--border); font-size:13px; }
+.demo b { margin-right:4px; }
+.demo button { border:1px solid var(--border); background:var(--surface); border-radius:999px; padding:3px 12px; }
+.demo button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+.demo .need { margin-left:auto; }
+
+/* 처음 실행 안내 */
+.onboard { flex:1; min-height:0; overflow:auto; display:grid; place-items:center; padding:16px; }
+.card { width:min(560px,100%); background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; box-shadow:var(--shadow); }
+.logo { width:44px; height:44px; border-radius:12px; background:var(--accent); color:var(--on-accent); display:grid; place-items:center; font-weight:700; font-size:22px; }
+.card h1 { font-size:22px; margin:14px 0 4px; }
+.steps { display:flex; justify-content:space-between; align-items:center; margin-top:22px; font-size:13px; }
+.dots { display:flex; gap:6px; } .dots i { width:7px; height:7px; border-radius:99px; background:var(--border); }
+.dots i.on { width:20px; background:var(--accent); }
+.primary { width:100%; border:0; border-radius:12px; padding:12px; background:var(--accent); color:var(--on-accent); font-weight:600; margin-top:18px; }
+.ghost { border:0; background:none; color:var(--muted); padding:4px 0; }
+.field { display:flex; flex-direction:column; gap:6px; margin-top:16px; }
+.field input { border:1px solid var(--border); background:var(--surface-alt); border-radius:10px; padding:10px 12px; font:inherit; color:inherit; }
+.check { display:flex; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--border); border-radius:12px; margin-top:10px; }
+.check .ic { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent); font-weight:700; }
+.check .st { margin-left:auto; font-size:13px; }
+.st.ok { color:var(--ok); } .st.no { color:var(--muted); }
+.pick { width:100%; text-align:left; display:flex; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--border); background:var(--surface); border-radius:12px; margin-top:8px; }
+.pick:hover { border-color:var(--accent); }
+.pick[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft); }
+.pick .t { font-weight:600; } .pick .r { margin-left:auto; font-size:13px; color:var(--muted); white-space:nowrap; }
+details.adv { margin-top:14px; border-top:1px solid var(--border); padding-top:10px; }
+details.adv summary { cursor:pointer; color:var(--muted); font-size:14px; }
+details.adv[open] summary { margin-bottom:8px; }
+
+/* 메인 */
+.app { display:grid; grid-template-columns:280px 1fr auto; flex:1; min-height:0; }
+.chat { min-height:0; }
+.side { background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
+.side-top { display:flex; align-items:center; gap:10px; padding:16px; }
+.side-top .name { font-weight:700; }
+.side-top .pc { font-size:12px; color:var(--muted); }
+.addbtn { margin:0 12px 8px; border:1px dashed var(--border); background:none; border-radius:12px; padding:10px; color:var(--accent); font-weight:600; }
+.list { overflow:auto; flex:1; padding:0 8px; }
+.row { width:100%; text-align:left; border:0; background:none; border-radius:12px; padding:10px 10px; display:grid; grid-template-columns:36px 1fr auto; gap:10px; align-items:center; }
+.row[aria-current="true"] { background:var(--accent-soft); }
+.av { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; font-weight:700; color:#fff; font-size:13px; }
+.av.codex { background:#3b4a63; } .av.claude { background:#b86a45; }
+.row .t { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.row .s { font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.row .time { font-size:12px; color:var(--muted); align-self:start; }
+.badge { font-size:11px; padding:1px 6px; border-radius:99px; background:var(--warn-soft); color:var(--warn); margin-left:4px; }
+.side-bottom { border-top:1px solid var(--border); padding:8px; display:flex; flex-direction:column; gap:2px; }
+.side-bottom button { border:0; background:none; text-align:left; padding:9px 10px; border-radius:10px; display:flex; gap:10px; align-items:center; }
+.side-bottom button:hover { background:var(--surface-alt); }
+.side-bottom .sub { margin-left:auto; font-size:12px; color:var(--muted); }
+
+.chat { display:flex; flex-direction:column; min-width:0; }
+.head { display:flex; align-items:center; gap:10px; padding:12px 18px; border-bottom:1px solid var(--border); background:var(--surface); flex-wrap:wrap; }
+.head h2 { margin:0; font-size:17px; }
+.chip { font-size:12px; padding:3px 9px; border-radius:99px; background:var(--surface-alt); border:1px solid var(--border); color:var(--muted); }
+.spacer { flex:1; }
+.switch { display:flex; align-items:center; gap:8px; border:1px solid var(--border); background:var(--surface); border-radius:99px; padding:4px 10px 4px 4px; font-size:13px; }
+.switch .knob { width:34px; height:20px; border-radius:99px; background:var(--border); position:relative; }
+.switch .knob::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff; transition:left .15s; }
+.switch[aria-checked="true"] .knob { background:var(--accent); } .switch[aria-checked="true"] .knob::after { left:16px; }
+.iconbtn { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:6px 10px; font-size:13px; }
+.msgs { flex:1; overflow:auto; padding:20px 18px; display:flex; flex-direction:column; gap:14px; }
+.bubble { max-width:min(640px,88%); padding:10px 14px; border-radius:14px; }
+.me { align-self:flex-end; background:var(--accent); color:var(--on-accent); border-bottom-right-radius:4px; }
+.ai { align-self:flex-start; background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; }
+.via { font-size:12px; color:var(--muted); margin-top:4px; }
+.me .via { color:inherit; opacity:.8; text-align:right; }
+.status { align-self:flex-start; display:flex; gap:6px; flex-wrap:wrap; font-size:12px; }
+.status span { padding:2px 8px; border-radius:99px; background:var(--surface-alt); border:1px solid var(--border); color:var(--muted); }
+.status span.done { color:var(--ok); border-color:currentColor; }
+.notice { align-self:stretch; border:1px solid var(--warn); background:var(--warn-soft); color:var(--warn); border-radius:12px; padding:10px 14px; font-size:14px; }
+.compose { display:flex; gap:8px; padding:12px 18px 18px; }
+.compose input { flex:1; border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:12px 14px; font:inherit; color:inherit; }
+.compose button { border:0; background:var(--accent); color:var(--on-accent); border-radius:12px; padding:0 18px; font-weight:600; }
+
+.panel { width:320px; background:var(--surface); border-left:1px solid var(--border); overflow:auto; padding:16px 18px; }
+.panel[hidden] { display:none; }
+.panel h3 { font-size:15px; margin:0 0 12px; display:flex; justify-content:space-between; align-items:center; }
+.kv { display:grid; grid-template-columns:96px 1fr; gap:8px 10px; font-size:14px; }
+.kv dt { color:var(--muted); } .kv dd { margin:0; }
+.sec { border-top:1px solid var(--border); margin-top:16px; padding-top:14px; }
+.sec h4 { margin:0 0 8px; font-size:14px; }
+.link { border:0; background:none; color:var(--accent); padding:0; font-weight:600; }
+.mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; word-break:break-all; }
+
+/* 모달 */
+.scrim { position:fixed; inset:0; background:rgba(10,15,20,.45); display:grid; place-items:center; padding:16px; z-index:10; }
+.scrim[hidden] { display:none; }
+.modal { width:min(520px,100%); background:var(--surface); border-radius:18px; padding:24px; box-shadow:var(--shadow); max-height:calc(100vh - 32px); overflow:auto; }
+.modal h2 { margin:0 0 6px; font-size:19px; }
+.row2 { display:flex; gap:8px; margin-top:18px; }
+.row2 .primary { margin-top:0; }
+.secondary { flex:0 0 auto; border:1px solid var(--border); background:var(--surface); border-radius:12px; padding:12px 16px; }
+.grid4 { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:14px; }
+.code { font-size:34px; letter-spacing:8px; font-weight:700; text-align:center; padding:14px; border-radius:12px; background:var(--accent-soft); color:var(--accent); margin:14px 0 6px; }
+ol.guide { padding-left:20px; margin:12px 0 0; } ol.guide li { margin:6px 0; }
+.setnav { display:grid; grid-template-columns:150px 1fr; gap:16px; }
+.setnav nav { display:flex; flex-direction:column; gap:2px; }
+.setnav nav button { border:0; background:none; text-align:left; padding:8px 10px; border-radius:10px; }
+.setnav nav button[aria-current="true"] { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+.note { font-size:12px; color:var(--muted); background:var(--surface-alt); border:1px dashed var(--border); border-radius:10px; padding:8px 10px; margin-top:12px; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns:1fr; }
+  .side { display:none; } .app.list-open .side { display:flex; position:fixed; inset:44px 0 0 0; z-index:5; }
+  .panel { position:fixed; inset:44px 0 0 auto; width:min(340px,100%); z-index:6; box-shadow:var(--shadow); }
+  .setnav { grid-template-columns:1fr; } .setnav nav { flex-direction:row; flex-wrap:wrap; }
+}
+</style>
+</head>
+<body>
+
+<div class="demo" role="toolbar" aria-label="시안 화면 고르기">
+  <b>시안</b>
+  <button data-go="ob1" aria-pressed="true">① 처음 실행</button>
+  <button data-go="main" aria-pressed="false">② 메인 화면</button>
+  <button data-go="msg" aria-pressed="false">③ 메신저 연결</button>
+  <button data-go="set" aria-pressed="false">④ 설정</button>
+  <span class="need muted" id="need"></span>
+</div>
+
+<!-- ① 처음 실행: 3단계, 필수 선택은 "대화 하나 고르기" 하나 -->
+<section class="onboard" id="v-ob1">
+  <div class="card">
+    <div class="logo" aria-hidden="true">이</div>
+    <h1>이어온을 시작합니다</h1>
+    <p class="muted">쓰던 Codex·Claude Code 대화를 메신저와 웹에서 이어서 씁니다. 이 PC에서 필요한 것은 자동으로 확인했어요.</p>
+    <div class="check"><div class="ic">C</div><div><b>Codex</b><div class="small muted">이 PC의 Codex 앱에 로그인돼 있어요</div></div><span class="st ok">✓ 준비됨</span></div>
+    <div class="check"><div class="ic">A</div><div><b>Claude Code</b><div class="small muted">로그인돼 있어요. 채널 연결은 나중에 할 수 있어요</div></div><span class="st ok">✓ 준비됨</span></div>
+    <details class="adv"><summary>고급: PC 이름</summary>
+      <div class="field"><label for="pcname" class="small muted">다른 기기와 구분할 이름(자동으로 정함)</label><input id="pcname" value="신산 PC"></div>
+    </details>
+    <button class="primary" data-go="ob2">계속</button>
+    <div class="steps"><button class="ghost" disabled>뒤로</button><div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div><span class="muted">1 / 3</span></div>
+  </div>
+</section>
+
+<section class="onboard" id="v-ob2" hidden>
+  <div class="card">
+    <div class="logo" aria-hidden="true">이</div>
+    <h1>이어 쓸 대화를 고르세요</h1>
+    <p class="muted">이 PC에서 최근에 쓴 대화예요. 고른 대화만 이어온이 다룹니다.</p>
+    <div id="picks">
+      <button class="pick" aria-pressed="false"><div class="av codex">Cx</div><div><div class="t">결산 자동화 스크립트</div><div class="small muted">D:\work\closing</div></div><span class="r">10분 전</span></button>
+      <button class="pick" aria-pressed="false"><div class="av codex">Cx</div><div><div class="t">홈페이지 문구 다듬기</div><div class="small muted">D:\site</div></div><span class="r">어제</span></button>
+      <button class="pick" aria-pressed="false"><div class="av claude">Cl</div><div><div class="t">이어온 시험 세션</div><div class="small muted">D:\Project\ieon-gateway</div></div><span class="r">3일 전</span></button>
+    </div>
+    <button class="ghost small" style="margin-top:8px">대화 더 보기</button>
+    <details class="adv"><summary>고급: 새 대화로 시작 · 대화 ID 직접 넣기</summary>
+      <p class="small muted" style="margin:0">목록에 없으면 이어온이 새 대화를 만들거나, 대화 ID를 직접 넣을 수 있어요.</p>
+    </details>
+    <div class="note">시안 메모: 업무 대화처럼 이어온이 다루면 안 되는 대화는 이 목록에 처음부터 나오지 않게 한다(조회 범위는 결정 필요).</div>
+    <button class="primary" id="ob2next" data-go="ob3" disabled>이 대화로 시작</button>
+    <div class="steps"><button class="ghost" data-go="ob1">뒤로</button><div class="dots" aria-hidden="true"><i></i><i class="on"></i><i></i></div><span class="muted">2 / 3</span></div>
+  </div>
+</section>
+
+<section class="onboard" id="v-ob3" hidden>
+  <div class="card">
+    <div class="logo" aria-hidden="true">이</div>
+    <h1>준비됐어요</h1>
+    <p class="muted">이제 웹에서 바로 질문할 수 있어요. 메신저로도 쓰려면 아래에서 연결하세요. 나중에 해도 됩니다.</p>
+    <button class="pick" data-go="msg"><div class="av" style="background:#229ED9">✈</div><div><div class="t">메신저로도 쓰기</div><div class="small muted">텔레그램·디스코드·슬랙·카카오톡</div></div><span class="r">선택</span></button>
+    <button class="pick"><div class="av" style="background:#5b6573">⇄</div><div><div class="t">밖에서도 쓰기(허브)</div><div class="small muted">PC가 꺼져 있을 때도 새 대화가 답해요</div></div><span class="r">선택</span></button>
+    <button class="primary" data-go="main">대화 열기</button>
+    <div class="steps"><button class="ghost" data-go="ob2">뒤로</button><div class="dots" aria-hidden="true"><i></i><i></i><i class="on"></i></div><span class="muted">3 / 3</span></div>
+  </div>
+</section>
+
+<!-- ② 메인: 왼쪽 대화 목록, 가운데 대화, 오른쪽 연결 설정 -->
+<section class="app" id="v-main" hidden>
+  <aside class="side" aria-label="연결한 대화">
+    <div class="side-top"><div class="logo" style="width:34px;height:34px;font-size:17px" aria-hidden="true">이</div><div><div class="name">이어온</div><div class="pc">신산 PC · 연결됨</div></div></div>
+    <button class="addbtn">＋ 대화 연결</button>
+    <div class="list">
+      <button class="row" aria-current="true"><div class="av codex">Cx</div><div style="min-width:0"><div class="t">결산 자동화 스크립트</div><div class="s">합계가 맞지 않던 원인은 반올림…</div></div><span class="time">방금</span></button>
+      <button class="row"><div class="av codex">Cx</div><div style="min-width:0"><div class="t">홈페이지 문구 다듬기<span class="badge">사용 중</span></div><div class="s">Codex 앱에서 열려 있어요</div></div><span class="time">어제</span></button>
+      <button class="row"><div class="av claude">Cl</div><div style="min-width:0"><div class="t">이어온 시험 세션</div><div class="s">Claude Code가 꺼져 있어요</div></div><span class="time">3일</span></button>
+    </div>
+    <div class="side-bottom">
+      <button data-go="msg"><span aria-hidden="true">✈</span>메신저<span class="sub">텔레그램 연결됨</span></button>
+      <button data-go="set"><span aria-hidden="true">⚙</span>설정</button>
+    </div>
+  </aside>
+
+  <main class="chat">
+    <div class="head">
+      <button class="iconbtn" id="openList" aria-label="대화 목록" style="display:none">☰</button>
+      <h2>결산 자동화 스크립트</h2>
+      <span class="chip">Codex</span><span class="chip">신산 PC</span>
+      <span class="spacer"></span>
+      <button class="switch" role="switch" aria-checked="true" id="aiSwitch"><span class="knob"></span><span id="aiLabel">AI 응답 켜짐</span></button>
+      <button class="iconbtn" id="togglePanel" aria-expanded="true">연결 설정</button>
+    </div>
+    <div class="msgs" id="msgs">
+      <div class="bubble me">월말 합계가 왜 1원씩 틀리는지 봐 줘<div class="via">텔레그램에서 · 오전 9:12</div></div>
+      <div class="status"><span class="done">✓ 접수</span><span class="done">✓ 실행</span><span class="done">✓ 완료 · 38초</span></div>
+      <div class="bubble ai">반올림을 행마다 하고 나서 더하고 있어요. 합계를 먼저 구한 뒤 한 번만 반올림하도록 고쳤습니다. 바꾼 파일은 <b>closing.py</b> 한 개예요.<div class="via">Codex · 같은 대화에서 이어서 답함</div></div>
+      <div class="notice">홈페이지 문구 다듬기 대화는 지금 Codex 앱에서 열려 있어 보내지 않았어요. 앱에서 닫으면 보낼 수 있어요.</div>
+    </div>
+    <form class="compose" id="compose"><input id="q" placeholder="결산 자동화 스크립트에게 메시지" autocomplete="off"><button>보내기</button></form>
+  </main>
+
+  <aside class="panel" id="panel" aria-label="연결 설정">
+    <h3>연결 설정 <button class="ghost" id="closePanel" aria-label="닫기">✕</button></h3>
+    <dl class="kv">
+      <dt>엔진</dt><dd>Codex</dd>
+      <dt>PC</dt><dd>신산 PC · 연결됨</dd>
+      <dt>작업 폴더</dt><dd>D:\work\closing <span class="small muted">(대화에서 자동)</span></dd>
+      <dt>상태</dt><dd style="color:var(--ok)">보낼 수 있음</dd>
+    </dl>
+    <div class="sec">
+      <h4>이 대화를 부를 수 있는 곳</h4>
+      <div class="small">웹 · 텔레그램 <span class="muted">(@신산봇)</span></div>
+      <button class="link small" data-go="msg" style="margin-top:6px">메신저 추가</button>
+    </div>
+    <div class="sec">
+      <details class="adv" style="border:0;margin:0;padding:0"><summary>고급</summary>
+        <dl class="kv small">
+          <dt>연결 방식</dt><dd>번갈아 쓰기 <span class="muted">(기본)</span></dd>
+          <dt>권한</dt><dd>작업 폴더 안에서만</dd>
+          <dt>대화 ID</dt><dd class="mono">01a18790-63c7-73e3-…</dd>
+          <dt>마지막 확인</dt><dd>오전 9:13</dd>
+        </dl>
+        <button class="link small" style="margin-top:10px;color:var(--warn)">이 대화 연결 끊기</button>
+      </details>
+    </div>
+  </aside>
+</section>
+
+<!-- 첫 질문 확인: AI 호출을 처음 한 번만 묻는다 -->
+<div class="scrim" id="firstAsk" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="faT">
+    <h2 id="faT">AI가 이 질문에 답해요</h2>
+    <p class="muted">질문을 보내면 이 PC의 Codex가 같은 대화에서 이어서 답합니다. 쓰는 만큼 Codex 사용량이 차감돼요. 위쪽 스위치로 언제든 끌 수 있어요.</p>
+    <div class="row2"><button class="secondary" data-close>취소</button><button class="primary" id="faOk">보내기</button></div>
+  </div>
+</div>
+
+<!-- ③ 메신저 연결 -->
+<div class="scrim" id="v-msg" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mT">
+    <div id="m1">
+      <h2 id="mT">어느 메신저로 쓸까요?</h2>
+      <p class="muted">하나만 골라도 됩니다. 나머지는 나중에 추가할 수 있어요.</p>
+      <div class="grid4">
+        <button class="pick" data-m="tg"><div class="av" style="background:#229ED9">✈</div><div class="t">텔레그램</div></button>
+        <button class="pick"><div class="av" style="background:#5865F2">D</div><div class="t">디스코드</div></button>
+        <button class="pick"><div class="av" style="background:#4A154B">S</div><div class="t">슬랙</div></button>
+        <button class="pick"><div class="av" style="background:#FEE500;color:#3a2f00">K</div><div class="t">카카오톡</div></button>
+      </div>
+      <div class="row2"><button class="secondary" data-close>나중에</button></div>
+    </div>
+    <div id="m2" hidden>
+      <h2>텔레그램 봇 만들기</h2>
+      <p class="muted">봇 토큰은 텔레그램이 발급해서 이 한 칸만 직접 넣어야 해요.</p>
+      <ol class="guide">
+        <li><button class="link">텔레그램에서 BotFather 열기 ↗</button></li>
+        <li><b>/newbot</b>을 보내고 봇 이름을 두 번 정해요</li>
+        <li>받은 토큰을 아래에 붙여 넣어요</li>
+      </ol>
+      <div class="field"><label for="tok" class="small muted">봇 토큰</label><input id="tok" type="password" placeholder="123456:ABC…" autocomplete="off"></div>
+      <div class="row2"><button class="secondary" data-mback>뒤로</button><button class="primary" id="mSave" disabled>연결</button></div>
+    </div>
+    <div id="m3" hidden>
+      <h2>봇에게 이 숫자를 보내세요</h2>
+      <p class="muted">@신산봇에게 아래 숫자를 보내면, 보낸 사람이 이 봇의 주인으로 자동 등록돼요.</p>
+      <div class="code" aria-label="확인 숫자 4 8 2 9 1 3">482913</div>
+      <p class="small muted" style="text-align:center" id="mWait">기다리는 중… (10분 안에)</p>
+      <div class="row2"><button class="secondary" data-close>닫기</button><button class="primary" id="mDone">(시안) 보냈다고 치기</button></div>
+    </div>
+    <div id="m4" hidden>
+      <h2>텔레그램이 연결됐어요</h2>
+      <p class="muted">이제 @신산봇에게 말하면 <b>결산 자동화 스크립트</b> 대화가 답해요. 다른 대화로 바꾸려면 메신저에서 <b>/대화</b>를 보내세요.</p>
+      <details class="adv"><summary>고급: 봇 이름·부르는 이름·다른 사람 허용·볼 수 있는 대화</summary><p class="small muted" style="margin:0">기본값으로 충분해요. 단체방에서 쓰거나 여러 사람이 쓸 때만 바꾸세요.</p></details>
+      <div class="row2"><button class="primary" data-close>완료</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ④ 설정: 필요한 사람만 여는 곳 -->
+<div class="scrim" id="v-set" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sT" style="width:min(720px,100%)">
+    <h2 id="sT">설정</h2>
+    <p class="small muted">기본값 그대로 써도 돼요. 필요한 것만 여세요.</p>
+    <div class="setnav" style="margin-top:12px">
+      <nav aria-label="설정 항목">
+        <button aria-current="true" data-s="s-gen">일반</button>
+        <button data-s="s-hub">밖에서도 쓰기</button>
+        <button data-s="s-api">내 프로그램 연결</button>
+        <button data-s="s-new">새 대화 만들기</button>
+      </nav>
+      <div>
+        <div id="s-gen">
+          <dl class="kv"><dt>PC 이름</dt><dd>신산 PC</dd><dt>AI 응답</dt><dd>켜짐 <span class="small muted">(대화 위쪽 스위치)</span></dd><dt>버전</dt><dd>0.0.1 · 최신</dd></dl>
+          <div class="sec"><h4>이어온 끄기</h4><p class="small muted" style="margin:0 0 8px">PC를 다시 켜면 자동으로 켜져요.</p><button class="secondary">지금 끄기</button></div>
+        </div>
+        <div id="s-hub" hidden>
+          <p class="small" style="margin-top:0">허브에 연결하면 PC가 꺼져 있어도 새 대화가 답하고, 밖에서 휴대폰으로 열 수 있어요.</p>
+          <button class="primary" style="margin-top:4px">허브 연결 링크로 연결</button>
+          <p class="small muted">허브 화면의 "PC 연결 링크"를 누르면 여기로 돌아와 자동으로 끝나요.</p>
+        </div>
+        <div id="s-api" hidden>
+          <p class="small" style="margin-top:0">내가 만든 프로그램이 이어온에 질문하게 해요.</p>
+          <button class="secondary">키 만들기</button>
+        </div>
+        <div id="s-new" hidden>
+          <p class="small" style="margin-top:0">기존 대화 말고 이어온이 새 대화를 만들어 쓰게 해요. 기본은 꺼짐이에요.</p>
+          <button class="secondary">켜기</button>
+        </div>
+      </div>
+    </div>
+    <div class="row2"><button class="primary" data-close>닫기</button></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const NEED = {
+  ob1: '이 화면에서 꼭 할 일: 없음(계속만 누르기)',
+  ob2: '꼭 할 일: 대화 하나 고르기',
+  ob3: '꼭 할 일: 없음(메신저·허브는 선택)',
+  main: '꼭 할 일: 없음 · 첫 질문 때 한 번 확인',
+  msg: '꼭 할 일(메신저를 쓸 때만): 봇 토큰 한 칸 + 숫자 보내기',
+  set: '꼭 할 일: 없음(전부 선택)',
+};
+let firstAskDone = false;
+let msgFrom = 'main';
+function show(view) {
+  for (const id of ['v-ob1', 'v-ob2', 'v-ob3', 'v-main']) $(id).hidden = true;
+  for (const id of ['v-msg', 'v-set', 'firstAsk']) $(id).hidden = true;
+  if (view === 'msg' || view === 'set') {
+    const base = document.querySelector('.onboard:not([hidden])') ? null : 'v-main';
+    $(msgFrom === 'ob3' ? 'v-ob3' : 'v-main').hidden = false;
+    if (base === null && msgFrom !== 'ob3') $('v-main').hidden = false;
+    $(view === 'msg' ? 'v-msg' : 'v-set').hidden = false;
+    if (view === 'msg') msgStep(1);
+  } else {
+    $('v-' + view).hidden = false;
+  }
+  document.querySelectorAll('.demo [data-go]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.go === view || (view.startsWith('ob') && b.dataset.go === 'ob1'))));
+  $('need').textContent = NEED[view] ?? '';
+}
+document.addEventListener('click', (e) => {
+  const go = e.target.closest('[data-go]');
+  if (go) { msgFrom = go.closest('#v-ob3') ? 'ob3' : 'main'; show(go.dataset.go); return; }
+  if (e.target.closest('[data-close]')) { show(msgFrom === 'ob3' ? 'main' : 'main'); return; }
+});
+// 대화 고르기
+$('picks').addEventListener('click', (e) => {
+  const p = e.target.closest('.pick'); if (!p) return;
+  $('picks').querySelectorAll('.pick').forEach((x) => x.setAttribute('aria-pressed', String(x === p)));
+  $('ob2next').disabled = false;
+});
+// AI 응답 스위치
+$('aiSwitch').addEventListener('click', () => {
+  const on = $('aiSwitch').getAttribute('aria-checked') !== 'true';
+  $('aiSwitch').setAttribute('aria-checked', String(on));
+  $('aiLabel').textContent = on ? 'AI 응답 켜짐' : 'AI 응답 꺼짐';
+});
+// 연결 설정 패널
+const setPanel = (open) => { $('panel').hidden = !open; $('togglePanel').setAttribute('aria-expanded', String(open)); };
+$('togglePanel').addEventListener('click', () => setPanel($('panel').hidden));
+$('closePanel').addEventListener('click', () => setPanel(false));
+// 보내기: 첫 질문만 확인
+function send(text) {
+  const b = document.createElement('div'); b.className = 'bubble me'; b.innerHTML = '';
+  b.textContent = text; const v = document.createElement('div'); v.className = 'via'; v.textContent = '웹에서 · 방금'; b.append(v);
+  const s = document.createElement('div'); s.className = 'status'; s.innerHTML = '<span class="done">✓ 접수</span><span>실행 중…</span>';
+  $('msgs').append(b, s); $('msgs').scrollTop = 1e9;
+  setTimeout(() => { s.innerHTML = '<span class="done">✓ 접수</span><span class="done">✓ 실행</span><span class="done">✓ 완료</span>';
+    const a = document.createElement('div'); a.className = 'bubble ai'; a.textContent = '(시안) 같은 대화에서 이어서 답한 내용이 여기에 나와요.'; $('msgs').append(a); $('msgs').scrollTop = 1e9; }, 1200);
+}
+$('compose').addEventListener('submit', (e) => {
+  e.preventDefault(); const text = $('q').value.trim(); if (!text) return;
+  if ($('aiSwitch').getAttribute('aria-checked') !== 'true') { alert('AI 응답이 꺼져 있어요. 위쪽 스위치를 켜세요.'); return; }
+  if (!firstAskDone) { $('firstAsk').hidden = false; return; }
+  $('q').value = ''; send(text);
+});
+$('faOk').addEventListener('click', () => { firstAskDone = true; $('firstAsk').hidden = true; const t = $('q').value.trim(); $('q').value = ''; send(t); });
+// 메신저 단계
+function msgStep(n) { for (const i of [1, 2, 3, 4]) $('m' + i).hidden = i !== n; }
+document.querySelector('[data-m="tg"]').addEventListener('click', () => msgStep(2));
+document.querySelector('[data-mback]').addEventListener('click', () => msgStep(1));
+$('tok').addEventListener('input', () => { $('mSave').disabled = $('tok').value.trim().length < 10; });
+$('mSave').addEventListener('click', () => { $('tok').value = ''; $('mSave').disabled = true; msgStep(3); });
+$('mDone').addEventListener('click', () => msgStep(4));
+// 설정 항목
+document.querySelector('.setnav nav').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-s]'); if (!b) return;
+  document.querySelectorAll('.setnav nav button').forEach((x) => x.setAttribute('aria-current', String(x === b)));
+  for (const id of ['s-gen', 's-hub', 's-api', 's-new']) $(id).hidden = id !== b.dataset.s;
+});
+// 좁은 화면
+const mq = matchMedia('(max-width: 900px)');
+const narrow = () => { $('openList').style.display = mq.matches ? '' : 'none'; if (mq.matches) setPanel(false); };
+mq.addEventListener('change', narrow); narrow();
+$('openList').addEventListener('click', () => document.querySelector('.app').classList.toggle('list-open'));
+document.querySelector('.list').addEventListener('click', () => document.querySelector('.app').classList.remove('list-open'));
+show('ob1');
+</script>
+</body>
+</html>
