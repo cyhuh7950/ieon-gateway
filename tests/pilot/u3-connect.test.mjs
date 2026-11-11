@@ -34,6 +34,7 @@ test('Codex에 업무 대화를 빼 달라고 요청하고, 섞여 와도 다시
   const p = calls.find((c) => c.method === 'thread/list').params;
   assert.deepEqual(p.excludedThreadIds, [WORK]);
   assert.equal(p.archived, false);
+  assert.equal(p.useStateDbOnly, true, '기록 파일을 다 훑지 않고 상태 DB에서(느려서 시간 초과 나던 문제)');
 });
 
 async function server(t, { threads, cfg = true } = {}) {

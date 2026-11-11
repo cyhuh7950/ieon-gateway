@@ -33,7 +33,9 @@ export function safeThreads(data) {
 }
 
 // app-server를 잠깐 띄워(표준 입출력, 포트 없음) 목록만 받고 끈다.
-export function listCodexThreads({ codex, limit = 30, timeoutMs = 20000, spawnImpl = spawn } = {}) {
+// useStateDbOnly: 모든 기록 파일을 훑지 않고 Codex 상태 DB에서 바로 답한다(기본값은 파일을 다 훑어 대화가 많으면 20초를 넘김, 2026-11-12 이 PC).
+// 시간 제한은 Codex 시작(약 5초)을 넉넉히 덮도록 45초.
+export function listCodexThreads({ codex, limit = 30, timeoutMs = 45000, spawnImpl = spawn } = {}) {
   const { command, args } = codexCommand(codex);
   return new Promise((resolve, reject) => {
     let child;
@@ -58,7 +60,7 @@ export function listCodexThreads({ codex, limit = 30, timeoutMs = 20000, spawnIm
         if (msg.id === 1) {
           if (msg.error) return finish(new Error('codex_init_failed'));
           send({ method: 'initialized' });
-          send({ id: 2, method: 'thread/list', params: { limit, archived: false, excludedThreadIds: [EXCLUDED_THREAD], sortKey: 'recency_at', sortDirection: 'desc' } });
+          send({ id: 2, method: 'thread/list', params: { limit, archived: false, excludedThreadIds: [EXCLUDED_THREAD], sortKey: 'recency_at', sortDirection: 'desc', useStateDbOnly: true } });
         } else if (msg.id === 2) {
           if (msg.error) return finish(new Error('codex_list_failed'));
           return finish(null, safeThreads(msg.result?.data));
