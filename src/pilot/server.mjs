@@ -17,6 +17,8 @@ import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
 import { createCodexLogin } from './codex-login.mjs';
+import { listCodexThreads } from './codex-threads.mjs';
+import { EXCLUDED_THREAD } from './lock-probe.mjs';
 import { supervise } from '../hub/run.mjs';
 import { dirname, join } from 'node:path';
 
@@ -375,6 +377,51 @@ export function createApp(config) {
           if (ct && req.method === 'DELETE') {
             if (!removeCodexThread(cfgPath, ct[1])) return json(res, 404, { error: 'not_found' });
             return json(res, 200, { ...readDevice(cfgPath), ...(await applyDevice()) });
+          }
+          return json(res, 404, { error: 'not_found' });
+        }
+        // U3: 대화 연결 — 이 PC의 최근 Codex 대화 목록(업무 대화 제외)과 한 번에 연결(허용 목록 + 세션 등록). 이 PC에서 연 화면만.
+        if (path === '/v1/admin/local/threads' || path === '/v1/admin/connections') {
+          if (access) return json(res, 404, { error: 'not_found' });
+          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          const cfgPath = config.connectorConfigPath;
+          const allowed = () => new Set(cfgPath && existsSync(cfgPath) ? readDevice(cfgPath).codexThreads.map((x) => x.threadId.toLowerCase()) : []);
+          if (req.method === 'GET' && path === '/v1/admin/local/threads') {
+            let threads;
+            try { threads = await (config.listCodexThreads ?? listCodexThreads)({ codex: config.codex }); } catch { return json(res, 502, { error: 'codex_unavailable' }); }
+            const on = allowed();
+            // 목록은 응답에만 담고 로그에는 남기지 않는다. 업무 대화는 한 번 더 뺀다.
+            return json(res, 200, { threads: threads.filter((t) => t.threadId !== EXCLUDED_THREAD).map((t) => ({ ...t, connected: on.has(t.threadId) })) });
+          }
+          if (req.method === 'POST' && path === '/v1/admin/connections') {
+            if (!cfgPath || !existsSync(cfgPath)) return json(res, 404, { error: 'no_connector_config' });
+            const body = await readJson(req);
+            const threadId = String(body.threadId ?? '').trim().toLowerCase();
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(threadId)) return json(res, 400, { error: 'bad_session_ref' });
+            if (threadId === EXCLUDED_THREAD) return json(res, 400, { error: 'excluded_session' });
+            const hosts = knownHosts();
+            const hostId = body.hostId ? String(body.hostId) : (hosts.length === 1 ? hosts[0] : null);
+            if (!hostId || !hosts.includes(hostId)) return json(res, 400, { error: 'choose_host', hosts });
+            const label = String(body.label ?? '').trim().slice(0, 60) || '이름 없는 대화';
+            // 작업 폴더는 Codex가 알려 준 값을 쓰되, 지금 없는 폴더면 비워 둔다(연결은 막지 않음).
+            const dir = typeof body.workingDirectory === 'string' && body.workingDirectory ? body.workingDirectory : null;
+            try { upsertCodexThread(cfgPath, { threadId, mode: 'alternate', workingDirectory: dir }); } catch (e) {
+              if (!['working_directory_missing', 'bad_working_directory'].includes(e.message)) return json(res, e.http ?? 400, { error: e.message });
+              upsertCodexThread(cfgPath, { threadId, mode: 'alternate', workingDirectory: null });
+            }
+            const existing = store.listBindings().find((b) => b.engine === 'codex_thread' && String(b.sessionRef).toLowerCase() === threadId);
+            let conversationId = existing?.conversationId;
+            if (!conversationId) {
+              const ids = new Set(store.listBindings().map((b) => b.conversationId));
+              const base = 'c_' + threadId.replaceAll('-', '').slice(0, 12);
+              conversationId = base; for (let n = 2; ids.has(conversationId); n += 1) conversationId = base + '_' + n;
+              const appIds = (config.users ?? []).some((u) => u.appId === 'app_messenger') ? ['app_web', 'app_messenger'] : ['app_web'];
+              let v; try { v = validateBinding(conversationId, { engine: 'codex_thread', label, hostId, sessionRef: threadId, appIds }, hosts); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
+              const r = store.saveBinding(principal.userId, v);
+              if (r.http !== 200) return json(res, r.http, { error: r.code });
+            }
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'connection_added', created: !existing }) + '\n');
+            return json(res, 200, { conversationId, created: !existing, ...(await applyDevice()) });
           }
           return json(res, 404, { error: 'not_found' });
         }
