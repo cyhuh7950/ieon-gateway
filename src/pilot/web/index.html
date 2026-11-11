@@ -68,7 +68,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
 </style>
 </head>
 <body>
-<header><h1>이어온</h1><span class="muted" id="modeTag"></span>
+<header><h1>이어온</h1><span class="muted" id="modeTag"></span><a href="/" style="font-size:12px">새 화면으로</a>
   <nav class="tabs" id="tabs" hidden><button type="button" id="tabSessions" aria-pressed="true">세션</button><button type="button" id="tabAdmin" aria-pressed="false">봇 관리</button><button type="button" id="logoutBtn">로그아웃</button></nav></header>
 <div class="layout">
   <aside aria-label="세션 목록">
@@ -345,7 +345,13 @@ function showLogin() {
   $('pw').autocomplete = setup ? 'new-password' : 'current-password';
   $('login').hidden = false;
 }
-function startApp() { $('login').hidden = true; $('pw').value = ''; $('pw2').value = ''; Promise.all([load(), loadLimits(), initAdmin()]).catch(() => {}); }
+// 새 화면(`/`)에서 `/classic#pc`처럼 들어오면 그 관리 탭을 바로 연다(#sessions는 세션 등록 탭).
+function openHash() {
+  const h = location.hash.slice(1);
+  if (!/^[a-z]+$/.test(h) || $('tabs').hidden || !document.querySelector('#atabs [data-atab="' + h + '"]')) return;
+  showTab(true); showAtab(h);
+}
+function startApp() { $('login').hidden = true; $('pw').value = ''; $('pw2').value = ''; Promise.all([load(), loadLimits(), initAdmin()]).then(openHash).catch(() => {}); }
 $('login').onsubmit = async (e) => {
   e.preventDefault();
   const setup = authState?.setupRequired;

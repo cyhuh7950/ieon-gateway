@@ -22,7 +22,9 @@ import { dirname, join } from 'node:path';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
-const WEB_PAGE = fileURLToPath(new URL('./web/index.html', import.meta.url));
+// 대화 중심 새 화면(설계 UI_CHAT_FIRST U1)이 `/`, 예전 화면은 U8까지 `/classic`(결정 UD4).
+const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
+const WEB_CLASSIC = fileURLToPath(new URL('./web/index.html', import.meta.url));
 const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 
 const sha = (s) => createHash('sha256').update(s).digest();
@@ -184,9 +186,9 @@ export function createApp(config) {
         res.writeHead(200, { 'content-type': 'image/x-icon', 'cache-control': 'max-age=86400' });
         return res.end(readFileSync(WEB_ICON));
       }
-      if (req.method === 'GET' && path === '/') {
+      if (req.method === 'GET' && (path === '/' || path === '/classic')) {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-        return res.end(readFileSync(WEB_PAGE));
+        return res.end(readFileSync(path === '/' ? WEB_PAGE : WEB_CLASSIC));
       }
 
       // --- PC 연결부 API ---
