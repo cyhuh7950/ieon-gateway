@@ -135,6 +135,8 @@ export function createApp(config) {
     ? createLocalConnector({ connectorConfigPath: config.connectorConfigPath, log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') }) : null;
   // W5: 허브 웹의 Codex 로그인(기기 코드). 허브에만 있다(PC는 그 PC의 Codex 앱 로그인을 그대로 쓴다).
   const codexLogin = access ? (config.codexLogin ?? createCodexLogin({ log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') })) : null;
+  // U4: 처음 설정의 "준비 확인" — 이 PC의 Codex 로그인 여부만(공식 `codex login status`, 계정 정보는 돌려주지 않음).
+  const localCodexStatus = access ? null : (config.localCodexStatus ?? (() => createCodexLogin().status()));
   const localDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') && !req.headers['x-forwarded-for'];
   // 기기 설정이 바뀌면 그 설정을 읽는 연결부를 다시 띄운다. 이 서버가 띄운 것이 아니면 다시 켜야 한다고 알린다.
   const applyDevice = async () => {
@@ -379,6 +381,12 @@ export function createApp(config) {
             return json(res, 200, { ...readDevice(cfgPath), ...(await applyDevice()) });
           }
           return json(res, 404, { error: 'not_found' });
+        }
+        if (path === '/v1/admin/local/engines' && req.method === 'GET') {
+          if (access) return json(res, 404, { error: 'not_found' });
+          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          const s = await localCodexStatus().catch(() => ({ loggedIn: false, method: null }));
+          return json(res, 200, { codex: { loggedIn: s.loggedIn === true, method: s.method ?? null } });
         }
         // U3: 대화 연결 — 이 PC의 최근 Codex 대화 목록(업무 대화 제외)과 한 번에 연결(허용 목록 + 세션 등록). 이 PC에서 연 화면만.
         if (path === '/v1/admin/local/threads' || path === '/v1/admin/connections') {
