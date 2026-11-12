@@ -14,6 +14,11 @@ const BLOCKED_APP = new Set(['commandExecution', 'fileChange', 'mcpToolCall', 'w
 // Windows는 lock-probe.ps1, Linux는 /proc/locks 읽기(src/pilot/lock-probe.mjs).
 export const lockProbe = (threadId) => lockOutcome(threadId);
 
+// A1(ENGINE_ACCOUNTS EA4): 계정의 사용 한도에 걸려 답을 만들기 전에 끝난 경우. 모델이 일을 시작하지 않았으므로 "실행 안 됨"이
+// 확실하다 → 결과 불명으로 잠그지 않고 usage_limit(실패)로 알린다(다시 보내기는 사용자가 누를 때만).
+export const isUsageLimit = (m) => /usage[ _]?limit|hit your limit|usageLimitExceeded/i.test(String(m ?? ''));
+const limitHit = (turn) => turn.failed && isUsageLimit(turn.failMessage) && !turn.answer && !turn.worked;
+
 async function runAlternate(threadId, question, deps) {
   const outcome = deps.probe(threadId);
   if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) {
@@ -34,6 +39,7 @@ async function runAlternate(threadId, question, deps) {
   });
   const turn = await streamTurn(thread, question, { cwd: deps.workingDirectory, blocked: BLOCKED_SDK });
   if (turn.blocked) return { approvalRequired: true };
+  if (limitHit(turn)) throw new EngineError('usage_limit', 429);
   if (turn.failed || (turn.returned ?? thread.id) !== threadId) throw new Error('turn_failed_or_thread_mismatch');
   return { receipt: `codex:${threadId}`, answer: turn.answer };
 }
@@ -57,16 +63,20 @@ async function streamTurn(thread, question, { cwd, blocked: blockedTypes }) {
   let returned = null;
   let blocked = null;
   let failed = false;
+  let failMessage = null; // 실패 이유(한도 판별용, 기록하지 않음)
+  let worked = false; // 사용자 메시지 말고 모델이 만든 항목이 하나라도 있었는지
   const all = (async function* () { if (!first.done) yield first.value; yield* rest; })();
   for await (const event of all) {
     if (event.type === 'thread.started') returned = event.thread_id;
     if (event.type === 'item.started' || event.type === 'item.completed') {
       if (blockedTypes.has(event.item.type)) { blocked = event.item.type; controller.abort(); break; }
       if (event.type === 'item.completed' && event.item.type === 'agent_message') answer = event.item.text;
+      if (!['user_message', 'error'].includes(event.item.type)) worked = true;
     }
-    if (event.type === 'turn.failed') failed = true;
+    if (event.type === 'turn.failed') { failed = true; failMessage = event.error?.message ?? failMessage; }
+    if (event.type === 'error') failMessage = event.message ?? failMessage;
   }
-  return { answer, returned, blocked, failed };
+  return { answer, returned, blocked, failed, failMessage, worked };
 }
 
 // 새 세션(설계 NEW_SESSIONS N1). 서버가 보낸 프로필·작업 폴더를 연결부 설정으로 다시 검사한다.
@@ -111,6 +121,7 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
   if (pending && threadId) created.add(threadId, newSession.name);
   // 멈추거나 실패해도 이미 만들어진 대화 ID는 서버에 남겨 같은 세션으로 이어 가게 한다.
   if (turn.blocked) return { approvalRequired: true, sessionRef: threadId };
+  if (limitHit(turn)) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: threadId });
   if (turn.failed || !threadId || (turn.returned ?? thread.id) !== threadId) {
     throw Object.assign(new Error('turn_failed_or_thread_mismatch'), { sessionRef: threadId });
   }
@@ -125,6 +136,7 @@ async function runShared(threadId, question, { endpoint, token }) {
   let answer = '';
   let blocked = false;
   let userMessages = 0;
+  let turnError = null; // turn/completed의 실패 이유(한도 판별용)
   const usage = {};
   let finish;
   const done = new Promise((r) => { finish = r; });
@@ -155,7 +167,7 @@ async function runShared(threadId, question, { endpoint, token }) {
       const last = params.tokenUsage?.last ?? {};
       for (const k of ['inputTokens', 'cachedInputTokens', 'outputTokens', 'reasoningOutputTokens']) usage[k] = (usage[k] ?? 0) + (last[k] ?? 0);
     }
-    if (msg.method === 'turn/completed') finish(params.turn?.status ?? null);
+    if (msg.method === 'turn/completed') { turnError = params.turn?.error ?? null; finish(params.turn?.status ?? null); }
   };
   try {
     await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = () => reject(new EngineError('shared_server_down', 503)); });
@@ -170,6 +182,7 @@ async function runShared(threadId, question, { endpoint, token }) {
     turnId = started.turn?.id ?? null;
     const status2 = await Promise.race([done, new Promise((r) => setTimeout(() => r('timeout'), 180000))]);
     if (blocked) return { approvalRequired: true };
+    if (status2 === 'failed' && !answer && isUsageLimit(JSON.stringify(turnError))) throw new EngineError('usage_limit', 429);
     if (status2 !== 'completed') throw new Error(`turn_${status2}`);
     // 2026-10-30 실측: 이어온 turn 중 TUI 입력이 합류해 답이 사람 입력에 대한 답("확인")으로 바뀌었다.
     // 모델은 실행됐으므로 실패가 아니라 결과 불명으로 넘기고, 섞였을 수 있는 답은 이어온 답으로 내보내지 않는다.

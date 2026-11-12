@@ -50,6 +50,8 @@ export function claudeCliAdapter(opts) {
       try { out = JSON.parse(stdout); } catch { throw Object.assign(new Error('claude_bad_output'), { unknownCode: `claude_exit_${code}`, sessionRef: id }); }
       // 같은 세션이 사람 쪽에서 실행 중이면 claude가 복사본을 만들어 다른 ID로 답한다. 모델은 돌았으므로 결과 불명이다.
       if (out.session_id && out.session_id !== id) throw Object.assign(new Error('session_forked'), { unknownCode: 'session_forked', sessionRef: id });
+      // A1: 계정 사용 한도로 거절된 경우는 실행 안 됨이 확실 → 잠그지 않고 usage_limit로 알린다.
+      if (out.is_error && /usage[ _]?limit|hit your limit/i.test(String(out.result ?? ''))) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: id });
       if (out.is_error || out.subtype !== 'success') throw Object.assign(new Error('claude_error'), { unknownCode: 'claude_error', sessionRef: id });
       if (out.permission_denials?.length) return { approvalRequired: true, sessionRef: id };
       const u = out.usage ?? {};

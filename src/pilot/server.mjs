@@ -195,6 +195,14 @@ export function createApp(config) {
     hubCodex.busy = true;
     Promise.resolve(codexLogin.status()).then(noteHubCodex, () => { hubCodex = { ...hubCodex, at: Date.now(), busy: false }; });
   };
+  // A1(ENGINE_ACCOUNTS EA10 최소 규칙): 이 대화의 질문이 어느 계정(접속)의 사용량으로 나가는지 늘 보이게 한다.
+  // 계정 고르기(A2) 전에는 어떤 접속인지 사실대로 알린다 — PC 대화는 그 PC의 앱 로그인을 그대로 쓴다.
+  const accountOf = (c) => {
+    if (access && c.newSession) return { mode: 'hub_login', label: c.engine === 'codex_thread' ? '허브의 Codex 로그인' : '허브의 Claude 로그인' };
+    if (c.engine === 'claude_channel') return { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' };
+    if (c.engine === 'claude_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
+    return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정' };
+  };
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
   const cardsFor = (c, live) => {
     const cards = [];
@@ -754,7 +762,9 @@ export function createApp(config) {
             botStatus.set(`${s.platform}:${s.botId}`, { state: String(s.state ?? '').slice(0, 40),
               missing: Array.isArray(s.missing) ? s.missing.map(String).slice(0, 4) : [],
               username: s.username ? String(s.username).slice(0, 80) : null,
-              canReadAll: typeof s.canReadAll === 'boolean' ? s.canReadAll : null, at: new Date().toISOString() });
+              canReadAll: typeof s.canReadAll === 'boolean' ? s.canReadAll : null,
+              // A1: 연결이 안 된 이유(예: bad_access_token). 짧은 코드만, 토큰 값·메시지 원문은 받지 않는다.
+              detail: /^[\w.:-]{1,40}$/.test(String(s.detail ?? '')) ? String(s.detail) : null, at: new Date().toISOString() });
           }
           return json(res, 204);
         }
@@ -774,6 +784,7 @@ export function createApp(config) {
           ...(c.newSession ? { newSession: c.newSession } : {}),
           ...(engineReady(c) === undefined ? {} : { engineReady: engineReady(c) }),
           attention: cardsFor(c, live).length,
+          account: accountOf(c),
           ...(hostNames ? { host: { id: c.hostId, name: hostNames.get(c.hostId) ?? c.hostId } } : {}),
         })) });
       }

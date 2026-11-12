@@ -21,6 +21,7 @@ const ERR = {
   session_archived: '보관된 세션 — /restore <이름>으로 꺼낸 뒤 질문하세요',
   active_limit: '새 세션 질문을 동시에 처리할 수 있는 수를 넘음 — 잠시 후 다시 보내기',
   session_forked: '같은 Claude 세션을 터미널에서 열고 있어 결과를 확인할 수 없음',
+  usage_limit: '계정의 사용 한도에 걸려 실행되지 않았음',
 };
 // 새 세션 만들기·정리 명령의 거절 사유
 const NS_ERR = {
@@ -95,7 +96,7 @@ export function createBridge(opts) {
     const engine = c.engine === 'claude_channel' ? 'Claude' : c.engine === 'claude_cli' ? 'Claude(새 세션)' : `Codex(${c.connectMode === 'shared_server' ? '동시 사용' : '번갈아 쓰기'})`;
     const ns = c.newSession ? ` · 새 세션 ${STATE[c.newSession.state] ?? c.newSession.state}` : '';
     const state = !c.deviceOnline ? 'PC 연결 끊김' : c.heldBy ? '확인 필요' : c.engineReady === false ? '엔진 꺼짐' : c.busy ? '처리 중' : '보낼 수 있음';
-    return `${i + 1}. ${c.label} — ${engine} · ${state}${ns}`;
+    return `${i + 1}. ${c.label} — ${engine} · ${state}${ns}${c.account?.label ? `\n   계정: ${c.account.label}` : ''}`;
   };
 
   async function ask(m, conv, question, send) {
@@ -112,6 +113,10 @@ export function createBridge(opts) {
       if (s.status === 'completed') {
         for (const part of splitText(s.answer ?? '(보관하지 않은 답변)', MAX_CHUNK[m.platform] ?? 1900)) await send(part);
         return;
+      }
+      // A1: 한도는 어느 계정인지와 고를 수 있는 길을 함께(실행 안 됨이 확실 — 잠그지 않음, 자동으로 다시 보내지 않음).
+      if (s.status === 'failed' && s.errorCode === 'usage_limit') {
+        return send(`[${conv.label}] ${ERR.usage_limit} — 지금 쓰는 계정: ${conv.account?.label ?? '알 수 없음'}. 한도가 풀린 뒤 같은 질문을 다시 보내거나, 다른 계정·API 키로 바꾸세요(이어온 화면 → 설정 → 계정, 준비 중).`);
       }
       if (s.status === 'failed') return send(`[${conv.label}] ${ERR[s.errorCode] ?? `실행 실패: ${s.errorCode}`}`);
       if (s.status === 'unknown') {
