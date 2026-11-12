@@ -50,6 +50,10 @@ test('PC의 모드 파일은 .local/mode.json(설정 폴더 s2의 위), 허브 �
   assert.ok(existsSync(join(s.d, 'mode.json')), '.local/mode.json 자리');
   assert.equal(s.app.mode(), 'pc');
   assert.equal((await s.call('/v1/admin/local/run', { method: 'POST', body: { op: 'device.get' } })).body.mode, 'pc');
+  // 허브가 맡기는 것과 같은 공통 명령으로도 사용 방식 보기·바꾸기(IM10)
+  assert.equal((await s.call('/v1/admin/local/run', { method: 'POST', body: { op: 'mode.get' } })).body.mode, 'pc');
+  assert.equal((await s.call('/v1/admin/local/run', { method: 'POST', body: { op: 'mode.set', args: { mode: 'hub' } } })).body.mode, 'hub');
+  assert.equal(s.app.mode(), 'hub');
 });
 
 test('고르지 않은 예전 설치: 지금처럼 동작, 짝맺지 않았으면 ① 추천', async (t) => {
@@ -93,7 +97,7 @@ test('바꾸기: 이 PC 화면만, 두 값만, 처리 중인 질문이 있으면
   assert.equal(s.app.mode(), null, '바뀌지 않음');
 });
 
-test('화면: 처음 설정 0단계(넘어가면 ①), 설정 → 이 PC → 사용 방식, 허브 화면은 보기만, 허브 연결 거부 안내', () => {
+test('화면: 처음 설정 0단계(넘어가면 ①), 설정 → 이 PC → 사용 방식, 허브 화면에서도 바꾸기, 허브 연결 거부 안내', () => {
   const A = web('app.html'); const S = web('settings.html');
   assert.ok(A.includes('id="s0"') && A.includes('id="s0Pc"') && A.includes('id="s0Hub"') && A.includes('준비 중'));
   assert.ok(A.includes("$('sSkip').onclick = async () => { if (!$('s0').hidden) await setMode('pc'); closeSetup(); }"), '고르지 않고 넘어가면 ①');
@@ -101,5 +105,5 @@ test('화면: 처음 설정 0단계(넘어가면 ①), 설정 → 이 PC → 사
   assert.ok(A.includes('id="modeNote"') && A.includes("if ('mode' in body)"), '고르지 않은 예전 설치에 안내');
   assert.ok(S.includes('id="modeBox"') && S.includes('id="modeApply"') && S.includes("'/v1/admin/local/mode'"));
   assert.ok(S.includes("mode_pc: '사용 방식이"), '허브 연결 거부 이유');
-  assert.ok(S.includes("$('devMode2').hidden = pcTarget === 'local'"), '허브 화면에서는 그 PC의 사용 방식을 보여만 줌');
+  assert.ok(S.includes("await devRun('mode.set', { mode: next })") && S.includes('허브 화면에서는 이 PC를 더 다룰 수 없어요'), '허브 화면에서도 바꾸기(이 PC에서만으로 바꿀 때 경고)');
 });

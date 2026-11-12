@@ -168,7 +168,25 @@ export function createApp(config) {
   };
   // A2-d: 기기 관리 명령(PC 화면·허브가 맡긴 명령 공통). 허브는 자기 연결부 설정으로 허브 자신의 계정을 다룬다.
   const adminLog = (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n');
-  const deviceAdmin = access ? null : createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath, applyDevice, accountLogin: config.accountLogin, log: adminLog,
+  // M1: 사용 방식 보기·바꾸기(PC 화면과 허브 화면이 같이 씀 — IM10). 처리 중·확인 필요 질문이 있으면 바꾸지 않는다.
+  const modeAdmin = access || !modePath ? null : {
+    view() {
+      const st = hubLink?.status() ?? { state: 'none' };
+      return { mode: mode(), suggested: mode() ?? (st.state === 'paired' ? 'hub' : 'pc'), paired: st.state === 'paired', hubUrl: st.hubUrl ?? null,
+        effects: { pc: modeEffects(mode(), 'pc'), hub: modeEffects(mode(), 'hub') } };
+    },
+    set(next) {
+      if (!['pc', 'hub'].includes(next)) return { status: 400, body: { error: 'bad_mode' } };
+      if (store.conversations({ userId: config.users?.[0]?.userId ?? 'u_sinsan', appId: 'app_web' }).some((c) => c.busy || c.heldBy)) return { status: 409, body: { error: 'requests_pending' } };
+      writeMode(modePath, next);
+      // 허브 연결은 바로 맞추고(①이면 끊기 — 짝맺은 정보는 남김, ②면 짝맺어 있으면 다시 연결), 이 PC 봇은 메신저가 1분 안에 따라온다.
+      // 허브가 맡긴 명령으로 ①이 되면 결과를 보낸 뒤부터 허브는 이 PC에 닿지 않는다(다시 ②로는 이 PC 화면에서).
+      const hub = next === 'pc' ? (hubLink?.disconnect(), 'stopped') : (hubLink?.resume() ?? 'not_paired');
+      adminLog({ event: 'mode_set', mode: next });
+      return { status: 200, body: { ...this.view(), hub } };
+    },
+  };
+  const deviceAdmin = access ? null : createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath, applyDevice, accountLogin: config.accountLogin, log: adminLog, modeAdmin,
     connectorState: () => ({ managed: Boolean(localConnector), running: localConnector?.running() ?? null, mode: mode() }) }); // M1: 허브 화면에도 그 PC의 사용 방식
   const hubAdmin = access ? createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json'), accountLogin: config.accountLogin, log: adminLog,
     applyDevice: async () => ({ restarted: true, restartRequired: false }) }) : null; // 허브 연결부는 설정 파일이 바뀌면 스스로 다시 시작
@@ -585,19 +603,11 @@ export function createApp(config) {
         // M1: 사용 방식 보기·바꾸기(이 PC 화면). 바꾸기는 이 PC에서 연 화면만, 처리 중·확인 필요 질문이 있으면 바꾸지 않는다.
         if (path === '/v1/admin/local/mode') {
           if (access || !modePath) return json(res, 404, { error: 'not_found' });
-          const st = hubLink?.status() ?? { state: 'none' };
-          const view = () => ({ mode: mode(), suggested: mode() ?? (st.state === 'paired' ? 'hub' : 'pc'), paired: st.state === 'paired', hubUrl: st.hubUrl ?? null });
-          if (req.method === 'GET') return json(res, 200, { ...view(), effects: { pc: modeEffects(mode(), 'pc'), hub: modeEffects(mode(), 'hub') } });
+          if (req.method === 'GET') return json(res, 200, modeAdmin.view());
           if (req.method !== 'PUT') return json(res, 404, { error: 'not_found' });
           if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
-          const next = String((await readJson(req)).mode ?? '');
-          if (!['pc', 'hub'].includes(next)) return json(res, 400, { error: 'bad_mode' });
-          if (store.conversations({ userId: config.users?.[0]?.userId ?? 'u_sinsan', appId: 'app_web' }).some((c) => c.busy || c.heldBy)) return json(res, 409, { error: 'requests_pending' });
-          writeMode(modePath, next);
-          // 허브 연결은 바로 맞추고(①이면 끊기 — 짝맺은 정보는 남김, ②면 짝맺어 있으면 다시 연결), 이 PC 봇은 메신저가 1분 안에 따라온다.
-          const hub = next === 'pc' ? (hubLink?.disconnect(), 'stopped') : (hubLink?.resume() ?? 'not_paired');
-          process.stderr.write(JSON.stringify({ ch: 'server', event: 'mode_set', mode: next }) + '\n');
-          return json(res, 200, { ...view(), hub });
+          const r = modeAdmin.set(String((await readJson(req)).mode ?? ''));
+          return json(res, r.status, r.body);
         }
         // W3: 이 PC를 허브에 연결(PC 로컬 웹만)
         if (path.startsWith('/v1/admin/local/hub')) {
