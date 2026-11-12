@@ -10,7 +10,13 @@
 | W0-1 Codex app-server(이어온 전용 계정 a0, 일회용 thread, untrusted·workspaceWrite·reviewer user) | **거부 경로 PASS** — 명령 실행 승인 요청(`item/commandExecution/requestApproval`, 작업 폴더 안)이 이어온으로 왔고 `decline`으로 답하자 명령은 실행되지 않음(`status: declined`), 차례는 정상 완료. **허용·파일 수정 승인은 미확인** — Codex가 파일 만들기를 명령 하나로 묶어 요청해 파일 수정 승인 요청이 따로 오지 않았고, 그 명령을 거부해 파일도 생기지 않음 | [w0-codex-appserver-20261113.json](w0-codex-appserver-20261113.json) |
 | W0-3 Claude `-p` + `--permission-prompt-tool` | **무효(내 시험 스크립트 잘못)** — 셸을 거쳐 실행하면서 질문 글이 빈칸에서 잘려 Claude에 제대로 전달되지 않음(도구 사용 0, 승인 도구 호출 0). 승인된 호출 1차례를 썼지만 측정이 되지 않음. 셸 없이 실행하도록 고침, 다시 하려면 1차례 승인 필요 | [w0-claude-permission-tool-20261113-invalid.json](w0-claude-permission-tool-20261113-invalid.json) |
 
-**남은 것:** Claude 승인 도구 왕복(1차례), Codex 허용·파일 수정 승인(선택 1차례 — 파일은 파일 수정 도구로, 명령은 따로 하라고 지시).
+| W0-3 다시(신산님 "Claude 1차례만") | **파일 쓰기 PASS, 명령은 승인 도구를 거치지 않음(멈춤 조건)** — 파일 쓰기(Write)는 승인 도구가 불려 허용 → a.txt "hi" 생성. 그런데 `dir`(PowerShell)은 **승인 도구를 부르지 않고 실행됨**. 사용자·프로젝트 설정에 허용 규칙이 없음을 확인 → Claude Code 기본값이 **읽기 전용 명령은 묻지 않고 실행**하는 것으로 판단. 설계(A1 "명령 실행마다 승인 카드")와 다르므로 멈추고 추가 시험 안 함 | [w0-claude-permission-tool-20261113.json](w0-claude-permission-tool-20261113.json) |
+
+**지금 판정:**
+- **Codex app-server:** 승인 요청이 오고 거부가 지켜짐(읽기 전용으로 보이는 명령도 `untrusted`에서는 물음). 허용·파일 수정 승인은 미확인(선택 1차례 남음).
+- **Codex SDK 번갈아 쓰기:** 승인 요청을 받을 길 없음(F1) → 작업 모드는 app-server(stdio) 경로로 바꿔야 함.
+- **Claude 새 세션:** 승인 도구는 동작하지만 **읽기 전용 명령은 승인 없이 실행** → 작업 모드에 넣으려면 "모든 명령을 묻게" 하는 설정(예: 권한 규칙 `ask`로 Bash·PowerShell 지정)을 찾아 다시 실측해야 함. 그 전에는 Claude 작업 모드를 켜지 않음(조용히 자동 허용으로 넘어가지 않음, 설계 6절).
+- 다음: W1(승인 카드 바탕)은 Codex app-server 경로부터. Claude는 "모든 명령 묻기" 실측(별도 승인) 뒤.
 
 ## 1. 준비 중 확인한 사실(읽기만, 이 PC에서 공식 도구로 프로토콜 정의만 뽑음)
 

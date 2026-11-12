@@ -1,0 +1,38 @@
+{
+ "at": "2026-11-12T16:51:51.653Z",
+ "seconds": 24,
+ "exit": 0,
+ "signal": null,
+ "resultType": "success",
+ "isError": false,
+ "numTurns": 3,
+ "permissionDenials": [],
+ "answerChars": 237,
+ "approvals": [
+  {
+   "tool": "Write",
+   "decision": "allow"
+  }
+ ],
+ "fileCreated": true,
+ "fileContentOk": true,
+ "wsEntries": [
+  "a.txt"
+ ],
+ "stderrTail": null,
+ "toolCalls": [
+  {
+   "tool": "Write",
+   "viaApprovalTool": true,
+   "decision": "allow",
+   "ok": true
+  },
+  {
+   "tool": "PowerShell",
+   "command": "dir(읽기 전용)",
+   "viaApprovalTool": false,
+   "ran": true
+  }
+ ],
+ "note": "명령(dir)이 승인 도구를 거치지 않고 실행됨 — 사용자·프로젝트 설정에 허용 규칙 없음(확인), Claude Code 기본값의 읽기 전용 명령 자동 허용으로 판단. 멈춤 조건에 해당해 추가 시험 안 함."
+}
