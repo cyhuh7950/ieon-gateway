@@ -1,0 +1,52 @@
+{
+ "at": "2026-11-12T16:46:17.884Z",
+ "account": "ieon a0",
+ "thread": {
+  "ephemeral": true,
+  "started": true
+ },
+ "requests": [
+  {
+   "kind": "item/commandExecution/requestApproval",
+   "hasCommand": true,
+   "cwdInWs": true
+  }
+ ],
+ "answered": [
+  {
+   "kind": "item/commandExecution/requestApproval",
+   "decision": "decline"
+  }
+ ],
+ "notifications": {
+  "remoteControl/status/changed": 1,
+  "account/updated": 1,
+  "thread/started": 1,
+  "mcpServer/startupStatus/updated": 2,
+  "thread/status/changed": 4,
+  "turn/started": 1,
+  "item/started": 4,
+  "item/started:userMessage": 1,
+  "item/completed": 4,
+  "item/completed:userMessage": 1,
+  "item/started:agentMessage": 2,
+  "item/agentMessage/delta": 29,
+  "item/completed:agentMessage": 2,
+  "item/started:commandExecution": 1,
+  "serverRequest/resolved": 1,
+  "item/completed:commandExecution": 1,
+  "thread/tokenUsage/updated": 2,
+  "account/rateLimits/updated": 2,
+  "turn/completed": 1
+ },
+ "turnStatus": "completed",
+ "error": null,
+ "answerChars": 7,
+ "commandCompleted": {
+  "status": "declined",
+  "exitCode": null
+ },
+ "turnError": null,
+ "fileCreated": false,
+ "wsEntries": 0
+}
