@@ -530,9 +530,9 @@ async function load() {
     box.append(el('div', r.name, 't'), el('div', 'AI 직원 ' + r.members.length + '명 · 대표 ' + (staffName(r.lead) || '—'), 's'));
     b.append(av, box); b.onclick = () => selectRoom(r.roomId); list.append(b);
   }
-  if (live.length) list.append(el('div', 'AI 직원(대화)', 'grp'));
   const live = convs.filter((c) => c.newSession?.state !== 'archived');
   const arch = convs.filter((c) => c.newSession?.state === 'archived');
+  list.append(el('div', 'AI 직원(대화)', 'grp')); // AP-1: 방 아래에 대화 목록(live 정의 뒤 — 앞에 두면 목록 전체가 멈춤, 2026-11-12 허브에서 발견)
   if (!live.length) list.append(el('div', '연결한 대화가 없어요. 위의 "＋ 대화 연결"로 시작하세요.', 'empty'));
   // U6: 허브 화면은 PC별로 묶어 보인다(서버가 host를 줄 때만).
   const byHost = live.some((c) => c.host);
