@@ -130,7 +130,23 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
   return { receipt: `codex:${threadId}`, answer: turn.answer, sessionRef: threadId };
 }
 
-async function runShared(threadId, question, { endpoint, token }) {
+// W1: 공유 서버가 보내는 승인 요청을 이어온 승인 카드로. 작업 모드가 아니면(approve 없음) 바로 거부 — 답하지 않아 차례가 멈추지 않게(W0 F5).
+const APPROVAL_KIND = { 'item/commandExecution/requestApproval': 'command', 'item/fileChange/requestApproval': 'file', 'item/permissions/requestApproval': 'permissions' };
+export const approvalSummary = (method, params = {}) => {
+  if (method === 'item/commandExecution/requestApproval') return String(params.command ?? '').slice(0, 300);
+  if (method === 'item/fileChange/requestApproval') return String(params.reason ?? (params.grantRoot ? '작업 폴더 밖 쓰기 요청' : '파일 수정')).slice(0, 300);
+  return String(params.reason ?? '권한 요청').slice(0, 300);
+};
+
+// 서버 요청 하나에 대한 답(JSON-RPC 응답 객체). 시험에서 바로 부른다.
+export async function answerServerRequest(msg, threadId, approve) {
+  const kind = APPROVAL_KIND[msg.method];
+  if (!kind) return { jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'not supported by ieon' } };
+  const d = approve && msg.params?.threadId === threadId ? await approve({ kind, summary: approvalSummary(msg.method, msg.params), cwd: msg.params?.cwd ?? null }).catch(() => 'decline') : 'decline';
+  return { jsonrpc: '2.0', id: msg.id, result: { decision: d === 'accept' ? 'accept' : 'decline' } };
+}
+
+async function runShared(threadId, question, { endpoint, token, approve = null }) {
   const ws = new WebSocket(endpoint, { headers: { Authorization: `Bearer ${token}` } });
   const pending = new Map();
   let nextId = 1;
@@ -149,6 +165,8 @@ async function runShared(threadId, question, { endpoint, token }) {
   };
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
+    // 서버 → 이어온 요청(승인 등). 이 thread의 것만 사람에게 묻고, 나머지·작업 모드 아님은 거부/지원 안 함으로 답한다.
+    if (msg.id !== undefined && msg.method) { answerServerRequest(msg, threadId, approve).then((r) => ws.send(JSON.stringify(r))).catch(() => {}); return; }
     if (msg.id !== undefined && pending.has(msg.id)) {
       const p = pending.get(msg.id); pending.delete(msg.id);
       return msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result);
@@ -208,7 +226,7 @@ export function codexThreadAdapter(opts) {
   const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')) };
   return {
     engine: 'codex_thread',
-    async run({ sessionRef: threadId, question, connectMode, newSession }) {
+    async run({ sessionRef: threadId, question, connectMode, newSession }, { approve = null } = {}) {
       if (newSession) {
         if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
         if (!opts.live) throw new EngineError('live_disabled', 503);
@@ -221,7 +239,8 @@ export function codexThreadAdapter(opts) {
       if (mode === 'shared_server') {
         if (!opts.shared?.endpoint || !opts.shared?.tokenFile) throw new EngineError('shared_server_not_configured', 503);
         const token = readFileSync(opts.shared.tokenFile, 'utf8').trim();
-        return runShared(threadId, question, { endpoint: opts.shared.endpoint, token });
+        // 작업 모드 연결은 W2 — 지금은 승인 요청이 오면 거부(approve를 넘기지 않음). opts.workApprovals가 켜진 시험에서만 넘긴다.
+        return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: opts.workApprovals ? approve : null });
       }
       return runAlternate(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId] });
     },
