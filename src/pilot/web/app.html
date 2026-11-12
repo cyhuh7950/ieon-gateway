@@ -104,6 +104,12 @@ details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:
 .field input { border:1px solid var(--border); background:var(--surface-alt); border-radius:10px; padding:9px 11px; }
 .modenote { display:block; margin:6px 10px; padding:8px 10px; border-radius:8px; background:#fff4d6; color:#5a4300; font-size:13px; text-decoration:none; }
 .check.pick { width:100%; text-align:left; cursor:pointer; border:1px solid var(--line, #d9dde3); background:transparent; font:inherit; }
+.grp.rooms { display:flex; align-items:center; justify-content:space-between; }
+.grp.rooms button { border:0; background:transparent; color:inherit; cursor:pointer; font:inherit; }
+.who { font-size:12px; color:#5b6573; margin:8px 0 2px; }
+.notice { align-self:center; font-size:12px; color:#7a5a00; background:#fff4d6; border-radius:8px; padding:4px 10px; margin:4px 0; }
+.hand { margin-top:4px; font-size:12px; }
+.roombar { display:flex; gap:8px; justify-content:flex-end; margin-bottom:6px; }
 /* U4 처음 설정 3단계 */
 .setup { position:fixed; inset:0; background:var(--bg); display:grid; place-items:center; padding:16px; z-index:22; overflow:auto; }
 .scard { width:min(560px,100%); background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:26px; box-shadow:var(--shadow); }
@@ -196,6 +202,20 @@ details.adv[open] summary { margin-bottom:10px; }
       <p class="muted small" id="nsLimits"></p>
       <div class="mrow"><button class="primary">만들기</button><button type="button" id="nsClose">닫기</button></div>
     </form>
+  </div>
+</div>
+
+<!-- AP-1 방 만들기·고치기: 이름·구성원(AI 직원)·대표·공통 안내 -->
+<div class="scrim" id="roomDlg" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rdTitle">
+    <h2 id="rdTitle">방 만들기</h2>
+    <p class="muted small" style="margin:0">여러 AI 직원을 한 방에 모아요. @이름으로 부른 직원이 답하고, 아무도 안 부르면 대표가 답해요. AI 직원끼리 스스로 부르지 않아요.</p>
+    <label class="small">방 이름 <input id="rdName" maxlength="30" autocomplete="off"></label>
+    <div class="small muted" style="margin-top:8px">구성원</div>
+    <div id="rdMembers"></div>
+    <label class="small">대표 <select id="rdLead"></select></label>
+    <label class="small">공통 안내(이 방의 목적 — 각 질문 앞에 붙어요) <textarea id="rdGuide" rows="3" maxlength="1000"></textarea></label>
+    <div class="mrow"><button type="button" id="rdDelete" hidden>방 지우기</button><button type="button" id="rdCancel">취소</button><button type="button" class="primary" id="rdOk">저장</button></div>
   </div>
 </div>
 
@@ -331,6 +351,14 @@ details.adv[open] summary { margin-bottom:10px; }
       <dt>잇는 방법</dt><dd id="pHow"></dd>
       <dt>상태</dt><dd id="pState"></dd>
     </dl>
+    <div class="sec" id="pStaff">
+      <h4>AI 직원</h4>
+      <div class="small muted">방에서 @이름으로 불러요(빈칸 없이). 역할을 정하면 다음 질문 한 번에 역할 안내가 함께 가요.</div>
+      <label class="small">이름 <input id="stName" maxlength="20" autocomplete="off"></label>
+      <label class="small">아이콘 <input id="stIcon" maxlength="2" style="width:3em" autocomplete="off"></label>
+      <label class="small">역할 <select id="stRole"><option value="">없음</option></select></label>
+      <button type="button" class="pbtn" id="stSave">저장</button>
+    </div>
     <div class="sec" id="pNew" hidden>
       <h4>새 세션</h4>
       <div id="pNewInfo" class="small"></div>
@@ -387,6 +415,7 @@ const AUTH_ERR = { bad_password: '비밀번호가 맞지 않아요', weak_passwo
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
 let authState = null, convs = [], current = null, pending = null, device = null, toastTimer = null, hubMode = false;
+let rooms = [], currentRoom = null, roomTimer = null; // AP-1
 // --- U8 새 세션 만들기(예전 화면에서 옮김). $·api 정의 뒤에 둔다(앞에 두면 화면 전체가 멈춤 — 2026-11-12 발견) ---
 async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
@@ -490,6 +519,18 @@ async function load() {
   // M1: 이 PC의 사용 방식을 아직 고르지 않았으면 왼쪽 위에 한 줄 안내(허브 화면에는 mode 값이 없음)
   if ('mode' in body) { $('modeNote').hidden = body.mode !== null; $('modeNote').textContent = '사용 방식을 정해 주세요 — ' + (hubMode ? '추천: 내 허브에 연결' : '추천: 이 PC에서만') + ' ›'; }
   const list = $('list'); list.replaceChildren();
+  // AP-1: 방(AI 직원 여러 명)
+  rooms = (await api('/v1/rooms').catch(() => ({ body: { rooms: [] } }))).body?.rooms ?? [];
+  const rg = el('div', null, 'grp rooms'); rg.append(el('span', '방'));
+  const nr = el('button', '＋ 방'); nr.type = 'button'; nr.onclick = () => openRoomDlg(null); rg.append(nr); list.append(rg);
+  for (const r of rooms) {
+    const b = el('button', null, 'row'); b.type = 'button'; b.setAttribute('aria-current', String(currentRoom === r.roomId));
+    const av = el('div', '👥', 'av'); av.setAttribute('aria-hidden', 'true');
+    const box = el('div'); box.style.minWidth = '0';
+    box.append(el('div', r.name, 't'), el('div', 'AI 직원 ' + r.members.length + '명 · 대표 ' + (staffName(r.lead) || '—'), 's'));
+    b.append(av, box); b.onclick = () => selectRoom(r.roomId); list.append(b);
+  }
+  if (live.length) list.append(el('div', 'AI 직원(대화)', 'grp'));
   const live = convs.filter((c) => c.newSession?.state !== 'archived');
   const arch = convs.filter((c) => c.newSession?.state === 'archived');
   if (!live.length) list.append(el('div', '연결한 대화가 없어요. 위의 "＋ 대화 연결"로 시작하세요.', 'empty'));
@@ -500,14 +541,15 @@ async function load() {
   for (const c of live) {
     if (byHost && c.host?.id !== lastHost) { lastHost = c.host?.id; list.append(el('div', c.host?.name || 'PC', 'grp')); }
     const b = el('button', null, 'row'); b.type = 'button'; b.setAttribute('aria-current', String(current === c.conversationId));
-    const av = el('div', AV[c.engine] || '?', 'av ' + c.engine); av.setAttribute('aria-hidden', 'true');
+    const av = el('div', c.staff?.icon || AV[c.engine] || '?', 'av ' + c.engine); av.setAttribute('aria-hidden', 'true');
     const box = el('div'); box.style.minWidth = '0';
     const [k, s] = stateOf(c);
     const t = el('div', c.label, 't');
     if (c.attention > 0) { const n = el('span', String(c.attention), 'cnt'); n.setAttribute('aria-label', '처리할 일 ' + c.attention + '개'); t.append(n); }
-    box.append(t, el('div', (ENGINE[c.engine] || c.engine) + ' · ' + s, 's' + (k ? ' ' + k : '')));
+    box.append(t, el('div', '@' + (c.staff?.name ?? '') + (c.staff?.roleName ? ' · ' + c.staff.roleName : '') + ' · ' + (ENGINE[c.engine] || c.engine) + ' · ' + s, 's' + (k ? ' ' + k : '')));
     b.append(av, box); b.onclick = () => select(c.conversationId); list.append(b);
   }
+  if (currentRoom && !rooms.some((r) => r.roomId === currentRoom)) { currentRoom = null; showEmpty(); }
   if (arch.length) {
     const d = el('details', null, 'arch'); d.append(el('summary', '보관함 ' + arch.length));
     for (const c of arch) {
@@ -530,7 +572,7 @@ function showEmpty() {
 // --- 대화 ---
 const conv = () => convs.find((x) => x.conversationId === current);
 async function select(id) {
-  current = id; $('app').classList.add('in-chat');
+  current = id; currentRoom = null; clearTimeout(roomTimer); $('app').classList.add('in-chat');
   await load();
   const { body } = await api('/v1/conversations/' + id + '/messages');
   const box = $('msgs'); box.replaceChildren();
@@ -857,7 +899,9 @@ qa.addEventListener('input', () => { qa.style.height = 'auto'; qa.style.height =
 qa.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('compose').requestSubmit(); } });
 $('compose').onsubmit = (e) => {
   e.preventDefault();
-  const question = qa.value.trim(); if (!question || !current || pending) return;
+  const question = qa.value.trim(); if (!question || pending) return;
+  if (currentRoom) { qa.value = ''; qa.style.height = 'auto'; sendRoom(question); return; }
+  if (!current) return;
   qa.value = ''; qa.style.height = 'auto';
   send(question);
 };
@@ -903,6 +947,7 @@ $('panelBtn').onclick = () => setPanel($('panel').hidden);
 $('panelClose').onclick = () => setPanel(false);
 $('backBtn').onclick = () => { $('app').classList.remove('in-chat'); setPanel(false); };
 function renderPanel(c) {
+  if (document.activeElement?.closest?.('#pStaff') == null) { $('stName').value = c.staff?.name ?? ''; $('stIcon').value = c.staff?.icon ?? ''; fillRoles(c.staff?.roleId ?? ''); }
   $('pEngine').textContent = ENGINE[c.engine] || c.engine;
   $('pAccount').textContent = c.account ? c.account.label + (c.account.mode === 'pc_default' ? ' (이어온 전용 계정은 설정 → 계정)' : '') : '—';
   $('pHow').textContent = HOW[c.engine] || '';
@@ -935,6 +980,105 @@ $('nsDelete').onclick = async () => {
   const r = await api('/v1/sessions/' + current, { method: 'DELETE', body: JSON.stringify({ confirm: typed.trim() }) });
   toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '"' + c.newSession.name + '"을 삭제했어요' : (NS_ERR[r.body.error] || r.body.error)); load();
 };
+
+// --- AP-1 AI 직원·방 ---
+const staffName = (id) => convs.find((c) => c.conversationId === id)?.staff?.name ?? null;
+const STAFF_ERR = { bad_staff_name: '이름은 빈칸 없이 1~20자(한글·영문·숫자·_·-)', staff_name_taken: '다른 AI 직원이 쓰는 이름이에요', bad_icon: '아이콘은 1~2글자(이모지 하나)', unknown_role: '없는 역할이에요',
+  bad_room_name: '방 이름을 1~30자로', bad_members: '구성원을 1~10명 고르세요', bad_lead: '대표는 구성원 중에서', too_long: '공통 안내가 너무 길어요', bad_handoff: '넘길 수 없어요(끝난 답만, 방 구성원에게만)' };
+let roleList = null;
+async function fillRoles(sel) {
+  if (!roleList) { const r = await api('/v1/admin/roles').catch(() => null); roleList = r?.status === 200 ? r.body.roles : []; }
+  const s = $('stRole'); s.replaceChildren(el('option', '없음')); s.firstChild.value = '';
+  for (const r of roleList) { const o = el('option', r.name); o.value = r.roleId; s.append(o); }
+  s.value = sel;
+}
+$('stSave').onclick = async () => {
+  const r = await api('/v1/conversations/' + current + '/staff', { method: 'PUT', body: JSON.stringify({ name: $('stName').value.trim(), icon: $('stIcon').value.trim() || null, roleId: $('stRole').value || null }) });
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'AI 직원 정보를 저장했어요' : (STAFF_ERR[r.body.error] || r.body.error)); load();
+};
+let editingRoom = null;
+function openRoomDlg(room) {
+  editingRoom = room;
+  $('rdTitle').textContent = room ? '방 고치기' : '방 만들기'; $('rdDelete').hidden = !room;
+  $('rdName').value = room?.name ?? ''; $('rdGuide').value = room?.guide ?? '';
+  const box = $('rdMembers'); box.replaceChildren();
+  const live = convs.filter((c) => c.newSession?.state !== 'archived');
+  for (const c of live) {
+    const l = el('label', null, 'radio'); const i = el('input'); i.type = 'checkbox'; i.value = c.conversationId; i.checked = room ? room.members.includes(c.conversationId) : false;
+    i.onchange = fillLead; l.append(i, el('span', ' ' + (c.staff?.icon ? c.staff.icon + ' ' : '') + '@' + c.staff?.name + ' (' + c.label + ')')); box.append(l);
+  }
+  fillLead(); if (room) $('rdLead').value = room.lead;
+  $('roomDlg').hidden = false;
+}
+function fillLead() {
+  const cur = $('rdLead').value; const s = $('rdLead'); s.replaceChildren();
+  for (const i of document.querySelectorAll('#rdMembers input:checked')) { const o = el('option', '@' + staffName(i.value)); o.value = i.value; s.append(o); }
+  if ([...s.options].some((o) => o.value === cur)) s.value = cur;
+}
+$('rdCancel').onclick = () => { $('roomDlg').hidden = true; };
+$('rdOk').onclick = async () => {
+  const body = { name: $('rdName').value.trim(), members: [...document.querySelectorAll('#rdMembers input:checked')].map((i) => i.value), lead: $('rdLead').value, guide: $('rdGuide').value.trim() };
+  const r = await api(editingRoom ? '/v1/rooms/' + editingRoom.roomId : '/v1/rooms', { method: editingRoom ? 'PUT' : 'POST', body: JSON.stringify(body) });
+  if (r.status !== 200 && r.status !== 201) return toast('err', STAFF_ERR[r.body.error] || r.body.error);
+  $('roomDlg').hidden = true; toast('ok', editingRoom ? '방을 고쳤어요' : '방을 만들었어요'); await load(); selectRoom(r.body.roomId);
+};
+$('rdDelete').onclick = async () => {
+  if (!editingRoom || !confirm('"' + editingRoom.name + '" 방을 지울까요? 방 기록만 지워지고 각 AI 직원의 대화는 그대로예요.')) return;
+  await api('/v1/rooms/' + editingRoom.roomId, { method: 'DELETE' }); $('roomDlg').hidden = true; currentRoom = null; showEmpty(); load();
+};
+const ROOM_BUSY = { conversation_busy: '지금 다른 일 중이라 보내지 않았어요', device_unavailable: 'PC 연결이 끊겨 보내지 않았어요', session_not_running: 'Claude 세션이 꺼져 있어 보내지 않았어요', shared_server_down: '공유 서버가 꺼져 있어 보내지 않았어요', session_archived: '보관된 세션이라 보내지 않았어요', active_limit: '동시 처리 한도라 보내지 않았어요' };
+async function selectRoom(id) {
+  currentRoom = id; current = null; clearTimeout(roomTimer); setPanel(false); $('app').classList.add('in-chat');
+  $('cards').replaceChildren();
+  const r = await api('/v1/rooms/' + id); if (r.status !== 200) { currentRoom = null; return showEmpty(); }
+  const room = r.body;
+  $('title').textContent = '👥 ' + room.name; for (const x of ['engineChip', 'acctChip', 'stateChip', 'panelBtn']) $(x).hidden = true;
+  const box = $('msgs'); box.replaceChildren();
+  const bar = el('div', null, 'roombar'); const eb = el('button', '방 설정', 'pbtn'); eb.type = 'button'; eb.onclick = () => openRoomDlg(room); bar.append(eb); box.append(bar);
+  if (room.guide) box.append(el('div', '공통 안내: ' + room.guide, 'notice'));
+  if (!room.posts.length) box.append(el('div', '@이름으로 부른 AI 직원이 답해요. 아무도 안 부르면 대표 @' + (staffName(room.lead) || '') + '가 답해요.', 'welcome'));
+  let waiting = false;
+  for (const p of room.posts) {
+    if (p.kind === 'user') { box.append(el('div', p.text, 'bubble me')); continue; }
+    const name = '@' + (staffName(p.conversationId) || p.conversationId);
+    if (p.kind === 'busy') { box.append(el('div', name + ' — ' + (ROOM_BUSY[p.code] || '보내지 못했어요: ' + p.code) + '. 필요하면 다시 보내세요.', 'notice')); continue; }
+    box.append(el('div', name, 'who'));
+    if (p.status === 'completed') {
+      const b = el('div', p.answer ?? '(보관하지 않은 답변)', 'bubble ai'); box.append(b);
+      const others = room.members.filter((m) => m !== p.conversationId);
+      if (others.length && p.answer) {
+        const h = el('div', null, 'hand'); const hb = el('button', '다른 AI 직원에게 넘기기', 'linkbtn'); hb.type = 'button';
+        hb.onclick = () => handoff(room, p, others); h.append(hb); box.append(h);
+      }
+    } else if (['queued', 'dispatching', 'running'].includes(p.status)) { waiting = true; box.append(el('div', '답을 기다리는 중…', 'bubble ai wait')); }
+    else box.append(el('div', p.status === 'failed' ? (ERR[p.errorCode]?.[1] || '보내지 못했어요: ' + p.errorCode) : '확인이 필요한 질문이에요(그 AI 직원 대화에서 정리하세요)', 'notice'));
+  }
+  box.scrollTop = box.scrollHeight;
+  $('question').placeholder = '@이름으로 부르기 — 안 부르면 대표 @' + (staffName(room.lead) || '') + '가 답해요';
+  $('question').disabled = hubMode; $('send').disabled = hubMode;
+  if (waiting) roomTimer = setTimeout(() => { if (currentRoom === id) selectRoom(id).catch(() => {}); }, 2500);
+}
+async function handoff(room, post, others) {
+  const names = others.map((id) => '@' + staffName(id)).join(', ');
+  const who = prompt('누구에게 넘길까요? (' + names + ')', '@' + staffName(others[0]));
+  if (who === null) return;
+  const to = others.find((id) => ('@' + staffName(id)).toLowerCase() === who.trim().toLowerCase() || String(staffName(id)).toLowerCase() === who.trim().toLowerCase());
+  if (!to) return toast('err', '방 구성원 이름을 넣으세요: ' + names);
+  const note = prompt('함께 보낼 말(비우면 "이 답을 보고 이어서 해 주세요")', '') ?? '';
+  const r = await api('/v1/rooms/' + room.roomId + '/handoff', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ requestId: post.requestId, to, note }) });
+  if (r.status !== 202) return toast('err', STAFF_ERR[r.body.error] || ERR[r.body.error]?.[1] || r.body.error);
+  selectRoom(room.roomId);
+}
+async function sendRoom(text) {
+  const id = currentRoom;
+  if (device && device.live === false) {
+    if (!(await askFirst())) { qa.value = text; return; }
+    if (!(await setLive(true, { confirmed: true }))) { qa.value = text; return; }
+  }
+  const r = await api('/v1/rooms/' + id + '/posts', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ text }) });
+  if (r.status !== 202) { qa.value = text; return toast('err', ERR[r.body.error]?.[1] || '보내지 못했어요: ' + r.body.error); }
+  selectRoom(id);
+}
 
 const PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', kakao: '카카오톡' };
 const ignored = new Set();
