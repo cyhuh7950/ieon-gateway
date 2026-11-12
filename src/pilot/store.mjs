@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS device_events (
   at TEXT NOT NULL, host_id TEXT NOT NULL, action TEXT NOT NULL, user_id TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS locks (
   session_key TEXT PRIMARY KEY, holder_request_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS staff (
+  conversation_id TEXT PRIMARY KEY, name TEXT NOT NULL, role_id TEXT, icon TEXT, guide_pending INTEGER NOT NULL DEFAULT 0);
+CREATE UNIQUE INDEX IF NOT EXISTS staff_name ON staff (lower(name));
+CREATE TABLE IF NOT EXISTS rooms (
+  room_id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, name TEXT NOT NULL, lead_conversation_id TEXT NOT NULL,
+  guide TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS room_members (
+  room_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (room_id, conversation_id));
+CREATE TABLE IF NOT EXISTS room_posts (
+  post_id TEXT PRIMARY KEY, room_id TEXT NOT NULL, kind TEXT NOT NULL, text TEXT, conversation_id TEXT, request_id TEXT,
+  code TEXT, idem_key TEXT, at TEXT NOT NULL);
 `;
 
 const hash = (payload) => createHash('sha256').update(JSON.stringify(payload)).digest('hex');
@@ -62,6 +73,11 @@ export function openStore(path) {
   }
   // 엔진이 알려 준 사용량(토큰 수만). 없으면 NULL이다.
   // 여러 봇 M3: 역할 봇에서 만든 새 세션의 AI 역할 안내(첫 질문 앞에 붙임)
+  // AP-1: 방에서 보낸 질문의 방 ID·머리말(방 공통 안내·역할 안내). 저장된 질문은 원문 그대로 둔다.
+  if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'prefix')) {
+    db.exec('ALTER TABLE requests ADD COLUMN prefix TEXT');
+    db.exec('ALTER TABLE requests ADD COLUMN room_id TEXT');
+  }
   if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'role_guide')) {
     db.exec('ALTER TABLE new_sessions ADD COLUMN role_guide TEXT');
   }
@@ -196,7 +212,7 @@ export function openStore(path) {
       });
     },
 
-    submit(principal, conversationId, key, payload) {
+    submit(principal, conversationId, key, payload, { prefix = null, roomId = null } = {}) {
       const b = binding(conversationId);
       if (!canAccess(principal, b)) return { http: 404, code: 'not_found' };
       // 새 세션은 첫 질문 때 연결부가 엔진 세션을 만든다(Codex N1, Claude N2: 채널이 아닌 claude_cli 엔진).
@@ -227,10 +243,15 @@ export function openStore(path) {
           if (ns.state === 'sleeping') db.prepare("UPDATE new_sessions SET state = 'active' WHERE conversation_id = ?").run(conversationId);
         }
         const requestId = `req_${randomUUID()}`;
+        // AP-1: 역할을 새로 정한 AI 직원은 다음 질문 한 번에만 역할 안내를 붙인다(매번 붙이지 않음 — 세션이 기억)
+        const st = db.prepare('SELECT s.guide_pending, r.ai_guide FROM staff s LEFT JOIN roles r ON r.role_id = s.role_id WHERE s.conversation_id = ?').get(conversationId);
+        const roleGuide = st?.guide_pending && st.ai_guide?.trim() ? `[역할 안내]\n${st.ai_guide.trim()}\n\n` : '';
+        if (st?.guide_pending) db.prepare('UPDATE staff SET guide_pending = 0 WHERE conversation_id = ?').run(conversationId);
+        const fullPrefix = (roleGuide + (prefix ?? '')) || null;
         db.prepare(`INSERT INTO requests (request_id, conversation_id, user_id, app_id, idem_key,
-          payload_hash, question, status, generation) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)`)
+          payload_hash, question, status, generation, prefix, room_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`)
           .run(requestId, conversationId, principal.userId, principal.appId, key, payloadHash,
-            String(payload.question ?? ''), b.generation);
+            String(payload.question ?? ''), b.generation, fullPrefix, roomId);
         db.prepare('INSERT INTO locks (session_key, holder_request_id) VALUES (?, ?)').run(lockKey, requestId);
         return { http: 202, requestId };
       });
@@ -269,7 +290,7 @@ export function openStore(path) {
     // S2 연결부용: 해당 PC의 queued 요청 하나를 dispatching으로 바꿔 넘긴다. 한 번 넘긴 요청은 다시 넘기지 않는다.
     claim(hostId) {
       return tx(() => {
-        const row = db.prepare(`SELECT r.request_id, r.question, b.engine, b.session_ref, b.connect_mode FROM requests r
+        const row = db.prepare(`SELECT r.request_id, r.question, r.prefix, b.engine, b.session_ref, b.connect_mode FROM requests r
           JOIN bindings b ON b.conversation_id = r.conversation_id
           WHERE b.host_id = ? AND r.status = 'queued' ORDER BY r.rowid LIMIT 1`).get(hostId);
         if (!row) return null;
@@ -277,7 +298,8 @@ export function openStore(path) {
         const ns = db.prepare(`SELECT n.name, n.profile, n.workspace, n.state, n.role_guide FROM new_sessions n JOIN requests r
           ON r.conversation_id = n.conversation_id WHERE r.request_id = ?`).get(row.request_id);
         // 역할 봇에서 만든 새 세션의 첫 질문(엔진 세션을 만드는 질문)에만 AI 역할 안내를 붙인다. 저장된 질문은 그대로다.
-        const question = ns?.state === 'pending' && ns.role_guide ? `[역할 안내]\n${ns.role_guide}\n\n[질문]\n${row.question}` : row.question;
+        const base = row.prefix ? `${row.prefix}[질문]\n${row.question}` : row.question; // AP-1 방·역할 머리말
+        const question = ns?.state === 'pending' && ns.role_guide ? `[역할 안내]\n${ns.role_guide}\n\n[질문]\n${base}` : base;
         return { requestId: row.request_id, engine: row.engine, sessionRef: row.session_ref, question,
           ...(row.engine === 'codex_thread' ? { connectMode: row.connect_mode } : {}),
           ...(ns ? { newSession: { name: ns.name, profile: ns.profile, workspace: ns.workspace } } : {}) };
@@ -491,6 +513,80 @@ export function openStore(path) {
       const row = request(requestId);
       if (!row || !canAccess(principal, binding(row.conversation_id))) return null;
       return view(row);
+    },
+
+    // --- AP-1 AI 직원(대화 하나에 이름·역할·아이콘) ---
+    staffOf(conversationId) {
+      const s = db.prepare('SELECT s.name, s.role_id, s.icon, r.name AS role_name FROM staff s LEFT JOIN roles r ON r.role_id = s.role_id WHERE s.conversation_id = ?').get(conversationId);
+      return s ? { name: s.name, roleId: s.role_id, roleName: s.role_name ?? null, icon: s.icon ?? null } : null;
+    },
+    setStaff(principal, conversationId, { name, roleId = null, icon = null }) {
+      const b = binding(conversationId);
+      if (!canAccess(principal, b)) return { http: 404, code: 'not_found' };
+      const n = String(name ?? '').trim();
+      if (!/^[\p{L}\p{N}_-]{1,20}$/u.test(n)) return { http: 400, code: 'bad_staff_name' }; // @이름으로 부를 수 있게 빈칸 없이
+      if (roleId && !db.prepare('SELECT 1 FROM roles WHERE role_id = ?').get(roleId)) return { http: 400, code: 'unknown_role' };
+      const ic = icon ? String(icon).trim() : null;
+      if (ic && [...ic].length > 2) return { http: 400, code: 'bad_icon' };
+      const taken = db.prepare('SELECT conversation_id FROM staff WHERE lower(name) = lower(?)').get(n);
+      if (taken && taken.conversation_id !== conversationId) return { http: 409, code: 'staff_name_taken' };
+      const prev = db.prepare('SELECT role_id FROM staff WHERE conversation_id = ?').get(conversationId);
+      const pending = roleId && prev?.role_id !== roleId ? 1 : 0; // 역할이 바뀌면 다음 질문 한 번에 역할 안내
+      db.prepare(`INSERT INTO staff (conversation_id, name, role_id, icon, guide_pending) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(conversation_id) DO UPDATE SET name = excluded.name, role_id = excluded.role_id, icon = excluded.icon,
+        guide_pending = CASE WHEN excluded.guide_pending = 1 THEN 1 ELSE staff.guide_pending END`).run(conversationId, n, roleId || null, ic, pending);
+      return { http: 200, staff: this.staffOf(conversationId) };
+    },
+
+    // --- AP-1 방(AI 직원 여러 명). 사람은 사용자 한 명(방 주인) ---
+    rooms(principal) {
+      return db.prepare('SELECT room_id FROM rooms WHERE owner_user_id = ? ORDER BY created_at').all(principal.userId).map((r) => this.room(principal, r.room_id)).filter(Boolean);
+    },
+    room(principal, roomId) {
+      const r = db.prepare('SELECT * FROM rooms WHERE room_id = ? AND owner_user_id = ?').get(roomId, principal.userId);
+      if (!r) return null;
+      const members = db.prepare('SELECT conversation_id FROM room_members WHERE room_id = ? ORDER BY rowid').all(roomId).map((m) => m.conversation_id)
+        .filter((id) => canAccess(principal, binding(id)));
+      return { roomId: r.room_id, name: r.name, lead: r.lead_conversation_id, guide: r.guide, members, createdAt: r.created_at };
+    },
+    saveRoom(principal, roomId, { name, members, lead, guide = '' }) {
+      const n = String(name ?? '').trim();
+      if (!n || n.length > 30) return { http: 400, code: 'bad_room_name' };
+      const ids = [...new Set((Array.isArray(members) ? members : []).map(String))];
+      if (ids.length < 1 || ids.length > 10) return { http: 400, code: 'bad_members' };
+      if (ids.some((id) => !canAccess(principal, binding(id)))) return { http: 400, code: 'bad_members' };
+      if (!ids.includes(String(lead))) return { http: 400, code: 'bad_lead' };
+      const g = String(guide ?? '').trim();
+      if (g.length > 1000) return { http: 400, code: 'too_long' };
+      if (roomId && !db.prepare('SELECT 1 FROM rooms WHERE room_id = ? AND owner_user_id = ?').get(roomId, principal.userId)) return { http: 404, code: 'not_found' };
+      const id = roomId ?? `room_${randomUUID()}`;
+      tx(() => {
+        db.prepare(`INSERT INTO rooms (room_id, owner_user_id, name, lead_conversation_id, guide, created_at) VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(room_id) DO UPDATE SET name = excluded.name, lead_conversation_id = excluded.lead_conversation_id, guide = excluded.guide`)
+          .run(id, principal.userId, n, String(lead), g, new Date().toISOString());
+        db.prepare('DELETE FROM room_members WHERE room_id = ?').run(id);
+        for (const m of ids) db.prepare('INSERT INTO room_members (room_id, conversation_id) VALUES (?, ?)').run(id, m);
+      });
+      return { http: roomId ? 200 : 201, room: this.room(principal, id) };
+    },
+    // 방 기록만 지운다(각 AI 직원 세션·1:1 기록은 그대로)
+    deleteRoom(principal, roomId) {
+      if (!db.prepare('SELECT 1 FROM rooms WHERE room_id = ? AND owner_user_id = ?').get(roomId, principal.userId)) return { http: 404, code: 'not_found' };
+      tx(() => { for (const tb of ['room_posts', 'room_members', 'rooms']) db.prepare(`DELETE FROM ${tb} WHERE room_id = ?`).run(roomId); });
+      return { http: 204 };
+    },
+    addRoomPost(roomId, post) {
+      db.prepare('INSERT INTO room_posts (post_id, room_id, kind, text, conversation_id, request_id, code, idem_key, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(`post_${randomUUID()}`, roomId, post.kind, post.text ?? null, post.conversationId ?? null, post.requestId ?? null, post.code ?? null, post.idemKey ?? null, new Date().toISOString());
+    },
+    roomPostByKey(roomId, key) { return db.prepare("SELECT 1 FROM room_posts WHERE room_id = ? AND idem_key = ? AND kind = 'user'").get(roomId, key) ? true : false; },
+    // 방 기록: 사용자 글·보낸 질문(상태·답은 요청에서)·사용 중 알림
+    roomPosts(principal, roomId) {
+      if (!this.room(principal, roomId)) return null;
+      return db.prepare(`SELECT p.post_id, p.kind, p.text, p.conversation_id, p.request_id, p.code, p.at, q.status, q.answer, q.error_code
+        FROM room_posts p LEFT JOIN requests q ON q.request_id = p.request_id WHERE p.room_id = ? ORDER BY p.rowid`).all(roomId)
+        .map((r) => ({ postId: r.post_id, kind: r.kind, text: r.text, conversationId: r.conversation_id, requestId: r.request_id, code: r.code, at: r.at,
+          ...(r.request_id ? { status: r.status, answer: r.status === 'completed' ? r.answer : null, errorCode: r.error_code } : {}) }));
     },
 
     messages(principal, conversationId) {

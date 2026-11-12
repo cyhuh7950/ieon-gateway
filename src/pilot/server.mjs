@@ -113,6 +113,23 @@ export function createApp(config) {
   }
   // 기존 세션의 표시 이름은 DB(파일 등록은 server.json의 label, 웹 등록은 웹에서 정한 이름)에서 읽는다.
   const labelOf = (c) => c.label ?? c.newSession?.name ?? c.conversationId;
+  // AP-1: AI 직원 — 대화마다 이름·역할·아이콘. 이름이 없으면 대화 이름(빈칸 없앤 것)으로 부른다.
+  const staffView = (c) => { const s = store.staffOf(c.conversationId); return { name: s?.name ?? String(labelOf(c)).replace(/\s+/g, ''), roleName: s?.roleName ?? null, roleId: s?.roleId ?? null, icon: s?.icon ?? null, set: Boolean(s) }; };
+  // 방에서 부른 사람 찾기: @이름(AI 직원 이름, 대소문자 무시). 아무도 부르지 않으면 대표.
+  const mentionsOf = (text, members) => {
+    const names = [...String(text).matchAll(/@([\p{L}\p{N}_-]{1,20})/gu)].map((m) => m[1].toLowerCase());
+    return [...new Set(names.flatMap((n) => members.filter((c) => staffView(c).name.toLowerCase() === n).map((c) => c.conversationId)))];
+  };
+  // 방 → AI 직원 한 명에게 보내기. 사용 중·꺼짐이면 보내지 않고 알림만 남긴다(자동으로 기다렸다 보내지 않음).
+  const sendToMember = (principal, room, c, question, key, extraPrefix = '') => {
+    const prefix = (room.guide ? `[방 안내 — ${room.name}]\n${room.guide}\n\n` : '') + extraPrefix;
+    let code = null; let r = null;
+    if (!online(c.hostId)) code = 'device_unavailable';
+    else if (engineReady(c) === false) code = c.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down';
+    else { r = store.submit(principal, c.conversationId, key, { question }, { prefix: prefix || null, roomId: room.roomId }); if (r.http !== 202) code = r.code; }
+    if (code) store.addRoomPost(room.roomId, { kind: 'busy', conversationId: c.conversationId, code });
+    else store.addRoomPost(room.roomId, { kind: 'ask', conversationId: c.conversationId, requestId: r.requestId });
+  };
   // 기기: server.json(파일) + 웹에서 등록한 기기(DB, 폐기되지 않은 것). P1-c
   const fileHosts = new Set((config.devices ?? []).map((d) => d.hostId));
   const knownHosts = () => [...new Set([...fileHosts, ...store.listDevices().filter((d) => !d.revokedAt).map((d) => d.hostId)])];
@@ -920,6 +937,7 @@ export function createApp(config) {
           ...(engineReady(c) === undefined ? {} : { engineReady: engineReady(c) }),
           attention: cardsFor(c, live).length,
           account: accountOf(c),
+          staff: staffView(c), // AP-1: AI 직원 이름·역할·아이콘(이름이 없으면 대화 이름)
           ...(hostNames ? { host: { id: c.hostId, name: hostNames.get(c.hostId) ?? c.hostId } } : {}),
         })) });
       }
@@ -963,6 +981,61 @@ export function createApp(config) {
           return json(res, 200, { conversationId: r.conversationId, deleted: true, workspaceRemoved });
         }
         return json(res, 404, { error: 'not_found' });
+      }
+      // --- AP-1 AI 직원·방(웹 화면만 — 메신저·외부 프로그램 키로는 못 바꿈) ---
+      const sf = path.match(/^\/v1\/conversations\/([\w-]+)\/staff$/);
+      if (sf && req.method === 'PUT') {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        const b = await readJson(req);
+        const r = store.setStaff(principal, sf[1], { name: b.name, roleId: b.roleId ?? null, icon: b.icon ?? null });
+        return r.http === 200 ? json(res, 200, r.staff) : json(res, r.http, { error: r.code });
+      }
+      if (path === '/v1/rooms' || path.startsWith('/v1/rooms/')) {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        if (req.method === 'GET' && path === '/v1/rooms') return json(res, 200, { rooms: store.rooms(principal) });
+        if (req.method === 'POST' && path === '/v1/rooms') {
+          const r = store.saveRoom(principal, null, await readJson(req));
+          return r.http === 201 ? json(res, 201, r.room) : json(res, r.http, { error: r.code });
+        }
+        const rm = path.match(/^\/v1\/rooms\/(room_[\w-]+)(\/posts|\/handoff)?$/);
+        if (!rm) return json(res, 404, { error: 'not_found' });
+        const room = store.room(principal, rm[1]);
+        if (!room) return json(res, 404, { error: 'not_found' });
+        if (!rm[2] && req.method === 'GET') return json(res, 200, { ...room, posts: store.roomPosts(principal, room.roomId) });
+        if (!rm[2] && req.method === 'PUT') {
+          const r = store.saveRoom(principal, room.roomId, await readJson(req));
+          return r.http === 200 ? json(res, 200, r.room) : json(res, r.http, { error: r.code });
+        }
+        if (!rm[2] && req.method === 'DELETE') { const r = store.deleteRoom(principal, room.roomId); return json(res, r.http, r.http === 204 ? undefined : { error: r.code }); }
+        if (req.method !== 'POST') return json(res, 404, { error: 'not_found' });
+        const key = req.headers['idempotency-key'];
+        if (!key || !/^[\w-]{8,64}$/.test(key)) return json(res, 400, { error: 'bad_request' });
+        // 같은 키로 다시 오면 다시 보내지 않고 지금 기록만 돌려준다
+        if (store.roomPostByKey(room.roomId, key)) return json(res, 200, { posts: store.roomPosts(principal, room.roomId) });
+        if (hubModeOn()) return json(res, 409, { error: 'hub_mode' });
+        const members = store.conversations(principal).filter((c) => room.members.includes(c.conversationId));
+        const b = await readJson(req);
+        if (rm[2] === '/posts') {
+          const text = typeof b.text === 'string' ? b.text.trim() : '';
+          if (!text || text.length > MAX_QUESTION) return json(res, 400, { error: 'bad_request' });
+          const targets = mentionsOf(text, members);
+          const to = targets.length ? targets : [room.lead];
+          store.addRoomPost(room.roomId, { kind: 'user', text, idemKey: key });
+          to.forEach((id, i) => { const c = members.find((m) => m.conversationId === id); if (c) sendToMember(principal, room, c, text, `${key}-${i}`); });
+          return json(res, 202, { posts: store.roomPosts(principal, room.roomId) });
+        }
+        // 넘기기: 사용자가 누를 때만. 다른 AI 직원의 답을 인용해 한 명에게 보낸다(AI끼리 스스로 부르지 않음).
+        const from = store.roomPosts(principal, room.roomId).find((x) => x.kind === 'ask' && x.requestId === String(b.requestId ?? '') && x.status === 'completed' && x.answer);
+        const target = members.find((m) => m.conversationId === String(b.to ?? ''));
+        if (!from || !target) return json(res, 400, { error: 'bad_handoff' });
+        const fromConv = members.find((m) => m.conversationId === from.conversationId) ?? { conversationId: from.conversationId, label: from.conversationId };
+        const note = String(b.note ?? '').trim().slice(0, 1000) || '이 답을 보고 이어서 해 주세요.';
+        const head = `[${staffView(fromConv).name}의 답]\n`;
+        const room0 = MAX_QUESTION - head.length - note.length - 10;
+        const question = head + (from.answer.length > room0 ? from.answer.slice(0, room0) + '…' : from.answer) + '\n\n' + note;
+        store.addRoomPost(room.roomId, { kind: 'user', text: `→ ${staffView(target).name}에게 넘김: ${note}`, conversationId: from.conversationId, idemKey: key });
+        sendToMember(principal, room, target, question, `${key}-h`);
+        return json(res, 202, { posts: store.roomPosts(principal, room.roomId) });
       }
       let s = path.match(/^\/v1\/conversations\/([\w-]+)\/settings$/);
       if (req.method === 'PUT' && s) {
