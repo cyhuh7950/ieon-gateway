@@ -108,7 +108,7 @@ case "$cmd" in
     fi
     if [[ -f "$RUN/connector.pid" ]] && pid_alive "$(cat "$RUN/connector.pid")"; then echo '연결부가 이미 실행 중입니다. stop 후 다시 하세요.' >&2; exit 1; fi
     [[ -f "$CONNECTOR_CONFIG" ]] || { echo '.local/s2/connector.json 가 없습니다. 먼저 check로 빠진 설정을 확인하세요.' >&2; exit 1; }
-    [[ -f "$HUB_TOKEN" ]] || { echo "기기 토큰 파일이 없습니다($HUB_TOKEN). 허브 웹 봇 관리 → 기기에서 받은 토큰을 직접 넣거나(권한 600) --token-file=로 지정하세요." >&2; exit 1; }
+    [[ -f "$HUB_TOKEN" ]] || { echo "기기 토큰 파일이 없습니다($HUB_TOKEN). 허브 웹 설정 → 밖에서도 쓰기에서 받은 토큰을 직접 넣거나(권한 600) --token-file=로 지정하세요." >&2; exit 1; }
     set_live "$live"
     echo "$url" >"$MODE_FILE"
     start_owned connector node src/pilot/connector.mjs .local/s2/connector.json --server "$url" --token-file "$HUB_TOKEN"

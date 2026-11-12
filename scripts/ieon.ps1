@@ -88,7 +88,7 @@ switch ($Command) {
     if ((Test-Owned 'server') -or (Get-Listening 28760)) { throw '이 PC의 이어온 서버가 켜져 있습니다. stop으로 끈 뒤 connect 하세요(로컬 서버와 허브 연결을 동시에 쓰지 않음).' }
     if (Test-Owned 'connector') { throw '연결부가 이미 실행 중입니다. stop 후 다시 하세요.' }
     if ($TokenFile) { $HubToken = if ([IO.Path]::IsPathRooted($TokenFile)) { $TokenFile } else { Join-Path $Root $TokenFile } }
-    if (-not (Test-Path $HubToken)) { throw "기기 토큰 파일이 없습니다($HubToken). 허브 웹 봇 관리 → 기기에서 받은 토큰을 직접 넣거나 -TokenFile로 지정하세요." }
+    if (-not (Test-Path $HubToken)) { throw "기기 토큰 파일이 없습니다($HubToken). 허브 웹 설정 → 밖에서도 쓰기에서 받은 토큰을 직접 넣거나 -TokenFile로 지정하세요." }
     Set-Live $Live.IsPresent
     Set-Content $ModeFile $url
     Start-Owned 'connector' 'node' @('src/pilot/connector.mjs', '.local/s2/connector.json', '--server', $url, '--token-file', $HubToken)

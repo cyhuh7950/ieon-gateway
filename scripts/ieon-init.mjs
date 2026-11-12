@@ -63,7 +63,7 @@ export function prepareWebFirst(rootDir) {
     mkdirSync(M, { recursive: true });
     const token = randomBytes(32).toString('hex');
     writeFileSync(join(M, 'token'), token, { flag: 'wx', mode: 0o600 });
-    if (!existsSync(join(M, 'bots.env'))) writeFileSync(join(M, 'bots.env'), '# 봇 토큰은 웹 화면(봇 관리 → 토큰)에서 넣는다. 이 파일을 직접 고치지 않는다.\n', { mode: 0o600 });
+    if (!existsSync(join(M, 'bots.env'))) writeFileSync(join(M, 'bots.env'), '# 봇 토큰은 웹 화면(메신저 또는 설정 → 메신저 → 토큰)에서 넣는다. 이 파일을 직접 고치지 않는다.\n', { mode: 0o600 });
     const web = server.users.find((u) => u.appId === 'app_web');
     if (!server.users.some((u) => u.appId === 'app_messenger')) {
       server.users.push({ userId: web?.userId ?? 'u_sinsan', appId: 'app_messenger', tokenSha256: createHash('sha256').update(token).digest('hex') });
