@@ -1,0 +1,39 @@
+{
+  "stage": "A0 (Codex only, 신산님 'Codex만 진행' 2026-11-12)",
+  "testThread": "01a18790-63c7-73e3-a60b-6ddb60fd5be8",
+  "workConversationTouched": false,
+  "ieonHome": ".local/accounts/codex/a0 (git 무시)",
+  "layout": {
+    "auth": "ieonHome (신산님 기기 코드 공식 로그인, 이어온은 파일 미열람)",
+    "junctions": ["sessions", "archived_sessions", "thread-writer-locks"],
+    "CODEX_SQLITE_HOME": "%USERPROFILE%\\.codex"
+  },
+  "A0_1": { "loginStatusBeforeLogin": "Not logged in", "modelCalls": 0 },
+  "A0_2": { "loginStatusAfterLogin": "Logged in using ChatGPT", "accountEmailRead": false, "modelCalls": 0 },
+  "A0_3": {
+    "desktopOpen_probeDesktopPath": "WRITER_LOCK_CONFLICT(33)",
+    "desktopOpen_probeIeonJunctionPath": "WRITER_LOCK_CONFLICT(33)",
+    "adapterResult": "desktop_holds_thread (SDK 미로드, 모델 0)",
+    "afterConversationSwitch": "WRITER_LOCK_CONFLICT",
+    "afterDesktopLogout": "WRITER_LOCK_CONFLICT (ChatGPT.exe·codex.exe 생존)",
+    "afterAppKilledBy신산님": "NO_WRITER_LOCK",
+    "modelCalls": 0
+  },
+  "A0_4": {
+    "desktopAuthJsonPresent": false,
+    "note": "Desktop은 로그아웃 상태(auth.json 없음) → 답은 이어온 전용 계정으로만 가능",
+    "result": "ok",
+    "receipt": "codex:01a18790-63c7-73e3-a60b-6ddb60fd5be8 (같은 thread, 새 대화·fork 아님)",
+    "seconds": 12,
+    "desktopRolloutBytes": { "before": 1949137, "after": 2004133 },
+    "desktopAuthChanged": false,
+    "newEntriesInIeonHome": [".sandbox", ".sandbox_migration", "cache", "installation_id", "models_cache.json", "plugins", "skills"],
+    "sqliteCreatedInIeonHome": false,
+    "lockAfterRun": "NO_LOCK_FILE",
+    "otherRolloutsChangedInWindow": "2개(18:56, 실행 12초 전후가 아닌 앱 종료 전 Desktop 활동) — 이어온 실행과 무관",
+    "modelCalls": 1
+  },
+  "A0_5": { "desktopShowsIeonTurn": true, "by": "신산님 Desktop 재로그인 후 시험 대화 화면(2026-11-12)", "modelCalls": 0 },
+  "verdict": "Codex B안(전용 로그인 + 세션·잠금 junction + CODEX_SQLITE_HOME 공유) 시험 thread에서 PASS",
+  "questionAnswerTextLogged": false
+}
