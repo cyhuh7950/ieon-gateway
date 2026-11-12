@@ -1,0 +1,33 @@
+{
+ "at": "2026-11-12T17:48:19.559Z",
+ "account": "ieon a0",
+ "step1": {
+  "threadCreated": true,
+  "turnStatus": "completed"
+ },
+ "step2": {
+  "requestAccepted": true,
+  "seconds": 31,
+  "requestStatus": "completed",
+  "errorCode": null,
+  "answerChars": 7,
+  "decisions": [
+   {
+    "kind": "command",
+    "listingCommand": true,
+    "decision": "deny",
+    "result": "denied",
+    "cwdIsWs": true
+   }
+  ],
+  "records": [
+   {
+    "kind": "command",
+    "status": "denied"
+   }
+  ],
+  "fileCreated": false,
+  "fileOk": null,
+  "wsEntries": []
+ }
+}
