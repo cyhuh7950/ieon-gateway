@@ -3,6 +3,15 @@
 작성 2026-11-13(신산님 "계속하자"). 이 문서는 **준비**다. 실측은 아직 하지 않았다(모델 호출 0, 서버·포트 기동 0).
 근거 설계: `docs/design/WORK_AND_VOICE.md` A2·A3·WV1~WV4, WORK_PLAN W0.
 
+## 0. 실측 결과(2026-11-13, 신산님 "필수 2차례 승인" — 2차례 모두 사용)
+
+| 단계 | 결과 | 증거 |
+| --- | --- | --- |
+| W0-1 Codex app-server(이어온 전용 계정 a0, 일회용 thread, untrusted·workspaceWrite·reviewer user) | **거부 경로 PASS** — 명령 실행 승인 요청(`item/commandExecution/requestApproval`, 작업 폴더 안)이 이어온으로 왔고 `decline`으로 답하자 명령은 실행되지 않음(`status: declined`), 차례는 정상 완료. **허용·파일 수정 승인은 미확인** — Codex가 파일 만들기를 명령 하나로 묶어 요청해 파일 수정 승인 요청이 따로 오지 않았고, 그 명령을 거부해 파일도 생기지 않음 | [w0-codex-appserver-20261113.json](w0-codex-appserver-20261113.json) |
+| W0-3 Claude `-p` + `--permission-prompt-tool` | **무효(내 시험 스크립트 잘못)** — 셸을 거쳐 실행하면서 질문 글이 빈칸에서 잘려 Claude에 제대로 전달되지 않음(도구 사용 0, 승인 도구 호출 0). 승인된 호출 1차례를 썼지만 측정이 되지 않음. 셸 없이 실행하도록 고침, 다시 하려면 1차례 승인 필요 | [w0-claude-permission-tool-20261113-invalid.json](w0-claude-permission-tool-20261113-invalid.json) |
+
+**남은 것:** Claude 승인 도구 왕복(1차례), Codex 허용·파일 수정 승인(선택 1차례 — 파일은 파일 수정 도구로, 명령은 따로 하라고 지시).
+
 ## 1. 준비 중 확인한 사실(읽기만, 이 PC에서 공식 도구로 프로토콜 정의만 뽑음)
 
 | # | 사실 | 근거 |

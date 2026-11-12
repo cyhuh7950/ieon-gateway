@@ -1,0 +1,16 @@
+{
+ "at": "2026-11-12T16:47:45.150Z",
+ "seconds": 34,
+ "exit": 0,
+ "signal": null,
+ "resultType": "success",
+ "isError": false,
+ "numTurns": 1,
+ "permissionDenials": [],
+ "answerChars": 68,
+ "approvals": [],
+ "fileCreated": false,
+ "fileContentOk": null,
+ "wsEntries": [],
+ "stderrTail": null
+}
