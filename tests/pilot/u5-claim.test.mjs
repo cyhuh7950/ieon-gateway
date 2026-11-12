@@ -84,6 +84,42 @@ test('메신저: 허용되지 않은 사람이 6자리 숫자를 보낼 때만 �
   assert.ok(!JSON.stringify(state.logs).includes('246810') && !JSON.stringify(state.logs).includes('111111'), '숫자는 기록하지 않음');
 });
 
+test('이미 허용된 사람(주인)이 숫자를 보내면: 틀려도 잠금 횟수에 안 들어가고, 맞으면 허용 목록은 그대로 완료만', async (t) => {
+  const s = await server(t);
+  const { code } = (await s.call('/v1/admin/messenger/claim', { method: 'POST', body: { platform: 'telegram' } })).body;
+  const wrong = code === '123456' ? '654321' : '123456';
+  const owner = (c) => s.call('/v1/messenger/claim', { method: 'POST', token: 'msg', body: { platform: 'telegram', botId: 'default', userId: '555', name: '신산', code: c, allowed: true } });
+  for (let i = 0; i < 6; i += 1) assert.equal((await owner(wrong)).body.error, 'wrong_code');
+  assert.equal((await s.call('/v1/admin/messenger/claim?platform=telegram&botId=default')).body.state, 'waiting');
+  assert.deepEqual((await owner(code)).body, { claimed: true, already: true });
+  assert.ok(!(await s.extraUsers()).includes('555'), '허용 목록은 바꾸지 않음');
+  assert.deepEqual((await s.call('/v1/admin/messenger/claim?platform=telegram&botId=default')).body, { state: 'claimed', name: '신산' });
+});
+
+test('메신저: 허용된 사람이 보낸 숫자는 질문으로 대화에 들어가지 않고, 기다리는 숫자가 없을 때만 일반 글', async (t) => {
+  const d = mkdtempSync(join(tmpdir(), 'ieon-u5o-')); t.after(() => rmSync(d, { recursive: true, force: true }));
+  const state = { claims: [], paths: [] };
+  const api = async (req) => {
+    state.paths.push(req.path);
+    if (req.path === '/v1/messenger/bots') return { status: 200, body: { bots: [{ platform: 'telegram', botId: 'default', name: '기본', callNames: [], extraUsers: ['u1'], enabled: true }] } };
+    if (req.path === '/v1/messenger/config') return { status: 200, body: {} };
+    if (req.path === '/v1/messenger/claim') { state.claims.push({ code: req.body.code, allowed: req.body.allowed }); return req.body.code === '246810' ? { status: 200, body: { claimed: true, already: true } } : { status: 404, body: { error: 'no_claim' } }; }
+    return { status: 200, body: { conversations: [] } };
+  };
+  let onMessage;
+  const runner = createBotRunner({ api, apiFor: () => api, env: { TELEGRAM_BOT_TOKEN: 'tok' }, roomsPath: join(d, 'rooms.json'), allowRefreshMs: 0,
+    log: () => {}, runners: { telegram: (o) => { onMessage = o.onMessage; } } });
+  await runner.sync(); t.after(() => runner.stopAll());
+  const say = async (text) => { const out = []; await onMessage({ platform: 'telegram', userId: 'u1', chatId: 'c', text }, async (x) => { out.push(x); }); return out.join('\n'); };
+  state.paths = [];
+  assert.match(await say('246810'), /이미 허용된 분/);
+  assert.deepEqual(state.paths, ['/v1/messenger/claim'], '숫자는 대화(질문)로 가지 않음');
+  assert.deepEqual(state.claims, [{ code: '246810', allowed: true }]);
+  state.paths = [];
+  await say('135790');
+  assert.ok(state.paths.length > 1, '기다리는 숫자가 없으면 일반 글로 처리');
+});
+
 test('화면: 메신저 연결 창 — 토큰 칸·카카오 스킬 URL·숫자 보내기·완료', () => {
   for (const id of ['id="msg"', 'id="m1"', 'id="m2"', 'id="m3"', 'id="m4"', 'id="msgBtn"']) assert.ok(APP.includes(id), id);
   assert.ok(APP.includes("'/v1/admin/messenger/claim'") && APP.includes("'/v1/admin/secrets/' + inp.dataset.name") && APP.includes("'/v1/admin/kakao/skill-url'"));

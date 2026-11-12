@@ -698,13 +698,20 @@ export function createApp(config) {
           const c = claims.get(`${platform}:${botId}`);
           if (!c || claimView(c) !== 'waiting') return json(res, 404, { error: 'no_claim' });
           const given = Buffer.from(String(b.code ?? '').trim()); const want = Buffer.from(c.code);
+          // 이미 허용된 사람(메신저가 allowed로 알림)이 틀린 경우는 숫자를 알아내려는 시도가 아니므로 잠금 횟수에 넣지 않는다.
+          const owner = b.allowed === true;
           if (given.length !== want.length || !timingSafeEqual(given, want)) {
-            c.tries += 1; if (c.tries >= 5) c.state = 'locked';
+            if (!owner) { c.tries += 1; if (c.tries >= 5) c.state = 'locked'; }
             process.stderr.write(JSON.stringify({ ch: 'server', event: 'claim_wrong', platform, botId, locked: c.state === 'locked' }) + '\n');
             return json(res, 403, { error: c.state === 'locked' ? 'claim_locked' : 'wrong_code' });
           }
           const bot = store.bot(platform, botId);
           if (!bot) return json(res, 404, { error: 'unknown_bot' });
+          if (owner) { // 이미 허용됨: 허용 목록은 그대로 두고 화면에 완료만 알린다
+            c.state = 'claimed'; c.name = b.name ? String(b.name).slice(0, 60) : null;
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'claim_done', platform, botId, already: true }) + '\n');
+            return json(res, 200, { claimed: true, already: true });
+          }
           const r = store.saveBot({ platform: bot.platform, botId: bot.botId, name: bot.name, roleId: bot.roleId, callNames: bot.callNames,
             extraUsers: [...new Set([...(bot.extraUsers ?? []), userId])], enabled: bot.enabled });
           if (r.http !== 200) return json(res, r.http, { error: r.code });
