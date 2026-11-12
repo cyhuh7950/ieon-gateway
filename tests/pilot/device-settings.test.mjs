@@ -52,7 +52,8 @@ async function pc(t, extra = {}) {
 test('PC 로컬 웹: 실제 실행 스위치와 허용 목록을 바꾸고(연결부를 이 서버가 띄우지 않으면 다시 시작 필요라고 알림), 앞단을 거친 요청은 바꿀 수 없다', async (t) => {
   const s = await pc(t);
   let r = await s.call('/v1/admin/local/device');
-  assert.deepEqual({ ...r.body }, { live: false, codexThreads: [], sharedServer: true, claudeChannel: true, managed: false, running: null });
+  assert.deepEqual({ ...r.body }, { live: false, codexThreads: [], sharedServer: true, claudeChannel: true, managed: false, running: null,
+    codexAccounts: [], codexDefaultAccount: 'pc_default', codexAccountFor: {} }); // A2: 계정 칸
   r = await s.call('/v1/admin/local/device/live', { method: 'PUT', body: { live: true } });
   assert.deepEqual(r.body, { live: true, restarted: false, restartRequired: true });
   assert.equal(JSON.parse(readFileSync(s.cfg, 'utf8')).live, true);

@@ -22,6 +22,8 @@ const ERR = {
   active_limit: '새 세션 질문을 동시에 처리할 수 있는 수를 넘음 — 잠시 후 다시 보내기',
   session_forked: '같은 Claude 세션을 터미널에서 열고 있어 결과를 확인할 수 없음',
   usage_limit: '계정의 사용 한도에 걸려 실행되지 않았음',
+  account_not_logged_in: '고른 이어온 계정이 로그인돼 있지 않아 보내지 않았음(이어온 화면 → 설정 → 계정에서 로그인)',
+  account_missing: '고른 이어온 계정이 없어 보내지 않았음(이어온 화면 → 설정 → 계정에서 다시 고르기)',
 };
 // 새 세션 만들기·정리 명령의 거절 사유
 const NS_ERR = {
@@ -116,7 +118,7 @@ export function createBridge(opts) {
       }
       // A1: 한도는 어느 계정인지와 고를 수 있는 길을 함께(실행 안 됨이 확실 — 잠그지 않음, 자동으로 다시 보내지 않음).
       if (s.status === 'failed' && s.errorCode === 'usage_limit') {
-        return send(`[${conv.label}] ${ERR.usage_limit} — 지금 쓰는 계정: ${conv.account?.label ?? '알 수 없음'}. 한도가 풀린 뒤 같은 질문을 다시 보내거나, 다른 계정·API 키로 바꾸세요(이어온 화면 → 설정 → 계정, 준비 중).`);
+        return send(`[${conv.label}] ${ERR.usage_limit} — 지금 쓰는 계정: ${conv.account?.label ?? '알 수 없음'}. 한도가 풀린 뒤 같은 질문을 다시 보내거나, 등록해 둔 다른 계정으로 바꾸세요(이어온 화면 → 설정 → 계정).`);
       }
       if (s.status === 'failed') return send(`[${conv.label}] ${ERR[s.errorCode] ?? `실행 실패: ${s.errorCode}`}`);
       if (s.status === 'unknown') {

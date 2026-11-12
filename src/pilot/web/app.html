@@ -348,6 +348,8 @@ const MODE = { alternate: '번갈아 쓰기', shared_server: '동시 사용' };
 const NS_STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
 const ERR = {
   usage_limit: ['warn', '계정의 사용 한도에 걸려 실행되지 않았어요.'],
+  account_not_logged_in: ['warn', '고른 이어온 계정이 로그인돼 있지 않아 보내지 않았어요. 설정 → 계정에서 로그인하세요.'],
+  account_missing: ['warn', '고른 이어온 계정이 없어 보내지 않았어요. 설정 → 계정에서 다시 고르세요.'],
   conversation_busy: ['warn', '이 대화에서 처리 중인 질문이 있어 보낼 수 없어요.'],
   device_unavailable: ['err', 'PC 연결이 끊겨 보낼 수 없어요. PC가 켜져 있는지 확인하세요.'],
   hub_mode: ['warn', '이 PC는 허브에 연결돼 있어 여기서 보낸 질문은 처리하지 않아요. 허브 화면이나 허브에 연결된 메신저 봇에서 보내세요.'],
@@ -769,7 +771,7 @@ function retryCard() {
   const [kind, base] = ERR[code] || ['err', '보내지 못했어요: ' + code];
   // A1: 한도는 어느 계정인지와 고를 수 있는 길을 함께(실행 안 됨이 확실하므로 다시 보내기는 누를 때만)
   const acct = conv()?.account?.label;
-  const text = code === 'usage_limit' ? base + ' 지금 쓰는 계정: ' + (acct ?? '알 수 없음') + '. 한도가 풀린 뒤 다시 보내거나, 다른 계정·API 키로 바꾸세요(설정 → 계정, 준비 중).' : base;
+  const text = code === 'usage_limit' ? base + ' 지금 쓰는 계정: ' + (acct ?? '알 수 없음') + '. 한도가 풀린 뒤 다시 보내거나, 등록해 둔 다른 계정으로 바꾸세요(설정 → 계정).' : base;
   const acts = ['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit', 'usage_limit'].includes(code)
     ? [btn('다시 보내기', () => { const q = retry.question; retry = null; renderCards(true); send(q); }), btn('닫기', () => { retry = null; renderCards(true); })]
     : [btn('닫기', () => { retry = null; renderCards(true); })];
@@ -872,7 +874,7 @@ $('panelClose').onclick = () => setPanel(false);
 $('backBtn').onclick = () => { $('app').classList.remove('in-chat'); setPanel(false); };
 function renderPanel(c) {
   $('pEngine').textContent = ENGINE[c.engine] || c.engine;
-  $('pAccount').textContent = c.account ? c.account.label + (c.account.mode === 'pc_default' ? ' (계정 고르기는 준비 중 — 설정 → 계정)' : '') : '—';
+  $('pAccount').textContent = c.account ? c.account.label + (c.account.mode === 'pc_default' ? ' (이어온 전용 계정은 설정 → 계정)' : '') : '—';
   $('pHow').textContent = HOW[c.engine] || '';
   $('pState').textContent = stateOf(c)[1];
   $('pId').textContent = c.conversationId;

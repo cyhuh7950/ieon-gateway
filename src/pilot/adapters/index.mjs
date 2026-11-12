@@ -4,6 +4,7 @@ import { codexThreadAdapter } from './codex-thread.mjs';
 import { claudeChannelAdapter } from './claude-channel.mjs';
 import { claudeCliAdapter } from './claude-cli.mjs';
 import { loadNewSessionsConfig } from '../new-sessions.mjs';
+import { codexEnvFor } from '../accounts.mjs';
 
 // 이 연결부가 새 세션용으로 만든 엔진 세션 ID 기록(한 줄에 하나, 추가만 한다).
 export function createdLog(path) {
@@ -29,7 +30,9 @@ export async function buildAdapters(config) {
     ? { config: nsCfg, created: createdLog(config.newSessions.createdPath) } : undefined;
   return {
     codex_thread: codexThreadAdapter({ live, allowlist: config.codex?.allowlist ?? [], modes: config.codex?.modes, shared: config.codex?.shared,
-      workingDirectories: config.codex?.workingDirectories, newSessions }),
+      workingDirectories: config.codex?.workingDirectories, newSessions,
+      // A2: 이어온 전용 Codex 계정(설정 파일 경로를 아는 연결부가 accountsDir를 채워 준다)
+      accountEnv: config.accountsDir ? (threadId) => codexEnvFor(config, config.accountsDir, threadId) : undefined }),
     claude_channel: claudeChannelAdapter({ live, baseUrl: config.claude?.baseUrl, tokenFile: config.claude?.tokenFile }),
     claude_cli: claudeCliAdapter({ live, newSessions }),
   };

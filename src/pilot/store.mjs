@@ -310,7 +310,8 @@ export function openStore(path) {
         .map((b) => {
           const holder = db.prepare('SELECT holder_request_id FROM locks WHERE session_key = ?').get(sessionKey(b));
           const held = holder && request(holder.holder_request_id);
-          return { conversationId: b.conversationId, label: b.label, engine: b.engine, hostId: b.hostId, busy: Boolean(holder),
+          // sessionRef는 서버 안에서만(계정 이름표 찾기, A2) — 응답에는 필드를 골라 내보내므로 밖으로 나가지 않는다.
+          return { conversationId: b.conversationId, label: b.label, engine: b.engine, hostId: b.hostId, sessionRef: b.sessionRef, busy: Boolean(holder),
             // 결과 불명·권한 확인 대기는 사람이 원래 세션을 보고 정리해야 풀린다.
             ...(held && NEEDS_REVIEW.has(held.status)
               ? { heldBy: { requestId: held.request_id, status: held.status, errorCode: held.error_code } } : {}),
