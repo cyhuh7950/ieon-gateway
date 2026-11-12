@@ -147,3 +147,21 @@ test('공개 중계 없이 쓰는 PC형: 카카오·라인은 오류가 아니�
   assert.ok(SET.includes("relay_off: ['muted', '사용 안 함 · 공개 중계 없이 쓰는 중"));
   assert.ok(SET.includes("token_missing: ['muted', '토큰 없음 · 쓰지 않으면 그대로 두세요']"), '쓰지 않는 메신저는 빨간 오류로 보이지 않음');
 });
+
+test('허브 자신의 연결부 기기는 PC 목록에서 빠지고(hubSelf), 그쪽 명령은 허브 자신으로 처리', async (t) => {
+  const d = mkdtempSync(join(tmpdir(), 'ieon-a2dself-'));
+  const closers = [];
+  t.after(async () => { for (const f of closers.reverse()) await f(); rmSync(d, { recursive: true, force: true }); });
+  writeFileSync(join(d, 'self-token'), 'selftok');
+  writeFileSync(join(d, 'connector.json'), JSON.stringify({ live: false, deviceTokenFile: join(d, 'self-token'), codex: { allowlist: [] } }));
+  const hub = createApp({ dbPath: join(d, 'pilot.db'), users, devices: [{ tokenSha256: sha('selftok'), hostId: 'h_self' }, { tokenSha256: sha('dev'), hostId: 'h_pc' }], bindings: [], accountLogin: fakeLogin, ...HUB_ACCESS });
+  const url = `http://127.0.0.1:${await hub.listen(0)}`;
+  closers.push(() => hub.close());
+  const h = { authorization: 'Bearer web', 'content-type': 'application/json', 'x-forwarded-for': '198.51.100.9' };
+  const devs = (await fetch(url + '/v1/admin/devices', { headers: h }).then((r) => r.json())).devices;
+  assert.deepEqual(devs.map((x) => [x.hostId, Boolean(x.hubSelf)]), [['h_self', true], ['h_pc', false]]);
+  const run = (host, op) => fetch(`${url}/v1/admin/hosts/${host}/run`, { method: 'POST', headers: h, body: JSON.stringify({ op, args: {} }) }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  assert.equal((await run('h_self', 'accounts.get')).status, 200, '기다리지 않고 허브 자신이 처리');
+  assert.equal((await run('h_self', 'device.get')).body.error, 'bad_op');
+  assert.ok(SET.includes('!d.revokedAt && !d.hubSelf'), '화면 PC 목록에서 뺌');
+});

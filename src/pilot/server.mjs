@@ -24,7 +24,7 @@ import { createCodexLogin } from './codex-login.mjs';
 import { listCodexThreads } from './codex-threads.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
 import { supervise } from '../hub/run.mjs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -166,6 +166,22 @@ export function createApp(config) {
     connectorState: () => ({ managed: Boolean(localConnector), running: localConnector?.running() ?? null }) });
   const hubAdmin = access ? createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json'), accountLogin: config.accountLogin, log: adminLog,
     applyDevice: async () => ({ restarted: true, restartRequired: false }) }) : null; // 허브 연결부는 설정 파일이 바뀌면 스스로 다시 시작
+  // A2-d: 허브 자신의 연결부(허브 새 세션 실행) 기기 ID. 허브 연결부 설정의 기기 토큰과 맞는 기기를 찾는다(토큰은 해시로만 비교, 출력 없음).
+  // 이 기기는 PC가 아니므로 PC 목록에서 빼고, 그쪽으로 온 관리 명령은 허브 자신(계정 명령만)으로 처리한다.
+  let selfHost;
+  const selfHostId = () => {
+    if (selfHost !== undefined) return selfHost;
+    selfHost = null;
+    try {
+      const c = JSON.parse(readFileSync(config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json'), 'utf8'));
+      if (access && c.deviceTokenFile) {
+        const tokenFile = resolve(c.deviceTokenFile); // 연결부와 같게(상대 경로는 실행 폴더 기준)
+        const h = createHash('sha256').update(readFileSync(tokenFile, 'utf8').trim()).digest('hex');
+        selfHost = deviceEntries().find((d) => d.tokenSha256 === h)?.hostId ?? null;
+      }
+    } catch { selfHost = null; }
+    return selfHost;
+  };
   const adminQueue = createAdminQueue({ timeoutMs: config.adminTimeoutMs ?? 25_000 });
   hubLink?.setAdmin?.((op, args) => deviceAdmin.run(op, args));
   // P3: 기기 API 요청 횟수 제한(1분 창). 인증된 기기는 기기별, 인증 실패는 접속 주소별로 센다.
@@ -498,7 +514,7 @@ export function createApp(config) {
           const b = await readJson(req);
           const op = String(b.op ?? '');
           if (!Object.hasOwn(OPS, op)) return json(res, 400, { error: 'bad_op' });
-          if (hr[1] === 'hub') {
+          if (hr[1] === 'hub' || hr[1] === selfHostId()) {
             if (!HUB_SELF_OPS.has(op)) return json(res, 400, { error: 'bad_op' });
             const r = await hubAdmin.run(op, b.args);
             return json(res, r.status, r.body);
@@ -685,8 +701,8 @@ export function createApp(config) {
         if (req.method === 'GET' && path === '/v1/admin/devices') {
           const web = store.listDevices();
           return json(res, 200, { devices: [
-            ...[...fileHosts].map((h) => ({ hostId: h, name: h, source: 'file', online: online(h) })),
-            ...web.map((d) => ({ ...d, source: 'web', online: !d.revokedAt && online(d.hostId) })),
+            ...[...fileHosts].map((h) => ({ hostId: h, name: h, source: 'file', online: online(h), ...(h === selfHostId() ? { hubSelf: true } : {}) })),
+            ...web.map((d) => ({ ...d, source: 'web', online: !d.revokedAt && online(d.hostId), ...(d.hostId === selfHostId() ? { hubSelf: true } : {}) })),
           ], events: store.deviceEvents() });
         }
         if (req.method === 'POST' && path === '/v1/admin/devices') {
