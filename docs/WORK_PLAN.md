@@ -57,6 +57,16 @@
 
 개발은 신산님 지시(2026-11-12)대로 토큰 충전 뒤 단계마다 승인 후 착수.
 
+### Grok·Gemini 세션 (설계 [MORE_ENGINES](design/MORE_ENGINES.md), 2026-11-12 승인)
+
+| 단계 | 내용 | 상태 |
+| --- | --- | --- |
+| E0 | 실측(시험 세션만): Windows 설치, `-r <id>` 같은 세션 이어 쓰기, 사용 중 판별, 읽기 전용, 구독 로그인 확인, Grok ACP `session/load`, Antigravity | 대기, 설치·모델 호출 별도 승인 |
+| E1 | Grok 어댑터(질문마다 한 번 실행), 대화 연결 목록·카드·준비 확인, 설명서 | 대기 |
+| E2 | Gemini 계열(Antigravity 우선, API 키는 명시적 선택 때만) | 대기 |
+| E3 | ACP 상주 연결(승인 카드와 함께) | 대기 |
+| E4 | Grok·Gemini 새 세션(선택) | 대기 |
+
 ### 새 세션 만들기 (설계 [NEW_SESSIONS](design/NEW_SESSIONS.md))
 
 | 단계 | 내용 | 상태 |
