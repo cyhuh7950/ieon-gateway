@@ -88,4 +88,4 @@ Step '서버 시작됨(실제 실행은 꺼짐)'
 $Icon = Join-Path $Root 'src\pilot\web\ieon.ico'
 Set-Content -Path $Shortcut -Value "[InternetShortcut]`r`nURL=$Url`r`nIconFile=$Icon`r`nIconIndex=0`r`n" -Encoding ascii
 if (-not $NoBrowser) { Start-Process $Url }
-Write-Output "설치를 마쳤습니다. 바탕화면의 '이어온'을 열면 됩니다. 나머지 설정은 웹 화면의 '봇 관리'에서 하세요."
+Write-Output "설치를 마쳤습니다. 바탕화면의 '이어온'을 열면 됩니다. 처음 한 번 대화 하나만 고르면 바로 쓸 수 있고, 나머지는 화면의 '설정'(톱니)에서 합니다."
