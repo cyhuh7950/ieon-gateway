@@ -36,7 +36,8 @@ test('새 화면은 이미 있는 API만 부른다', () => {
     '/v1/conversations', '/v1/conversations/', '/v1/requests/', '/v1/sessions/', '/v1/admin/local/device', '/v1/admin/local/device/live',
     '/v1/admin/denied', '/v1/admin/denied/allow', // U2: 메신저 허용 요청
     '/v1/admin/local/threads', '/v1/admin/connections', // U3
-    '/v1/admin/local/engines']); // U4: 처음 설정 준비 확인 // U3: 대화 연결
+    '/v1/admin/local/engines', // U4: 처음 설정 준비 확인
+    '/v1/admin/bots', '/v1/admin/secrets', '/v1/admin/secrets/', '/v1/admin/kakao/skill-url', '/v1/admin/messenger/claim', '/v1/admin/messenger/claim?platform=']); // U5: 메신저 연결 // U3: 대화 연결
   const used = [...new Set([...APP.matchAll(/'(\/v1\/[^'+]*)'/g)].map((m) => m[1]))];
   assert.ok(used.length >= 8, used.join(','));
   for (const p of used) assert.ok(allowed.has(p), `새 API를 부르면 안 됨: ${p}`);

@@ -103,6 +103,17 @@ export function createBotRunner(opts) {
     runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
       onMessage: async (m, send) => {
         if (!entry.bridge.allowed(m)) await refreshAllowed();
+        // U5: 허용 목록에 없는 사람이 화면의 6자리 숫자를 보내면 주인으로 등록한다(숫자는 기록하지 않음).
+        if (!entry.bridge.allowed(m) && m.userId && /^\s*\d{6}\s*$/.test(String(m.text ?? ''))) {
+          const r = await opts.api({ method: 'POST', path: '/v1/messenger/claim', body: { platform: b.platform, botId: b.botId, userId: String(m.userId),
+            name: m.userName ?? m.name ?? null, code: String(m.text).trim() } }).catch(() => null);
+          log({ platform: b.platform, botId: b.botId, event: 'claim', ok: r?.status === 200 });
+          if (r?.status === 200) {
+            refreshedAt = -Infinity; await refreshAllowed();
+            return send('주인으로 등록됐어요. 이제 질문하면 이어서 답해요. /sessions로 대화를 고를 수 있어요.');
+          }
+          if (r?.status === 403) return send(r.body?.error === 'claim_locked' ? '숫자를 여러 번 틀려 막혔어요. 이어온 화면에서 숫자를 새로 받으세요.' : '숫자가 맞지 않아요. 이어온 화면의 숫자를 다시 확인하세요.');
+        }
         const ok = entry.bridge.allowed(m);
         log({ platform: b.platform, botId: b.botId, event: 'message', allowed: ok });
         // W2: 허용 목록에 없는 사람은 서버에 알려 웹에서 "이 사람 허용"을 누를 수 있게 한다(내용은 보내지 않음).
