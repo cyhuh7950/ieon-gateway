@@ -28,6 +28,8 @@ import { supervise } from '../hub/run.mjs';
 import { basename, dirname, join, resolve } from 'node:path';
 
 const MAX_QUESTION = 8000;
+// AP-1: 방에서 다시 보내기를 보여 줄 이유(보내지 않은 것이 확실한 것만 — U2 카드의 다시 보내기와 같은 기준 + 끊김·엔진 꺼짐)
+const ROOM_RETRY = new Set(['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit', 'usage_limit', 'device_unavailable', 'session_not_running', 'shared_server_down', 'account_not_logged_in']);
 const DEVICE_FRESH_MS = 30000;
 // 대화 중심 새 화면(설계 UI_CHAT_FIRST U1)이 `/`, 예전 화면은 U8까지 `/classic`(결정 UD4).
 const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
@@ -127,7 +129,7 @@ export function createApp(config) {
     if (!online(c.hostId)) code = 'device_unavailable';
     else if (engineReady(c) === false) code = c.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down';
     else { r = store.submit(principal, c.conversationId, key, { question }, { prefix: prefix || null, roomId: room.roomId }); if (r.http !== 202) code = r.code; }
-    if (code) store.addRoomPost(room.roomId, { kind: 'busy', conversationId: c.conversationId, code });
+    if (code) store.addRoomPost(room.roomId, { kind: 'busy', conversationId: c.conversationId, code, text: question });
     else store.addRoomPost(room.roomId, { kind: 'ask', conversationId: c.conversationId, requestId: r.requestId });
   };
   // 기기: server.json(파일) + 웹에서 등록한 기기(DB, 폐기되지 않은 것). P1-c
@@ -997,11 +999,13 @@ export function createApp(config) {
           const r = store.saveRoom(principal, null, await readJson(req));
           return r.http === 201 ? json(res, 201, r.room) : json(res, r.http, { error: r.code });
         }
-        const rm = path.match(/^\/v1\/rooms\/(room_[\w-]+)(\/posts|\/handoff)?$/);
+        const rm = path.match(/^\/v1\/rooms\/(room_[\w-]+)(\/posts|\/handoff|\/retry)?$/);
         if (!rm) return json(res, 404, { error: 'not_found' });
         const room = store.room(principal, rm[1]);
         if (!room) return json(res, 404, { error: 'not_found' });
-        if (!rm[2] && req.method === 'GET') return json(res, 200, { ...room, posts: store.roomPosts(principal, room.roomId) });
+        // 방 기록(다시 보내기용 원문 resend는 서버 안에서만)
+        const postsView = () => store.roomPosts(principal, room.roomId).map(({ resend, ...p }) => ({ ...p, canRetry: !p.retried && Boolean(resend) && (p.kind === 'busy' ? ROOM_RETRY.has(p.code) : p.status === 'failed' && ROOM_RETRY.has(p.errorCode)) }));
+        if (!rm[2] && req.method === 'GET') return json(res, 200, { ...room, posts: postsView() });
         if (!rm[2] && req.method === 'PUT') {
           const r = store.saveRoom(principal, room.roomId, await readJson(req));
           return r.http === 200 ? json(res, 200, r.room) : json(res, r.http, { error: r.code });
@@ -1011,7 +1015,7 @@ export function createApp(config) {
         const key = req.headers['idempotency-key'];
         if (!key || !/^[\w-]{8,64}$/.test(key)) return json(res, 400, { error: 'bad_request' });
         // 같은 키로 다시 오면 다시 보내지 않고 지금 기록만 돌려준다
-        if (store.roomPostByKey(room.roomId, key)) return json(res, 200, { posts: store.roomPosts(principal, room.roomId) });
+        if (store.roomPostByKey(room.roomId, key)) return json(res, 200, { posts: postsView() });
         if (hubModeOn()) return json(res, 409, { error: 'hub_mode' });
         const members = store.conversations(principal).filter((c) => room.members.includes(c.conversationId));
         const b = await readJson(req);
@@ -1022,7 +1026,18 @@ export function createApp(config) {
           const to = targets.length ? targets : [room.lead];
           store.addRoomPost(room.roomId, { kind: 'user', text, idemKey: key });
           to.forEach((id, i) => { const c = members.find((m) => m.conversationId === id); if (c) sendToMember(principal, room, c, text, `${key}-${i}`); });
-          return json(res, 202, { posts: store.roomPosts(principal, room.roomId) });
+          return json(res, 202, { posts: postsView() });
+        }
+        // 다시 보내기: 사용자가 누를 때만, 보내지 않은 것이 확실한 글만(사용 중·Desktop이 열어 둠·끊김·한도). 결과 불명은 대상이 아님. 한 번만.
+        if (rm[2] === '/retry') {
+          const post = store.roomPosts(principal, room.roomId).find((x) => x.postId === String(b.postId ?? ''));
+          const ok = post && !post.retried && post.resend && (post.kind === 'busy' ? ROOM_RETRY.has(post.code) : post.status === 'failed' && ROOM_RETRY.has(post.errorCode));
+          const c = ok && members.find((m) => m.conversationId === post.conversationId);
+          if (!c) return json(res, 400, { error: 'bad_retry' });
+          if (!store.markRoomRetried(room.roomId, post.postId)) return json(res, 400, { error: 'bad_retry' });
+          store.addRoomPost(room.roomId, { kind: 'user', text: `↻ @${staffView(c).name}에게 다시 보냄`, idemKey: key });
+          sendToMember(principal, room, c, post.resend, `${key}-r`);
+          return json(res, 202, { posts: postsView() });
         }
         // 넘기기: 사용자가 누를 때만. 다른 AI 직원의 답을 인용해 한 명에게 보낸다(AI끼리 스스로 부르지 않음).
         const from = store.roomPosts(principal, room.roomId).find((x) => x.kind === 'ask' && x.requestId === String(b.requestId ?? '') && x.status === 'completed' && x.answer);
@@ -1035,7 +1050,7 @@ export function createApp(config) {
         const question = head + (from.answer.length > room0 ? from.answer.slice(0, room0) + '…' : from.answer) + '\n\n' + note;
         store.addRoomPost(room.roomId, { kind: 'user', text: `→ ${staffView(target).name}에게 넘김: ${note}`, conversationId: from.conversationId, idemKey: key });
         sendToMember(principal, room, target, question, `${key}-h`);
-        return json(res, 202, { posts: store.roomPosts(principal, room.roomId) });
+        return json(res, 202, { posts: postsView() });
       }
       let s = path.match(/^\/v1\/conversations\/([\w-]+)\/settings$/);
       if (req.method === 'PUT' && s) {
