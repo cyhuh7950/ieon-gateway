@@ -71,10 +71,17 @@ export function createCodexHome(dir, id, { desktop = desktopCodexHome() } = {}) 
 export function removeCodexHome(dir, id) {
   const home = codexHomeOf(dir, id);
   if (!existsSync(home)) return false;
-  for (const n of readdirSync(home)) {
-    const p = join(home, n);
-    if (lstatSync(p).isSymbolicLink()) unlinkSync(p);
-  }
+  // 폴더 안 어디에 있든 연결(junction·심볼릭 링크)은 따라가지 않고 연결만 지운다 — Desktop 세션 연결뿐 아니라
+  // Codex가 로그인 때 tmp/arg0-linux 아래에 만드는 실행 파일 바로 가기도 있다(2026-11-12 허브에서 발견: 이것 때문에 지우기가 멈춤).
+  const unlinkAll = (d) => {
+    for (const n of readdirSync(d)) {
+      const p = join(d, n);
+      const st = lstatSync(p);
+      if (st.isSymbolicLink()) unlinkSync(p);
+      else if (st.isDirectory()) unlinkAll(p);
+    }
+  };
+  unlinkAll(home);
   const left = readdirSync(home, { recursive: true }).filter((n) => { try { return lstatSync(join(home, n)).isSymbolicLink(); } catch { return false; } });
   if (left.length) fail('links_left', 500);
   rmSync(home, { recursive: true, force: true });

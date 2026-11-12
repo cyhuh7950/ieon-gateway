@@ -2,7 +2,7 @@
 // 로그인 전·없는 계정은 모델 전에 거절, 설정 → 계정 API(이 PC 화면만), 허브까지 계정 이름표 표시. 모델 0, 실제 로그인 0.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -34,6 +34,9 @@ test('계정 폴더: 세션·잠금은 Desktop 폴더 연결, 지울 때 연결�
   assert.match(readFileSync(join(home, 'config.toml'), 'utf8'), /cli_auth_credentials_store = "file"/);
   assert.throws(() => createCodexHome(join(d, 'acc'), 'a1'), /account_exists/);
   assert.throws(() => codexHomeOf(join(d, 'acc'), '../x'), /bad_account/);
+  // Codex가 로그인 때 tmp 아래에 만드는 바로 가기처럼 깊은 곳의 연결도 따라가지 않고 지운다(허브에서 발견)
+  mkdirSync(join(home, 'tmp', 'arg0-linux'), { recursive: true });
+  symlinkSync(join(desk, 'sessions'), join(home, 'tmp', 'arg0-linux', 'codex'), 'junction');
   assert.equal(removeCodexHome(join(d, 'acc'), 'a1'), true);
   assert.ok(!existsSync(home));
   assert.ok(existsSync(join(desk, 'sessions', 'rollout-keep.jsonl')), 'Desktop 기록은 그대로');

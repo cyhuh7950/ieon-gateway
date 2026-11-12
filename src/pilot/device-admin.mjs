@@ -71,8 +71,9 @@ export function createDeviceAdmin({ connectorConfigPath, applyDevice = async () 
         const id = known(p, a.id);
         if (hasLogin(codexHomeOf(dirOf(p), id))) await loginOf(p, id).logout();
         loginOf(p, id).cancel(); logins.delete(id);
-        removeCodexAccount(p, id);
+        // 폴더를 먼저 지우고 성공하면 설정에서 뺀다(실패하면 목록에 남아 다시 지울 수 있게).
         removeCodexHome(dirOf(p), id);
+        removeCodexAccount(p, id);
         log({ event: 'account_removed', engine: 'codex' });
         return { status: 200, body: { ...accounts(p), ...(await applyDevice()) } };
       }
