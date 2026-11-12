@@ -84,6 +84,9 @@ export function createBridge(opts) {
   const rooms = roomStore.rooms;
   const saveRooms = () => roomStore.save();
   const allowed = opts.isAllowed ?? ((m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId)));
+  // W2: 승인(허용·거부)은 주인만 — 봇마다 더한 사람(extraUsers)이 아니라 공통 허용 사용자(사용자 본인)
+  const isOwner = opts.isOwner ?? ((m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId)));
+  const roomApprovals = new Map(); // 대화방 → [{ n, approvalId }] (메신저에서 /허용 n 으로 고르는 번호)
   const roomKey = (m) => `${m.platform}:${m.botId ?? opts.botId ?? DEFAULT_BOT}:${m.chatId}${m.threadKey ? `:${m.threadKey}` : ''}`;
 
   async function sessions() {
@@ -107,11 +110,25 @@ export function createBridge(opts) {
       headers: { 'idempotency-key': `msg-${randomUUID()}` }, body: { question },
     });
     if (r.status !== 202) return send(`[${conv.label}] ${ERR[r.body?.error] ?? `보낼 수 없음: ${r.body?.error}`}`);
-    await send(`[${conv.label}] 접수됨 — 답을 기다리는 중`);
+    await send(`[${conv.label}] 접수됨 — 답을 기다리는 중${conv.workMode ? ' (작업 모드: 파일 수정·명령 실행은 허용을 물어봐요)' : ''}`);
     const started = Date.now();
-    while (Date.now() - started < waitMs) {
+    const announced = new Set();
+    // 작업 모드는 승인을 기다리는 동안(최대 15분) 더 오래 기다린다
+    const limit = conv.workMode ? Math.max(waitMs, 20 * 60_000) : waitMs;
+    while (Date.now() - started < limit) {
       await new Promise((ok) => setTimeout(ok, pollMs));
       const s = (await opts.api({ method: 'GET', path: `/v1/requests/${r.body.requestId}` })).body;
+      // W2: 처리 중 승인 요청이 오면 이 대화방에 알리고 /허용 n · /거부 n 으로 받는다(이번 한 번만, 주인만)
+      if (conv.workMode && ['running', 'dispatching'].includes(s.status)) {
+        const cards = (await opts.api({ method: 'GET', path: `/v1/conversations/${conv.conversationId}/cards` })).body?.cards ?? [];
+        for (const k of cards.filter((x) => x.kind === 'approval' && !announced.has(x.approvalId))) {
+          announced.add(k.approvalId);
+          const list = roomApprovals.get(roomKey(m)) ?? []; const n = (list.at(-1)?.n ?? 0) + 1;
+          list.push({ n, approvalId: k.approvalId }); roomApprovals.set(roomKey(m), list.slice(-20));
+          const what = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' }[k.approvalKind] ?? '허용 요청';
+          await send(`[${conv.label}] 승인 요청 ${n}: ${what} — ${k.summary}${k.cwd ? ` (작업 폴더 ${k.cwd})` : ''}\n허용: /허용 ${n}   거부: /거부 ${n}   (15분 안에, 이번 한 번만)`);
+        }
+      }
       if (s.status === 'completed') {
         for (const part of splitText(s.answer ?? '(보관하지 않은 답변)', MAX_CHUNK[m.platform] ?? 1900)) await send(part);
         return;
@@ -179,7 +196,7 @@ export function createBridge(opts) {
       const head = bot.name ? `${bot.name}${bot.role ? ` · ${bot.role.name}${bot.role.description ? ` — ${bot.role.description}` : ''}` : ''}${bot.callNames?.length ? `\n그룹에서 부르기: "${bot.callNames[0]}, …" 또는 @멘션` : ''}\n\n` : '';
       return send(head + '명령어\n/sessions 세션 목록\n/use <번호> 이 대화방을 그 세션에 연결\n/status 연결된 세션 상태\n/review done|not 확인 필요 질문 정리\n'
         + '/new codex|claude <이름> [read_only|workspace] 새 세션을 만들고 이 대화방에 연결\n/sleep <이름> 잠재우기\n/archived 보관 목록\n'
-        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
+        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/허용 <번호> · /거부 <번호> 작업 모드 승인 요청에 답하기(주인만)\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
     }
     const create = text.match(/^\/new\s+(codex|claude)\s+(\S+)(?:\s+(\S+))?\s*$/);
     if (create) {
@@ -217,6 +234,17 @@ export function createBridge(opts) {
       for (const [k, v] of Object.entries(rooms)) if (v === c.conversationId) delete rooms[k];
       saveRooms();
       return send(`"${close[1]}" 삭제함${r.body.workspaceRemoved ? '(작업 폴더도 지움)' : ''}`);
+    }
+    // W2: 승인 답(/허용 n, /거부 n — 영문 /allow n, /deny n). 주인만, 이 대화방에 알린 번호만.
+    const dec = text.match(/^\/(허용|거부|allow|deny)\s+(\d+)\s*$/i);
+    if (dec) {
+      if (!isOwner(m)) return send('승인은 이 봇의 주인만 할 수 있어요');
+      const item = (roomApprovals.get(roomKey(m)) ?? []).find((x) => x.n === Number(dec[2]));
+      if (!item) return send(`승인 요청 ${dec[2]}번이 이 대화방에 없어요`);
+      const decision = /^(허용|allow)$/i.test(dec[1]) ? 'allow' : 'deny';
+      const r = await opts.api({ method: 'POST', path: `/v1/approvals/${item.approvalId}`, body: { decision } });
+      if (r.status === 200) return send(`승인 요청 ${item.n}: ${decision === 'allow' ? '허용함(이번 한 번)' : '거부함'}`);
+      return send(r.body?.error === 'approval_closed' ? `승인 요청 ${item.n}은 이미 끝났어요(${({ expired: '시간이 지나 거부됨', turn_ended: '차례가 끝나 거부됨', allowed: '허용됨', denied: '거부됨' })[r.body.status] ?? r.body.status})` : `처리하지 못했어요: ${r.body?.error}`);
     }
     if (/^\/sessions\b/.test(text)) return send(list.length ? list.map(describe).join('\n') : '연결할 수 있는 세션이 없음');
     const use = text.match(/^\/use\s+(\d+)\s*$/);

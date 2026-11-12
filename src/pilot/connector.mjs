@@ -93,7 +93,7 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
   let outcome;
   try {
     const result = await adapter.run({ engine: job.engine, sessionRef: job.sessionRef, question: job.question, requestId: job.requestId,
-      connectMode: job.connectMode, newSession: job.newSession },
+      connectMode: job.connectMode, newSession: job.newSession, workMode: job.workMode === true },
       { approve: approver({ baseUrl, headers, requestId: job.requestId, log, ...(approvalPollMs ? { pollMs: approvalPollMs } : {}) }) });
     outcome = result.approvalRequired ? { status: 'approval_required' }
       : { status: 'completed', receipt: result.receipt ?? null, answer: result.answer ?? null, usage: result.usage ?? null };

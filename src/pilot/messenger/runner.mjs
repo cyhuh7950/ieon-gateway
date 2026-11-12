@@ -83,7 +83,9 @@ export function createBotRunner(opts) {
           .flatMap((p) => (p.callNames?.length ? p.callNames : [p.botId])),
         // 같은 메신저의 다른 우리 봇 사용자 ID(슬랙 멘션 구분용)
         otherBotUserIds: [...running.values()].filter((o) => o !== entry && o.def.platform === b.platform && o.userId).map((o) => o.userId) }),
-      isAllowed: (m) => [...commonUsers(b.platform), ...(entry.def.extraUsers ?? [])].map(String).includes(String(m.userId)) });
+      isAllowed: (m) => [...commonUsers(b.platform), ...(entry.def.extraUsers ?? [])].map(String).includes(String(m.userId)),
+      // W2: 승인은 공통 허용 사용자(사용자 본인)만 — 봇마다 더한 사람은 질문만
+      isOwner: (m) => commonUsers(b.platform).map(String).includes(String(m.userId)) });
     // 상태가 바뀌면 다음 주기(1분)를 기다리지 않고 바로 보고한다.
     const report = () => opts.api({ method: 'POST', path: '/v1/messenger/bots/status', body: { bots: [{ platform: b.platform, botId: b.botId,
       state: entry.state, missing: [], username: entry.username, canReadAll: entry.canReadAll, detail: entry.detail ?? null }] } }).catch(() => {});

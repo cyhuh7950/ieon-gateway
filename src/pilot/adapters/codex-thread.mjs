@@ -2,7 +2,9 @@
 // - alternate: 잠금 사전 확인 → SDK resumeThread → runStreamed (X1에서 확인한 방식)
 // - shared_server: 공유 App Server에 붙어 thread가 idle일 때만 turn/start (X2에서 확인한 방식)
 // 기본은 live 실행 차단이다. allowlist 밖 thread·업무 대화는 거부한다. override를 넘기지 않는다.
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { checkNewSession } from '../new-sessions.mjs';
 import { lockOutcome } from '../lock-probe.mjs';
 import { randomUUID } from 'node:crypto';
@@ -219,6 +221,79 @@ function accountEnv(opts, threadId) {
   try { return opts.accountEnv(threadId); } catch (e) { throw new EngineError(e.message, e.http ?? 409); }
 }
 
+// --- W2 작업 모드(WORK_AND_VOICE A1·WV1): Codex app-server 차례 하나 — 승인 카드로 묻고(이 thread만, 이번 한 번만), 쓰기는 작업 폴더 안,
+// 인터넷 막음, 승인 판단은 늘 사람(approvalsReviewer: user). 자동 승인(never·acceptForSession·auto_review) 없음.
+// transport: { send(obj), onMessage(fn), close() } — 동시 사용은 공유 서버(WebSocket), 번갈아 쓰기는 질문할 때만 띄운 app-server(stdio).
+export const WORK_POLICY = Object.freeze({ approvalPolicy: 'untrusted', approvalsReviewer: 'user' });
+export async function appServerTurn(transport, { threadId, question, cwd, approve, checkIdle = false, timeoutMs = 30 * 60_000 }) {
+  const pending = new Map(); let nextId = 1; let turnId = null; let answer = ''; let userMessages = 0; let turnError = null; let worked = false;
+  const usage = {}; let finish; const done = new Promise((r) => { finish = r; });
+  const call = (method, params) => { const id = nextId++; transport.send({ jsonrpc: '2.0', id, method, params }); return new Promise((resolve, reject) => pending.set(id, { resolve, reject })); };
+  transport.onMessage((msg) => {
+    if (msg.id !== undefined && !msg.method && pending.has(msg.id)) { const p = pending.get(msg.id); pending.delete(msg.id); return msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result); }
+    if (msg.id !== undefined && msg.method) { answerServerRequest(msg, threadId, approve).then((r) => transport.send(r)).catch(() => {}); return; }
+    const params = msg.params;
+    if (!params || params.threadId !== threadId || (turnId && params.turnId && params.turnId !== turnId)) return;
+    if (msg.method === 'item/started' && params.item?.type === 'userMessage') userMessages += 1;
+    if (msg.method === 'item/started' && ['commandExecution', 'fileChange'].includes(params.item?.type)) worked = true;
+    if (msg.method === 'item/completed' && params.item?.type === 'agentMessage') answer = params.item.text ?? answer;
+    if (msg.method === 'thread/tokenUsage/updated' && turnId && params.turnId === turnId) {
+      const last = params.tokenUsage?.last ?? {};
+      for (const k of ['inputTokens', 'cachedInputTokens', 'outputTokens', 'reasoningOutputTokens']) usage[k] = (usage[k] ?? 0) + (last[k] ?? 0);
+    }
+    if (msg.method === 'turn/completed') { turnError = params.turn?.error ?? null; finish(params.turn?.status ?? null); }
+  });
+  try {
+    await call('initialize', { clientInfo: { name: 'ieon-connector', version: '0.1.0' } });
+    transport.send({ jsonrpc: '2.0', method: 'initialized', params: {} });
+    if (checkIdle) {
+      const read = await call('thread/read', { threadId, includeTurns: false });
+      const status = read.thread?.status?.type;
+      if (status !== 'idle') throw new EngineError(status === 'notLoaded' ? 'thread_not_open' : 'thread_busy', 409);
+    }
+    await call('thread/resume', { threadId, excludeTurns: true, cwd, sandbox: 'workspace-write', ...WORK_POLICY });
+    const started = await call('turn/start', { threadId, cwd, clientUserMessageId: randomUUID(), ...WORK_POLICY,
+      sandboxPolicy: { type: 'workspaceWrite', writableRoots: [cwd], networkAccess: false },
+      input: [{ type: 'text', text: question, text_elements: [] }] });
+    turnId = started.turn?.id ?? null;
+    let timer; // 차례가 끝나면 시간 제한 타이머를 지운다(남으면 30분 동안 쌓임)
+    const status = await Promise.race([done, new Promise((r) => { timer = setTimeout(() => r('timeout'), timeoutMs); })]).finally(() => clearTimeout(timer));
+    if (status === 'failed' && !answer && !worked && isUsageLimit(JSON.stringify(turnError))) throw new EngineError('usage_limit', 429);
+    if (status !== 'completed') throw new Error(`turn_${status}`);
+    if (userMessages > 1) throw Object.assign(new Error('turn_joined_by_other_input'), { unknownCode: 'turn_joined_by_other_input' });
+    return { receipt: `codex:${threadId}:${turnId}`, answer, usage: Object.keys(usage).length ? usage : null };
+  } finally { transport.close(); }
+}
+
+// 번갈아 쓰기의 작업 모드: Desktop 잠금 판별 → 질문할 때만 app-server(stdio, 포트 없음)를 띄워 차례 하나 → 닫음.
+const require0 = createRequire(import.meta.url);
+export function stdioAppServer({ env, cwd, spawnImpl = spawn }) {
+  const child = spawnImpl(process.execPath, [require0.resolve('@openai/codex/bin/codex.js'), 'app-server'], { cwd, env: env ?? process.env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+  let buf = ''; let handler = () => {};
+  child.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line.trim()) continue; try { handler(JSON.parse(line)); } catch { /* 형식이 틀린 줄은 무시 */ } } });
+  return { send: (m) => child.stdin.write(JSON.stringify(m) + '\n'), onMessage: (fn) => { handler = fn; }, close: () => child.kill() };
+}
+function workDir(dir) {
+  if (!dir) throw new EngineError('work_dir_required', 409); // 작업 모드는 작업 폴더가 정해진 대화만(쓰기를 그 안으로)
+  try { if (!statSync(dir).isDirectory()) throw new Error(); } catch { throw new EngineError('work_dir_missing', 409); }
+  return dir;
+}
+async function runAlternateWork(threadId, question, deps) {
+  const cwd = workDir(deps.workingDirectory);
+  const outcome = deps.probe(threadId);
+  if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
+  const transport = (deps.appServer ?? stdioAppServer)({ env: deps.env, cwd });
+  return appServerTurn(transport, { threadId, question, cwd, approve: deps.approve, timeoutMs: deps.workTimeoutMs });
+}
+function wsTransport(endpoint, token, WS = globalThis.WebSocket) {
+  const ws = new WS(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+  let handler = () => {}; const queue = [];
+  const opened = new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = () => reject(new EngineError('shared_server_down', 503)); });
+  ws.onmessage = (e) => { try { handler(JSON.parse(e.data)); } catch { /* 무시 */ } };
+  opened.then(() => { for (const m of queue.splice(0)) ws.send(m); }).catch(() => {});
+  return { opened, send: (m) => { const s = JSON.stringify(m); ws.readyState === 1 ? ws.send(s) : queue.push(s); }, onMessage: (fn) => { handler = fn; }, close: () => ws.close() };
+}
+
 // opts: { live, allowlist, modes: {threadId: 'alternate'|'shared_server'}, shared: {endpoint, tokenFile}, probe?, loadSdk?,
 //         newSessions?: { config(loadNewSessionsConfig 결과), created: { has(id), add(id, name) } },
 //         accountEnv?: (threadId|null) => env|null — A2 이어온 전용 계정. null이면 PC 기본 로그인. 공유 서버 방식은 그 서버의 로그인이라 쓰지 않는다 }
@@ -226,7 +301,7 @@ export function codexThreadAdapter(opts) {
   const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')) };
   return {
     engine: 'codex_thread',
-    async run({ sessionRef: threadId, question, connectMode, newSession }, { approve = null } = {}) {
+    async run({ sessionRef: threadId, question, connectMode, newSession, workMode = false }, { approve = null } = {}) {
       if (newSession) {
         if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
         if (!opts.live) throw new EngineError('live_disabled', 503);
@@ -239,9 +314,16 @@ export function codexThreadAdapter(opts) {
       if (mode === 'shared_server') {
         if (!opts.shared?.endpoint || !opts.shared?.tokenFile) throw new EngineError('shared_server_not_configured', 503);
         const token = readFileSync(opts.shared.tokenFile, 'utf8').trim();
-        // 작업 모드 연결은 W2 — 지금은 승인 요청이 오면 거부(approve를 넘기지 않음). opts.workApprovals가 켜진 시험에서만 넘긴다.
-        return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: opts.workApprovals ? approve : null });
+        if (workMode) { // W2: 작업 모드 — 같은 공유 서버에서 승인 카드로
+          const cwd = workDir(opts.workingDirectories?.[threadId]);
+          const tr = (opts.wsTransport ?? wsTransport)(opts.shared.endpoint, token);
+          await tr.opened;
+          return appServerTurn(tr, { threadId, question, cwd, approve, checkIdle: true, timeoutMs: opts.workTimeoutMs });
+        }
+        // 작업 모드가 아니면 승인 요청이 와도 바로 거부(지금처럼 읽기 전용)
+        return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: null });
       }
+      if (workMode) return runAlternateWork(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], approve, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs });
       return runAlternate(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId] });
     },
   };
