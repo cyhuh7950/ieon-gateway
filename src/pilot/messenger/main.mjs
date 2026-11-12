@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { serverApi } from './bridge.mjs';
 import { runTelegram, runDiscord, runSlack } from './platforms.mjs';
 import { runKakao } from './kakao.mjs';
+import { runLine } from './line.mjs';
 import { createBotRunner } from './runner.mjs';
 
 export function parseEnv(text) {
@@ -34,6 +35,14 @@ const runner = createBotRunner({
       const limit = o.settings?.kakao?.callbackLimitMs ?? config.kakaoCallbackLimitMs;
       return relayUrl ? runKakao({ ...o, relayUrl, ...(Number.isFinite(limit) ? { callbackLimitMs: Math.min(120_000, Math.max(5_000, limit)) } : {}) })
         : o.log({ platform: 'kakao', event: 'open_error', error: 'kakaoRelayUrl_missing' });
+    },
+    // L1 라인: 카카오와 같은 공개 중계(또는 허브 내장 중계)에서 ?channel=line으로 가져온다. 중계 주소·중계 토큰은 카카오와 같은 것,
+    // 채널 액세스 토큰·채널 비밀 값은 그 봇의 토큰(웹에서 입력).
+    line: (o) => {
+      const relayUrl = o.settings?.kakao?.relayUrl ?? config.kakaoRelayUrl;
+      let relayToken = null; try { relayToken = parseEnv(readFileSync(config.envFile, 'utf8')).KAKAO_RELAY_TOKEN ?? null; } catch { relayToken = env.KAKAO_RELAY_TOKEN ?? null; }
+      if (!relayUrl || !relayToken) return o.log({ platform: 'line', event: 'open_error', error: 'relay_missing' });
+      return runLine({ ...o, relayUrl, relayToken });
     } },
   log,
 });

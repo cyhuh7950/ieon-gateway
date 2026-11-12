@@ -54,7 +54,7 @@ test('기존 설정만으로: 토큰이 있는 default 봇만 켜지고 지금�
   const s = await setup(t, { env: { TELEGRAM_BOT_TOKEN: 'T0' }, rooms: { 'telegram:-100': 'c_shared' } });
   const st = await s.runner.sync();
   assert.deepEqual(st.map((x) => [x.platform, x.botId, x.state]), [
-    ['discord', 'default', 'token_missing'], ['slack', 'default', 'token_missing'], ['telegram', 'default', 'connected']]);
+    ['discord', 'default', 'token_missing'], ['line', 'default', 'token_missing'], ['slack', 'default', 'token_missing'], ['telegram', 'default', 'connected']]);
   assert.deepEqual([...s.started.keys()], ['telegram:T0']);
   assert.match((await s.say('telegram', 'T0', '/status'))[0], /공용/); // 옛 rooms.json 연결이 이어짐
 });

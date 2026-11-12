@@ -540,7 +540,7 @@ export function openStore(path) {
     },
     // 메신저마다 default 봇(지금 쓰는 봇)이 없으면 만든다. 이미 있으면 사용자가 바꾼 이름·역할을 건드리지 않는다.
     ensureDefaultBots() {
-      for (const p of ['telegram', 'discord', 'slack']) {
+      for (const p of ['telegram', 'discord', 'slack', 'line']) { // L1: 라인도 기본 봇을 두어 메신저 창에서 고를 수 있게
         db.prepare(`INSERT OR IGNORE INTO bots (platform, bot_id, name, role_id, call_names, extra_users, enabled)
           VALUES (?, ?, '기본 봇', NULL, '[]', '[]', 1)`).run(p, DEFAULT_BOT);
       }
