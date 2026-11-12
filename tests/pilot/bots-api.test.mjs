@@ -35,7 +35,7 @@ test('처음 켜면 메신저마다 default 봇이 있고, 봇 관리는 웹 사
   const { call } = await setup(t);
   const r = await call('/v1/admin/bots');
   assert.deepEqual(r.body.bots.map((b) => [b.platform, b.botId, b.name, b.appId]), [
-    ['discord', 'default', '기본 봇', 'app_messenger'], ['slack', 'default', '기본 봇', 'app_messenger'], ['telegram', 'default', '기본 봇', 'app_messenger']]);
+    ['discord', 'default', '기본 봇', 'app_messenger'], ['line', 'default', '기본 봇', 'app_messenger'], ['slack', 'default', '기본 봇', 'app_messenger'], ['telegram', 'default', '기본 봇', 'app_messenger']]); // L1: 라인 기본 봇
   assert.deepEqual((await call('/v1/admin/bots', { token: 'msg' })).body, { error: 'admin_only' });
   assert.equal((await call('/v1/admin/bots/telegram/default', { method: 'DELETE' })).body.error, 'default_bot');
 });
@@ -47,7 +47,7 @@ test('역할·봇 저장: 규칙 검사, full 권한 거부, 부르는 이름 �
   assert.equal((await call('/v1/admin/roles/review', { method: 'PUT', body: { ...role, defaultSession: 'nope' } })).body.error, 'unknown_session');
   assert.equal((await call('/v1/admin/roles/review', { method: 'PUT', body: { ...role, defaultSession: 'c_review' } })).status, 200);
   assert.equal((await call('/v1/admin/bots/telegram/Bad_ID', { method: 'PUT', body: { name: 'x' } })).body.error, 'bad_bot_id');
-  assert.equal((await call('/v1/admin/bots/line/ieun01', { method: 'PUT', body: { name: 'x' } })).body.error, 'bad_platform');
+  assert.equal((await call('/v1/admin/bots/wechat/ieun01', { method: 'PUT', body: { name: 'x' } })).body.error, 'bad_platform');
   assert.equal((await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'nope' } })).body.error, 'unknown_role');
   const ok = await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'] } });
   assert.deepEqual(ok.body, { platform: 'telegram', botId: 'ieun01', name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'], extraUsers: [], enabled: true, sessions: [] });
@@ -87,7 +87,7 @@ test('메신저 프로세스: 켜진 봇 정의(역할 포함)를 받고, 상태
   await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'review', callNames: ['리뷰'] } });
   await call('/v1/admin/bots/slack/off', { method: 'PUT', body: { name: '끈 봇', enabled: false } });
   const defs = (await call('/v1/messenger/bots', { token: 'msg' })).body.bots;
-  assert.deepEqual(defs.map((b) => `${b.platform}:${b.botId}`), ['discord:default', 'slack:default', 'telegram:default', 'telegram:ieun01']);
+  assert.deepEqual(defs.map((b) => `${b.platform}:${b.botId}`), ['discord:default', 'line:default', 'slack:default', 'telegram:default', 'telegram:ieun01']);
   assert.equal(defs.find((b) => b.botId === 'ieun01').role.aiGuide, '너는 리뷰 담당이다.');
   assert.deepEqual((await call('/v1/messenger/bots', { token: 'web' })).body, { error: 'messenger_only' });
   assert.equal((await call('/v1/messenger/bots/status', { token: 'msg', method: 'POST', body: { bots: [

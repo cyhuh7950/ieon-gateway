@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_BOT, migrateRooms } from '../bots.mjs';
 
-const MAX_CHUNK = { telegram: 3800, discord: 1900, slack: 3800, kakao: 950 };
+const MAX_CHUNK = { telegram: 3800, discord: 1900, slack: 3800, kakao: 950, line: 4800 };
 const ERR = {
   conversation_busy: '이 세션에서 처리 중인 질문이 있어 보낼 수 없음',
   device_unavailable: 'PC 연결이 끊겨 보낼 수 없음',

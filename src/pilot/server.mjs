@@ -222,7 +222,7 @@ export function createApp(config) {
         if (!direct && !(await access.check(req))) return json(res, 403, { error: 'access_denied' });
       }
       // P5: 내장 중계. /kakao/*는 접속 제한 예외(비밀 경로·요청 횟수 제한), /pc/poll은 제한 대상이라 사실상 이 기계 안에서만.
-      if (relay && (path.startsWith('/kakao/') || path === '/pc/poll')) return relay.handler(req, res);
+      if (relay && (path.startsWith('/kakao/') || path.startsWith('/line/') || path === '/pc/poll')) return relay.handler(req, res); // L1: 라인 webhook도 같은 내장 중계
       // 이어온 아이콘(브라우저 탭·바로 가기)
       if (req.method === 'GET' && path === '/favicon.ico') {
         res.writeHead(200, { 'content-type': 'image/x-icon', 'cache-control': 'max-age=86400' });
@@ -538,6 +538,17 @@ export function createApp(config) {
           const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim();
           const base = config.publicUrl ?? `${proto}://${host}`;
           return json(res, 200, { url: `${base}/kakao/skill/${config.relay.kakaoSecret}` });
+        }
+        // L1: 라인 webhook 주소(라인 Developers의 Webhook URL 칸에 붙임). 카카오와 같은 중계·같은 비밀 경로 값.
+        if (req.method === 'GET' && path === '/v1/admin/line/webhook-url') {
+          if (!relay) {
+            const k = pcRelay();
+            return k?.secret && k.url ? json(res, 200, { url: `${k.url}/line/webhook/${k.secret}`, relay: 'public' }) : json(res, 404, { error: 'no_kakao_relay' });
+          }
+          const proto = String(req.headers['x-forwarded-proto'] ?? 'http').split(',')[0].trim();
+          const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim();
+          const base = config.publicUrl ?? `${proto}://${host}`;
+          return json(res, 200, { url: `${base}/line/webhook/${config.relay.lineSecret ?? config.relay.kakaoSecret}` });
         }
         // W7: PC 완결형 공개 중계 연결 상태(중계 /health의 pc 값)
         if (req.method === 'GET' && path === '/v1/admin/kakao/relay-status') {

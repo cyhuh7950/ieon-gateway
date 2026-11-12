@@ -564,9 +564,10 @@ const PLAT_INFO = {
   telegram: { name: '텔레그램', color: '#229ED9', mark: '✈', guide: ['텔레그램에서 @BotFather를 열어요', '/newbot을 보내고 봇 이름을 두 번 정해요', '받은 토큰을 아래 칸에 붙여 넣어요'] },
   discord: { name: '디스코드', color: '#5865F2', mark: 'D', guide: ['discord.com/developers에서 New Application을 만들어요', 'Bot 메뉴에서 Reset Token → 토큰을 복사해요', '같은 화면에서 Message Content Intent를 켜요', 'OAuth2 링크로 봇을 서버에 초대해요(설명서 4.2)'] },
   slack: { name: '슬랙', color: '#4A154B', mark: 'S', guide: ['api.slack.com/apps에서 "From an app manifest"로 앱을 만들어요(설명서 4.3의 manifest)', 'App-Level Token(xapp-…)과 Bot Token(xoxb-…)을 받아요', '두 토큰을 아래 칸에 붙여 넣어요'] },
+  line: { name: '라인', color: '#06C755', mark: 'L', guide: ['LINE Developers(developers.line.biz)에서 Messaging API 채널을 만들어요(라인 공식 계정이 함께 생겨요)', '채널 시크릿과 채널 액세스 토큰(장기)을 받아 아래 두 칸에 넣어요', 'Messaging API 설정의 Webhook URL에 아래 주소를 넣고 "Webhook 사용"을 켜요', '공식 계정 관리 화면의 응답 설정에서 자동 응답 메시지를 꺼요'] },
   kakao: { name: '카카오톡', color: '#FEE500', ink: '#3a2f00', mark: 'K', guide: ['카카오 오픈빌더의 스킬 URL 칸에 아래 주소를 붙여 넣고 저장해요', '봇테스트나 채널 대화에서 봇에게 말을 걸 준비를 해요'] },
 };
-const SEC_NAME = { TELEGRAM_BOT_TOKEN: '봇 토큰', DISCORD_BOT_TOKEN: '봇 토큰', SLACK_APP_TOKEN: '앱 토큰 (xapp-…)', SLACK_BOT_TOKEN: '봇 토큰 (xoxb-…)' };
+const SEC_NAME = { TELEGRAM_BOT_TOKEN: '봇 토큰', DISCORD_BOT_TOKEN: '봇 토큰', SLACK_APP_TOKEN: '앱 토큰 (xapp-…)', SLACK_BOT_TOKEN: '봇 토큰 (xoxb-…)', LINE_CHANNEL_ACCESS_TOKEN: '채널 액세스 토큰', LINE_CHANNEL_SECRET: '채널 시크릿' };
 let msgPlat = null, msgTimer = null;
 const stopMsgTimer = () => { clearInterval(msgTimer); msgTimer = null; };
 function msgStep(n) { for (const i of [1, 2, 3, 4]) $('m' + i).hidden = i !== n; }
@@ -613,6 +614,15 @@ async function msgSetup(platform) {
   }
   $('m2Note').textContent = '토큰은 이 PC(또는 허브)에만 저장되고 다시 보이지 않아요. 같은 봇을 PC와 허브에 함께 켜지 마세요.';
   $('m2Next').hidden = false; $('m2Next').textContent = '연결';
+  // L1 라인: 라인이 우리 쪽으로 보내 주는 주소(webhook)를 함께 보여 준다. 공개 중계·허브가 없으면 만들 수 없다.
+  if (platform === 'line') {
+    const w = await api('/v1/admin/line/webhook-url').catch(() => null);
+    if (w?.status !== 200) { fields.append(el('p', '이 화면에서는 라인 webhook 주소를 만들 수 없어요. 라인은 공개 주소가 필요해 허브(또는 공개 중계)에서 연결해요.', 'muted small')); $('m2Next').hidden = true; return; }
+    const wrap = el('label', null, 'field'); wrap.append('Webhook URL');
+    const inp = el('input'); inp.readOnly = true; inp.value = w.body.url; wrap.append(inp); fields.append(wrap);
+    fields.append(btn('복사', async () => { try { await navigator.clipboard.writeText(w.body.url); toast('ok', '복사했어요'); } catch { inp.select(); } }));
+    $('m2Note').textContent += ' Webhook URL에는 비밀 경로가 들어 있으니 다른 곳에 올리지 마세요. 실제 답은 라인 "보내기"로 가서 공식 계정 요금제의 월 무료 건수에 들어가요.';
+  }
 }
 $('m2Next').onclick = async () => {
   for (const inp of $('m2Fields').querySelectorAll('input[data-name]')) {

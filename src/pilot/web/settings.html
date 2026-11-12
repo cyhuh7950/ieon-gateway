@@ -143,7 +143,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <div class="muted">봇을 고르면 아래 편집 칸의 "토큰"에 메신저에서 받은 봇 토큰을 넣을 수 있습니다. 저장한 토큰은 다시 보이지 않고, 1분 안에 봇이 연결됩니다.</div>
     <table class="list"><thead><tr><th>메신저</th><th>봇 ID</th><th>이름</th><th>역할</th><th>부르는 이름</th><th>상태</th></tr></thead><tbody id="botRows"></tbody></table>
     <form id="botAdd" class="row" style="margin-top:10px">
-      <select id="addPlatform" aria-label="메신저"><option value="telegram">텔레그램</option><option value="discord">디스코드</option><option value="slack">슬랙</option><option value="kakao">카카오톡</option></select>
+      <select id="addPlatform" aria-label="메신저"><option value="telegram">텔레그램</option><option value="discord">디스코드</option><option value="slack">슬랙</option><option value="kakao">카카오톡</option><option value="line">라인</option></select>
       <input id="addBotId" placeholder="새 봇 ID (영문 소문자·숫자·-)" maxlength="32" autocomplete="off" aria-label="새 봇 ID">
       <button class="primary" type="submit">봇 추가</button>
     </form>
@@ -296,7 +296,7 @@ function setStatus(kind, text) {
   if (kind !== 'err') statusTimer = setTimeout(() => { $('status').innerHTML = ''; }, 6000);
 }
 // --- 봇 관리(웹 사용자만, MULTI_BOTS M2-W) ---
-const PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', teams: 'Teams', kakao: '카카오톡' };
+const PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', teams: 'Teams', kakao: '카카오톡', line: '라인' };
 const STATE = { connected: ['st-ok', '연결됨'], starting: ['st-warn', '시작 중'], token_missing: ['st-err', '토큰 없음'],
   duplicate_token: ['st-err', '토큰 중복'], conflict: ['st-err', '충돌 · 다른 곳에서 같은 봇을 켜 둠'], error: ['st-err', '연결 오류'], platform_not_supported: ['st-err', '지원 안 함'] };
 const ADMIN_ERR = { bad_bot_id: '봇 ID는 영문 소문자·숫자·- 2~32자', bad_name: '이름을 1~30자로', unknown_role: '없는 역할',
@@ -306,9 +306,9 @@ const ADMIN_ERR = { bad_bot_id: '봇 ID는 영문 소문자·숫자·- 2~32자',
 let bots = [], roles = [], adminSessions = [], editing = null;
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
 const envHint = (platform, id) => {
-  if (id === 'default') return { telegram: 'TELEGRAM_BOT_TOKEN', discord: 'DISCORD_BOT_TOKEN', slack: 'SLACK_APP_TOKEN, SLACK_BOT_TOKEN', kakao: 'KAKAO_RELAY_TOKEN' }[platform] || '';
+  if (id === 'default') return { telegram: 'TELEGRAM_BOT_TOKEN', discord: 'DISCORD_BOT_TOKEN', slack: 'SLACK_APP_TOKEN, SLACK_BOT_TOKEN', kakao: 'KAKAO_RELAY_TOKEN', line: 'LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET' }[platform] || '';
   const ID = id.toUpperCase().replaceAll('-', '_');
-  return { telegram: 'TELEGRAM_BOT_' + ID + '_TOKEN', discord: 'DISCORD_BOT_' + ID + '_TOKEN', slack: 'SLACK_BOT_' + ID + '_APP_TOKEN, SLACK_BOT_' + ID + '_BOT_TOKEN', kakao: 'KAKAO_BOT_' + ID + '_RELAY_TOKEN' }[platform] || '';
+  return { telegram: 'TELEGRAM_BOT_' + ID + '_TOKEN', discord: 'DISCORD_BOT_' + ID + '_TOKEN', slack: 'SLACK_BOT_' + ID + '_APP_TOKEN, SLACK_BOT_' + ID + '_BOT_TOKEN', kakao: 'KAKAO_BOT_' + ID + '_RELAY_TOKEN', line: 'LINE_BOT_' + ID + '_ACCESS_TOKEN, LINE_BOT_' + ID + '_CHANNEL_SECRET' }[platform] || '';
 };
 const split = (s) => s.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
 function statusText(b) {

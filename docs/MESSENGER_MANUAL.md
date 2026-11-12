@@ -121,6 +121,23 @@ settings:
 
 **주의 — 같은 앱에 다른 프로그램이 붙으면 메시지가 나뉜다**: Socket Mode는 같은 앱에 연결이 여러 개면 메시지를 그중 하나에만 보낸다. 2026-10-31에는 Slack CLI 예제(`D:\slack\my-app`에서 `slack run`, 앱 이름 `my-app (local)`)가 같은 앱에 붙어 있어 1:1 대화를 그 예제가 가져가 엉뚱하게 답했다. 이어온 봇이 쓰는 슬랙 앱에서는 `slack run` 같은 다른 프로그램을 실행하지 않는다. 가장 확실한 방법은 위 manifest로 이어온 전용 앱을 만드는 것이다.
 
+### 4.5 라인(LINE) — 2026-11-12 L1
+
+라인은 카카오처럼 **라인이 우리 공개 주소로 webhook을 보내는** 방식이라 공개 서버(지금은 허브)가 받아 두고, 메신저가 먼저 접속해 가져갑니다(중계의 메신저별 대기열 `?channel=line`). 서명(`X-Line-Signature`, 채널 시크릿으로 만든 HMAC-SHA256)은 채널 시크릿을 가진 메신저 쪽이 확인하고, 틀리면 버립니다. 1:1 대화만 받습니다.
+
+1. **라인 공식 계정 만들기:** LINE 계정으로 [LINE Official Account Manager](https://manager.line.biz)에서 공식 계정을 만듭니다.
+2. **Messaging API 켜기:** 공식 계정 관리 화면의 설정에서 **Messaging API 사용**을 켭니다(처음이면 프로바이더 이름을 정합니다). 그러면 [LINE Developers](https://developers.line.biz) 콘솔에 그 계정의 **Messaging API 채널**이 생깁니다.
+3. **값 두 개 받기:** LINE Developers → 그 채널 → **Basic settings(기본 설정)**의 **Channel secret(채널 시크릿)**, **Messaging API** 탭의 **Channel access token(long-lived)** → Issue(발급).
+4. **이어온에 넣기:** 이어온 **허브 화면** 왼쪽 아래 **메신저 → 라인** → 두 칸(채널 액세스 토큰·채널 시크릿)에 붙여 넣고, 그 아래 **Webhook URL**을 **복사**합니다.
+5. **라인에 주소 넣기:** LINE Developers **Messaging API** 탭의 **Webhook URL**에 붙여 넣고 **Verify(확인)** → **Use webhook(웹훅 사용)**을 켭니다.
+6. **자동 응답 끄기:** 공식 계정 관리 화면의 **응답 설정**에서 **자동 응답 메시지**를 끕니다(켜 두면 라인이 미리 정한 답을 같이 보냅니다).
+7. **연결:** 이어온 메신저 창에서 **연결**을 누르면 봇이 연결된 뒤 **6자리 숫자**가 나옵니다. 휴대폰 라인에서 그 공식 계정을 **친구 추가**(Messaging API 탭의 QR 코드)하고 **1:1 대화**에서 숫자를 보내 주인으로 등록합니다.
+8. **질문:** `/sessions` → `/use 1` → 질문. 4절의 AI 응답이 켜져 있어야 답합니다.
+
+- 토큰 이름: 기본 봇 `LINE_CHANNEL_ACCESS_TOKEN`·`LINE_CHANNEL_SECRET`, 추가 봇 `LINE_BOT_<ID>_ACCESS_TOKEN`·`LINE_BOT_<ID>_CHANNEL_SECRET`(웹에서만 입력).
+- Webhook URL: 허브 `https://<허브>/line/webhook/<비밀 경로>`(카카오 스킬 URL과 같은 비밀 경로 값). **설정 → 메신저**가 아니라 메신저 창에서 복사합니다.
+- 답장(reply)은 무료, 보내기(push)는 공식 계정 요금제의 월 무료 건수에 들어갑니다. 이어온은 답이 20초 안에 오면 답장으로, 늦으면 "받았어요"를 답장으로 보내고 실제 답을 보내기로 보냅니다.
+
 ## 5. 처음 연결하기(공통 순서)
 
 1. 웹 화면 왼쪽 아래 **메신저**를 누르고 메신저를 고른다. 꺼 둔 봇은 고를 수 없다.

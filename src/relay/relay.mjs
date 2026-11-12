@@ -2,6 +2,8 @@
 // - 카카오 스킬 요청을 받아 5초 안에 "접수"로 답하고, 질문은 PC가 가져갈 때까지 짧게 메모리에만 둔다.
 // - 질문 원문·사용자 키는 로그에 남기지 않는다(로그에는 이벤트 종류만). 디스크에 쓰지 않는다.
 // - 이 모듈은 비밀번호·메신저 토큰을 갖지 않는다. 카카오 스킬 URL의 비밀 값과 PC 토큰만 안다.
+// - L1 라인: 라인 webhook(/line/webhook/<비밀>)은 받은 본문 그대로와 서명 헤더만 맡아 두고, 서명 확인·답하기는 채널 비밀 값을 가진
+//   메신저 쪽이 한다(이 모듈은 라인 토큰도 갖지 않는다). 메신저마다 대기열을 따로 두어 카카오 실행기가 라인 몫을 가져가지 않게 한다.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 
@@ -36,6 +38,18 @@ export function callbackAllowed(url, hosts) {
   return hosts.some((h) => u.hostname === h || u.hostname.endsWith(`.${h}`));
 }
 
+// L1: 라인 서명은 받은 바이트 그대로에 대해 만들어지므로 본문을 고치지 않고 글자로만 읽는다.
+async function readText(req, max) {
+  const chunks = [];
+  let size = 0;
+  for await (const c of req) {
+    size += c.length;
+    if (size > max) throw Object.assign(new Error('too_large'), { code: 413 });
+    chunks.push(c);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 async function readJson(req, max) {
   const chunks = [];
   let size = 0;
@@ -54,17 +68,19 @@ export function createRelay(cfg) {
   const o = { ...DEFAULTS, ...cfg };
   const now = o.now ?? Date.now;
   const log = (e) => o.log?.({ ch: 'relay', at: new Date(now()).toISOString(), ...e });
-  const queue = []; // { id, channel, userKey, text, callbackUrl, at }
+  const queues = { kakao: [], line: [] }; // 메신저별 대기열. kakao: { id, channel, userKey, text, callbackUrl, at } / line: { id, channel, raw, signature, at }
+  const queue = queues.kakao; // 카카오 코드가 쓰던 이름 그대로
+  const lineSecret = String(o.lineSecret ?? o.kakaoSecret); // 따로 정하지 않으면 카카오와 같은 비밀 경로 값
   const seen = new Map(); // 콜백 주소 해시 → 시각(재전송 중복 제거). 질문 원문은 보관하지 않는다.
   const hits = new Map(); // IP → { n, from }
-  const waiters = new Set(); // 대기 중인 PC 폴링: (items) => void
+  const waiters = { kakao: new Set(), line: new Set() }; // 대기 중인 PC 폴링(메신저별): (items) => void
   let lastPoll = 0;
   let seq = 0;
 
   const pcAlive = () => now() - lastPoll < o.pcAliveMs;
   const purge = () => {
     const t = now();
-    for (let i = queue.length - 1; i >= 0; i--) if (t - queue[i].at > o.ttlMs) { queue.splice(i, 1); log({ event: 'expired' }); }
+    for (const [ch, q] of Object.entries(queues)) for (let i = q.length - 1; i >= 0; i--) if (t - q[i].at > o.ttlMs) { q.splice(i, 1); log({ event: 'expired', channel: ch }); }
     for (const [k, at] of seen) if (t - at > o.dedupeMs) seen.delete(k);
     for (const [k, h] of hits) if (t - h.from > o.rateWindowMs) hits.delete(k);
   };
@@ -76,10 +92,10 @@ export function createRelay(cfg) {
   };
   // 허브 내장일 때는 허브가 믿는 앞단 기준으로 계산한 주소 함수를 넘겨받는다(P5).
   const clientIp = o.clientIp ?? ((req) => (o.trustProxy ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '') || req.socket.remoteAddress || '?');
-  const flush = () => {
-    if (!queue.length) return;
-    const w = waiters.values().next().value;
-    if (w) { waiters.delete(w); w(queue.splice(0)); }
+  const flush = (ch = 'kakao') => {
+    if (!queues[ch].length) return;
+    const w = waiters[ch].values().next().value;
+    if (w) { waiters[ch].delete(w); w(queues[ch].splice(0)); }
   };
 
   function kakao(body) {
@@ -101,18 +117,30 @@ export function createRelay(cfg) {
     return { status: 200, body: accepted() };
   }
 
-  function poll(req, res) {
+  // L1: 라인 webhook. 본문을 그대로 맡겨 두고 바로 200(라인은 빠른 응답을 기다린다). PC가 꺼져 있으면 답할 수단이 없어 버리고 기록만.
+  function line(raw, signature) {
+    if (!signature || signature.length > 200) return { status: 401, body: { error: 'no_signature' } };
+    if (!pcAlive()) { log({ event: 'pc_down', channel: 'line' }); return { status: 200, body: {} }; }
+    if (queues.line.length >= o.maxQueue) { log({ event: 'queue_full', channel: 'line' }); return { status: 200, body: {} }; }
+    queues.line.push({ id: `l${now().toString(36)}${(seq++).toString(36)}`, channel: 'line', raw, signature, at: now() });
+    log({ event: 'queued', channel: 'line', depth: queues.line.length });
+    flush('line');
+    return { status: 200, body: {} };
+  }
+
+  function poll(req, res, ch = 'kakao') {
     lastPoll = now();
     purge();
+    const queue = queues[ch];
     const send = (items) => {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ items: items.map(({ at, ...rest }) => ({ ...rest, ageMs: now() - at })) }));
     };
     if (queue.length) return send(queue.splice(0)); // 가져가면 바로 지운다.
     const w = (items) => { clearTimeout(timer); send(items); };
-    const timer = setTimeout(() => { waiters.delete(w); lastPoll = now(); send([]); }, o.pollWaitMs);
-    waiters.add(w);
-    req.on('close', () => { clearTimeout(timer); waiters.delete(w); });
+    const timer = setTimeout(() => { waiters[ch].delete(w); lastPoll = now(); send([]); }, o.pollWaitMs);
+    waiters[ch].add(w);
+    req.on('close', () => { clearTimeout(timer); waiters[ch].delete(w); });
   }
 
   const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(body)); };
@@ -124,7 +152,10 @@ export function createRelay(cfg) {
       if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, pc: pcAlive() });
       if (req.method === 'GET' && url.pathname === '/pc/poll') {
         if (!safeEqual((req.headers.authorization ?? '').replace(/^Bearer\s+/i, ''), o.pcToken)) return json(res, 401, { error: 'unauthorized' });
-        return poll(req, res);
+        // 메신저별로 가져간다(?channel=line). 값이 없으면 예전 PC와 맞게 카카오.
+        const ch = url.searchParams.get('channel') ?? 'kakao';
+        if (!queues[ch]) return json(res, 400, { error: 'bad_channel' });
+        return poll(req, res, ch);
       }
       const m = url.pathname.match(/^\/kakao\/skill\/([^/]+)$/);
       if (req.method === 'POST' && m) {
@@ -132,6 +163,14 @@ export function createRelay(cfg) {
         if (!safeEqual(m[1], o.kakaoSecret)) return json(res, 404, { error: 'not_found' });
         if (limited(clientIp(req))) { log({ event: 'rate_limited' }); return json(res, 429, { error: 'rate_limited' }); }
         const r = kakao(await readJson(req, o.maxBody));
+        return json(res, r.status, r.body);
+      }
+      const lm = url.pathname.match(/^\/line\/webhook\/([^/]+)$/);
+      if (req.method === 'POST' && lm) {
+        if (!safeEqual(lm[1], lineSecret)) return json(res, 404, { error: 'not_found' });
+        if (limited(clientIp(req))) { log({ event: 'rate_limited', channel: 'line' }); return json(res, 429, { error: 'rate_limited' }); }
+        const raw = await readText(req, o.maxBody);
+        const r = line(raw, String(req.headers['x-line-signature'] ?? ''));
         return json(res, r.status, r.body);
       }
       return json(res, 404, { error: 'not_found' });
@@ -146,7 +185,7 @@ export function createRelay(cfg) {
   return {
     server, handler,
     listen: (port, host = '127.0.0.1') => new Promise((ok) => server.listen(port, host, () => ok(server.address()))),
-    close: () => new Promise((ok) => { for (const w of waiters) w([]); server.close(() => ok()); server.closeAllConnections?.(); }),
-    depth: () => queue.length,
+    close: () => new Promise((ok) => { for (const set of Object.values(waiters)) for (const w of set) w([]); server.close(() => ok()); server.closeAllConnections?.(); }),
+    depth: (ch = 'kakao') => queues[ch].length,
   };
 }

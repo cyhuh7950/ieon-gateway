@@ -1,5 +1,5 @@
 // 여러 봇(설계: docs/design/MULTI_BOTS.md) 규칙. 토큰은 .env에 규칙 이름으로만 두고, 이 모듈은 값을 기록·출력하지 않는다.
-export const PLATFORMS = Object.freeze(['telegram', 'discord', 'slack', 'teams', 'kakao']);
+export const PLATFORMS = Object.freeze(['telegram', 'discord', 'slack', 'teams', 'kakao', 'line']);
 export const DEFAULT_BOT = 'default';
 // 부르는 이름으로 쓸 수 없는 말(명령어와 헷갈림)
 const RESERVED = new Set(['help', 'start', 'sessions', 'use', 'status', 'review', 'whoami', 'new', 'sleep', 'archived', 'restore', 'close', 'limits']);
@@ -21,12 +21,14 @@ export function tokenEnvNames(platform, id) {
   if (id === DEFAULT_BOT) {
     return { telegram: { token: 'TELEGRAM_BOT_TOKEN' }, discord: { token: 'DISCORD_BOT_TOKEN' },
       slack: { appToken: 'SLACK_APP_TOKEN', botToken: 'SLACK_BOT_TOKEN' },
-      teams: { appId: 'TEAMS_APP_ID', appPassword: 'TEAMS_APP_PASSWORD' }, kakao: { token: 'KAKAO_RELAY_TOKEN' } }[platform];
+      teams: { appId: 'TEAMS_APP_ID', appPassword: 'TEAMS_APP_PASSWORD' }, kakao: { token: 'KAKAO_RELAY_TOKEN' },
+      line: { accessToken: 'LINE_CHANNEL_ACCESS_TOKEN', channelSecret: 'LINE_CHANNEL_SECRET' } }[platform];
   }
   const ID = id.toUpperCase().replaceAll('-', '_');
   return { telegram: { token: `TELEGRAM_BOT_${ID}_TOKEN` }, discord: { token: `DISCORD_BOT_${ID}_TOKEN` },
     slack: { appToken: `SLACK_BOT_${ID}_APP_TOKEN`, botToken: `SLACK_BOT_${ID}_BOT_TOKEN` },
-    teams: { appId: `TEAMS_BOT_${ID}_APP_ID`, appPassword: `TEAMS_BOT_${ID}_APP_PASSWORD` }, kakao: { token: `KAKAO_BOT_${ID}_RELAY_TOKEN` } }[platform];
+    teams: { appId: `TEAMS_BOT_${ID}_APP_ID`, appPassword: `TEAMS_BOT_${ID}_APP_PASSWORD` }, kakao: { token: `KAKAO_BOT_${ID}_RELAY_TOKEN` },
+    line: { accessToken: `LINE_BOT_${ID}_ACCESS_TOKEN`, channelSecret: `LINE_BOT_${ID}_CHANNEL_SECRET` } }[platform];
 }
 
 // 서버 앱 ID. default 봇은 기존 app_messenger를 그대로 쓴다. 봇 ID는 메신저마다 따로라 메신저 이름을 넣는다.
