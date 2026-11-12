@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS rooms (
   guide TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS room_members (
   room_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (room_id, conversation_id));
+CREATE TABLE IF NOT EXISTS work_modes (
+  conversation_id TEXT PRIMARY KEY, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS approvals (
   approval_id TEXT PRIMARY KEY, request_id TEXT NOT NULL, conversation_id TEXT NOT NULL, kind TEXT NOT NULL, summary TEXT NOT NULL,
   cwd TEXT, status TEXT NOT NULL, decided_by TEXT, created_at TEXT NOT NULL, decided_at TEXT);
@@ -297,7 +299,7 @@ export function openStore(path) {
     // S2 연결부용: 해당 PC의 queued 요청 하나를 dispatching으로 바꿔 넘긴다. 한 번 넘긴 요청은 다시 넘기지 않는다.
     claim(hostId) {
       return tx(() => {
-        const row = db.prepare(`SELECT r.request_id, r.question, r.prefix, b.engine, b.session_ref, b.connect_mode FROM requests r
+        const row = db.prepare(`SELECT r.request_id, r.question, r.prefix, r.conversation_id, b.engine, b.session_ref, b.connect_mode FROM requests r
           JOIN bindings b ON b.conversation_id = r.conversation_id
           WHERE b.host_id = ? AND r.status = 'queued' ORDER BY r.rowid LIMIT 1`).get(hostId);
         if (!row) return null;
@@ -309,6 +311,8 @@ export function openStore(path) {
         const question = ns?.state === 'pending' && ns.role_guide ? `[역할 안내]\n${ns.role_guide}\n\n[질문]\n${base}` : base;
         return { requestId: row.request_id, engine: row.engine, sessionRef: row.session_ref, question,
           ...(row.engine === 'codex_thread' ? { connectMode: row.connect_mode } : {}),
+          // W2: 작업 모드인 대화의 질문만(연결부가 승인 카드로 묻고 쓰기를 작업 폴더 안으로)
+          ...(db.prepare('SELECT 1 FROM work_modes WHERE conversation_id = ?').get(row.conversation_id) ? { workMode: true } : {}),
           ...(ns ? { newSession: { name: ns.name, profile: ns.profile, workspace: ns.workspace } } : {}) };
       });
     },
@@ -492,6 +496,22 @@ export function openStore(path) {
         }
         db.prepare('UPDATE bindings SET connect_mode = ? WHERE conversation_id = ?').run(mode, conversationId);
         return { http: 200, connectMode: mode };
+      });
+    },
+
+    // W2(WORK_AND_VOICE A1·WV1·WV4): 대화별 작업 모드(기본 꺼짐). 지금은 Codex 기존 대화만(W0: app-server 경로 가능, Claude는 보류).
+    // 새 세션은 자기 권한 프로필이 따로 있어 대상이 아님. 처리 중이면 바꾸지 않는다.
+    workMode(conversationId) { return Boolean(db.prepare('SELECT 1 FROM work_modes WHERE conversation_id = ?').get(conversationId)); },
+    setWorkMode(principal, conversationId, on) {
+      const b = binding(conversationId);
+      if (!canAccess(principal, b)) return { http: 404, code: 'not_found' };
+      if (typeof on !== 'boolean') return { http: 400, code: 'bad_work_mode' };
+      if (on && (b.engine !== 'codex_thread' || newSession(conversationId))) return { http: 400, code: 'work_mode_not_supported' };
+      return tx(() => {
+        if (db.prepare('SELECT 1 FROM locks WHERE session_key = ?').get(sessionKey(b))) return { http: 409, code: 'conversation_busy' };
+        if (on) db.prepare('INSERT OR REPLACE INTO work_modes (conversation_id, set_by, set_at) VALUES (?, ?, ?)').run(conversationId, principal.userId, new Date().toISOString());
+        else db.prepare('DELETE FROM work_modes WHERE conversation_id = ?').run(conversationId);
+        return { http: 200, workMode: on };
       });
     },
 

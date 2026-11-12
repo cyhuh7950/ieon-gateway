@@ -956,6 +956,7 @@ export function createApp(config) {
           attention: cardsFor(c, live, principal).length,
           account: accountOf(c),
           staff: staffView(c), // AP-1: AI 직원 이름·역할·아이콘(이름이 없으면 대화 이름)
+          ...(store.workMode(c.conversationId) ? { workMode: true } : {}), // W2
           ...(hostNames ? { host: { id: c.hostId, name: hostNames.get(c.hostId) ?? c.hostId } } : {}),
         })) });
       }
@@ -1003,7 +1004,8 @@ export function createApp(config) {
       // --- W1 승인 카드: 허용·거부는 그 대화 주인의 웹 화면만(메신저 버튼은 W2) ---
       const apd = path.match(/^\/v1\/approvals\/(apv_[\w-]+)$/);
       if (apd && req.method === 'POST') {
-        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        // 웹 화면 또는 메신저 봇(브리지가 주인인지 확인한 뒤)만. 외부 프로그램 키는 불가
+        if (principal.appId !== 'app_web' && principal.appId !== 'app_messenger' && !principal.bot) return json(res, 403, { error: 'admin_only' });
         const r = store.decideApproval(principal, apd[1], String((await readJson(req)).decision ?? ''), { ttlMs: approvalTtlMs });
         if (r.http === 200) process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_decided', status: r.status }) + '\n');
         return r.http === 200 ? json(res, 200, { status: r.status }) : json(res, r.http, { error: r.code, ...(r.status ? { status: r.status } : {}) });
@@ -1080,6 +1082,14 @@ export function createApp(config) {
         store.addRoomPost(room.roomId, { kind: 'user', text: `→ ${staffView(target).name}에게 넘김: ${note}`, conversationId: from.conversationId, idemKey: key });
         sendToMember(principal, room, target, question, `${key}-h`);
         return json(res, 202, { posts: postsView() });
+      }
+      // W2: 대화별 작업 모드 켜기·끄기 — 그 대화 주인의 웹 화면만(메신저·외부 프로그램 키 불가)
+      const wm = path.match(/^\/v1\/conversations\/([\w-]+)\/work-mode$/);
+      if (wm && req.method === 'PUT') {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        const r = store.setWorkMode(principal, wm[1], (await readJson(req)).on);
+        if (r.http === 200) process.stderr.write(JSON.stringify({ ch: 'server', event: 'work_mode', on: r.workMode }) + '\n');
+        return r.http === 200 ? json(res, 200, { workMode: r.workMode }) : json(res, r.http, { error: r.code });
       }
       let s = path.match(/^\/v1\/conversations\/([\w-]+)\/settings$/);
       if (req.method === 'PUT' && s) {

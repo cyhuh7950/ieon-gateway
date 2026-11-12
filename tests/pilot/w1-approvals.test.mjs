@@ -59,7 +59,7 @@ test('승인 왕복: 연결부가 올림 → 카드(요약·작업 폴더) → �
   assert.equal((await s.call('/v1/conversations/c1/cards')).body.cards.some((c) => c.kind === 'approval'), false);
 });
 
-test('주인만: 다른 PC는 올리거나 읽지 못하고, 다른 사람·메신저 키는 허용하지 못함, 처리 중이 아닌 질문·모르는 종류는 거절', async (t) => {
+test('주인만: 다른 PC는 올리거나 읽지 못하고, 다른 사람은 허용하지 못함, 처리 중이 아닌 질문·모르는 종류는 거절', async (t) => {
   const s = await setup(t);
   const { requestId } = await s.start();
   assert.equal((await s.dev('/v1/device/approvals', { method: 'POST', body: { requestId, kind: 'command', summary: 'x' }, token: 'dev2' })).status, 404);
@@ -67,7 +67,7 @@ test('주인만: 다른 PC는 올리거나 읽지 못하고, 다른 사람·메�
   const a = (await s.dev('/v1/device/approvals', { method: 'POST', body: { requestId, kind: 'file', summary: 'a.txt' } })).body;
   assert.equal((await s.dev(`/v1/device/approvals/${a.approvalId}`, { token: 'dev2' })).status, 404);
   assert.equal((await s.call(`/v1/approvals/${a.approvalId}`, { method: 'POST', body: { decision: 'allow' }, token: 'other' })).status, 404);
-  assert.equal((await s.call(`/v1/approvals/${a.approvalId}`, { method: 'POST', body: { decision: 'allow' }, token: 'msg' })).status, 403);
+  // 메신저 봇은 W2부터 브리지가 주인인지 확인한 뒤 결정할 수 있음(w2-work-mode 시험), 외부 프로그램 키는 403
   assert.equal((await s.call(`/v1/approvals/${a.approvalId}`, { method: 'POST', body: { decision: 'always' } })).body.error, 'bad_decision', '항상 허용 없음');
   await s.dev(`/v1/device/jobs/${requestId}/result`, { method: 'POST', body: { status: 'completed', receipt: 'r', answer: 'ok' } });
   assert.equal((await s.dev('/v1/device/approvals', { method: 'POST', body: { requestId, kind: 'command', summary: 'x' } })).status, 404, '끝난 질문');

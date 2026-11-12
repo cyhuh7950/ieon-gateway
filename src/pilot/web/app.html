@@ -336,6 +336,7 @@ details.adv[open] summary { margin-bottom:10px; }
       <h2 id="title">대화를 고르세요</h2>
       <span class="chip" id="engineChip" hidden></span>
       <span class="chip" id="acctChip" hidden></span>
+      <span class="chip" id="workChip" hidden>작업 모드</span>
       <span class="chip" id="stateChip" hidden></span>
       <span class="spacer"></span>
       <button type="button" class="switch" role="switch" aria-checked="false" id="liveSwitch" hidden><span class="knob"></span><span id="liveLabel">AI 응답 꺼짐</span></button>
@@ -357,6 +358,11 @@ details.adv[open] summary { margin-bottom:10px; }
       <dt>잇는 방법</dt><dd id="pHow"></dd>
       <dt>상태</dt><dd id="pState"></dd>
     </dl>
+    <div class="sec" id="pWork" hidden>
+      <h4>작업 모드</h4>
+      <label class="radio"><input type="checkbox" id="wmOn"> <span>작업 모드 켜기 <span class="muted small">(기본 꺼짐)</span></span></label>
+      <div class="small muted">켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록).</div>
+    </div>
     <div class="sec" id="pStaff">
       <h4>AI 직원</h4>
       <div class="small muted">방에서 @이름으로 불러요(빈칸 없이). 역할을 정하면 다음 질문 한 번에 역할 안내가 함께 가요.</div>
@@ -392,6 +398,8 @@ const MODE = { alternate: '번갈아 쓰기', shared_server: '동시 사용' };
 const NS_STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
 const ERR = {
   usage_limit: ['warn', '계정의 사용 한도에 걸려 실행되지 않았어요.'],
+  work_dir_required: ['warn', '작업 모드는 작업 폴더가 정해진 대화만 쓸 수 있어 보내지 않았어요. 설정 → PC 설정 → 허용 목록에서 작업 폴더를 넣거나 작업 모드를 끄세요.'],
+  work_dir_missing: ['warn', '이 대화의 작업 폴더가 그 PC에 없어 보내지 않았어요.'],
   account_not_logged_in: ['warn', '고른 이어온 계정이 로그인돼 있지 않아 보내지 않았어요. 설정 → 계정에서 로그인하세요.'],
   account_missing: ['warn', '고른 이어온 계정이 없어 보내지 않았어요. 설정 → 계정에서 다시 고르세요.'],
   conversation_busy: ['warn', '이 대화에서 처리 중인 질문이 있어 보낼 수 없어요.'],
@@ -902,6 +910,7 @@ function renderHead() {
   // A1(EA10): 이 대화의 질문이 어느 계정(접속)의 사용량으로 나가는지 늘 보이게
   $('acctChip').hidden = !c.account; $('acctChip').textContent = c.account ? '계정 · ' + c.account.label.split(' — ')[0] : ''; $('acctChip').title = c.account?.label ?? '';
   $('stateChip').hidden = false; $('stateChip').textContent = stateOf(c)[1];
+  $('workChip').hidden = c.workMode !== true;
   $('panelBtn').hidden = false;
   $('question').placeholder = c.label + '에게 메시지';
   renderPanel(c); renderSendable();
@@ -967,6 +976,8 @@ $('panelBtn').onclick = () => setPanel($('panel').hidden);
 $('panelClose').onclick = () => setPanel(false);
 $('backBtn').onclick = () => { $('app').classList.remove('in-chat'); setPanel(false); };
 function renderPanel(c) {
+  // W2: 작업 모드(Codex 기존 대화만)
+  $('pWork').hidden = c.engine !== 'codex_thread' || Boolean(c.newSession); $('wmOn').checked = c.workMode === true; $('wmOn').disabled = c.busy || Boolean(pending);
   if (document.activeElement?.closest?.('#pStaff') == null) { $('stName').value = c.staff?.name ?? ''; $('stIcon').value = c.staff?.icon ?? ''; fillRoles(c.staff?.roleId ?? ''); }
   $('pEngine').textContent = ENGINE[c.engine] || c.engine;
   $('pAccount').textContent = c.account ? c.account.label + (c.account.mode === 'pc_default' ? ' (이어온 전용 계정은 설정 → 계정)' : '') : '—';
@@ -1012,6 +1023,13 @@ async function fillRoles(sel) {
   for (const r of roleList) { const o = el('option', r.name); o.value = r.roleId; s.append(o); }
   s.value = sel;
 }
+$('wmOn').onchange = async () => {
+  const on = $('wmOn').checked;
+  if (on && !confirm('작업 모드를 켤까요? 이 대화의 Codex가 파일 수정·명령 실행을 하려 할 때마다 허용/거부 카드가 떠요. 허용한 것만 실행돼요.')) { $('wmOn').checked = false; return; }
+  const r = await api('/v1/conversations/' + current + '/work-mode', { method: 'PUT', body: JSON.stringify({ on }) });
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '작업 모드를 ' + (on ? '켰어요' : '껐어요') : ({ conversation_busy: '처리 중인 질문이 끝난 뒤 바꿀 수 있어요', work_mode_not_supported: '이 대화는 작업 모드를 쓸 수 없어요(지금은 Codex 기존 대화만)' }[r.body.error] || r.body.error));
+  load();
+};
 $('stSave').onclick = async () => {
   const r = await api('/v1/conversations/' + current + '/staff', { method: 'PUT', body: JSON.stringify({ name: $('stName').value.trim(), icon: $('stIcon').value.trim() || null, roleId: $('stRole').value || null }) });
   toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'AI 직원 정보를 저장했어요' : (STAFF_ERR[r.body.error] || r.body.error)); load();
