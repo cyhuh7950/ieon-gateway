@@ -125,7 +125,9 @@ test('설정 화면: 예전 화면의 관리 항목이 모두 옮겨졌고(누�
   // 예전 화면이 부르던 관리 API도 모두
   const apis = (h) => new Set([...h.matchAll(/'(\/v1\/admin\/[\w/-]*)/g)].map((m) => m[1]));
   assert.equal(OLD_APIS.length, 33);
-  assert.deepEqual(OLD_APIS.filter((a) => !apis(SET).has(a)), []);
+  // A2-d: 기기 설정(AI 응답·허용 목록)은 PC형·허브형 공통 명령(/v1/admin/local/run · /v1/admin/hosts/<PC>/run)으로 옮겼다(서버의 예전 주소는 그대로).
+  const viaRun = (a) => a.startsWith('/v1/admin/local/device') && SET.includes("'/v1/admin/local/run'") && SET.includes("devRun('device.");
+  assert.deepEqual(OLD_APIS.filter((a) => !apis(SET).has(a) && !viaRun(a)), []);
   // 탭 6개, 예전 탭 이름으로 들어와도 열림
   for (const tab of ['pc', 'hub', 'msg', 'conv', 'apps', 'hubsec']) assert.ok(SET.includes(`<button type="button" data-atab="${tab}">`), tab);
   assert.ok(SET.includes("const OLD_TAB = { bots: 'msg', messenger: 'msg', roles: 'msg', sessions: 'conv', newsess: 'conv', devices: 'hub' };"));

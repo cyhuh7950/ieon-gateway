@@ -4,7 +4,7 @@
 // 이어온은 로그인 파일을 읽거나 옮기지 않는다(있는지만 본다). 프로세스 전체 환경(process.env)은 바꾸지 않고 질문마다 SDK에만 넘긴다.
 import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 export const PC_DEFAULT = 'pc_default';
 export const MAX_ACCOUNTS = 5;
@@ -14,8 +14,12 @@ const fail = (code, http = 400) => { throw Object.assign(new Error(code), { http
 
 // Desktop(PC 기본 로그인)의 Codex 폴더. 이어온 전용 계정은 process.env.CODEX_HOME을 바꾸지 않으므로 이 값은 늘 Desktop 쪽이다.
 export const desktopCodexHome = (env = process.env) => env.CODEX_HOME || join(homedir(), '.codex');
-// 계정 폴더 뿌리: 설정 파일(.local/s2/connector.json) 옆의 .local/accounts. 설정에 accountsDir가 있으면 그것.
-export const accountsDirFor = (cfgPath, c = {}) => resolve(c.accountsDir ?? join(dirname(resolve(cfgPath)), '..', 'accounts'));
+// 계정 폴더 뿌리: PC는 설정 파일(.local/s2/connector.json) 옆의 .local/accounts, 허브는 데이터 폴더(/data/connector.json) 안의
+// /data/accounts(보존되는 볼륨 안). 설정에 accountsDir가 있으면 그것.
+export const accountsDirFor = (cfgPath, c = {}) => {
+  const d = dirname(resolve(cfgPath));
+  return resolve(c.accountsDir ?? (basename(d) === 's2' ? join(d, '..', 'accounts') : join(d, 'accounts')));
+};
 export const codexHomeOf = (dir, id) => { if (!ID.test(String(id))) fail('bad_account'); return join(dir, 'codex', id); };
 // 로그인 여부(파일이 있는지만 — 내용은 읽지 않는다). 계정 폴더 config.toml이 파일 보관(file)으로 고정한다.
 export const hasLogin = (home) => existsSync(join(home, 'auth.json'));

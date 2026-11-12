@@ -10,12 +10,32 @@ import { childEnv } from './parent-watch.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
-export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spawnImpl = spawn, pollMs = 3000, log = () => {} }) {
+export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spawnImpl = spawn, pollMs = 3000, adminPollMs = 2000, log = () => {} }) {
   const tokenFile = join(dir, 'device-token');
   const infoFile = join(dir, 'hub.json');
   let pending = null; // { hubUrl, pairId, code, expiresAt, error }
   let child = null; let wantRunning = false; let timer = null;
   const info = () => { try { return JSON.parse(readFileSync(infoFile, 'utf8')); } catch { return null; } };
+  // A2-d: 허브 화면에서 맡긴 기기 관리 명령(AI 응답·허용 목록·계정)을 가져가 이 PC 화면과 같은 코드(device-admin)로 실행한다.
+  // 허브가 PC로 접속하지 않고 PC가 2초마다 묻는다. 연결부를 다시 띄우는 명령이 있어도 이 주기는 이어진다(짝맺은 동안).
+  let admin = null; let adminBusy = false;
+  async function adminOnce() {
+    const i = info();
+    if (!admin || adminBusy || !i || !existsSync(tokenFile) || !wantRunning) return false;
+    adminBusy = true;
+    try {
+      const headers = { authorization: 'Bearer ' + readFileSync(tokenFile, 'utf8').trim(), 'content-type': 'application/json' };
+      const r = await fetchImpl(i.hubUrl + '/v1/device/admin', { headers, signal: AbortSignal.timeout(10000) });
+      if (r.status !== 200) return false;
+      const cmd = await r.json();
+      const out = await admin(String(cmd.op ?? ''), cmd.args ?? {});
+      await fetchImpl(i.hubUrl + '/v1/device/admin/' + encodeURIComponent(cmd.id) + '/result', { method: 'POST', headers, body: JSON.stringify(out), signal: AbortSignal.timeout(10000) });
+      log({ event: 'hub_admin', op: String(cmd.op ?? ''), status: out.status });
+      return true;
+    } catch { return false; } finally { adminBusy = false; }
+  }
+  const adminTimer = setInterval(() => { adminOnce().catch(() => {}); }, adminPollMs);
+  adminTimer.unref?.();
 
   function startConnector() {
     const i = info();
@@ -99,7 +119,9 @@ export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spa
     },
     // 서버를 켤 때: 이미 짝맺은 허브가 있으면 다시 연결한다(재부팅 뒤에도 사용자가 할 일 없음).
     resume() { return info() ? startConnector() : 'not_paired'; },
-    close() { stopConnector(); clearInterval(timer); },
+    close() { stopConnector(); clearInterval(timer); clearInterval(adminTimer); },
+    setAdmin(fn) { admin = fn; },
+    adminOnce,
     paths: { tokenFile, infoFile, dir: dirname(tokenFile) },
   };
 }

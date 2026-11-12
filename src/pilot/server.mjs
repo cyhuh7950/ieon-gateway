@@ -16,8 +16,10 @@ import { createWebAuth } from './web-auth.mjs';
 import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs';
 import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
-import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector, addCodexAccount, removeCodexAccount, useCodexAccount } from './device-settings.mjs';
-import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome, cleanLabel } from './accounts.mjs';
+import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
+import { cleanLabel } from './accounts.mjs';
+import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
+import { createAdminQueue } from './admin-queue.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { listCodexThreads } from './codex-threads.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
@@ -149,7 +151,6 @@ export function createApp(config) {
   // W5: 허브 웹의 Codex 로그인(기기 코드). 허브에만 있다(PC는 그 PC의 Codex 앱 로그인을 그대로 쓴다).
   const codexLogin = access ? (config.codexLogin ?? createCodexLogin({ log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') })) : null;
   // U4: 처음 설정의 "준비 확인" — 이 PC의 Codex 로그인 여부만(공식 `codex login status`, 계정 정보는 돌려주지 않음).
-  const accountLogins = new Map(); // A2: 계정별 공식 로그인 진행 상태
   const localCodexStatus = access ? null : (config.localCodexStatus ?? (() => createCodexLogin().status()));
   const localDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') && !req.headers['x-forwarded-for'];
   // 기기 설정이 바뀌면 그 설정을 읽는 연결부를 다시 띄운다. 이 서버가 띄운 것이 아니면 다시 켜야 한다고 알린다.
@@ -159,6 +160,14 @@ export function createApp(config) {
     if (hubLink?.hubMode()) { hubLink.disconnect(); hubLink.reconnect(); restarted = true; }
     return { restarted, restartRequired: !restarted };
   };
+  // A2-d: 기기 관리 명령(PC 화면·허브가 맡긴 명령 공통). 허브는 자기 연결부 설정으로 허브 자신의 계정을 다룬다.
+  const adminLog = (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n');
+  const deviceAdmin = access ? null : createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath, applyDevice, accountLogin: config.accountLogin, log: adminLog,
+    connectorState: () => ({ managed: Boolean(localConnector), running: localConnector?.running() ?? null }) });
+  const hubAdmin = access ? createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json'), accountLogin: config.accountLogin, log: adminLog,
+    applyDevice: async () => ({ restarted: true, restartRequired: false }) }) : null; // 허브 연결부는 설정 파일이 바뀌면 스스로 다시 시작
+  const adminQueue = createAdminQueue({ timeoutMs: config.adminTimeoutMs ?? 25_000 });
+  hubLink?.setAdmin?.((op, args) => deviceAdmin.run(op, args));
   // P3: 기기 API 요청 횟수 제한(1분 창). 인증된 기기는 기기별, 인증 실패는 접속 주소별로 센다.
   // 유효한 토큰은 실패 횟수와 상관없이 먼저 확인하므로, 같은 앞단(NPM) 뒤의 정상 기기는 막히지 않는다.
   const rate = { perMinute: config.deviceRateLimit?.perMinute ?? 240, failPerMinute: config.deviceRateLimit?.failPerMinute ?? 30 };
@@ -200,6 +209,9 @@ export function createApp(config) {
   // A1(ENGINE_ACCOUNTS EA10 최소 규칙): 이 대화의 질문이 어느 계정(접속)의 사용량으로 나가는지 늘 보이게 한다.
   // 계정 고르기(A2) 전에는 어떤 접속인지 사실대로 알린다 — PC 대화는 그 PC의 앱 로그인을 그대로 쓴다.
   const accountOf = (c) => {
+    // A2-d: 허브 새 세션도 허브에서 고른 이어온 계정이면 그 이름표(허브 연결부가 알려 줌)
+    const hubMine = access && c.newSession && c.engine === 'codex_thread' ? health.get(c.hostId)?.codexDefault : null;
+    if (hubMine) return { mode: 'ieon_login', label: '이어온 계정 ' + hubMine + ' (허브)' };
     if (access && c.newSession) return { mode: 'hub_login', label: c.engine === 'codex_thread' ? '허브의 Codex 로그인' : '허브의 Claude 로그인' };
     if (c.engine === 'claude_channel') return { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' };
     if (c.engine === 'claude_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
@@ -283,6 +295,16 @@ export function createApp(config) {
               codexAccounts: Object.fromEntries(acc), codexDefault: typeof h.codexDefault === 'string' ? cleanLabel(h.codexDefault) : null });
           }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }
+        // A2-d: 허브가 맡긴 기기 관리 명령. PC(허브 연결 중인 이어온 서버)가 가져가 자기 화면과 같은 코드로 실행하고 결과를 보낸다.
+        if (access && req.method === 'GET' && path === '/v1/device/admin') {
+          const cmd = adminQueue.take(device.hostId);
+          return cmd ? json(res, 200, cmd) : json(res, 204);
+        }
+        const ar = path.match(/^\/v1\/device\/admin\/([\w-]{8,64})\/result$/);
+        if (access && req.method === 'POST' && ar) {
+          const b = await readJson(req);
+          return adminQueue.done(device.hostId, ar[1], { status: Number(b.status) || 500, body: b.body && typeof b.body === 'object' ? b.body : {} }) ? json(res, 204) : json(res, 404, { error: 'not_found' });
+        }
         // W3: 이 PC가 허브에 연결돼 있으면 이 PC 서버는 작업을 내주지 않는다(한 PC가 두 서버의 질문을 함께 실행하지 않게).
         if (req.method === 'GET' && path === '/v1/device/jobs' && hubLink?.hubMode()) return json(res, 204);
         if (req.method === 'GET' && path === '/v1/device/jobs') {
@@ -443,49 +465,49 @@ export function createApp(config) {
           }
           return json(res, 404, { error: 'not_found' });
         }
-        // A2: 설정 → 계정(이 PC에서 연 화면만). 이어온 전용 Codex 계정 등록·공식 로그인·로그아웃·지우기·고르기.
-        // 로그인은 공식 기기 코드(주소·코드만 화면에), 로그인 파일은 계정 폴더에만 — 서버는 있는지만 본다.
+        // A2-d: 기기 관리 명령 한 벌(device-admin.mjs) — PC 화면은 여기로, 허브 화면은 /v1/admin/hosts/<PC>/run으로 같은 명령을 쓴다.
+        // 보기 명령은 앞단을 거친 화면(Tailscale 등)에서도 되고, 바꾸는 명령은 이 PC에서 연 화면만.
+        if (path === '/v1/admin/local/run' && req.method === 'POST') {
+          if (access) return json(res, 404, { error: 'not_found' });
+          const b = await readJson(req);
+          if (OPS[b.op] === 'write' && !localDirect(req)) return json(res, 403, { error: 'local_only' });
+          const r = await deviceAdmin.run(String(b.op ?? ''), b.args);
+          return json(res, r.status, r.body);
+        }
+        // A2: 설정 → 계정의 예전 주소(같은 명령으로 처리)
         if (path.startsWith('/v1/admin/local/accounts')) {
           if (access) return json(res, 404, { error: 'not_found' });
-          const cfgPath = config.connectorConfigPath;
-          if (!cfgPath || !existsSync(cfgPath)) return json(res, 404, { error: 'no_connector_config' });
           if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
-          const dir = accountsDirFor(cfgPath, JSON.parse(readFileSync(cfgPath, 'utf8')));
-          const envOf = (id) => ({ ...process.env, CODEX_HOME: codexHomeOf(dir, id), CODEX_SQLITE_HOME: desktopCodexHome() });
-          const loginOf = (id) => { if (!accountLogins.has(id)) accountLogins.set(id, (config.accountLogin ?? ((env) => createCodexLogin({ env })))(envOf(id))); return accountLogins.get(id); };
-          const view = () => {
-            const d = readDevice(cfgPath);
-            return { accounts: d.codexAccounts.map((a) => ({ ...a, engine: 'codex', loggedIn: hasLogin(codexHomeOf(dir, a.id)), login: accountLogins.get(a.id)?.view() ?? { state: 'idle' } })),
-              defaultAccount: d.codexDefaultAccount, accountFor: d.codexAccountFor, threads: d.codexThreads.map((t) => ({ threadId: t.threadId, mode: t.mode })) };
-          };
-          if (req.method === 'GET' && path === '/v1/admin/local/accounts') return json(res, 200, view());
-          if (req.method === 'POST' && path === '/v1/admin/local/accounts') {
-            const id = 'a' + randomBytes(4).toString('hex');
-            addCodexAccount(cfgPath, { id, label: (await readJson(req)).label });
-            try { createCodexHome(dir, id); } catch (e) { removeCodexAccount(cfgPath, id); throw e; }
-            process.stderr.write(JSON.stringify({ ch: 'server', event: 'account_added', engine: 'codex' }) + '\n');
-            return json(res, 201, { id, ...view() });
+          const am = path.match(/^\/v1\/admin\/local\/accounts(?:\/([a-z0-9]{2,16}))?(\/login|\/login\/cancel|\/logout|\/use)?$/);
+          if (!am) return json(res, 404, { error: 'not_found' });
+          const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readJson(req);
+          let [, id, act] = am;
+          if (id === 'use' && !act) { id = undefined; act = '/use'; } // "use"는 계정 ID가 아니라 고르기
+          const op = !id && !act ? (req.method === 'GET' ? 'accounts.get' : req.method === 'POST' ? 'accounts.add' : null)
+            : !id && act === '/use' && req.method === 'PUT' ? 'accounts.use'
+            : id && !act && req.method === 'DELETE' ? 'accounts.delete'
+            : id && req.method === 'POST' ? { '/login': 'accounts.login', '/login/cancel': 'accounts.login.cancel', '/logout': 'accounts.logout' }[act] : null;
+          if (!op) return json(res, 404, { error: 'not_found' });
+          const r = await deviceAdmin.run(op, { ...body, id });
+          return json(res, r.status, r.body);
+        }
+        // A2-d: 허브 화면에서 PC 설정·계정 바꾸기. 'hub'는 허브 자신(허브 새 세션의 계정). PC는 그 PC가 가져가 실행한 결과를 기다려 돌려준다.
+        const hr = path.match(/^\/v1\/admin\/hosts\/([\w-]{1,48})\/run$/);
+        if (hr && req.method === 'POST') {
+          if (!access) return json(res, 404, { error: 'not_found' });
+          const b = await readJson(req);
+          const op = String(b.op ?? '');
+          if (!Object.hasOwn(OPS, op)) return json(res, 400, { error: 'bad_op' });
+          if (hr[1] === 'hub') {
+            if (!HUB_SELF_OPS.has(op)) return json(res, 400, { error: 'bad_op' });
+            const r = await hubAdmin.run(op, b.args);
+            return json(res, r.status, r.body);
           }
-          if (req.method === 'PUT' && path === '/v1/admin/local/accounts/use') {
-            const b = await readJson(req);
-            useCodexAccount(cfgPath, { threadId: b.threadId ?? null, accountId: String(b.accountId ?? '') });
-            return json(res, 200, { ...view(), ...(await applyDevice()) });
-          }
-          const am = path.match(/^\/v1\/admin\/local\/accounts\/([a-z0-9]{2,16})(\/login|\/login\/cancel|\/logout)?$/);
-          if (!am || !readDevice(cfgPath).codexAccounts.some((a) => a.id === am[1])) return json(res, 404, { error: 'not_found' });
-          const [, id, act] = am;
-          if (req.method === 'POST' && act === '/login') { loginOf(id).start(); return json(res, 200, view()); }
-          if (req.method === 'POST' && act === '/login/cancel') { loginOf(id).cancel(); return json(res, 200, view()); }
-          if (req.method === 'POST' && act === '/logout') { await loginOf(id).logout(); return json(res, 200, view()); }
-          if (req.method === 'DELETE' && !act) {
-            if (hasLogin(codexHomeOf(dir, id))) await loginOf(id).logout();
-            loginOf(id).cancel(); accountLogins.delete(id);
-            removeCodexAccount(cfgPath, id);
-            removeCodexHome(dir, id);
-            process.stderr.write(JSON.stringify({ ch: 'server', event: 'account_removed', engine: 'codex' }) + '\n');
-            return json(res, 200, { ...view(), ...(await applyDevice()) });
-          }
-          return json(res, 404, { error: 'not_found' });
+          if (!knownHosts().includes(hr[1])) return json(res, 404, { error: 'unknown_host' });
+          if (!online(hr[1])) return json(res, 503, { error: 'device_offline' });
+          const r = await adminQueue.send(hr[1], op, b.args && typeof b.args === 'object' ? b.args : {});
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'host_admin', host: hr[1], op, status: r.status }) + '\n');
+          return json(res, r.status, r.body);
         }
         if (path === '/v1/admin/local/engines' && req.method === 'GET') {
           if (access) return json(res, 404, { error: 'not_found' });
