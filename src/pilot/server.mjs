@@ -20,11 +20,12 @@ import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalC
 import { cleanLabel } from './accounts.mjs';
 import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
 import { createAdminQueue } from './admin-queue.mjs';
+import { readMode, writeMode, modeEffects } from './mode.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { listCodexThreads } from './codex-threads.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
 import { supervise } from '../hub/run.mjs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
@@ -144,6 +145,11 @@ export function createApp(config) {
   const pairing = access ? createPairing({ store, reserved: () => fileHosts }) : null;
   const hubLink = access ? null : createHubLink({ dir: config.hubLinkDir ?? join(dirname(config.dbPath), 'hub'),
     connectorConfigPath: config.connectorConfigPath, log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') });
+  // M1: 이 PC의 사용 방식(.local/mode.json). 허브 서버에는 없음. null이면 예전 설치 — 지금처럼 두고 화면이 고르기를 권한다.
+  const modePath = access ? null : (config.modePath ?? (basename(dirname(config.dbPath)) === 's2' ? join(dirname(config.dbPath), '..', 'mode.json') : join(dirname(config.dbPath), 'mode.json'))); // PC: .local/mode.json
+  const mode = () => (modePath ? readMode(modePath) : null);
+  // ② 내 허브: 이 PC는 질문을 받지 않고 봇을 켜지 않는다(허브 연결이 잠깐 끊겨 있어도 그대로)
+  const hubModeOn = () => mode() === 'hub' || Boolean(hubLink?.hubMode());
   const ipOf = (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?'));
   // W4: 이 PC의 로컬 연결부를 서버가 띄운다(설정 manageLocalConnector). 기기 설정을 바꾸면 다시 띄운다.
   const localConnector = !access && config.manageLocalConnector && config.connectorConfigPath
@@ -163,7 +169,7 @@ export function createApp(config) {
   // A2-d: 기기 관리 명령(PC 화면·허브가 맡긴 명령 공통). 허브는 자기 연결부 설정으로 허브 자신의 계정을 다룬다.
   const adminLog = (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n');
   const deviceAdmin = access ? null : createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath, applyDevice, accountLogin: config.accountLogin, log: adminLog,
-    connectorState: () => ({ managed: Boolean(localConnector), running: localConnector?.running() ?? null }) });
+    connectorState: () => ({ managed: Boolean(localConnector), running: localConnector?.running() ?? null, mode: mode() }) }); // M1: 허브 화면에도 그 PC의 사용 방식
   const hubAdmin = access ? createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json'), accountLogin: config.accountLogin, log: adminLog,
     applyDevice: async () => ({ restarted: true, restartRequired: false }) }) : null; // 허브 연결부는 설정 파일이 바뀌면 스스로 다시 시작
   // A2-d: 허브 자신의 연결부(허브 새 세션 실행) 기기 ID. 허브 연결부 설정의 기기 토큰과 맞는 기기를 찾는다(토큰은 해시로만 비교, 출력 없음).
@@ -241,13 +247,13 @@ export function createApp(config) {
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
   const cardsFor = (c, live) => {
     const cards = [];
-    if (hubLink?.hubMode()) cards.push({ kind: 'hub_mode', hubUrl: hubLink.status().hubUrl ?? null });
+    if (hubModeOn()) cards.push({ kind: 'hub_mode', hubUrl: hubLink?.status().hubUrl ?? null });
     else if (!online(c.hostId)) cards.push({ kind: 'device_offline' });
     else if (engineReady(c) === false) cards.push({ kind: 'engine_off', engine: c.engine });
     if (c.heldBy) cards.push({ kind: 'held', requestId: c.heldBy.requestId, status: c.heldBy.status, errorCode: c.heldBy.errorCode ?? null });
     if (access && c.newSession && c.engine === 'codex_thread' && hubCodex.loggedIn === false) cards.push({ kind: 'hub_codex_login' });
     if (c.newSession?.state === 'archived') cards.push({ kind: 'archived' });
-    if (live === false && !hubLink?.hubMode()) cards.push({ kind: 'live_off' });
+    if (live === false && !hubModeOn()) cards.push({ kind: 'live_off' });
     return cards;
   };
 
@@ -322,7 +328,7 @@ export function createApp(config) {
           return adminQueue.done(device.hostId, ar[1], { status: Number(b.status) || 500, body: b.body && typeof b.body === 'object' ? b.body : {} }) ? json(res, 204) : json(res, 404, { error: 'not_found' });
         }
         // W3: 이 PC가 허브에 연결돼 있으면 이 PC 서버는 작업을 내주지 않는다(한 PC가 두 서버의 질문을 함께 실행하지 않게).
-        if (req.method === 'GET' && path === '/v1/device/jobs' && hubLink?.hubMode()) return json(res, 204);
+        if (req.method === 'GET' && path === '/v1/device/jobs' && hubModeOn()) return json(res, 204);
         if (req.method === 'GET' && path === '/v1/device/jobs') {
           const job = store.claim(device.hostId);
           return job ? json(res, 200, job) : json(res, 204);
@@ -576,18 +582,40 @@ export function createApp(config) {
           }
           return json(res, 404, { error: 'not_found' });
         }
+        // M1: 사용 방식 보기·바꾸기(이 PC 화면). 바꾸기는 이 PC에서 연 화면만, 처리 중·확인 필요 질문이 있으면 바꾸지 않는다.
+        if (path === '/v1/admin/local/mode') {
+          if (access || !modePath) return json(res, 404, { error: 'not_found' });
+          const st = hubLink?.status() ?? { state: 'none' };
+          const view = () => ({ mode: mode(), suggested: mode() ?? (st.state === 'paired' ? 'hub' : 'pc'), paired: st.state === 'paired', hubUrl: st.hubUrl ?? null });
+          if (req.method === 'GET') return json(res, 200, { ...view(), effects: { pc: modeEffects(mode(), 'pc'), hub: modeEffects(mode(), 'hub') } });
+          if (req.method !== 'PUT') return json(res, 404, { error: 'not_found' });
+          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          const next = String((await readJson(req)).mode ?? '');
+          if (!['pc', 'hub'].includes(next)) return json(res, 400, { error: 'bad_mode' });
+          if (store.conversations({ userId: config.users?.[0]?.userId ?? 'u_sinsan', appId: 'app_web' }).some((c) => c.busy || c.heldBy)) return json(res, 409, { error: 'requests_pending' });
+          writeMode(modePath, next);
+          // 허브 연결은 바로 맞추고(①이면 끊기 — 짝맺은 정보는 남김, ②면 짝맺어 있으면 다시 연결), 이 PC 봇은 메신저가 1분 안에 따라온다.
+          const hub = next === 'pc' ? (hubLink?.disconnect(), 'stopped') : (hubLink?.resume() ?? 'not_paired');
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'mode_set', mode: next }) + '\n');
+          return json(res, 200, { ...view(), hub });
+        }
         // W3: 이 PC를 허브에 연결(PC 로컬 웹만)
         if (path.startsWith('/v1/admin/local/hub')) {
           if (!hubLink) return json(res, 404, { error: 'not_found' });
           if (req.method === 'GET' && path === '/v1/admin/local/hub') return json(res, 200, hubLink.status());
           if (req.method === 'POST' && path === '/v1/admin/local/hub/connect') {
+            // M1: ① 이 PC에서만이면 허브에 연결하지 않는다(사용 방식을 먼저 바꿔야 함 — 섞어 쓰기 금지)
+            if (mode() === 'pc') return json(res, 409, { error: 'mode_pc' });
             const body = await readJson(req);
             // U6: 이름을 비우면 이 PC 이름(Windows 컴퓨터 이름), PC 연결 링크로 열었으면 초대를 함께 보낸다.
             const name = String(body.name ?? '').trim() || hostname().slice(0, 40);
             try { return json(res, 200, await hubLink.connect({ hubUrl: body.hubUrl, name, invite: body.invite })); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
           }
           if (req.method === 'POST' && path === '/v1/admin/local/hub/disconnect') return json(res, 200, hubLink.disconnect({ forget: (await readJson(req)).forget === true }));
-          if (req.method === 'POST' && path === '/v1/admin/local/hub/reconnect') return json(res, 200, { connector: hubLink.reconnect() });
+          if (req.method === 'POST' && path === '/v1/admin/local/hub/reconnect') {
+            if (mode() === 'pc') return json(res, 409, { error: 'mode_pc' });
+            return json(res, 200, { connector: hubLink.reconnect() });
+          }
           return json(res, 404, { error: 'not_found' });
         }
         // W2b: 외부 프로그램 API 키 — 웹에서 발급(키는 이때 한 번만 보여 줌)·볼 수 있는 세션 고르기·폐기. server.json을 고치지 않는다.
@@ -805,6 +833,8 @@ export function createApp(config) {
             kakao: store.getSetting('messenger.kakao')?.value ?? null });
         }
         if (req.method === 'GET' && path === '/v1/messenger/bots') {
+          // M1: ② 내 허브면 이 PC의 봇(카카오 중계 포함)은 켜지 않는다 — 메신저가 1분 안에 모두 끈다(봇 설정은 지우지 않음)
+          if (mode() === 'hub') return json(res, 200, { bots: [], mode: 'hub' });
           const roles = Object.fromEntries(store.listRoles().map((r) => [r.roleId, r]));
           return json(res, 200, { bots: store.listBots().filter((b) => b.enabled).map((b) => ({ ...b, role: roles[b.roleId] ?? null })) });
         }
@@ -872,7 +902,7 @@ export function createApp(config) {
         const hostNames = access ? new Map(store.listDevices().map((d) => [d.hostId, d.name])) : null;
         if (access) refreshHubCodex();
         // hubMode: 이 PC가 허브에 연결돼 있어 여기서는 질문을 받지 않음(목록·상단 상태가 카드와 같은 말을 하도록).
-        return json(res, 200, { ...(hubLink?.hubMode() ? { hubMode: true } : {}), conversations: store.conversations(principal).map((c) => ({
+        return json(res, 200, { ...(hubModeOn() ? { hubMode: true } : {}), ...(modePath ? { mode: mode() } : {}), conversations: store.conversations(principal).map((c) => ({
           conversationId: c.conversationId, label: labelOf(c), engine: c.engine,
           deviceOnline: online(c.hostId), busy: c.busy, ...(c.connectMode ? { connectMode: c.connectMode } : {}),
           ...(c.heldBy ? { heldBy: c.heldBy } : {}),
@@ -938,7 +968,7 @@ export function createApp(config) {
         const conv = store.conversations(principal).find((c) => c.conversationId === m[1]);
         if (!conv) return json(res, 404, { error: 'not_found' });
         // 이 PC가 허브에 연결돼 있으면 이 PC 서버는 작업을 내주지 않으므로, 받아 두면 처리되지 않은 채 남는다 → 처음부터 받지 않는다(U2).
-        if (hubLink?.hubMode()) return json(res, 409, { error: 'hub_mode' });
+        if (hubModeOn()) return json(res, 409, { error: 'hub_mode' });
         if (!online(conv.hostId)) return json(res, 503, { error: 'device_unavailable' });
         if (engineReady(conv) === false) {
           return json(res, 503, { error: conv.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down' });
@@ -1010,7 +1040,7 @@ export function createApp(config) {
   return {
     server, store, listenExtra, listenSocket, listenPublic, newSessions: nsCfg, notices,
     listen: (port) => new Promise((r) => server.listen(port, '127.0.0.1', () => r(server.address().port))),
-    hubLink, localConnector,
+    hubLink, localConnector, mode,
     close: () => new Promise((r) => { clearInterval(cleanupTimer); relay?.close(); hubLink?.close(); localConnector?.stop(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
   };
 }
@@ -1039,7 +1069,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     supervise([{ name: 'messenger', args: ['src/pilot/messenger/main.mjs', config.messengerConfigPath], delayMs: 2000 }]);
   }
   // W3: 이미 짝맺은 허브가 있으면 연결부를 다시 띄운다(재부팅 뒤 사용자가 할 일 없음).
-  if (app.hubLink) process.stderr.write(JSON.stringify({ ch: 'server', event: 'hub_link_resume', result: app.hubLink.resume() }) + '\n');
+  // M1: ① 이 PC에서만이면 짝맺은 허브가 있어도 다시 연결하지 않는다
+  if (app.hubLink && app.mode() !== 'pc') process.stderr.write(JSON.stringify({ ch: 'server', event: 'hub_link_resume', result: app.hubLink.resume() }) + '\n');
   process.stderr.write(`ieon pilot server: http://127.0.0.1:${port}\n`);
   const hosts = [...(config.extraHosts ?? []), ...(config.webAccess?.tailscale?.listenHost ? [config.webAccess.tailscale.listenHost] : [])];
   for (const host of new Set(hosts)) {
