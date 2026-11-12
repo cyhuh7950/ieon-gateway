@@ -78,6 +78,8 @@ export function openStore(path) {
     db.exec('ALTER TABLE requests ADD COLUMN prefix TEXT');
     db.exec('ALTER TABLE requests ADD COLUMN room_id TEXT');
   }
+  // AP-1: 방에서 다시 보낸 글 표시(같은 글을 두 번 다시 보내지 않게 버튼을 감춤)
+  if (!db.prepare('PRAGMA table_info(room_posts)').all().some((c) => c.name === 'retried')) db.exec('ALTER TABLE room_posts ADD COLUMN retried INTEGER NOT NULL DEFAULT 0');
   if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'role_guide')) {
     db.exec('ALTER TABLE new_sessions ADD COLUMN role_guide TEXT');
   }
@@ -579,13 +581,15 @@ export function openStore(path) {
       db.prepare('INSERT INTO room_posts (post_id, room_id, kind, text, conversation_id, request_id, code, idem_key, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(`post_${randomUUID()}`, roomId, post.kind, post.text ?? null, post.conversationId ?? null, post.requestId ?? null, post.code ?? null, post.idemKey ?? null, new Date().toISOString());
     },
+    markRoomRetried(roomId, postId) { return db.prepare('UPDATE room_posts SET retried = 1 WHERE room_id = ? AND post_id = ? AND retried = 0').run(roomId, postId).changes === 1; },
     roomPostByKey(roomId, key) { return db.prepare("SELECT 1 FROM room_posts WHERE room_id = ? AND idem_key = ? AND kind = 'user'").get(roomId, key) ? true : false; },
     // 방 기록: 사용자 글·보낸 질문(상태·답은 요청에서)·사용 중 알림
     roomPosts(principal, roomId) {
       if (!this.room(principal, roomId)) return null;
-      return db.prepare(`SELECT p.post_id, p.kind, p.text, p.conversation_id, p.request_id, p.code, p.at, q.status, q.answer, q.error_code
+      return db.prepare(`SELECT p.post_id, p.kind, p.text, p.conversation_id, p.request_id, p.code, p.at, p.retried, q.status, q.answer, q.error_code, q.question
         FROM room_posts p LEFT JOIN requests q ON q.request_id = p.request_id WHERE p.room_id = ? ORDER BY p.rowid`).all(roomId)
-        .map((r) => ({ postId: r.post_id, kind: r.kind, text: r.text, conversationId: r.conversation_id, requestId: r.request_id, code: r.code, at: r.at,
+        .map((r) => ({ postId: r.post_id, kind: r.kind, text: r.kind === 'busy' ? null : r.text, conversationId: r.conversation_id, requestId: r.request_id, code: r.code, at: r.at, retried: Boolean(r.retried),
+          resend: r.kind === 'busy' ? r.text : r.kind === 'ask' ? r.question : null, // 다시 보내기용 원문(화면에는 내보내지 않음)
           ...(r.request_id ? { status: r.status, answer: r.status === 'completed' ? r.answer : null, errorCode: r.error_code } : {}) }));
     },
 

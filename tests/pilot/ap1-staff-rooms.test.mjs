@@ -136,8 +136,41 @@ test('화면: 왼쪽 방 목록·방 만들기 창·@이름 안내·사용 중 �
   assert.ok(A.includes('id="roomDlg"') && A.includes('id="rdMembers"') && A.includes('id="rdLead"') && A.includes('id="rdGuide"'));
   assert.ok(A.includes("nr.onclick = () => openRoomDlg(null)") && A.includes("b.onclick = () => selectRoom(r.roomId)"));
   assert.ok(A.includes("'@이름으로 부르기 — 안 부르면 대표 @'"));
-  assert.ok(A.includes("conversation_busy: '지금 다른 일 중이라 보내지 않았어요'") && A.includes('필요하면 다시 보내세요'), '사용 중은 알림만');
+  assert.ok(A.includes("conversation_busy: '지금 다른 일 중이라 보내지 않았어요'") && A.includes('retryBtn(box, room, p)') && A.includes('if (!p.canRetry) return;'), '사용 중은 알림 + 서버가 허락한 글만 다시 보내기 버튼');
   assert.ok(A.includes("hb.onclick = () => handoff(room, p, others)"), '넘기기는 버튼을 누를 때만');
   assert.ok(A.includes('id="pStaff"') && A.includes('id="stName"') && A.includes('id="stRole"') && A.includes('id="stIcon"'));
   assert.ok(!/setTimeout\([^)]*sendRoom/.test(A), '방 글을 자동으로 다시 보내지 않음');
+});
+
+test('방 다시 보내기: 보내지 않은 것이 확실한 글만·누를 때만·한 번만, 결과 불명은 대상 아님, 원문은 응답에 내보내지 않음', async (t) => {
+  const s = await setup(t);
+  await s.call('/v1/conversations/c_a/staff', { method: 'PUT', body: { name: '설계' } });
+  const room = (await s.call('/v1/rooms', { method: 'POST', body: { name: '방', members: ['c_a'], lead: 'c_a' } })).body;
+  // PC 연결 전(끊김) → 보내지 않은 글
+  let posts = (await s.call(`/v1/rooms/${room.roomId}/posts`, { method: 'POST', body: { text: '비밀 질문' } })).body.posts;
+  const busy = posts.find((p) => p.kind === 'busy');
+  assert.deepEqual([busy.code, busy.canRetry], ['device_unavailable', true]);
+  assert.ok(!JSON.stringify(posts).includes('resend') && posts.filter((p) => p.kind === 'busy').every((p) => p.text === null), '다시 보내기용 원문은 응답에 없음');
+  await s.online();
+  posts = (await s.call(`/v1/rooms/${room.roomId}/retry`, { method: 'POST', body: { postId: busy.postId } })).body.posts;
+  assert.equal(posts.at(-1).kind, 'ask');
+  assert.equal(posts.find((p) => p.postId === busy.postId).canRetry, false, '한 번만');
+  assert.equal((await s.call(`/v1/rooms/${room.roomId}/retry`, { method: 'POST', body: { postId: busy.postId } })).body.error, 'bad_retry');
+  // 연결부가 "Desktop이 열어 둠"으로 실패 → 다시 보내기 가능
+  let job = await s.claim();
+  assert.equal(job.question, '비밀 질문', '같은 원문');
+  await fetch(`${'http://127.0.0.1:' + s.app.server.address().port}/v1/device/jobs/${job.requestId}/result`, { method: 'POST', headers: { authorization: 'Bearer dev', 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'failed', errorCode: 'desktop_holds_thread', http: 409 }) });
+  posts = (await s.call(`/v1/rooms/${room.roomId}`)).body.posts;
+  const failed = posts.at(-1);
+  assert.deepEqual([failed.status, failed.errorCode, failed.canRetry], ['failed', 'desktop_holds_thread', true]);
+  await s.call(`/v1/rooms/${room.roomId}/retry`, { method: 'POST', body: { postId: failed.postId } });
+  job = await s.claim();
+  // 결과 불명이면 다시 보내기 없음
+  await fetch(`${'http://127.0.0.1:' + s.app.server.address().port}/v1/device/jobs/${job.requestId}/result`, { method: 'POST', headers: { authorization: 'Bearer dev', 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'unknown', unknownCode: 'result_unknown' }) });
+  const unknown = (await s.call(`/v1/rooms/${room.roomId}`)).body.posts.at(-1);
+  assert.deepEqual([unknown.status, unknown.canRetry], ['unknown', false]);
+  assert.equal((await s.call(`/v1/rooms/${room.roomId}/retry`, { method: 'POST', body: { postId: unknown.postId } })).body.error, 'bad_retry');
+  assert.equal(await s.claim(), null, '자동으로 다시 보내지 않음');
 });
