@@ -13,7 +13,12 @@ $Run = Join-Path $Local 'run'
 $Task = 'ieon-gateway'
 $Url = 'http://127.0.0.1:28760/'
 $Vbs = Join-Path $Run 'start-hidden.vbs'
-$Shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) '이어온.url'
+$Desktop = [Environment]::GetFolderPath('Desktop')
+$Shortcut = Join-Path $Desktop '이어온.url'
+# U7(UD5): Edge가 있으면 바로 가기를 Edge 앱 창(자기 창·작업 표시줄 아이콘)으로 연다. 없으면 지금처럼 브라우저 탭(.url).
+$AppLink = Join-Path $Desktop '이어온.lnk'
+$Edge = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ } | ForEach-Object { Join-Path $_ 'Microsoft\Edge\Application\msedge.exe' } |
+  Where-Object { Test-Path $_ } | Select-Object -First 1
 
 function Step([string]$Text) { Write-Output "· $Text" }
 function Test-Up { try { (Invoke-WebRequest -Uri ($Url + 'health') -TimeoutSec 2 -UseBasicParsing).StatusCode -eq 200 } catch { $false } }
@@ -30,6 +35,7 @@ if ($Uninstall) {
   if ($DryRun) { Step "자동 시작 '$Task' 제거, 바로 가기 제거, 서버 종료(설정·기록 유지)"; return }
   Unregister-ScheduledTask -TaskName $Task -Confirm:$false -ErrorAction SilentlyContinue
   Remove-Item $Shortcut -ErrorAction SilentlyContinue -Confirm:$false
+  Remove-Item $AppLink -ErrorAction SilentlyContinue -Confirm:$false
   Stop-Ieon
   Write-Output '이어온 자동 시작을 없앴습니다. 설정과 대화 기록(.local)은 남겨 두었습니다.'
   return
@@ -67,7 +73,7 @@ $CmdFile = Join-Path $Run 'start-server.cmd'
 $cmdText = "@echo off`r`ncd /d `"$Root`"`r`nnode src\pilot\server.mjs .local\s2\server.json 2>> .local\run\server.log`r`n"
 $q = '"'
 $vbsText = 'CreateObject("WScript.Shell").Run ' + $q + $q + $q + $CmdFile + $q + $q + $q + ', 0, False'
-if ($DryRun) { Step "자동 시작 등록: 작업 '$Task'(로그온할 때, 창 없음)"; Step "바로 가기: $Shortcut"; return }
+if ($DryRun) { Step "자동 시작 등록: 작업 '$Task'(로그온할 때, 창 없음)"; Step ("바로 가기: " + ($(if ($Edge) { "$AppLink (Edge 앱 창)" } else { "$Shortcut (브라우저 탭)" }))); return }
 Set-Content -Path $CmdFile -Value $cmdText -Encoding oem -NoNewline
 Set-Content -Path $Vbs -Value $vbsText -Encoding unicode
 $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument """$Vbs"""
@@ -86,6 +92,15 @@ Step '서버 시작됨(실제 실행은 꺼짐)'
 # 6) 바로 가기와 브라우저
 # 바로 가기에 이어온 아이콘을 붙인다(브라우저 기본 아이콘 대신)
 $Icon = Join-Path $Root 'src\pilot\web\ieon.ico'
-Set-Content -Path $Shortcut -Value "[InternetShortcut]`r`nURL=$Url`r`nIconFile=$Icon`r`nIconIndex=0`r`n" -Encoding ascii
-if (-not $NoBrowser) { Start-Process $Url }
+if ($Edge) {
+  $lnk = (New-Object -ComObject WScript.Shell).CreateShortcut($AppLink)
+  $lnk.TargetPath = $Edge; $lnk.Arguments = "--app=$Url"; $lnk.IconLocation = "$Icon,0"; $lnk.Description = '이어온'
+  $lnk.Save()
+  Remove-Item $Shortcut -ErrorAction SilentlyContinue -Confirm:$false  # 예전 브라우저 탭 바로 가기는 지운다(바탕화면에 둘이 생기지 않게)
+  Step '바로 가기: 바탕화면 이어온(Edge 앱 창)'
+} else {
+  Set-Content -Path $Shortcut -Value "[InternetShortcut]`r`nURL=$Url`r`nIconFile=$Icon`r`nIconIndex=0`r`n" -Encoding ascii
+  Step '바로 가기: 바탕화면 이어온(브라우저 탭 — Edge가 없음)'
+}
+if (-not $NoBrowser) { if ($Edge) { Start-Process $Edge "--app=$Url" } else { Start-Process $Url } }
 Write-Output "설치를 마쳤습니다. 바탕화면의 '이어온'을 열면 됩니다. 처음 한 번 대화 하나만 고르면 바로 쓸 수 있고, 나머지는 화면의 '설정'(톱니)에서 합니다."

@@ -30,6 +30,13 @@ const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
 const WEB_CLASSIC = fileURLToPath(new URL('./web/index.html', import.meta.url));
 const WEB_SETTINGS = fileURLToPath(new URL('./web/settings.html', import.meta.url));
 const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
+// U7: 휴대폰 "홈 화면에 추가"·PC 앱 창용(PWA). 화면 코드는 그대로, 설치 정보와 아이콘만 준다. 오프라인 캐시(서비스 워커)는 두지 않는다
+// (대화는 늘 서버 상태가 기준이라 옛 화면을 보여 주면 오해가 생김).
+const WEB_PNG = { '/icon-192.png': fileURLToPath(new URL('./web/icon-192.png', import.meta.url)), '/icon-512.png': fileURLToPath(new URL('./web/icon-512.png', import.meta.url)) };
+const MANIFEST = JSON.stringify({ name: '이어온', short_name: '이어온', description: '내 Codex·Claude Code 작업 세션과 이어서 대화', lang: 'ko',
+  start_url: '/', scope: '/', display: 'standalone', background_color: '#0f766e', theme_color: '#0f766e',
+  icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] });
 
 const sha = (s) => createHash('sha256').update(s).digest();
 const matchToken = (header, entries) => {
@@ -221,6 +228,14 @@ export function createApp(config) {
       if (req.method === 'GET' && path === '/favicon.ico') {
         res.writeHead(200, { 'content-type': 'image/x-icon', 'cache-control': 'max-age=86400' });
         return res.end(readFileSync(WEB_ICON));
+      }
+      if (req.method === 'GET' && path === '/manifest.webmanifest') {
+        res.writeHead(200, { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': 'max-age=3600' });
+        return res.end(MANIFEST);
+      }
+      if (req.method === 'GET' && WEB_PNG[path]) {
+        res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=86400' });
+        return res.end(readFileSync(WEB_PNG[path]));
       }
       if (req.method === 'GET' && (path === '/' || path === '/classic' || path === '/settings')) {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });

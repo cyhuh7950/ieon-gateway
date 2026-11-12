@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>이어온</title>
 <link rel="icon" href="/favicon.ico">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0f766e">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="이어온">
 <style>
 /* 대화 중심 화면(설계 UI_CHAT_FIRST U1). 서버 데이터는 모두 textContent로 넣는다(HTML 문자열로 넣지 않음). */
 :root {
@@ -149,6 +154,14 @@ details.adv[open] summary { margin-bottom:10px; }
   .panel { position:fixed; inset:0 0 0 auto; width:min(340px,100%); z-index:20; box-shadow:var(--shadow); }
   .compose textarea { font-size:16px; }
   .bubble { max-width:92%; }
+  /* U7: 손가락으로 누르기 쉽게(44px 이상), 창은 화면 폭에 맞춤 */
+  .row, .side-bottom a, .side-bottom button, .pbtn, .back, .switch, .addbtn, .acts a, .acts button, .modal button, .linkbtn, #panelBtn { min-height:44px; }
+  .scrim { padding:10px; }
+  .modal { max-height:calc(100dvh - 20px); padding:18px; }
+}
+/* 휴대폰 홈 화면 앱(standalone): 위쪽 상태 표시줄·아래 홈 막대에 가리지 않게 */
+@supports (padding: env(safe-area-inset-top)) {
+  @media (display-mode: standalone) { body { padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); } }
 }
 </style>
 </head>
