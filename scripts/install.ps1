@@ -87,7 +87,9 @@ if (Test-Up) { Stop-Ieon; Start-Sleep -Seconds 2 }
 Start-ScheduledTask -TaskName $Task
 $ok = $false; foreach ($i in 1..20) { Start-Sleep -Milliseconds 500; if (Test-Up) { $ok = $true; break } }
 if (-not $ok) { Write-Output "서버가 시작되지 않았습니다. $Run\server.log 를 확인하세요."; exit 1 }
-Step '서버 시작됨(실제 실행은 꺼짐)'
+# 실제 AI 응답 상태를 그대로 알린다(처음 설치는 꺼짐, 운영 중 켜 둔 PC는 켜짐 그대로 — 설치가 바꾸지 않음).
+$liveOn = $false; try { $liveOn = (Get-Content (Join-Path $Local 's2\connector.json') -Raw | ConvertFrom-Json).live -eq $true } catch { $liveOn = $false }
+Step ("서버 시작됨(AI 응답 " + $(if ($liveOn) { '켜짐' } else { '꺼짐 — 처음 질문할 때 켤지 물어봐요' }) + ')')
 
 # 6) 바로 가기와 브라우저
 # 바로 가기에 이어온 아이콘을 붙인다(브라우저 기본 아이콘 대신)
