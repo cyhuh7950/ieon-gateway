@@ -1,6 +1,27 @@
 # A0 실측 준비 — 이어온 전용 계정 + Desktop 세션 이어 쓰기
 
-작성 2026-11-12(신산님 "A0 실측 준비"). 이 문서는 **준비**다. 아래 실측은 아직 하나도 하지 않았다(모델 호출 0, 로그인 0, 폴더 생성 0).
+작성 2026-11-12(신산님 "A0 실측 준비"). 아래 1~6절은 준비 당시 내용이고, 실측 결과는 0절이다.
+
+## 0. 결과(2026-11-12, 신산님 "Codex만 진행", 모델 호출 1회)
+
+**Codex B안 PASS(시험 thread 한정).** 증거: [a0-codex-account-20261112.json](a0-codex-account-20261112.json).
+
+| 단계 | 결과 |
+|---|---|
+| A0-1 | 전용 폴더 `.local/accounts/codex/a0` + junction 3개. 로그인 전 "Not logged in" |
+| A0-2 | 신산님 기기 코드 로그인 → "Logged in using ChatGPT"(이메일 미열람) |
+| A0-3 | Desktop에서 시험 대화를 연 상태: Desktop 경로·전용 폴더 경로 **둘 다 WRITER_LOCK_CONFLICT** → 같은 잠금을 봄. 이어온 어댑터는 SDK를 불러오기 전에 `desktop_holds_thread`로 거부 |
+| A0-4 | Desktop 로그아웃(auth.json 없음) 상태에서 전용 계정으로 이어 쓰기 1회 성공(12초), 같은 thread ID, Desktop 기록 파일에 이어 씀(+54,996바이트), Desktop 로그인 파일 변화 없음, 전용 폴더에 상태 DB 안 생김, 끝난 뒤 잠금 정상 |
+| A0-5 | 신산님이 Desktop 재로그인 후 시험 대화에서 이어온의 질문·답이 보임 확인 |
+| ⑤ 한도 오류 | A1 실물로 갈음(같은 화면에 Desktop 계정의 "사용 한도에 도달" 기록이 바로 위에 있음) |
+
+**함께 확인된 것(계정 분리와 별개):** Desktop은 대화를 한 번 열면 **다른 대화로 옮겨도, 로그아웃해도 잠금을 놓지 않고, 앱 프로세스(ChatGPT.exe·codex.exe)가 완전히 끝나야** 놓는다(10-29~30 X0 기록과 같음). 번갈아 쓰기(alternate)의 불편은 그대로이며 공유 서버 방식(shared_server)이나 사용 안내로 다룰 일.
+
+**A2 구현 때 반영할 것:** ① 질문마다 SDK에 `env`로 `CODEX_HOME`(전용 폴더)·`CODEX_SQLITE_HOME`(Desktop 폴더)을 넘기고 프로세스 전체 환경은 바꾸지 않는다. ② 리눅스 잠금 판별(`lock-probe.mjs:38`)은 Desktop 잠금 폴더를 명시. ③ 전용 폴더의 junction을 지울 때 `Remove-Item -Recurse` 금지(대상 Desktop 파일까지 지워짐) — 연결만 지우는 방법(`cmd /c rmdir`)으로. ④ 전용 폴더에는 `.sandbox`·`cache`·`plugins`·`skills` 등이 새로 생김(Desktop 설정·스킬은 공유 안 됨, 필요하면 따로 결정). ⑤ `session_index.jsonl`(대화 이름 목록)은 공유하지 않음 — 이어온이 대화 이름을 바꾸지 않으므로 지금은 문제 없음.
+
+**남은 미확인:** Claude Code(`CLAUDE_CONFIG_DIR`)·Solar 이어 쓰기(A0-6·7, 신산님이 이번엔 제외), 대화를 오래 이어 쓸 때의 암호화 조각 문제(이번 1회는 이상 없음), 리눅스(허브·WSL)에서 같은 구성.
+
+전용 폴더 `.local/accounts/codex/a0`와 그 로그인은 A2에서 쓸 수 있게 **남겨 둔다**(지우려면 5절).
 근거 설계: `docs/design/ENGINE_ACCOUNTS.md` 원칙 0·3-2(B안), WORK_PLAN A0.
 
 ## 1. 준비 중 확인한 사실(읽기만)
