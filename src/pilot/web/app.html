@@ -107,6 +107,11 @@ details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:
 .dots { display:flex; gap:6px; } .dots i { width:7px; height:7px; border-radius:99px; background:var(--border); } .dots i.on { width:20px; background:var(--accent); }
 .bigbtn { width:100%; border:0; border-radius:12px; padding:12px; background:var(--accent); color:var(--on-accent); font-weight:600; margin-top:16px; }
 .linkbtn { border:0; background:none; color:var(--muted); padding:4px 0; text-decoration:underline; }
+/* U5 메신저 연결 */
+.code { font-size:34px; letter-spacing:8px; font-weight:700; text-align:center; padding:14px; border-radius:12px; background:var(--accent-soft); color:var(--accent); margin:14px 0 6px; font-variant-numeric:tabular-nums; }
+ol.guide { padding-left:20px; margin:10px 0 0; font-size:14px; } ol.guide li { margin:5px 0; }
+.grid2 { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:12px; }
+.grid2 .pick { grid-template-columns:36px 1fr; }
 .welcome { margin:auto; text-align:center; color:var(--muted); max-width:420px; padding:24px; }
 .compose { display:flex; gap:8px; padding:12px 18px 18px; align-items:flex-end; }
 .compose textarea { flex:1; resize:none; max-height:180px; border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:12px 14px; line-height:1.5; }
@@ -199,7 +204,7 @@ details.adv[open] summary { margin-bottom:10px; }
     <div id="s3" hidden>
       <h1>준비됐어요</h1>
       <p class="muted small" style="margin:0">이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요.</p>
-      <div class="check"><div class="av" style="background:#229ED9" aria-hidden="true">✈</div><div><b>메신저로도 쓰기</b><div class="small muted">텔레그램·디스코드·슬랙·카카오톡</div></div><a class="st" href="/classic#bots">설정하기</a></div>
+      <div class="check"><div class="av" style="background:#229ED9" aria-hidden="true">✈</div><div><b>메신저로도 쓰기</b><div class="small muted">텔레그램·디스코드·슬랙·카카오톡</div></div><button type="button" class="st linkbtn" id="sMsg">설정하기</button></div>
       <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>밖에서도 쓰기(허브)</b><div class="small muted">PC가 꺼져 있을 때도 새 세션이 답해요</div></div><a class="st" href="/classic#pc">설정하기</a></div>
       <button type="button" class="bigbtn" id="s3Open">대화 열기</button>
     </div>
@@ -216,6 +221,36 @@ details.adv[open] summary { margin-bottom:10px; }
   </div>
 </div>
 
+<!-- U5 메신저 연결: 고르기 → 토큰 한 칸(카카오는 스킬 URL) → 숫자 보내기 → 완료. 기본 봇만, 나머지는 고급 -->
+<div class="scrim" id="msg" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div id="m1">
+      <h2 id="mTitle">어느 메신저로 쓸까요?</h2>
+      <p class="muted small" style="margin:0">하나만 골라도 돼요. 나머지는 나중에 추가할 수 있어요.</p>
+      <div class="grid2" id="mPlats"></div>
+    </div>
+    <div id="m2" hidden>
+      <h2 id="m2Title"></h2>
+      <ol class="guide" id="m2Guide"></ol>
+      <div id="m2Fields"></div>
+      <p class="small muted" id="m2Note"></p>
+      <div class="mrow"><button type="button" id="m2Back">뒤로</button><button type="button" class="primary" id="m2Next">연결</button></div>
+    </div>
+    <div id="m3" hidden>
+      <h2>봇에게 이 숫자를 보내세요</h2>
+      <p class="muted small" style="margin:0" id="m3Hint"></p>
+      <div class="code" id="m3Code" aria-live="polite">······</div>
+      <p class="small muted" style="text-align:center;margin:0" id="m3Wait"></p>
+      <div class="mrow"><button type="button" id="m3New">숫자 새로 받기</button></div>
+    </div>
+    <div id="m4" hidden>
+      <h2>연결됐어요</h2>
+      <p class="muted" id="m4Text" style="margin:6px 0 0"></p>
+    </div>
+    <div class="mrow" style="justify-content:space-between"><a class="small" href="/classic#bots">고급: 봇 이름·여러 봇·허용 사용자</a><button type="button" id="mClose">닫기</button></div>
+  </div>
+</div>
+
 <div class="app" id="app" hidden>
   <aside class="side" aria-label="연결한 대화">
     <div class="side-top"><div class="logo" aria-hidden="true">이</div><div><div class="name">이어온</div><div class="where" id="where"></div></div></div>
@@ -223,7 +258,7 @@ details.adv[open] summary { margin-bottom:10px; }
     <div class="denied" id="denied" hidden aria-label="메신저 허용 요청"></div>
     <div class="list" id="list"></div>
     <div class="side-bottom">
-      <a href="/classic#bots"><span aria-hidden="true">✈</span>메신저</a>
+      <button type="button" id="msgBtn"><span aria-hidden="true">✈</span>메신저</button>
       <a href="/classic" id="settingsLink"><span aria-hidden="true">⚙</span>설정</a>
       <button type="button" id="logoutBtn" hidden><span aria-hidden="true">⎋</span>로그아웃</button>
     </div>
@@ -470,6 +505,113 @@ async function connect(body, { open = true } = {}) {
   return r.body.conversationId;
 }
 
+// --- U5 메신저 연결 ---
+const PLAT_INFO = {
+  telegram: { name: '텔레그램', color: '#229ED9', mark: '✈', guide: ['텔레그램에서 @BotFather를 열어요', '/newbot을 보내고 봇 이름을 두 번 정해요', '받은 토큰을 아래 칸에 붙여 넣어요'] },
+  discord: { name: '디스코드', color: '#5865F2', mark: 'D', guide: ['discord.com/developers에서 New Application을 만들어요', 'Bot 메뉴에서 Reset Token → 토큰을 복사해요', '같은 화면에서 Message Content Intent를 켜요', 'OAuth2 링크로 봇을 서버에 초대해요(설명서 4.2)'] },
+  slack: { name: '슬랙', color: '#4A154B', mark: 'S', guide: ['api.slack.com/apps에서 "From an app manifest"로 앱을 만들어요(설명서 4.3의 manifest)', 'App-Level Token(xapp-…)과 Bot Token(xoxb-…)을 받아요', '두 토큰을 아래 칸에 붙여 넣어요'] },
+  kakao: { name: '카카오톡', color: '#FEE500', ink: '#3a2f00', mark: 'K', guide: ['카카오 오픈빌더의 스킬 URL 칸에 아래 주소를 붙여 넣고 저장해요', '봇테스트나 채널 대화에서 봇에게 말을 걸 준비를 해요'] },
+};
+const SEC_NAME = { TELEGRAM_BOT_TOKEN: '봇 토큰', DISCORD_BOT_TOKEN: '봇 토큰', SLACK_APP_TOKEN: '앱 토큰 (xapp-…)', SLACK_BOT_TOKEN: '봇 토큰 (xoxb-…)' };
+let msgPlat = null, msgTimer = null;
+const stopMsgTimer = () => { clearInterval(msgTimer); msgTimer = null; };
+function msgStep(n) { for (const i of [1, 2, 3, 4]) $('m' + i).hidden = i !== n; }
+async function botOf(platform) {
+  const r = await api('/v1/admin/bots').catch(() => null);
+  return r?.status === 200 ? r.body.bots.find((b) => b.platform === platform && b.botId === 'default') ?? null : null;
+}
+async function openMsg() {
+  stopMsgTimer(); $('msg').hidden = false; msgStep(1);
+  const box = $('mPlats'); box.replaceChildren();
+  const r = await api('/v1/admin/bots').catch(() => null);
+  const bots = r?.status === 200 ? r.body.bots : [];
+  for (const [id, info] of Object.entries(PLAT_INFO)) {
+    const b = bots.find((x) => x.platform === id && x.botId === 'default');
+    // 꺼 둔 봇(예: 허브로 옮긴 봇)은 여기서 고를 수 없다 — 토큰을 넣으면 다른 곳과 겹칠 수 있음
+    const off = b && b.enabled === false;
+    const st = off ? '꺼져 있음 · 다른 곳(허브 등)에서 쓰는 중일 수 있어요' : b?.status?.state === 'connected' ? '연결됨' + (b.status.username ? ' · ' + b.status.username : '') : b ? '설정 전' : '쓸 수 없음';
+    const btnEl = el('button', null, 'pick'); btnEl.type = 'button'; btnEl.disabled = !b || off;
+    const av = el('div', info.mark, 'av'); av.style.background = info.color; if (info.ink) av.style.color = info.ink; av.setAttribute('aria-hidden', 'true');
+    const mid = el('div'); mid.style.minWidth = '0'; mid.append(el('div', info.name, 't'), el('div', st, 's'));
+    btnEl.append(av, mid); btnEl.onclick = () => msgSetup(id); box.append(btnEl);
+  }
+}
+async function msgSetup(platform) {
+  msgPlat = platform; const info = PLAT_INFO[platform]; msgStep(2);
+  $('m2Title').textContent = info.name + ' 연결';
+  $('m2Guide').replaceChildren(...info.guide.map((g) => el('li', g)));
+  const fields = $('m2Fields'); fields.replaceChildren(); $('m2Note').textContent = '';
+  if (platform === 'kakao') {
+    const r = await api('/v1/admin/kakao/skill-url').catch(() => null);
+    if (r?.status !== 200) { fields.append(el('p', '이 화면에서는 카카오 스킬 URL을 만들 수 없어요. 고급 설정을 보세요.', 'muted small')); $('m2Next').hidden = true; return; }
+    const wrap = el('label', null, 'field'); wrap.append('스킬 URL');
+    const inp = el('input'); inp.readOnly = true; inp.value = r.body.url; wrap.append(inp); fields.append(wrap);
+    fields.append(btn('복사', async () => { try { await navigator.clipboard.writeText(r.body.url); toast('ok', '복사했어요'); } catch { inp.select(); } }));
+    $('m2Note').textContent = '비밀 경로가 들어 있으니 다른 곳에 올리지 마세요. PC 화면과 허브 화면 중 마지막에 붙여 넣은 쪽이 답해요.';
+    $('m2Next').hidden = false; $('m2Next').textContent = '붙여 넣었어요'; return;
+  }
+  const r = await api('/v1/admin/secrets').catch(() => null);
+  const names = r?.status === 200 ? r.body.names.filter((s) => s.platform === platform && s.botId === 'default' && !s.internal) : [];
+  for (const s of names) {
+    const wrap = el('label', null, 'field'); wrap.append((SEC_NAME[s.name] || s.name) + (s.present ? ' — 저장돼 있음(바꿀 때만 입력)' : ''));
+    const inp = el('input'); inp.type = 'password'; inp.autocomplete = 'off'; inp.dataset.name = s.name; inp.placeholder = s.present ? '바꾸려면 새 토큰' : '붙여 넣기';
+    wrap.append(inp); fields.append(wrap);
+  }
+  $('m2Note').textContent = '토큰은 이 PC(또는 허브)에만 저장되고 다시 보이지 않아요. 같은 봇을 PC와 허브에 함께 켜지 마세요.';
+  $('m2Next').hidden = false; $('m2Next').textContent = '연결';
+}
+$('m2Next').onclick = async () => {
+  for (const inp of $('m2Fields').querySelectorAll('input[data-name]')) {
+    const v = inp.value.trim(); if (!v) continue;
+    const r = await api('/v1/admin/secrets/' + inp.dataset.name, { method: 'PUT', body: JSON.stringify({ value: v }) });
+    if (r.status !== 200) return toast('err', r.body.error === 'bad_secret_value' ? '토큰 형식이 맞지 않아요(앞뒤 공백·줄바꿈 없이)' : '저장하지 못했어요: ' + r.body.error);
+    inp.value = '';
+  }
+  await msgClaim();
+};
+async function msgClaim() {
+  stopMsgTimer(); msgStep(3);
+  const info = PLAT_INFO[msgPlat];
+  $('m3Code').textContent = '······';
+  // 토큰이 필요한 메신저는 봇이 연결될 때까지 기다린다(웹 저장 뒤 1분 안).
+  if (msgPlat !== 'kakao') {
+    $('m3Hint').textContent = info.name + ' 봇을 연결하는 중이에요… (1분 안에)'; $('m3Wait').textContent = '';
+    for (let i = 0; i < 40; i += 1) {
+      const b = await botOf(msgPlat);
+      const s = b?.status?.state;
+      if (s === 'connected') break;
+      if (['token_missing', 'duplicate_token', 'conflict', 'error'].includes(s) && i > 3) { $('m3Hint').textContent = '봇이 연결되지 않았어요(' + ({ token_missing: '토큰 없음', duplicate_token: '토큰 중복', conflict: '다른 곳에서 같은 봇을 켜 둠', error: '연결 오류' })[s] + '). 뒤로 가서 토큰을 확인하세요.'; return; }
+      await new Promise((ok) => setTimeout(ok, 3000));
+      if ($('msg').hidden) return;
+    }
+  }
+  const b = await botOf(msgPlat);
+  const r = await api('/v1/admin/messenger/claim', { method: 'POST', body: JSON.stringify({ platform: msgPlat, botId: 'default' }) });
+  if (r.status !== 200) { $('m3Hint').textContent = '숫자를 만들지 못했어요: ' + r.body.error; return; }
+  const who = b?.status?.username || info.name + ' 봇';
+  $('m3Hint').textContent = who + '에게 아래 숫자를 보내면, 보낸 사람이 이 봇의 주인으로 등록돼요.';
+  $('m3Code').textContent = r.body.code; $('m3Code').setAttribute('aria-label', '확인 숫자 ' + r.body.code.split('').join(' '));
+  $('m3Wait').textContent = '기다리는 중… (10분 안에)';
+  msgTimer = setInterval(async () => {
+    const s = await api('/v1/admin/messenger/claim?platform=' + encodeURIComponent(msgPlat) + '&botId=default').catch(() => null);
+    const st = s?.body?.state;
+    if (st === 'claimed') {
+      stopMsgTimer(); msgStep(4);
+      $('m4Text').textContent = (s.body.name ? s.body.name + '님이' : '보낸 사람이') + ' ' + info.name + ' 봇의 주인으로 등록됐어요. 이제 봇에게 질문하면 연결한 대화가 답해요. 대화를 바꾸려면 메신저에서 /sessions를 보내세요.';
+      loadDenied();
+    } else if (st === 'expired' || st === 'locked') {
+      stopMsgTimer(); $('m3Wait').textContent = st === 'expired' ? '10분이 지나 숫자가 만료됐어요. 숫자를 새로 받으세요.' : '여러 번 틀려 막혔어요. 숫자를 새로 받으세요.';
+    }
+  }, 3000);
+}
+$('msgBtn').onclick = openMsg;
+$('m2Back').onclick = () => openMsg();
+$('m3New').onclick = () => msgClaim();
+const closeMsg = () => { stopMsgTimer(); $('msg').hidden = true; };
+$('mClose').onclick = closeMsg;
+$('msg').addEventListener('click', (e) => { if (e.target === $('msg')) closeMsg(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('msg').hidden) closeMsg(); });
+
 // --- U4 처음 설정 3단계 ---
 let setupConv = null;
 function setupStep(n) {
@@ -489,6 +631,7 @@ async function openSetup() {
 $('s1Next').onclick = () => { setupStep(2); loadThreads($('sList'), async (body) => { const id = await connect(body, { open: false }); if (id) { setupConv = id; setupStep(3); } }); };
 $('s3Open').onclick = async () => { closeSetup(); await load(); if (setupConv) await select(setupConv); };
 $('sSkip').onclick = closeSetup;
+$('sMsg').onclick = () => openMsg();
 $('addBtn').onclick = openConnect;
 $('connClose').onclick = () => { $('connect').hidden = true; };
 $('connect').addEventListener('click', (e) => { if (e.target === $('connect')) $('connect').hidden = true; });

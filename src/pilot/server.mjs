@@ -3,7 +3,7 @@
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
 import { createServer } from 'node:http';
 import { existsSync, readFileSync, rmSync, chmodSync } from 'node:fs';
-import { createHash, timingSafeEqual, randomBytes } from 'node:crypto';
+import { createHash, timingSafeEqual, randomBytes, randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
@@ -115,6 +115,10 @@ export function createApp(config) {
     .map((name) => ({ name, platform: b.platform, botId: b.botId, internal: internalSecret(name) })));
   // W2: 허용 목록에 없는 사람이 보낸 최근 메시지(메신저가 알려 줌). 웹의 "이 사람 허용" 버튼에 쓴다. 메시지 내용은 받지 않는다.
   const denied = new Map();
+  // U5(UD3): 메신저 주인 등록 숫자. 봇마다 하나, 6자리·10분·1회용, 틀린 시도 5번이면 잠김. 숫자는 로그에 남기지 않는다.
+  const claims = new Map(); // "<메신저>:<봇ID>" → { code, expMs, tries, state: waiting|claimed|locked, name }
+  const CLAIM_MS = config.claimMs ?? 10 * 60_000; // 시험에서만 짧게
+  const claimView = (c) => (!c ? 'none' : c.state === 'waiting' && Date.now() > c.expMs ? 'expired' : c.state);
   // W7: PC 완결형 공개 중계 — 주소는 웹 설정(카카오 중계 주소) 또는 메신저 설정 파일, 비밀 경로는 운영자가 둔 중계 비밀 파일.
   const pcRelay = () => {
     let url = store.getSetting('messenger.kakao')?.value?.relayUrl ?? null;
@@ -512,6 +516,22 @@ export function createApp(config) {
           for (const [k, v] of denied) if (v.atMs < cut) denied.delete(k);
           return json(res, 200, { denied: [...denied.values()].map(({ atMs, ...v }) => v) });
         }
+        // U5: 주인 등록 숫자 만들기·상태 보기(관리자 화면)
+        if (path === '/v1/admin/messenger/claim') {
+          if (req.method === 'POST') {
+            const b = await readJson(req);
+            const platform = String(b.platform ?? ''); const botId = String(b.botId ?? 'default');
+            if (!store.bot(platform, botId)) return json(res, 404, { error: 'unknown_bot' });
+            const code = String(randomInt(100000, 1000000));
+            claims.set(`${platform}:${botId}`, { code, expMs: Date.now() + CLAIM_MS, tries: 0, state: 'waiting', name: null });
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'claim_started', platform, botId }) + '\n');
+            return json(res, 200, { code, expiresAt: new Date(Date.now() + CLAIM_MS).toISOString() });
+          }
+          if (req.method === 'GET') {
+            const c = claims.get(`${url.searchParams.get('platform')}:${url.searchParams.get('botId') ?? 'default'}`);
+            return json(res, 200, { state: claimView(c), name: c?.state === 'claimed' ? c.name : null });
+          }
+        }
         if (req.method === 'POST' && path === '/v1/admin/denied/allow') {
           const body = await readJson(req);
           const key = `${body.platform}:${body.botId}:${body.userId}`;
@@ -647,6 +667,29 @@ export function createApp(config) {
             at: new Date().toISOString(), atMs: Date.now(), count: (prev?.count ?? 0) + 1 });
           if (denied.size > 50) denied.delete(denied.keys().next().value);
           return json(res, 204);
+        }
+        // U5: 허용 목록에 없는 사람이 6자리 숫자를 보냄 → 맞으면 그 봇의 허용 사용자로(주인 등록)
+        if (req.method === 'POST' && path === '/v1/messenger/claim') {
+          const b = await readJson(req);
+          const platform = String(b.platform ?? ''); const botId = String(b.botId ?? ''); const userId = String(b.userId ?? '');
+          if (!/^[\w.:@-]{1,128}$/.test(userId)) return json(res, 400, { error: 'bad_claim' });
+          const c = claims.get(`${platform}:${botId}`);
+          if (!c || claimView(c) !== 'waiting') return json(res, 404, { error: 'no_claim' });
+          const given = Buffer.from(String(b.code ?? '').trim()); const want = Buffer.from(c.code);
+          if (given.length !== want.length || !timingSafeEqual(given, want)) {
+            c.tries += 1; if (c.tries >= 5) c.state = 'locked';
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'claim_wrong', platform, botId, locked: c.state === 'locked' }) + '\n');
+            return json(res, 403, { error: c.state === 'locked' ? 'claim_locked' : 'wrong_code' });
+          }
+          const bot = store.bot(platform, botId);
+          if (!bot) return json(res, 404, { error: 'unknown_bot' });
+          const r = store.saveBot({ platform: bot.platform, botId: bot.botId, name: bot.name, roleId: bot.roleId, callNames: bot.callNames,
+            extraUsers: [...new Set([...(bot.extraUsers ?? []), userId])], enabled: bot.enabled });
+          if (r.http !== 200) return json(res, r.http, { error: r.code });
+          c.state = 'claimed'; c.name = b.name ? String(b.name).slice(0, 60) : null;
+          denied.delete(`${platform}:${botId}:${userId}`);
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'claim_done', platform, botId }) + '\n');
+          return json(res, 200, { claimed: true });
         }
         if (req.method === 'POST' && path === '/v1/messenger/bots/status') {
           const body = await readJson(req);
