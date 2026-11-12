@@ -282,8 +282,13 @@ export function createApp(config) {
     return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정' };
   };
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
-  const cardsFor = (c, live) => {
+  const approvalTtlMs = config.approvalTtlMs ?? 15 * 60_000; // W1: 15분 안에 답이 없으면 거부
+  const cardsFor = (c, live, principal) => {
     const cards = [];
+    // W1: 엔진이 승인을 기다리는 중(허용·거부 카드). 요약·작업 폴더만, 로그에는 남기지 않음
+    for (const a of principal ? store.approvals(principal, c.conversationId, { pendingOnly: true, ttlMs: approvalTtlMs }) ?? [] : []) {
+      cards.push({ kind: 'approval', approvalId: a.approvalId, approvalKind: a.kind, summary: a.summary, cwd: a.cwd, expiresAt: new Date(Date.parse(a.createdAt) + approvalTtlMs).toISOString() });
+    }
     if (hubModeOn()) cards.push({ kind: 'hub_mode', hubUrl: hubLink?.status().hubUrl ?? null });
     else if (!online(c.hostId)) cards.push({ kind: 'device_offline' });
     else if (engineReady(c) === false) cards.push({ kind: 'engine_off', engine: c.engine });
@@ -369,6 +374,17 @@ export function createApp(config) {
         if (req.method === 'GET' && path === '/v1/device/jobs') {
           const job = store.claim(device.hostId);
           return job ? json(res, 200, job) : json(res, 204);
+        }
+        // W1: 엔진이 묻는 승인을 연결부가 올리고(그 PC가 처리 중인 질문만), 결정을 묻는다. 내용은 DB에만(로그에는 종류만).
+        if (req.method === 'POST' && path === '/v1/device/approvals') {
+          const r = store.addApproval(device.hostId, await readJson(req));
+          if (r.http === 201) process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_requested', host: device.hostId }) + '\n');
+          return r.http === 201 ? json(res, 201, { approvalId: r.approvalId, ttlMs: approvalTtlMs }) : json(res, r.http, { error: r.code });
+        }
+        const ap = path.match(/^\/v1\/device\/approvals\/(apv_[\w-]+)$/);
+        if (req.method === 'GET' && ap) {
+          if (store.approvalHost(ap[1]) !== device.hostId) return json(res, 404, { error: 'not_found' });
+          return json(res, 200, { status: store.approvalStatus(ap[1], { ttlMs: approvalTtlMs }).status });
         }
         const m = path.match(/^\/v1\/device\/jobs\/([\w-]+)\/result$/);
         if (req.method === 'POST' && m) {
@@ -937,7 +953,7 @@ export function createApp(config) {
           ...(c.heldBy ? { heldBy: c.heldBy } : {}),
           ...(c.newSession ? { newSession: c.newSession } : {}),
           ...(engineReady(c) === undefined ? {} : { engineReady: engineReady(c) }),
-          attention: cardsFor(c, live).length,
+          attention: cardsFor(c, live, principal).length,
           account: accountOf(c),
           staff: staffView(c), // AP-1: AI 직원 이름·역할·아이콘(이름이 없으면 대화 이름)
           ...(hostNames ? { host: { id: c.hostId, name: hostNames.get(c.hostId) ?? c.hostId } } : {}),
@@ -947,7 +963,7 @@ export function createApp(config) {
       const cardsPath = path.match(/^\/v1\/conversations\/([\w-]+)\/cards$/);
       if (req.method === 'GET' && cardsPath) {
         const conv = store.conversations(principal).find((c) => c.conversationId === cardsPath[1]);
-        return conv ? json(res, 200, { cards: cardsFor(conv, localLive()) }) : json(res, 404, { error: 'not_found' });
+        return conv ? json(res, 200, { cards: cardsFor(conv, localLive(), principal) }) : json(res, 404, { error: 'not_found' });
       }
       // --- 새 세션 만들기(설계 NEW_SESSIONS) ---
       if (path === '/v1/sessions' || path.startsWith('/v1/sessions/')) {
@@ -983,6 +999,19 @@ export function createApp(config) {
           return json(res, 200, { conversationId: r.conversationId, deleted: true, workspaceRemoved });
         }
         return json(res, 404, { error: 'not_found' });
+      }
+      // --- W1 승인 카드: 허용·거부는 그 대화 주인의 웹 화면만(메신저 버튼은 W2) ---
+      const apd = path.match(/^\/v1\/approvals\/(apv_[\w-]+)$/);
+      if (apd && req.method === 'POST') {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        const r = store.decideApproval(principal, apd[1], String((await readJson(req)).decision ?? ''), { ttlMs: approvalTtlMs });
+        if (r.http === 200) process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_decided', status: r.status }) + '\n');
+        return r.http === 200 ? json(res, 200, { status: r.status }) : json(res, r.http, { error: r.code, ...(r.status ? { status: r.status } : {}) });
+      }
+      const apl = path.match(/^\/v1\/conversations\/([\w-]+)\/approvals$/);
+      if (apl && req.method === 'GET') {
+        const list = store.approvals(principal, apl[1], { ttlMs: approvalTtlMs });
+        return list ? json(res, 200, { approvals: list }) : json(res, 404, { error: 'not_found' });
       }
       // --- AP-1 AI 직원·방(웹 화면만 — 메신저·외부 프로그램 키로는 못 바꿈) ---
       const sf = path.match(/^\/v1\/conversations\/([\w-]+)\/staff$/);

@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS rooms (
   guide TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS room_members (
   room_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (room_id, conversation_id));
+CREATE TABLE IF NOT EXISTS approvals (
+  approval_id TEXT PRIMARY KEY, request_id TEXT NOT NULL, conversation_id TEXT NOT NULL, kind TEXT NOT NULL, summary TEXT NOT NULL,
+  cwd TEXT, status TEXT NOT NULL, decided_by TEXT, created_at TEXT NOT NULL, decided_at TEXT);
 CREATE TABLE IF NOT EXISTS room_posts (
   post_id TEXT PRIMARY KEY, room_id TEXT NOT NULL, kind TEXT NOT NULL, text TEXT, conversation_id TEXT, request_id TEXT,
   code TEXT, idem_key TEXT, at TEXT NOT NULL);
@@ -78,6 +81,8 @@ export function openStore(path) {
     db.exec('ALTER TABLE requests ADD COLUMN prefix TEXT');
     db.exec('ALTER TABLE requests ADD COLUMN room_id TEXT');
   }
+  // W1(WORK_AND_VOICE A3): 승인 기록은 180일 보관
+  db.prepare('DELETE FROM approvals WHERE created_at < ?').run(new Date(Date.now() - 180 * 86400_000).toISOString());
   // AP-1: 방에서 다시 보낸 글 표시(같은 글을 두 번 다시 보내지 않게 버튼을 감춤)
   if (!db.prepare('PRAGMA table_info(room_posts)').all().some((c) => c.name === 'retried')) db.exec('ALTER TABLE room_posts ADD COLUMN retried INTEGER NOT NULL DEFAULT 0');
   if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'role_guide')) {
@@ -314,6 +319,8 @@ export function openStore(path) {
       const b = row && binding(row.conversation_id);
       if (!b || b.hostId !== hostId || ![STATUS.dispatching, STATUS.running].includes(row.status)) return null;
       adoptSessionRef(b, outcome.sessionRef, now);
+      // W1: 차례가 끝나면 아직 답하지 않은 승인 요청은 거부(turn_ended)
+      db.prepare("UPDATE approvals SET status = 'turn_ended', decided_at = ? WHERE request_id = ? AND status = 'pending'").run(new Date().toISOString(), requestId);
       if (outcome.status === STATUS.completed) {
         setStatus(row, STATUS.completed, { receipt: outcome.receipt ?? null, answer: keepAnswer(row, outcome.answer ?? null) });
         if (outcome.usage) db.prepare('UPDATE requests SET usage = ? WHERE request_id = ?').run(JSON.stringify(outcome.usage), requestId);
@@ -515,6 +522,48 @@ export function openStore(path) {
       const row = request(requestId);
       if (!row || !canAccess(principal, binding(row.conversation_id))) return null;
       return view(row);
+    },
+
+// --- W1 승인 카드(WORK_AND_VOICE A1·A3). 15분 안에 답이 없으면 거부, 차례가 끝나면 거부, 허용·거부는 주인만 ---
+    addApproval(hostId, { requestId, kind, summary, cwd }) {
+      const row = request(String(requestId ?? ''));
+      const b = row && binding(row.conversation_id);
+      if (!b || b.hostId !== hostId || ![STATUS.dispatching, STATUS.running].includes(row.status)) return { http: 404, code: 'not_found' };
+      if (!['command', 'file', 'permissions'].includes(kind)) return { http: 400, code: 'bad_kind' };
+      const id = `apv_${randomUUID()}`;
+      db.prepare("INSERT INTO approvals (approval_id, request_id, conversation_id, kind, summary, cwd, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)")
+        .run(id, row.request_id, row.conversation_id, kind, String(summary ?? '').slice(0, 500), cwd ? String(cwd).slice(0, 300) : null, new Date().toISOString());
+      return { http: 201, approvalId: id };
+    },
+    // 시간이 지난 것은 읽을 때 거부로 바꾼다(타이머 없이도 15분 규칙이 지켜지게)
+    approvalStatus(approvalId, { ttlMs = 15 * 60_000 } = {}) {
+      const a = db.prepare('SELECT * FROM approvals WHERE approval_id = ?').get(approvalId);
+      if (!a) return null;
+      if (a.status === 'pending' && Date.now() - Date.parse(a.created_at) > ttlMs) {
+        db.prepare("UPDATE approvals SET status = 'expired', decided_at = ? WHERE approval_id = ? AND status = 'pending'").run(new Date().toISOString(), approvalId);
+        a.status = 'expired';
+      }
+      return a;
+    },
+    approvalHost(approvalId) {
+      const a = db.prepare('SELECT conversation_id FROM approvals WHERE approval_id = ?').get(approvalId);
+      return a ? binding(a.conversation_id)?.hostId ?? null : null;
+    },
+    decideApproval(principal, approvalId, decision, opts) {
+      const a = this.approvalStatus(approvalId, opts);
+      if (!a || !canAccess(principal, binding(a.conversation_id))) return { http: 404, code: 'not_found' };
+      if (!['allow', 'deny'].includes(decision)) return { http: 400, code: 'bad_decision' };
+      if (a.status !== 'pending') return { http: 409, code: 'approval_closed', status: a.status };
+      db.prepare('UPDATE approvals SET status = ?, decided_by = ?, decided_at = ? WHERE approval_id = ? AND status = ?')
+        .run(decision === 'allow' ? 'allowed' : 'denied', `${principal.userId}:${principal.appId}`, new Date().toISOString(), approvalId, 'pending');
+      return { http: 200, status: decision === 'allow' ? 'allowed' : 'denied' };
+    },
+    approvals(principal, conversationId, { pendingOnly = false, ttlMs } = {}) {
+      if (!canAccess(principal, binding(conversationId))) return null;
+      const rows = db.prepare(`SELECT approval_id FROM approvals WHERE conversation_id = ? ${pendingOnly ? "AND status = 'pending'" : ''} ORDER BY created_at DESC LIMIT 20`).all(conversationId);
+      return rows.map((r) => this.approvalStatus(r.approval_id, { ttlMs })).filter((a) => !pendingOnly || a.status === 'pending')
+        .map((a) => ({ approvalId: a.approval_id, requestId: a.request_id, kind: a.kind, summary: a.summary, cwd: a.cwd, status: a.status,
+          createdAt: a.created_at, decidedAt: a.decided_at, decidedBy: a.decided_by ? a.decided_by.split(':')[0] : null }));
     },
 
     // --- AP-1 AI 직원(대화 하나에 이름·역할·아이콘) ---

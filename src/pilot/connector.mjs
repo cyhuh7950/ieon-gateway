@@ -44,7 +44,29 @@ function receiptLog(path) {
 // A2: HTTP 헤더에는 한글을 못 실으므로(계정 이름표) ASCII 밖 글자는 JSON \u 표기로 바꿔 보낸다. 서버는 JSON.parse로 그대로 읽는다.
 export const healthHeader = (state) => JSON.stringify(state).replace(/[\u007f-￿]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 
-export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, health, log = () => {} }) {
+// W1: 엔진이 묻는 승인(명령 실행·파일 수정)을 서버에 올리고 사람이 허용·거부할 때까지 기다린다. 15분이 지나면 서버가 거부로 바꾼다.
+// 이어온은 "이번만 허용"과 "거부"만 쓴다(항상 허용·자동 승인 없음). 서버에 닿지 못하거나 모르는 답이면 거부.
+export function approver({ baseUrl, headers, requestId, pollMs = 2000, maxMs = 16 * 60_000, log = () => {} }) {
+  return async ({ kind, summary, cwd }) => {
+    try {
+      const r = await fetch(`${baseUrl}/v1/device/approvals`, { method: 'POST', headers, body: JSON.stringify({ requestId, kind, summary, cwd }) });
+      if (r.status !== 201) return 'decline';
+      const { approvalId } = await r.json();
+      log({ event: 'approval_wait', kind });
+      const end = Date.now() + maxMs;
+      while (Date.now() < end) {
+        await new Promise((ok) => setTimeout(ok, pollMs));
+        const s = await fetch(`${baseUrl}/v1/device/approvals/${approvalId}`, { headers }).then((x) => (x.status === 200 ? x.json() : null)).catch(() => null);
+        if (!s || s.status === 'pending') continue;
+        log({ event: 'approval_done', kind, status: s.status });
+        return s.status === 'allowed' ? 'accept' : 'decline';
+      }
+    } catch { /* 닿지 못하면 거부 */ }
+    return 'decline';
+  };
+}
+
+export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, health, log = () => {}, approvalPollMs }) {
   const headers = { authorization: `Bearer ${deviceToken}`, 'content-type': 'application/json' };
   // 엔진 상태(값만, 인증 정보 없음)를 작업 조회에 실어 보낸다. 서버는 이를 보고 꺼진 엔진으로의 질문을 미리 거절한다.
   const state = health ? await health() : null;
@@ -71,7 +93,8 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
   let outcome;
   try {
     const result = await adapter.run({ engine: job.engine, sessionRef: job.sessionRef, question: job.question, requestId: job.requestId,
-      connectMode: job.connectMode, newSession: job.newSession });
+      connectMode: job.connectMode, newSession: job.newSession },
+      { approve: approver({ baseUrl, headers, requestId: job.requestId, log, ...(approvalPollMs ? { pollMs: approvalPollMs } : {}) }) });
     outcome = result.approvalRequired ? { status: 'approval_required' }
       : { status: 'completed', receipt: result.receipt ?? null, answer: result.answer ?? null, usage: result.usage ?? null };
     if (result.sessionRef) outcome.sessionRef = result.sessionRef;
