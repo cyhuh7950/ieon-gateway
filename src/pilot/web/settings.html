@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>이어온 설정</title>
 <link rel="icon" href="/favicon.ico">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0f766e">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="이어온">
 <!-- U6: 예전 화면의 관리 탭 9개를 6개로 묶어 옮긴 설정 화면. 기능·API는 예전 화면과 같다. 서버 값은 textContent로만 넣는다. -->
 <style>
 :root { --bg:#f3f5f7; --surface:#fff; --surface-alt:#f7f9fb; --text:#22252b; --muted:#596472; --border:#dfe3e8;
@@ -70,6 +75,19 @@ header a.back { text-decoration:none; color:var(--primary); font-weight:600; }
 header .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
 header .right button { border:1px solid var(--border); background:var(--surface); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
 #status { top:12px; }
+/* U7: 휴대폰 폭 — 표는 가로로 밀어 보고, 버튼·탭은 44px, 입력 줄은 접어 내림 */
+@media (max-width:650px) {
+  .admin { padding:10px; grid-template-columns:minmax(0, 1fr); }
+  .admin section { padding:10px 12px; min-width:0; }
+  .admin input[type=text], .admin input:not([type]), .admin select { min-height:40px; font-size:16px; }
+  .chk { min-height:40px; } .chk input[type=checkbox] { width:20px; height:20px; }
+  table.list { display:block; overflow-x:auto; white-space:nowrap; }
+  .row { flex-wrap:wrap; }
+  .row input, .row select { min-width:0; flex:1 1 100%; }
+  nav.atabs button, header .right button, .admin button { min-height:44px; }
+  header { flex-wrap:wrap; }
+  header h1 { font-size:15px; }
+}
 </style>
 </head>
 <body>
