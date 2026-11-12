@@ -36,7 +36,7 @@ test('새 화면은 이미 있는 API만 부른다', () => {
     '/v1/admin/local/threads', '/v1/admin/connections', // U3
     '/v1/admin/local/engines', // U4: 처음 설정 준비 확인
     '/v1/admin/bots', '/v1/admin/secrets', '/v1/admin/secrets/', '/v1/admin/kakao/skill-url', '/v1/admin/messenger/claim', '/v1/admin/messenger/claim?platform=', // U5: 메신저 연결
-    '/v1/sessions', '/v1/sessions/limits', '/v1/admin/line/webhook-url']); // U8, L1(라인 webhook 주소): 새 세션 만들기(예전 화면에서 옮김, 기존 API)
+    '/v1/sessions', '/v1/sessions/limits', '/v1/admin/line/webhook-url', '/v1/admin/local/mode']); // M1: 사용 방식 // U8, L1(라인 webhook 주소): 새 세션 만들기(예전 화면에서 옮김, 기존 API)
   const used = [...new Set([...APP.matchAll(/'(\/v1\/[^'+]*)'/g)].map((m) => m[1]))];
   assert.ok(used.length >= 8, used.join(','));
   for (const p of used) assert.ok(allowed.has(p), `새 API를 부르면 안 됨: ${p}`);
@@ -46,7 +46,7 @@ test('새 화면은 이미 있는 API만 부른다', () => {
 test('새 화면에서 여는 설정 탭은 실제로 있다', () => {
   const SETTINGS = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
   const hashes = [...new Set([...APP.matchAll(/\/settings#([a-z]+)/g)].map((m) => m[1]))];
-  assert.deepEqual(hashes.sort(), ['conv', 'hub', 'hubsec', 'msg']);
+  assert.deepEqual(hashes.sort(), ['conv', 'hub', 'hubsec', 'msg', 'pc']); // M1: 사용 방식 안내 → 이 PC 탭
   for (const h of hashes) assert.ok(SETTINGS.includes(`data-atab="${h}"`), h);
   assert.ok(SETTINGS.includes('href="/"'), '설정 화면에서 대화로 돌아갈 수 있다');
 });

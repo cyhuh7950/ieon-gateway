@@ -107,8 +107,17 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <h3 id="pcTitle">이 PC</h3>
     <div class="row" id="pcTargetRow" hidden><label for="pcTarget">PC</label><select id="pcTarget"></select></div>
     <div id="pcTargetNote" class="muted" hidden></div>
+    <div id="modeBox" hidden>
+      <h2>사용 방식</h2>
+      <div id="modeNow" class="muted"></div>
+      <div class="row"><label class="chk"><input type="radio" name="mode" value="pc" id="modePc"> 이 PC에서만 — 공개 서버 없이 이 PC 화면·텔레그램·디스코드·슬랙(카카오톡·라인은 공개 중계가 있을 때만)</label></div>
+      <div class="row"><label class="chk"><input type="radio" name="mode" value="hub" id="modeHub"> 내 허브에 연결 — 질문·메신저·이 PC 설정은 허브 화면에서, 이 PC의 봇·카카오 중계는 끔</label></div>
+      <div class="muted">이어온 공용 서비스(가입해서 쓰기)는 준비 중이에요. 두 방식을 섞어 쓰지 않도록 서버가 맞지 않는 기능을 켜지 않아요.</div>
+      <div class="row"><button class="primary" type="button" id="modeApply">사용 방식 바꾸기</button></div>
+    </div>
     <div id="devBox" hidden>
       <h2>실제 실행·Codex 허용 목록</h2>
+      <div id="devMode2" class="muted" hidden></div>
       <div class="muted">그 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. PC형은 그 PC에서 연 화면에서, 허브형은 허브 화면에서 PC를 골라 바꿉니다(허브가 그 PC에 전달).</div>
       <div class="row"><label class="chk"><input type="checkbox" id="devLive"> 실제 실행 켜기(AI 호출이 생김)</label><span id="devConn" class="muted"></span></div>
       <table class="list"><thead><tr><th>Codex 대화 ID</th><th>연결 방식</th><th>작업 폴더</th><th></th></tr></thead><tbody id="devThreads"></tbody></table>
@@ -465,7 +474,7 @@ async function loadDevices() {
   $('dvEvents').textContent = r.body.events.length ? r.body.events.slice(0, 10).map((e) => when(e.at) + ' ' + e.hostId + ' ' + (ACT[e.action] || e.action)).join(' · ') : '기록 없음';
 }
 // W3: 짝맺기. 허브에서는 연결 요청을 승인하고, PC에서는 허브에 연결한다. 토큰은 화면에 나오지 않는다.
-const PAIR_ERR = { code_mismatch: '코드가 맞지 않습니다', not_found: '요청이 없거나 시간이 지났습니다', hub_unreachable: '허브에 접속하지 못했습니다(주소·인터넷 확인)',
+const PAIR_ERR = { mode_pc: '사용 방식이 "이 PC에서만"이라 허브에 연결하지 않아요. 이 PC 탭 → 사용 방식에서 "내 허브에 연결"로 바꾸세요', code_mismatch: '코드가 맞지 않습니다', not_found: '요청이 없거나 시간이 지났습니다', hub_unreachable: '허브에 접속하지 못했습니다(주소·인터넷 확인)',
   bad_server_url: '허브 주소는 https://로 시작해야 합니다', bad_name: '이 PC 이름을 1~40자로 넣으세요', too_many_pending: '허브에 대기 중인 요청이 많습니다. 잠시 뒤 다시 하세요', rate_limited: '잠시 뒤 다시 하세요' };
 async function loadPairings() {
   $('pairBox').hidden = authState?.mode !== 'hub'; // 연결 요청은 허브 화면에만
@@ -520,6 +529,7 @@ async function loadDevice() {
   const r = await devRun('device.get'); $('devBox').hidden = r.status !== 200;
   if (r.status !== 200) { if (pcTarget !== 'local') { $('pcTargetNote').hidden = false; $('pcTargetNote').textContent = HOST_ERR[r.body.error] || r.body.error; } return; }
   if (pcTarget !== 'local') $('pcTargetNote').hidden = true;
+  $('devMode2').hidden = pcTarget === 'local'; $('devMode2').textContent = '이 PC의 사용 방식: ' + (r.body.mode ? MODE_NAME[r.body.mode] : '아직 정하지 않음') + ' (바꾸기는 그 PC 화면에서 — 바꾸면 허브 연결이 끊길 수 있어서)';
   const d = r.body;
   $('devLive').checked = d.live;
   $('devConn').textContent = d.managed ? (d.running ? '연결부 실행 중' : '연결부 멈춤') : '';
@@ -605,6 +615,25 @@ $('acAdd').onsubmit = async (e) => {
   const r = await acRun('accounts.add', { label: $('acLabel').value.trim() });
   if (r.status !== 201) return setStatus('err', AC_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error || '추가하지 못했습니다');
   $('acLabel').value = ''; setStatus('ok', '계정을 추가했습니다. 로그인을 누르세요.'); loadAccounts();
+};
+// --- M1: 사용 방식(이 PC 화면에서만 바꿈 — 허브 화면에서는 그 PC의 사용 방식을 보여만 줌) ---
+const MODE_NAME = { pc: '이 PC에서만', hub: '내 허브에 연결' };
+const MODE_ERR = { requests_pending: '처리 중이거나 확인이 필요한 질문이 있어 지금은 바꿀 수 없습니다', local_only: '이 PC에서 연 화면에서만 바꿀 수 있습니다', bad_mode: '사용 방식이 맞지 않습니다' };
+let modeView = null;
+async function loadMode() {
+  const r = await api('/v1/admin/local/mode'); $('modeBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  modeView = r.body;
+  $('modeNow').textContent = r.body.mode ? '지금: ' + MODE_NAME[r.body.mode] : '아직 정하지 않았어요 — 추천: ' + MODE_NAME[r.body.suggested] + (r.body.paired ? '(이 PC가 허브에 연결돼 있어요)' : '');
+  const cur = r.body.mode ?? r.body.suggested;
+  $('modePc').checked = cur === 'pc'; $('modeHub').checked = cur === 'hub';
+}
+$('modeApply').onclick = async () => {
+  const next = $('modeHub').checked ? 'hub' : 'pc';
+  const e = modeView?.effects?.[next];
+  if (e && !confirm(MODE_NAME[next] + '(으)로 정할까요?\n\n끕니다: ' + e.off.join(', ') + '\n켭니다: ' + e.on.join(', ') + '\n\n대화 기록·허용 목록·봇 설정은 지우지 않아요.')) return;
+  const r = await api('/v1/admin/local/mode', { method: 'PUT', body: JSON.stringify({ mode: next }) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '사용 방식: ' + MODE_NAME[next] + (next === 'hub' ? (r.body.paired ? ' — 허브에 다시 연결했어요. 이 PC의 봇은 1분 안에 꺼져요' : ' — 밖에서도 쓰기 탭에서 허브에 연결하세요') : ' — 허브 연결을 껐어요(짝맺은 정보는 남김)') : (MODE_ERR[r.body.error] || r.body.error));
+  loadMode(); loadHubLink().catch(() => {});
 };
 async function loadHubLink() {
   const r = await api('/v1/admin/local/hub'); $('hubLinkBox').hidden = r.status !== 200; if (r.status !== 200) return;
@@ -753,6 +782,7 @@ async function loadAdmin() {
   loadSecrets().catch(() => {});
   loadPairings().catch(() => {});
   loadHubLink().catch(() => {});
+  loadMode().catch(() => {});
   loadTargets().catch(() => {}).finally(() => { loadDevice().catch(() => {}); loadAccounts().catch(() => {}); });
   loadCodex().catch(() => {});
   loadSecurity().catch(() => {});
