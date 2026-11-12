@@ -27,7 +27,6 @@ const MAX_QUESTION = 8000;
 const DEVICE_FRESH_MS = 30000;
 // 대화 중심 새 화면(설계 UI_CHAT_FIRST U1)이 `/`, 예전 화면은 U8까지 `/classic`(결정 UD4).
 const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
-const WEB_CLASSIC = fileURLToPath(new URL('./web/index.html', import.meta.url));
 const WEB_SETTINGS = fileURLToPath(new URL('./web/settings.html', import.meta.url));
 const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 // U7: 휴대폰 "홈 화면에 추가"·PC 앱 창용(PWA). 화면 코드는 그대로, 설치 정보와 아이콘만 준다. 오프라인 캐시(서비스 워커)는 두지 않는다
@@ -237,9 +236,11 @@ export function createApp(config) {
         res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=86400' });
         return res.end(readFileSync(WEB_PNG[path]));
       }
-      if (req.method === 'GET' && (path === '/' || path === '/classic' || path === '/settings')) {
+      // U8(UD4): 예전 화면(/classic)은 없앴다. 예전 주소로 오면 설정 화면으로 보낸다.
+      if (req.method === 'GET' && path === '/classic') { res.writeHead(302, { location: '/settings' }); return res.end(); }
+      if (req.method === 'GET' && (path === '/' || path === '/settings')) {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-        return res.end(readFileSync(path === '/' ? WEB_PAGE : path === '/settings' ? WEB_SETTINGS : WEB_CLASSIC));
+        return res.end(readFileSync(path === '/' ? WEB_PAGE : WEB_SETTINGS));
       }
 
       // --- PC 연결부 API ---

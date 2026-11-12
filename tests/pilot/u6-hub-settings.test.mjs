@@ -11,6 +11,28 @@ import { createApp } from '../../src/pilot/server.mjs';
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const users = [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }];
 const ADMIN_IP = '198.51.100.9';
+// U8: 예전 화면(index.html)을 지우면서, U6 점검표의 기준(예전 화면 관리 부분의 입력·버튼·목록 ID와 관리 API)을 여기에 고정했다(2026-11-12 index.html 기준).
+const OLD_IDS = [
+  'admin', 'atabs', 'devBox', 'devLive', 'devConn', 'devThreads', 'devAdd', 'devThread', 'devMode', 'devDir', 'hubLinkBox', 'hubLinkState',
+  'hubLinkForm', 'hlUrl', 'hlName', 'hlReconnect', 'hlStop', 'hlForget', 'botRows', 'botAdd', 'addPlatform', 'addBotId', 'addHint',
+  'botEdit', 'botEditTitle', 'botForm', 'bName', 'bRole', 'bCalls', 'bUsers', 'bSessions', 'bEnabled', 'bTokens', 'bStatus', 'bDelete',
+  'deniedRows', 'auSrc', 'auForm', 'auTelegram', 'auDiscord', 'auSlack', 'auKakao', 'auReset', 'skillBox', 'relayState', 'skillShow',
+  'skillCopy', 'skillUrl', 'kkSrc', 'kkForm', 'kkUrl', 'kkLimit', 'kkReset', 'bdRows', 'bdForm', 'bdId', 'bdLabel', 'bdEngine', 'bdHost',
+  'bdRef', 'bdWeb', 'bdMsg', 'bdDelete', 'bdNew', 'nsSrc', 'nsForm', 'nsOn', 'nsMax', 'nsActive', 'nsCodex', 'nsClaude', 'nsIdle', 'nsArch',
+  'nsNotice', 'nsDefault', 'nsRoot', 'nsReset', 'roleRows', 'roleForm', 'rId', 'rName', 'rDesc', 'rGuide', 'rDefault', 'rDelete', 'rNew',
+  'pairBox', 'pairRows', 'dvRows', 'dvEvents', 'secBox', 'secSrc', 'secIp', 'secForm', 'secIpOn', 'secCfOn', 'secTsOn', 'secIps', 'secAddMe',
+  'secTeam', 'secAud', 'secReset', 'cxBox', 'cxState', 'cxStart', 'cxCancel', 'hubEngineRow', 'hubLive', 'appRows', 'appAdd', 'appName',
+  'appKey', 'appKeyText', 'appKeyCopy', 'appKeyHide',
+];
+const OLD_APIS = [
+  '/v1/admin/settings', '/v1/admin/settings/', '/v1/admin/bindings', '/v1/admin/bindings/', '/v1/admin/devices', '/v1/admin/devices/',
+  '/v1/admin/pairings', '/v1/admin/pairings/', '/v1/admin/local/device', '/v1/admin/local/device/codex/', '/v1/admin/local/device/live',
+  '/v1/admin/local/hub', '/v1/admin/local/hub/connect', '/v1/admin/local/hub/reconnect', '/v1/admin/local/hub/disconnect',
+  '/v1/admin/secrets', '/v1/admin/secrets/', '/v1/admin/apps', '/v1/admin/apps/', '/v1/admin/denied', '/v1/admin/denied/allow',
+  '/v1/admin/codex', '/v1/admin/hub/engine', '/v1/admin/codex/login', '/v1/admin/codex/login/cancel', '/v1/admin/security',
+  '/v1/admin/kakao/skill-url', '/v1/admin/kakao/relay-status', '/v1/admin/bots', '/v1/admin/roles', '/v1/admin/sessions', '/v1/admin/bots/',
+  '/v1/admin/roles/',
+];
 const web = (name) => readFileSync(fileURLToPath(new URL(`../../src/pilot/web/${name}`, import.meta.url)), 'utf8');
 
 async function hubAndPc(t, hubExtra = {}) {
@@ -95,17 +117,15 @@ test('설정 화면: 예전 화면의 관리 항목이 모두 옮겨졌고(누�
   const s = await plain(t);
   const page = await fetch(`${s.pcUrl}/settings`);
   assert.equal(page.status, 200);
-  const SET = web('settings.html'); const OLD = web('index.html'); const APP = web('app.html');
+  const SET = web('settings.html'); const APP = web('app.html');
   assert.equal(await page.text(), SET);
   // 점검표: 예전 화면 관리 부분의 입력·버튼·목록 ID가 설정 화면에 모두 있다
-  const adminPart = OLD.slice(OLD.indexOf('<div class="admin" id="admin"'), OLD.indexOf('<script>'));
-  const ids = [...adminPart.matchAll(/id="([\w]+)"/g)].map((m) => m[1]);
-  assert.ok(ids.length > 100);
-  assert.deepEqual(ids.filter((id) => !SET.includes(`id="${id}"`)), []);
+  assert.equal(OLD_IDS.length, 115);
+  assert.deepEqual(OLD_IDS.filter((id) => !SET.includes(`id="${id}"`)), []);
   // 예전 화면이 부르던 관리 API도 모두
   const apis = (h) => new Set([...h.matchAll(/'(\/v1\/admin\/[\w/-]*)/g)].map((m) => m[1]));
-  const oldApis = apis(OLD.slice(OLD.indexOf('// --- 봇 관리')));
-  assert.deepEqual([...oldApis].filter((a) => !apis(SET).has(a)), []);
+  assert.equal(OLD_APIS.length, 33);
+  assert.deepEqual(OLD_APIS.filter((a) => !apis(SET).has(a)), []);
   // 탭 6개, 예전 탭 이름으로 들어와도 열림
   for (const tab of ['pc', 'hub', 'msg', 'conv', 'apps', 'hubsec']) assert.ok(SET.includes(`<button type="button" data-atab="${tab}">`), tab);
   assert.ok(SET.includes("const OLD_TAB = { bots: 'msg', messenger: 'msg', roles: 'msg', sessions: 'conv', newsess: 'conv', devices: 'hub' };"));
