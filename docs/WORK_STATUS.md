@@ -110,6 +110,119 @@
 0-27. **P1-c 완료·P1 완료(2026-11-08):** 기기 등록·재발급·폐기를 웹에서(5-2절 최소 범위). DB `devices`(해시만)·`device_events`, 기기 API 인증에 웹 기기 포함, 재발급 시 이전 토큰 무효, 폐기 시 즉시 거절과 그 기기 질문 정리(가져간 것 unknown·안 넘긴 것 failed device_revoked, 재전송 없음), server.json 기기는 보기만. 웹 "기기(PC 연결부)" 칸(새 토큰 한 번만 표시·복사·닫기, 폐기는 이름 입력). 테스트 1건 추가(전체 실패 0), 시험 서버(38760)에서 화면 등록·재발급·폐기·기록 확인. 모델·실제 서버 변경 0. **P1(a·b·c) 완료.** 이 PC의 실제 서버는 아직 새 코드로 다시 켜지 않음(켜면 DB에 새 표가 자동 추가되고 기존 설정은 파일 값 그대로). 다음: P2(카카오 중계를 `ieon-gateway.sinsan.kr`로 이전, Oracle NPM·카카오 설정 승인 필요).
 0-28. **P2 준비(2026-11-08, 변경 없음):** 읽기 전용 확인 — `ieun-gateway` `/health` 200(pc false), `ieon-gateway` HTTP 404(NPM 기본)·HTTPS 인증서 없음, 중계 코드는 Host를 보지 않아 컨테이너·코드·비밀 값 변경 없이 NPM 프록시 호스트만 추가하면 됨. 절차(W8 NPM 호스트·인증서[신산님] → W9 바깥 확인 → W10 PC 중계 주소를 웹 설정으로 전환·이어온 켜기 → W11 오픈빌더 스킬 URL 주소 교체[신산님]·`/whoami` → W12 정리, `ieun-gateway` 중계 호스트는 P4 때 허브용으로)와 되돌리기를 RELAY_DEPLOY 8절에 작성. 모델 0. 다음: 신산님 W8.
 0-29. **P2 W8·W9(2026-11-08):** 신산님 NPM 화면으로 W8 확인(`ieon-gateway.sinsan.kr` → `ieon-relay:28770`, Let's Encrypt, 2026-11-07 생성). W9 바깥 확인 PASS: `ieon-gateway` health 200, `/` 404, 틀린 비밀 404, 토큰 없는 `/pc/poll` 401, 301, 인증서 CN 일치(만료 2027-02-05). **발견:** `ieun-gateway`는 NPM에서 `ieun-relay:28770`(없는 컨테이너)을 가리켜 전 경로 502 → 카카오 스킬 URL이 아직 `ieun-gateway`면 카카오 응답 불가. **미실행:** W10(이 PC 설정·기동 승인 필요), W11(신산님 오픈빌더 교체 여부 미확인), W12. 모델 0.
+0-101. **허브 배포 — L1 + 화면 고침(2026-11-12, 신산님 "배포 승인" 두 번):** `9d12f89`(L1) 배포 뒤 `b2f403e`(화면 고침) 배포. 확인: `/health` 200, 메신저 4개 다시 연결, 라인 기본 봇 "토큰 없음"(정상), 틀린 라인 webhook 주소 404, 허브 webhook 주소 생성, **허브 새 화면 정상**(목록 "신산 PC" 아래 2개, 메신저 창에 라인 "설정 전"), 배포된 화면에서 `# 이어온 작업현황
+
+## 최신 상태 (2026-11-12 인계)
+
+- 기준: 2026-11-12 · 작성: Claude Code · 사유: 신산님 지시 "작업내용을 기록하고 저장소를 정리" — 개발은 토큰 충전 뒤 재개(신산님 지시).
+- 저장소: `cyhuh7950/ieon-gateway`, main 최신은 이 기록을 담은 커밋(직전 `72fa48b`, PR #116). 로컬 `D:\Project\ieon-gateway`·WSL `~/deploy/ieon-gateway` 같은 커밋. 남은 작업 branch·PR 요청 태그·stash·추가 작업 폴더 없음(태그는 `v0.0.1`만). 마지막 전체 시험 259건 중 258 통과·실패 0·건너뜀 1.
+- 실행 상태:
+  - **이 PC:** 이어온 실행 중(로그온 자동 시작), **AI 응답 꺼짐**(`live: false`), 허브(`ieun-gateway`)에 연결돼 PC 화면에서는 질문을 받지 않음, 바탕화면 바로 가기 = Edge 앱 창. 서버 코드는 U8(`692e55f`) 시점으로 다시 시작한 것이고, 그 뒤 main 변경은 설치 준비(`ieon-init`)·문서뿐이다.
+  - **허브:** `ieun-relay` 컨테이너, `692e55f`(U8) 배포(2026-11-12), 텔레그램·디스코드·슬랙·카카오 봇 연결됨, 새 세션 기능은 꺼짐.
+- 이번 기간에 끝난 것(상세는 누적 기록 0-60~0-96):
+  - **새 화면 U1~U8(설계 [UI_CHAT_FIRST](design/UI_CHAT_FIRST.md)):**
+    - 대화 중심 화면, 대화 안의 카드
+    - 대화 연결(업무 대화 제외), 처음 설정 3단계와 첫 질문 확인
+    - 메신저 연결 창과 6자리 주인 등록(허용된 사람이 보낸 숫자도 먼저 확인하도록 고침)
+    - 설정 화면 `/settings`(탭 6개), 허브 PC 연결 링크, 허브 목록 PC 묶음, 허브 Codex 로그인 카드
+    - Edge 앱 창, 휴대폰 폭, PWA
+    - 예전 화면 제거(`/classic` → 설정), 빠졌던 "＋ 새 세션" 복원
+  - 모두 허브·이 PC에 적용했다.
+  - **설명서:** MANUAL·MESSENGER_MANUAL·BEGINNER_GUIDE·API_GUIDE를 새 화면 기준으로 고쳤다. BEGINNER_GUIDE는 "첫 답 받기" 중심으로 다시 쓰고, 준비사항(프로그램·계정·구독·메신저 권한·공개 서버·설치 뒤 할 일)을 자세히 넣었다.
+  - **설치가 Claude 채널 준비:** `.local/c1` 열쇠·`.mcp.json`·연결부 `claude` 설정을 없을 때만 만든다.
+  - **승인된 설계(구현 전):**
+    - [INSTALL_MODES](design/INSTALL_MODES.md) — 설치 모드 3가지, 섞어 쓰기 금지, 공용 서비스 가입 신청 → 승인, 중계 회사 공간별 분리
+    - [MESSENGER_EXPANSION](design/MESSENGER_EXPANSION.md) — 라인, 이어온 앱 = 사용자 1명 + AI 직원(세션), 방은 `@이름`·대표 AI, AIdot-Webchat 방식(Next.js + Capacitor + Electron)
+    - [WORK_AND_VOICE](design/WORK_AND_VOICE.md) — 작업 모드와 승인 카드(세션 주인만), 음성은 기기 내장부터, 실제 전화는 범위 밖(OpenMausBot에도 없음)
+- **다음 작업(개발 재개 시, 순서·단계마다 신산님 승인):**
+  1. L1(라인)
+  2. M1(설치 모드 고르기·섞어 쓰기 금지)
+  3. AP-1(AI 직원·방, 웹)
+  4. AP-2~AP-5(앱)
+  5. W0(승인 경로 실측, 모델 호출 승인 필요) → W1~W2
+  6. 공용 서비스 M2~M4
+
+  단계 목록은 [WORK_PLAN](WORK_PLAN.md).
+- **확인하지 못한 것(NOT VERIFIED):**
+  - 새로 설치한 PC에서 실제 Claude Code 채널 연결
+  - AI 응답을 끌 때 처리 중이던 질문의 실제 동작(코드로만 확인)
+  - 허브 "＋ 새 세션" 버튼의 실제 표시(허브 새 세션이 꺼져 있음)
+  - 실제 휴대폰 홈 화면 추가(특히 iPhone)
+  - 허용되지 않은 새 사람의 숫자 등록
+  - 메신저 창의 카카오 흐름
+  - 따라 하기 설명서를 처음부터 실제로 따라 하기(신산님)
+  - 재부팅 뒤 자동 시작(신산님이 보류)
+- 그대로 남은 주의: 2026-11-05 채팅에 붙었던 텔레그램 봇 토큰 2개의 재발급 여부는 미확인(아래 이전 인계).
+
+## 이전 인계 (2026-11-06)
+
+- 기준 시각: 2026-11-06 00:30 KST · 작성: 어울(Claude Code) · 사유: 신산님 주간 토큰 만료로 작업 중단, 다음 작업자 인계
+- 저장소: **`cyhuh7950/ieon-gateway`**(private, SSH `git@github-cyhuh7950:cyhuh7950/ieon-gateway.git`). 버전 **0.0.1**(태그 `v0.0.1` = `26d737f`, 이전 `sinsan-develop/ieon-gateway` main `8c2f510`의 최종본을 이력 없이 단일 커밋으로 이전). 이전 저장소 `sinsan-develop/ieon-gateway`는 **보관(archive)** 처리, 읽기 전용.
+- main 최신: `be24d2e`(새 저장소 PR #1~#12 병합). 로컬 `D:\Project\ieon-gateway`·WSL `~/deploy/ieon-gateway` 모두 같은 커밋. 테스트 `node --test tests/pilot/*.test.mjs` **111/111 통과**.
+- PR 절차: `claude/<목적>` branch → push → 현재 main을 가리키는 `pr-request/<sha40>/<branch>` 태그 push → PR Broker 자동 PR·squash 병합(새 저장소에서 동작 확인). 커밋 메시지·명령에 `.env` 글자가 들어가면 보안 가드가 명령을 막으니 피한다. WSL은 `wsl` 명령이 자주 시간 초과 → `ssh WSL-server`로 동기화.
+- 실행 상태: **이어온 전체 꺼짐**(서버·연결부·메신저 종료, `live: false`). 웹에서 등록한 봇·역할, 시험 세션, 새 세션 기능 설정(`enabled: true`)은 남아 있음.
+
+### 완료된 기능
+
+| 영역 | 상태 | 근거 |
+| --- | --- | --- |
+| 기존 세션 연결(Codex 번갈아 쓰기·동시 사용, Claude 채널) | 첫 실증 완료 | docs/validation/FIRST_CONTINUITY_RESULT.md |
+| 포트 28760~28762(ieon-agent 18760~와 분리) | 완료 | 2026-10-31 기록 |
+| 설치 점검 `pwsh scripts/ieon.ps1 check` | 완료 | 2026-11-05 기록 |
+| 새 세션 만들기 N0~N4(Codex·Claude 새 세션, 잠들기·보관·삭제, 웹·메신저·API) | 완료, 텔레그램 실측 | docs/design/NEW_SESSIONS.md |
+| 여러 봇 M0~M3(봇·역할 정의, 봇별 연결, 부른 봇만 답, 부르는 이름, 기본 세션, 웹 봇 관리, 봇별 세션 범위, 역할 엔진·권한 제한, AI 역할 안내) | 완료, 텔레그램·디스코드·슬랙 실측 | docs/design/MULTI_BOTS.md |
+| 설명서: MANUAL·BEGINNER_GUIDE·API_GUIDE·MESSENGER_MANUAL | 여러 봇 M2-W까지 반영 | 각 문서 |
+
+### 이 PC 실제 설정(`.local`, git 제외)
+
+- 새 세션: `.local\new-sessions.json`(enabled, 작업 폴더 `D:/ieon-workspaces`), `server.json` `newSessionsConfigPath`, `connector.json` `newSessions`. 변경 전 백업 `server.json.bak-n4`·`connector.json.bak-n4`.
+- 메신저 봇(서버 DB): 텔레그램 `default` `@Test_cyhuh_01_bot`(privacy 해제됨)·`ieun01` `@ieun_cyhuh_bot`(역할 `test-review`), 디스코드 `default` `Test_bot`·`ieun01` `코드리뷰`(서버 초대됨), 슬랙 `default` `ieon`·`ieun01` `ieon-review`(`#bot` 채널에 추가됨). `ieun01` 봇 이름은 모두 "ieun01 시험 봇", 부르는 이름 미지정(봇 ID로 부름).
+- 역할: `test-review`("시험 리뷰", Codex만·read_only·AI 안내 "첫 줄에 [리뷰 봇]") — 시험용.
+- 시험 새 세션: `n_m3-review`(텔레그램 ieun01 봇에서 생성, Codex 대화 1개). 이전 시험 `tg-codex`는 삭제됨(작업 폴더·Codex 기록은 남음).
+- `.local\.env` 토큰 이름: 기본 봇 `TELEGRAM_BOT_TOKEN`·`DISCORD_BOT_TOKEN`·`SLACK_APP_TOKEN`·`SLACK_BOT_TOKEN`, 추가 봇 `TELEGRAM_BOT_IEUN01_TOKEN`·`DISCORD_BOT_IEUN01_TOKEN`·`SLACK_BOT_IEUN01_APP_TOKEN`·`SLACK_BOT_IEUN01_BOT_TOKEN`(값은 어울이 읽지 않음).
+- **보안 후속:** 2026-11-05 신산님이 채팅에 붙인 텔레그램 봇 토큰 2개는 재발급 권고만 함(재발급 여부 미확인).
+
+### 모델 호출 사용량(승인 범위 대비)
+
+- 새 세션 실증 승인(엔진별 10회): Codex 5/10, Claude 6/10.
+- 여러 봇 실증 승인(엔진별 10회, 2026-11-05): Codex 1/10, Claude 0/10.
+- 카카오 중계 실증 승인(2026-11-06, 10회 이내): Codex 시험 thread 3/10, Claude 0.
+- WSL 새 세션 실증 승인(2026-11-06, Codex 5회 이내): Codex 3/5(질문 3건), Claude 0.
+- Oracle 새 세션 실증 승인(2026-11-06, Codex 3회): Codex 3/3, Claude 0.
+
+### 남은 일과 다음 조치
+
+0. **M4 설계 검토 결과(2026-11-06, 신산님 결정):** Teams·카카오 공용 중계, Teams 앱 비밀번호는 PC에만(PC 꺼짐 시 Teams 무응답), Oracle 배포는 Docker(방식 A). 상세는 MULTI_BOTS 6-1·6-2. 다음: 개인 Teams 사용자 지정 봇 가능 여부 확인(신산님의 이전 시험 방법 확인) → M4-a 코드. 배포는 별도 승인.
+0-1. **카카오 현황(2026-11-06 신산님 답):** 채널 `다온`(비즈니스 인증), 오픈빌더 테스트용 봇, AI 챗봇 콜백 승인됨, 사용자는 본인뿐. 카카오는 Teams 가능 여부와 무관하게 M4 중계 배포 후 먼저 시험할 수 있다. 확인 대기: 콜백 승인이 그 테스트 봇에 적용됐는지, 이어온 전용으로 써도 되는지. 상세는 MULTI_BOTS 8절.
+0-2. **M4-a 중계 코드 완료(2026-11-06):** `src/relay/`(카카오 수신·대기열·PC 폴링·보호 장치)와 `tests/relay/` 12건 통과(모델 호출 없음, loopback 임시 포트만 사용). 실행·배포 안 함. 신산님이 카카오 봇은 **Aidot 봇**을 쓰자고 지정함(배포 뒤 등록 시 그 봇의 용도·콜백 승인 여부 확인). 다음: M6-a(PC 쪽 카카오 러너) 또는 M4-b(Oracle 배포 승인 요청). 상세는 MULTI_BOTS 6-3.
+0-3. **M6-a PC 카카오 러너 완료(2026-11-06):** `src/pilot/messenger/kakao.mjs`, 서버·웹에 kakao 추가, `tests/pilot/kakao.test.mjs` 8건 통과(실제 중계 모듈+가짜 콜백, 모델 호출·외부 접속 없음). 아직 실제 카카오·Oracle로는 시험하지 않음. 다음: M4-b Oracle 배포 승인 → 오픈빌더(Aidot 봇) 스킬 URL 등록 → 실측(콜백 유효 시간·횟수 포함). 상세는 MULTI_BOTS 6-3.
+0-4. **M4-b 사전 조사·계획(2026-11-06):** 배포 서버를 ysna-server에서 **sinsan-server(168.107.4.6)**로 변경(신산님 결정). 두 서버 모두 읽기 전용으로 조사했고 서버 변경은 없다. DNS는 이미 168.107.4.6이라 불일치 해소. 배포 초안 `deploy/relay/`(Dockerfile·compose), 계획·승인 항목 `docs/design/RELAY_DEPLOY.md`. 다음: W1~W3 서버 쓰기 승인 → NPM 프록시 호스트·인증서(신산님) → 오픈빌더 스킬 URL(신산님).
+0-5. **M4-b 배포 완료(2026-11-06, W1~W5):** 도메인은 신산님이 **`ieun-gateway.sinsan.kr`**로 변경, sinsan-server에 `ieon-relay` 컨테이너(healthy)와 NPM 프록시 호스트·Let's Encrypt 인증서. 외부 확인(health 200, 틀린 비밀 404, 토큰 없는 poll 401, HTTPS 301) 통과. 기록은 RELAY_DEPLOY 6절. 다음: W6 오픈빌더(Aidot 봇) 스킬 URL 등록(신산님) → 테스트 발화로 "PC 연결 끊김" 확인 → W7 PC 연결·실제 질문(별도 승인).
+0-6. **카카오 W6·W7 실측 완료(2026-11-06):** 오픈빌더(Aidot 봇) 봇 테스트에서 `/whoami`·`/sessions`·`/use`·`/status`·실제 질문(2)·40문장 긴 답(말풍선 3개) 모두 콜백으로 정상 응답. 모델 호출 2회(승인 10회 중, Codex 시험 thread만). 시험 후 이어온 전체 `stop`. 미확인: 콜백 유효 시간·횟수, 55초 초과 `/last`, 실제 채널(배포) 대화. 상세는 RELAY_DEPLOY 7절. 이 PC 설정 변경: `.local\messenger\config.json`에 `kakaoRelayUrl`·`allowedUsers.kakao`(백업 config.json.bak-m6), 서버 DB에 카카오 `default` 봇, `.env`에 `KAKAO_RELAY_TOKEN`.
+0-7. **카카오 느린 답 경로 실측(2026-11-06):** 제한 15초로 시험해 지연 안내 → `/last` 수령(3개 말풍선·줄임 안내)까지 실제 카카오에서 확인. 호출 1회 추가(누적 3/10), 시험 후 설정 복구·`stop`. 개선 후보: 처리 중일 때 `/last`를 "아직 처리 중"으로 안내. 상세는 RELAY_DEPLOY 7절.
+0-8. **Teams(M5) 가능 여부 조사(2026-11-06):** 공식 문서는 사용자 지정 앱 업로드가 켜진 개발용 Teams 테넌트와 M365 개발 계정을 전제로 한다. 개인 무료 Teams만으로는 안 될 가능성이 높아 **M5 보류**(직접 시험은 안 함). 선택지: M365 개발자 프로그램 샌드박스 또는 신산님 소유 유료 M365 비즈니스 테넌트. 이전 Teams 시험 방법 확인 대기. 상세는 MULTI_BOTS 7절.
+0-9. **N5 로컬 작성(2026-11-06):** `scripts/ieon.sh`, systemd 사용자 유닛 초안(`deploy/systemd/`), Codex 잠금 검사 Linux판(`/proc/locks`의 쓰기 잠금 확인 — 실제 Codex가 Linux에서 어떤 잠금을 쓰는지는 **WSL에서 확인 전 미검증**), `.gitattributes`(sh·service는 LF). 이 PC에서 `bash -n`·`status`·단위 테스트까지 확인, 서버 기동·WSL 접속·설치·모델 호출 없음. 다음: WSL 접속·동기화·`npm ci`·단위 테스트(승인) → WSL에서 N1~N4(모델 호출 승인). 상세는 NEW_SESSIONS 9절.
+0-10. **N5 WSL 검증 일부 완료(2026-11-06, 모델 호출 0):** WSL 동기화·`npm ci`·단위 테스트 140/140·`ieon.sh check`·잠금 검사 Linux판 실측(flock·POSIX 모두 감지) 통과. `status`의 설정 없음 오류를 발견해 수정. 남음: WSL 서버 설정·시험 토큰 생성 → `ieon.sh start`·systemd 유닛 실행 → N1~N4 실측(모델 호출 별도 승인), Claude Code 설치·로그인. 상세는 NEW_SESSIONS 9절.
+0-11. **N5 WSL 실측 완료(2026-11-06):** `ieon.sh init`으로 최소 설정을 만들어 WSL에서 새 Codex 세션 N1(같은 thread 2회 이어짐)·N3(잠들기→깨우기)·N4(웹·API)와 systemd 서버·연결부 유닛(자동 재시작 포함)을 통과. **Codex는 Linux에서 flock으로 thread를 잠그고 `/proc/locks` 검사가 이를 감지**함을 실측. 버그 3건 발견·수정(#27·#29·#30, 특히 Linux `~` 작업 폴더 `bad_workspace`와 `stop` 미동작). 모델 호출 Codex 3회. 정리 완료(WSL `.local`·작업 폴더 삭제, Codex 기록 파일 1개 남음). 이전 미결 "100.98.75.104 대기"는 server.json의 Tailscale extraHosts(휴대폰용, 허용 기기 제한)로 의도된 구성이라 확인 종료. 남음: N6 Oracle 배포(별도 승인), WSL Claude·메신저 유닛. 상세는 NEW_SESSIONS 9절.
+0-12. **N6 계획·O1 조사(2026-11-06):** 서버 `sinsan-server`, Codex만, 신산님 직접 디바이스 코드 로그인, 전용 OS 사용자 `ieon`, 직접 실행+systemd 사용자 유닛, 웹은 SSH 터널로만(신산님 권장안 승인). O1 읽기 전용 조사: ubuntu sudo 가능·홈 750·`ieon` 없음, Node 24.22.1·systemd 사용자 서비스 동작, 포트 여유, 메모리 6.4GB·디스크 26GB 여유, arm64 Codex 패키지 `@openai/codex@0.165.0-linux-arm64`(약 400MB) 조회 가능. 서버 변경·모델 호출 없음. 다음: O2(전용 사용자 생성·sudo, 승인 대기) → O3 코드 전달·`npm ci`. 상세는 N6_ORACLE_PLAN.md.
+0-13. **N6 O2 완료(2026-11-06):** `sinsan-server`에 전용 사용자 `ieon`(UID 1002, sudo·docker 없음, 홈 750, 비밀번호 잠금, 공개키 접속, linger) 생성. `ieon`으로 접속 확인, 격리 검증에서 다른 서비스 폴더·비밀 파일·docker·sudo는 모두 차단, 로컬 루프백 TCP 연결만 열림(계정 없이는 사용 불가, `full` 프로필 전에 재검토). 모델 호출 0. 다음: O3 코드 전달·`npm ci`(약 400MB)·`ieon.sh init`(승인 대기). 상세는 N6_ORACLE_PLAN 6절.
+0-14. **신산님 확인(2026-11-06):** (1) Aidot 봇 폴백 블록에 `ieon-relay` 스킬이 연결된 채여도 **상관없음**(운영 영향을 감수) — 이 문제는 종료. (2) Teams(M5)는 **보류 확정**(개인 계정만으로는 안 될 가능성이 높음, M365 개발자 샌드박스나 유료 비즈니스 테넌트가 생기면 재개). (3) WSL의 Codex 기록 파일 1개(`~/.codex/sessions/2026/11/06/rollout-…01a1ae5c-….jsonl`, 87KB·36줄)는 시험 질문 3개와 답, Codex 기본 지시문(약 21%), 계정·세션 식별자만 있고 인증 값(키·JWT·Bearer·토큰)은 0줄임을 확인 — 삭제 여부는 신산님 결정 대기. (4) 2026-11-05 채팅에 붙여 넣은 텔레그램 봇 토큰 2개(`@Test_cyhuh_01_bot`, `@ieun_cyhuh_bot`)의 재발급은 신산님 확인 대기(BotFather에서 Revoke 후 env 파일 값 교체·메신저 재시작).
+0-15. **N6 O3 완료(2026-11-06):** `sinsan-server`의 전용 사용자 `ieon` 홈(`/home/ieon/deploy/ieon-gateway`)에 코드 전달(`git archive`)·`npm ci`(arm64 Codex 0.165.0 실행 확인, node:sqlite·SDK 로드 OK)·`ieon.sh init`(시험 토큰, live 꺼짐)·`check` 완료. Codex 로그인만 "안 됨"으로 남음(O4, 신산님 직접 `codex login --device-auth`). 서버 기동·모델 호출 0. 상세는 N6_ORACLE_PLAN 7절.
+0-16. **N6 O4·O5 완료(2026-11-06):** `sinsan-server`의 `ieon`이 신산님 직접 디바이스 코드 로그인으로 Codex 로그인 완료(`check` 통과, 인증 파일 600·ubuntu 차단), systemd 사용자 유닛 `ieon-server`·`ieon-connector` 설치·기동(127.0.0.1:28760만, live 꺼짐, kill -9 자동 재시작 확인, 메모리 약 120MB). 모델 호출 0. 다음: O6(새 Codex 세션 질문 2회+잠금 관찰+잠들기 후 1회, 모델 3회, 별도 승인), O7 메신저·중계 연결(별도 결정). 상세는 N6_ORACLE_PLAN 8절.
+0-17. **신산님 확인(2026-11-06):** (1) ChatGPT 보안 화면의 기기 코드 로그인 토글은 로그인 후 꺼 둠을 확인함. (2) WSL의 Codex 기록 파일(`~/.codex/sessions/2026/11/06/rollout-…01a1ae5c-….jsonl`)은 신산님 지시로 **삭제함**(그 파일 1개만, 확인 완료). Codex 내부 색인 DB `~/.codex/state_5.sqlite`·`thread_history_1.sqlite`에는 해당 thread ID가 남아 있으나 지원되지 않는 내부 DB라 수정하지 않음(Codex 목록에 기록 없는 항목으로 보일 수 있음, 사용에는 영향 없음). (3) 텔레그램 봇 토큰 2개 재발급 권고는 신산님이 인지함(실제 재발급 여부는 계속 미확인). 다음: O6 승인 대기.
+0-18. **N6 O6 완료(2026-11-06):** `sinsan-server`(aarch64)에서 새 Codex 세션 `oracle-t1`로 질문 2회(같은 thread 이어짐)+잠들기 후 1회 통과, Codex가 aarch64에서도 flock으로 잠그고 검사가 감지함을 확인, 삭제·live 끔 후 서버·연결부 정상. **모델 호출 Codex 3회(승인 3회, receipts 3건).** `ieon` 홈에 빈 작업 폴더와 Codex 기록 파일 1개 남음(`ieon` 삭제 시 함께 제거). N6 완료, 남음: O7 메신저·중계 연결·하이브리드(PC 기존 세션 연결) 결정. 상세는 N6_ORACLE_PLAN 9절.
+0-19. **N6 O7 계획(2026-11-06, 변경 없음):** PC 기존 세션을 Oracle 서버에 붙이는 하이브리드(H1~H3: PC 기기 `h_pc` 토큰 해시 등록·SSH 터널 28765·`start -Oracle`)와 메신저 이전(O7-1~5: 카카오 먼저, 봇 토큰은 신산님이 직접 Oracle에 입력). Codex 5회 이내 제안. 주의: 질문·답변 본문이 Oracle DB에 저장됨. 결정 대기. 상세는 N6_ORACLE_PLAN 10절.
+0-20. **N6 H1 완료(2026-11-06, 모델 호출 0):** PC에서 Oracle용 기기 토큰 생성(PC에만), Oracle `server.json`에 기기 `h_pc` 토큰 **해시**·PC 세션 2개(`h_pc` 소속)·`newSessionsHostId: h_sinsan` 병합(백업 `server.json.bak-h1`), 서버 재시작 후 PC 세션이 `deviceOnline=false`로 보임, 기기 API 401 확인. 다음: H2 PC 터널·`start -Oracle` 코드, H3 연결 시험(Codex 2회). 상세는 N6_ORACLE_PLAN 11절.
+0-21. **설치 형태 분리 결정(2026-11-06, 신산님):** 저장소는 하나로 두고 진입점·이름·설정만 분리 — **ieon-gateway=PC 완결형**(PC에 서버·연결부·메신저, 공개 서버에는 중계 `ieon-relay`만), **ieun-gateway=허브형**(허브가 서버·메신저·웹·중계 내장, PC는 연결부만). 허브 웹은 처음에 접속 제한 뒤에 두고, 봇 토큰은 서버 비밀 파일(웹 입력 없음). 안전 설정(허용 목록·live·작업 폴더·full)은 기기 로컬에만. 이에 따라 **H2(SSH 터널)·H3는 폐기**, H1 결과(기기 `h_pc`)는 허브 모델에서 사용, O7은 P5로 대체. 설계는 HUB_AND_PC_PROFILES.md. 다음은 P1(설정을 서버 DB·웹으로) 코드 승인 대기.
+0-22. **신산님 결정·시험 자원 정리(2026-11-08):** (1) 호스트 이름 `ieon-gateway.sinsan.kr`=PC 완결형, `ieun-gateway.sinsan.kr`=허브형(`ieon-relay.sinsan.kr` 제안 철회, 지금 `ieun-gateway`에 있는 카카오 중계는 P2에서 `ieon-gateway`로 옮김, `ieon-gateway` DNS가 가리키는 서버 확인 필요). (2) 허브 웹 접속 제한은 Cloudflare에 묶이지 않게 **IP 허용 목록·Cloudflare Access·Tailscale 모두 지원, 허브 설정 파일에서 선택**(여러 개면 하나라도 통과 시 허용, 비어 있으면 공개 안 함). (3) 기기 토큰 화면은 최소 범위(목록·폐기·한 번만 보이는 재발급·기록, PC 안전 설정 원격 변경 없음). (4) 텔레그램 봇 토큰 2개는 **개발 중에는 재사용**(운영 전환 때 재발급 권장). (5) 시험 자원 정리 실행: 이 PC 서버를 live 끔으로 잠깐 켜서 텔레그램 `ieun01` 봇에서 역할을 떼고 역할 `test-review` 삭제(204), 새 세션 `n_m3-review` 삭제(이어온 기록만, Codex 대화 기록·작업 폴더는 남음) 후 서버 끔. 남은 세션: `c_codex_test`·`c_claude_test`·`n_Claude-Check`(첫 질문 전, 이번 정리 대상 아님·누가 만들었는지 미확인). 모델 호출 0. 설계 반영: HUB_AND_PC_PROFILES 3·5·5-1·5-2·6·7절.
+0-23. **문서 갱신·DNS 확인(2026-11-08):** 신산님 답 "`ieon-gateway.sinsan.kr`·`ieun-gateway.sinsan.kr` 둘 다 sinsan-server(168.107.4.6)". 공개 DNS 조회(1.1.1.1·8.8.8.8): `ieun-gateway`→168.107.4.6 확인, **`ieon-gateway`→이름 없음**(전파 중일 수 있음, P2 전 재조회). 신산님 요청으로 설계서·작업계획서 갱신: DESIGN.md 0.3(맨 앞 0절에 현재 구조 요약·기능별 설계 문서·상태, 0.2 본문 보존), WORK_PLAN.md(맨 앞에 첫 실증 이후 단계 N0~N6·M0~M6·P0~P5와 상태·승인 경계·다음 순서, 첫 실증 계획 보존), HUB_AND_PC_PROFILES 5·7절 DNS 결과. 신산님이 말한 "work_check.md"는 저장소에 없어 WORK_STATUS.md로 보고 반영. 다음: P1 승인 대기.
+0-24. **DNS 재확인(2026-11-08):** 신산님 Cloudflare 화면(`ieon-gateway`·`ieun-agent`·`ieun-gateway` A 168.107.4.6, DNS 전용) 확인 후 다시 조회 → 세 호스트 모두 Cloudflare 권한 서버(`arturo.ns.cloudflare.com`)·1.1.1.1·8.8.8.8에서 168.107.4.6. 0-23의 `ieon-gateway` "이름 없음"은 전파 전 상태였음. `ieun-agent.sinsan.kr`은 이 설계의 호스트가 아님(용도 미확인). P2의 DNS 전제 충족.
+0-25. **P1-a 완료(2026-11-08, 신산님 "P1 시작"):** P1을 a(허용 사용자·카카오·새 세션 설정)·b(기존 세션 등록)·c(기기 등록·폐기·재발급)로 나눠 진행. a: `src/pilot/settings.mjs`(검사·병합), store `settings` 표, 서버 관리 API·메신저 설정 API, 새 세션 설정을 파일+웹 병합으로 바꾸고 저장 즉시 다시 읽음(파일이 없어도 웹에서 켤 수 있음), 메신저 실행기가 웹 허용 사용자(없으면 파일 값)·카카오 설정을 받아 반영(카카오는 바뀌면 그 봇만 재연결), 웹 "설정" 칸. 안전 설정(작업 폴더·full·sessionOverrides·삭제 확인·삭제 시 폴더 지우기)은 웹에서 거절. 테스트 4건 추가, 152건 중 실패 0. 시험 서버(38760, 시험 토큰)에서 화면 저장·검사 거절·되돌리기 확인. 모델 호출·실제 서버 변경 0. 다음: P1-b.
+0-26. **P1-b 완료(2026-11-08):** 기존 세션 등록을 웹에서(출처 file/web·표시 이름을 DB에, 파일 등록은 보기만, 웹 등록 추가·수정·삭제, 업무 대화·모르는 PC·틀린 세션 ID 거절, 처리 중 대상 변경·삭제 거절, 서버 재시작 때 파일 등록만 다시 씀). 세션 표시 이름을 server.json 대신 DB에서 읽음. 웹 "기존 세션 등록" 칸. 테스트 1건 추가(전체 실패 0), 시험 서버(38760)에서 화면 등록·수정·삭제·업무 대화 거절 확인. 모델·실제 서버 변경 0. 다음: P1-c.
+0-27. **P1-c 완료·P1 완료(2026-11-08):** 기기 등록·재발급·폐기를 웹에서(5-2절 최소 범위). DB `devices`(해시만)·`device_events`, 기기 API 인증에 웹 기기 포함, 재발급 시 이전 토큰 무효, 폐기 시 즉시 거절과 그 기기 질문 정리(가져간 것 unknown·안 넘긴 것 failed device_revoked, 재전송 없음), server.json 기기는 보기만. 웹 "기기(PC 연결부)" 칸(새 토큰 한 번만 표시·복사·닫기, 폐기는 이름 입력). 테스트 1건 추가(전체 실패 0), 시험 서버(38760)에서 화면 등록·재발급·폐기·기록 확인. 모델·실제 서버 변경 0. **P1(a·b·c) 완료.** 이 PC의 실제 서버는 아직 새 코드로 다시 켜지 않음(켜면 DB에 새 표가 자동 추가되고 기존 설정은 파일 값 그대로). 다음: P2(카카오 중계를 `ieon-gateway.sinsan.kr`로 이전, Oracle NPM·카카오 설정 승인 필요).
+0-28. **P2 준비(2026-11-08, 변경 없음):** 읽기 전용 확인 — `ieun-gateway` `/health` 200(pc false), `ieon-gateway` HTTP 404(NPM 기본)·HTTPS 인증서 없음, 중계 코드는 Host를 보지 않아 컨테이너·코드·비밀 값 변경 없이 NPM 프록시 호스트만 추가하면 됨. 절차(W8 NPM 호스트·인증서[신산님] → W9 바깥 확인 → W10 PC 중계 주소를 웹 설정으로 전환·이어온 켜기 → W11 오픈빌더 스킬 URL 주소 교체[신산님]·`/whoami` → W12 정리, `ieun-gateway` 중계 호스트는 P4 때 허브용으로)와 되돌리기를 RELAY_DEPLOY 8절에 작성. 모델 0. 다음: 신산님 W8.
+0-29. **P2 W8·W9(2026-11-08):** 신산님 NPM 화면으로 W8 확인(`ieon-gateway.sinsan.kr` → `ieon-relay:28770`, Let's Encrypt, 2026-11-07 생성). W9 바깥 확인 PASS: `ieon-gateway` health 200, `/` 404, 틀린 비밀 404, 토큰 없는 `/pc/poll` 401, 301, 인증서 CN 일치(만료 2027-02-05). **발견:** `ieun-gateway`는 NPM에서 `ieun-relay:28770`(없는 컨테이너)을 가리켜 전 경로 502 → 카카오 스킬 URL이 아직 `ieun-gateway`면 카카오 응답 불가. **미실행:** W10(이 PC 설정·기동 승인 필요), W11(신산님 오픈빌더 교체 여부 미확인), W12. 모델 0.
+ 정의(372줄)가 사용(381줄)보다 앞. 남음: L2(신산님 라인 공식 계정으로 실제 확인).
 0-100. **오류 발견·고침 — 새 화면이 시작하지 못함(2026-11-12):** L1 허브 배포(`9d12f89`, 신산님 "배포 승인") 뒤 허브 화면 확인 중 **새 화면이 빈 화면**인 것을 발견. 원인: U8(#109)에서 넣은 "＋ 새 세션" 코드가 `# 이어온 작업현황
 
 ## 최신 상태 (2026-11-12 인계)
