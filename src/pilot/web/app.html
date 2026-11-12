@@ -42,6 +42,7 @@ a { color:var(--accent); }
 .row .s { font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .row .s.warn { color:var(--warn); } .row .s.err { color:var(--err); }
 .empty { padding:16px; color:var(--muted); font-size:14px; }
+.grp { padding:10px 12px 2px; font-size:12px; font-weight:600; color:var(--muted); }
 details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:var(--muted); font-size:13px; padding:6px; }
 .arow { display:flex; gap:8px; align-items:center; padding:6px; font-size:14px; } .arow span { flex:1; }
 .side-bottom { border-top:1px solid var(--border); padding:8px; display:flex; flex-direction:column; gap:2px; }
@@ -205,7 +206,7 @@ details.adv[open] summary { margin-bottom:10px; }
       <h1>준비됐어요</h1>
       <p class="muted small" style="margin:0">이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요.</p>
       <div class="check"><div class="av" style="background:#229ED9" aria-hidden="true">✈</div><div><b>메신저로도 쓰기</b><div class="small muted">텔레그램·디스코드·슬랙·카카오톡</div></div><button type="button" class="st linkbtn" id="sMsg">설정하기</button></div>
-      <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>밖에서도 쓰기(허브)</b><div class="small muted">PC가 꺼져 있을 때도 새 세션이 답해요</div></div><a class="st" href="/classic#pc">설정하기</a></div>
+      <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>밖에서도 쓰기(허브)</b><div class="small muted">PC가 꺼져 있을 때도 새 세션이 답해요</div></div><a class="st" href="/settings#hub">설정하기</a></div>
       <button type="button" class="bigbtn" id="s3Open">대화 열기</button>
     </div>
     <div class="sfoot"><button type="button" class="linkbtn" id="sSkip">나중에 하기</button><div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div><span id="sStep">1 / 3</span></div>
@@ -247,7 +248,7 @@ details.adv[open] summary { margin-bottom:10px; }
       <h2>연결됐어요</h2>
       <p class="muted" id="m4Text" style="margin:6px 0 0"></p>
     </div>
-    <div class="mrow" style="justify-content:space-between"><a class="small" href="/classic#bots">고급: 봇 이름·여러 봇·허용 사용자</a><button type="button" id="mClose">닫기</button></div>
+    <div class="mrow" style="justify-content:space-between"><a class="small" href="/settings#msg">고급: 봇 이름·여러 봇·허용 사용자</a><button type="button" id="mClose">닫기</button></div>
   </div>
 </div>
 
@@ -259,7 +260,7 @@ details.adv[open] summary { margin-bottom:10px; }
     <div class="list" id="list"></div>
     <div class="side-bottom">
       <button type="button" id="msgBtn"><span aria-hidden="true">✈</span>메신저</button>
-      <a href="/classic" id="settingsLink"><span aria-hidden="true">⚙</span>설정</a>
+      <a href="/settings" id="settingsLink"><span aria-hidden="true">⚙</span>설정</a>
       <button type="button" id="logoutBtn" hidden><span aria-hidden="true">⎋</span>로그아웃</button>
     </div>
   </aside>
@@ -381,7 +382,7 @@ async function boot() {
   const hub = authState?.mode === 'hub';
   document.title = '이어온 — ' + (hub ? '허브' : '이 PC');
   $('where').textContent = hub ? '허브 · ' + location.host : '이 PC';
-  $('settingsLink').href = hub ? '/classic#bots' : '/classic#pc';
+  $('settingsLink').href = hub ? '/settings#msg' : '/settings';
   $('logoutBtn').hidden = !hub;
   if (authState?.loggedIn) return startApp();
   if (authState?.localAuto && (await authPost('/v1/auth/local')).status === 200) return startApp();
@@ -427,7 +428,12 @@ async function load() {
   const live = convs.filter((c) => c.newSession?.state !== 'archived');
   const arch = convs.filter((c) => c.newSession?.state === 'archived');
   if (!live.length) list.append(el('div', '연결한 대화가 없어요. 위의 "＋ 대화 연결"로 시작하세요.', 'empty'));
+  // U6: 허브 화면은 PC별로 묶어 보인다(서버가 host를 줄 때만).
+  const byHost = live.some((c) => c.host);
+  if (byHost) live.sort((a, b2) => String(a.host?.name).localeCompare(String(b2.host?.name), 'ko'));
+  let lastHost = null;
   for (const c of live) {
+    if (byHost && c.host?.id !== lastHost) { lastHost = c.host?.id; list.append(el('div', c.host?.name || 'PC', 'grp')); }
     const b = el('button', null, 'row'); b.type = 'button'; b.setAttribute('aria-current', String(current === c.conversationId));
     const av = el('div', AV[c.engine] || '?', 'av ' + c.engine); av.setAttribute('aria-hidden', 'true');
     const box = el('div'); box.style.minWidth = '0';
@@ -470,11 +476,11 @@ async function select(id) {
 }
 // --- U3 대화 연결 ---
 const CONN_ERR = { codex_unavailable: '이 PC의 Codex 목록을 불러오지 못했어요. Codex 앱이 설치·로그인돼 있는지 확인하세요.', excluded_session: '이 대화는 이어온에서 다룰 수 없어요.',
-  bad_session_ref: '대화 ID 형식이 아니에요(예: 01a18790-63c7-73e3-a60b-6ddb60fd5be8).', choose_host: '연결할 PC를 정할 수 없어요. 예전 화면의 세션 등록에서 연결하세요.',
+  bad_session_ref: '대화 ID 형식이 아니에요(예: 01a18790-63c7-73e3-a60b-6ddb60fd5be8).', choose_host: '연결할 PC를 정할 수 없어요. 설정 → 대화의 세션 등록에서 연결하세요.',
   local_only: '이 PC에서 연 화면에서만 연결할 수 있어요.', no_connector_config: '이 PC의 연결부 설정이 없어요. 설치를 다시 실행하세요.' };
 const ago = (iso) => { if (!iso) return ''; const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.round(m / 60) + '시간 전' : Math.round(m / 1440) + '일 전'; };
 function openConnect() {
-  if (!device) { location.href = '/classic#sessions'; return; } // 허브 화면 등: 지금은 예전 화면에서
+  if (!device) { location.href = '/settings#conv'; return; } // 허브 화면: 허브는 PC의 대화 목록을 볼 수 없어 설정 → 대화에서 등록
   $('connect').hidden = false; loadThreads();
 }
 async function loadThreads(box = $('connList'), onPick = (body) => connect(body)) {
@@ -671,6 +677,10 @@ function cardView(k, c) {
         : '결과를 확인하지 못한 질문이 있어요. 원래 앱에서 실행됐는지 확인한 뒤 정리하세요. 자동으로 다시 보내지 않아요.';
     const card = makeCard('warn', '확인이 필요한 질문', text, [btn('실행됐어요', () => review(card, k.requestId, true)), btn('실행되지 않았어요', () => review(card, k.requestId, false))]);
     return card;
+  }
+  if (k.kind === 'hub_codex_login') {
+    const a = el('a', '로그인하러 가기'); a.href = '/settings#hubsec';
+    return makeCard('err', '허브의 Codex 로그인이 필요해요', '이 허브가 Codex에 로그인돼 있지 않아 새 Codex 세션이 답할 수 없어요. 설정 → 허브 보안·Codex에서 로그인하세요(주소와 코드가 나와요).', [a]);
   }
   if (k.kind === 'archived') {
     const card = makeCard('warn', '보관된 세션이에요', '꺼내면 다시 질문할 수 있어요.', [btn('꺼내기', async () => {

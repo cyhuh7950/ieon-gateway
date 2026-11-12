@@ -71,14 +71,15 @@ export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spa
         connector: child ? 'running' : 'stopped', canRun: Boolean(connectorConfigPath && existsSync(connectorConfigPath)) };
     },
     hubMode: () => Boolean(child),
-    async connect({ hubUrl, name }) {
+    // U6: invite(허브의 PC 연결 링크)가 있으면 허브가 바로 승인하므로 코드 확인 없이 곧 연결된다.
+    async connect({ hubUrl, name, invite }) {
       const url = validateServerUrl(hubUrl);
       const n = String(name ?? '').trim();
       if (!n || n.length > 40) throw Object.assign(new Error('bad_name'), { http: 400 });
       let r;
       try {
         r = await fetchImpl(`${url}/v1/pair/start`, { method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: n }), signal: AbortSignal.timeout(10000) });
+          body: JSON.stringify({ name: n, ...(invite ? { invite: String(invite) } : {}) }), signal: AbortSignal.timeout(10000) });
       } catch { throw Object.assign(new Error('hub_unreachable'), { http: 502 }); }
       const body = await r.json().catch(() => ({}));
       if (r.status !== 201) throw Object.assign(new Error(body.error ?? `hub_${r.status}`), { http: 502 });
@@ -86,7 +87,8 @@ export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spa
       clearInterval(timer);
       timer = setInterval(() => { pollOnce().catch(() => {}); if (!pending) clearInterval(timer); }, pollMs);
       timer.unref?.();
-      return { code: body.code, expiresAt: body.expiresAt };
+      if (body.approved) await pollOnce().catch(() => {});
+      return { code: body.code, expiresAt: body.expiresAt, ...(body.approved ? { approved: true, state: this.status().state } : {}) };
     },
     pollOnce,
     reconnect: () => startConnector(),
