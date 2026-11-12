@@ -1,6 +1,6 @@
 # 개발 프로그램 연동 설명서 (HTTP API)
 
-- 기준: 2026-11-05 main · 대상: 직접 만든 프로그램에서 이어온을 통해 Codex·Claude 세션에 질문하려는 개발자
+- 기준: 2026-11-12(새 화면 U1~U7 반영) · 대상: 직접 만든 프로그램에서 이어온을 통해 Codex·Claude 세션에 질문하려는 개발자
 - 먼저 [처음 쓰는 사람을 위한 따라 하기 설명서](BEGINNER_GUIDE.md) 1~4장으로 이어온을 설치하고 웹 화면에서 질문이 되는지 확인한다. 이 문서는 그다음 단계다.
 - 기존 세션에 질문하는 API는 1~7장, 이어온이 새 세션을 만드는 API는 8장 "새 세션 만들기"에 있다.
 
@@ -28,11 +28,11 @@
 
 ### 2-1. 이어온 켜기
 
-설치(`pwsh scripts/install.ps1`, [따라 하기 1절](BEGINNER_GUIDE.md)) 뒤에는 이어온이 자동으로 켜져 있다. 실제 답을 받으려면 웹 **봇 관리 → 이 PC 탭 → 실제 실행 켜기**를 켠다(끈 상태에서는 접수·조회는 되지만 결과가 `failed`(`live_disabled`)로 끝난다). Claude 세션에 질문하려면 그 Claude 채널 세션을 켜 둔다.
+설치(`pwsh scripts/install.ps1`, [따라 하기 1절](BEGINNER_GUIDE.md)) 뒤에는 이어온이 자동으로 켜져 있다. 실제 답을 받으려면 이 PC 화면에서 AI 응답(실제 실행)을 켠다. 웹에서 첫 질문을 보낼 때 **켜고 보내기**를 누르거나, 대화 위쪽 **AI 응답** 스위치(또는 **설정 → 이 PC**의 "실제 실행 켜기")로 켠다. 웹에서 한 번 켜기 전에는 API 질문도 실행되지 않는다(끈 상태에서는 접수·조회는 되지만 결과가 `failed`(`live_disabled`)로 끝난다). Claude 세션에 질문하려면 그 Claude 채널 세션을 켜 둔다.
 
 ### 2-2. 내 프로그램 전용 API 키 받기
 
-웹 **봇 관리 → 외부 프로그램 탭**에서 프로그램 이름을 넣고 **키 발급**을 누른다. 키는 **그때 한 번만** 보이니 복사해 내 프로그램 설정(환경 변수 등)에 넣는다. 같은 칸에서 이 프로그램이 볼 수 있는 세션을 체크하고 **저장**한다. 필요 없어지면 **폐기**(바로 접속 불가, 다른 프로그램은 영향 없음). 설정 파일은 고치지 않는다.
+웹 화면 왼쪽 아래 **설정**(⚙) → **내 프로그램 연결**에서 프로그램 이름을 넣고 **키 발급**을 누른다. 키는 **그때 한 번만** 보이니 복사해 내 프로그램 설정(환경 변수 등)에 넣는다. 같은 칸에서 이 프로그램이 볼 수 있는 세션을 체크하고 **저장**한다. 필요 없어지면 **폐기**(바로 접속 불가, 다른 프로그램은 영향 없음). 설정 파일은 고치지 않는다.
 
 ### 2-3. 연결 확인
 
@@ -282,25 +282,26 @@ curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:28760/v1/requests/<re
 | 코드 | `error` | 원인 | 고치는 법 |
 | --- | --- | --- | --- |
 | 400 | `bad_request` | `Idempotency-Key` 없음·형식 틀림, 질문 비어 있음, 8,000자 초과 | 요청을 고친다 |
-| 401 | `unauthorized` | 키 없음·틀림·폐기됨 | 웹 "외부 프로그램(API 키)"에서 새로 발급 |
+| 401 | `unauthorized` | 키 없음·틀림·폐기됨 | 웹 **설정 → 내 프로그램 연결**에서 새로 발급 |
 | 404 | `not_found` | 없는 세션, 또는 `appIds`에 내 프로그램이 없음 | 2-2 ③ 확인 |
 | 409 | `conversation_busy` | 이 세션이 다른 질문을 처리 중이거나 "확인 필요" 잠금 | 끝난 뒤 보낸다. 잠금이면 7장 |
 | 409 | `idempotency_conflict` | 같은 키로 다른 질문을 보냄 | 질문마다 새 키를 쓴다 |
-| 503 | `device_unavailable` | 연결부가 꺼짐 | 그 PC가 켜져 있는지(허브형이면 PC의 "허브에 연결" 상태) |
+| 409 | `hub_mode` | 이 PC가 허브에 연결돼 있어 PC 서버가 질문을 받지 않음 | 허브 주소로 보내거나, PC 화면 **설정 → 밖에서도 쓰기**에서 허브 연결을 끊는다 |
+| 503 | `device_unavailable` | 연결부가 꺼짐 | 그 PC가 켜져 있는지(허브형이면 PC 화면 **설정 → 밖에서도 쓰기**가 연결됨인지) |
 | 503 | `session_not_running` | Claude 세션이 꺼짐 | Claude 채널 세션 시작 |
-| 503 | `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경 |
+| 503 | `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경(웹 **연결 설정 → 고급**) |
 | 500 | `internal` | 서버 내부 오류 | `.local\run\server.log` 확인 |
 
 ### 6-2. 접수됐지만 실행이 실패했을 때(`status: failed`의 `errorCode`)
 
 | `errorCode` | 뜻 | 고치는 법 |
 | --- | --- | --- |
-| `live_disabled` | 실제 엔진 실행이 꺼져 있음 | 웹 "이 PC 탭 → 실제 실행 켜기" |
+| `live_disabled` | 실제 엔진 실행이 꺼져 있음 | 이 PC 화면 위쪽 **AI 응답** 스위치 켜기(또는 **설정 → 이 PC**) |
 | `desktop_holds_thread` | 번갈아 쓰기인데 그 Codex 대화가 Desktop 앱에 열려 있음 | 앱에서 그 대화만 닫고 새 키로 다시 보낸다 |
 | `thread_busy` | 동시 사용 중 TUI에서 그 대화를 처리 중 | TUI 답이 끝난 뒤 새 키로 다시 보낸다 |
 | `session_not_running` | Claude 세션이 꺼짐 | Claude 채널 세션 시작 |
-| `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경 |
-| `thread_not_allowed` | 허용 목록에 없는 Codex 대화 | 웹 "이 PC 탭"의 허용 목록에 추가 |
+| `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경(웹 **연결 설정 → 고급**) |
+| `thread_not_allowed` | 허용 목록에 없는 Codex 대화 | 이 PC 화면 **＋ 대화 연결**로 연결(또는 **설정 → 이 PC** 허용 목록에 추가) |
 | `engine_not_configured`, `shared_server_not_configured` | 그 PC에 그 엔진 설정이 없음 | 번갈아 쓰기로 바꾸거나 관리자에게 문의 |
 | `channel_unauthorized`, `channel_rejected` | Claude 채널 내부 토큰 불일치·요청 거부 | 이어온 설치를 다시 실행(`pwsh scripts/install.ps1`) |
 | `turn_failed` | 엔진이 답을 만들다 실패 | 원래 세션 화면을 확인한 뒤 새 키로 다시 보낸다 |
@@ -332,7 +333,7 @@ Content-Type: application/json
 - 정리하면 잠금이 풀린다. `false`로 정리했으면 필요할 때 새 키로 다시 보낸다.
 - 정리할 수 없는 상태의 요청이면 409 `not_reviewable`.
 
-웹 화면의 노란 안내 버튼이나 메신저 `/review done|not`으로 정리해도 같다.
+웹 화면의 "확인이 필요한 질문" 카드 버튼(**실행됐어요** / **실행되지 않았어요**)이나 메신저 `/review done|not`으로 정리해도 같다.
 
 ---
 
@@ -363,7 +364,7 @@ Content-Type: application/json
 
 **새 세션 만들기(설정에서 켠 경우)**
 
-이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만든다. 기능 켜기는 [따라 하기 설명서](BEGINNER_GUIDE.md) 6-A-1. 내 프로그램 토큰으로 만들려면 `new-sessions.json`의 `creatorApps`에 그 앱 ID(예: `app_myapp`)를 넣는다(기본은 웹·메신저만).
+이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만든다. 기능 켜기는 웹 **설정 → 대화 → 새 세션**("새 세션 만들기를 켭니다"). 내 프로그램 토큰으로 만들려면 `new-sessions.json`의 `creatorApps`에 그 앱 ID(예: `app_myapp`)를 넣는다(기본은 웹·메신저만).
 
 | 요청 | 하는 일 | 성공 응답 |
 | --- | --- | --- |
@@ -387,4 +388,4 @@ Content-Type: application/json
 - [ ] 결과는 2초 간격으로 조회하고, 대기 한도를 넘어도 다시 보내지 않는다.
 - [ ] `unknown`·`approval_required`는 자동 재전송하지 않고 사람에게 알린다.
 - [ ] 토큰·질문·답을 로그에 남기지 않는다.
-- [ ] 다 쓰면 웹 "이 PC 탭"에서 실제 실행을 끈다.
+- [ ] 다 쓰면 이 PC 화면 위쪽 **AI 응답** 스위치로 실제 실행을 끈다.

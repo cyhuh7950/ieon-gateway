@@ -1,4 +1,4 @@
-// U1: 대화 중심 새 화면(설계 UI_CHAT_FIRST) — `/` 새 화면, `/classic` 예전 화면, 기존 API만, 서버 데이터는 textContent로(모델 0).
+// U1: 대화 중심 새 화면(설계 UI_CHAT_FIRST) — `/` 새 화면(U8에서 예전 화면 `/classic`은 없애고 설정으로 보냄), 기존 API만, 서버 데이터는 textContent로(모델 0).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -9,22 +9,20 @@ import { createApp } from '../../src/pilot/server.mjs';
 
 const web = (f) => readFileSync(fileURLToPath(new URL(`../../src/pilot/web/${f}`, import.meta.url)), 'utf8');
 const APP = web('app.html');
-const CLASSIC = web('index.html');
 
-test('서버: `/`는 새 화면, `/classic`은 예전 화면', async (t) => {
+test('서버: `/`는 새 화면, 예전 주소 `/classic`은 설정 화면으로', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'ieon-u1-'));
   const app = createApp({ dbPath: join(dir, 'pilot.db'), devices: [], users: [], bindings: [] });
   const port = await app.listen(0);
   t.after(async () => { await app.close(); rmSync(dir, { recursive: true, force: true }); });
-  const get = (p) => fetch(`http://127.0.0.1:${port}${p}`).then(async (r) => ({ status: r.status, type: r.headers.get('content-type'), text: await r.text() }));
+  const get = (p) => fetch(`http://127.0.0.1:${port}${p}`, { redirect: 'manual' }).then(async (r) => ({ status: r.status, type: r.headers.get('content-type'), text: await r.text() }));
   const root = await get('/');
   assert.equal(root.status, 200);
   assert.match(root.type, /text\/html/);
   assert.ok(root.text.includes('id="liveSwitch"') && root.text.includes('연결 설정'), '새 화면');
-  const classic = await get('/classic');
-  assert.equal(classic.status, 200);
-  assert.ok(classic.text.includes('id="atabs"'), '예전 화면');
-  assert.notEqual(root.text, classic.text);
+  const classic = await fetch(`http://127.0.0.1:${port}/classic`, { redirect: 'manual' });
+  assert.equal(classic.status, 302);
+  assert.equal(classic.headers.get('location'), '/settings');
 });
 
 test('새 화면은 서버 데이터를 HTML로 넣지 않는다(innerHTML 없음)', () => {
@@ -37,20 +35,20 @@ test('새 화면은 이미 있는 API만 부른다', () => {
     '/v1/admin/denied', '/v1/admin/denied/allow', // U2: 메신저 허용 요청
     '/v1/admin/local/threads', '/v1/admin/connections', // U3
     '/v1/admin/local/engines', // U4: 처음 설정 준비 확인
-    '/v1/admin/bots', '/v1/admin/secrets', '/v1/admin/secrets/', '/v1/admin/kakao/skill-url', '/v1/admin/messenger/claim', '/v1/admin/messenger/claim?platform=']); // U5: 메신저 연결 // U3: 대화 연결
+    '/v1/admin/bots', '/v1/admin/secrets', '/v1/admin/secrets/', '/v1/admin/kakao/skill-url', '/v1/admin/messenger/claim', '/v1/admin/messenger/claim?platform=', // U5: 메신저 연결
+    '/v1/sessions', '/v1/sessions/limits']); // U8: 새 세션 만들기(예전 화면에서 옮김, 기존 API)
   const used = [...new Set([...APP.matchAll(/'(\/v1\/[^'+]*)'/g)].map((m) => m[1]))];
   assert.ok(used.length >= 8, used.join(','));
   for (const p of used) assert.ok(allowed.has(p), `새 API를 부르면 안 됨: ${p}`);
 });
 
-// U6: 새 화면은 예전 화면 대신 설정 화면(/settings)의 탭으로 연결한다(예전 화면은 U8까지 /classic에 그대로).
+// U6: 새 화면은 설정 화면(/settings)의 탭으로 연결한다.
 test('새 화면에서 여는 설정 탭은 실제로 있다', () => {
   const SETTINGS = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
   const hashes = [...new Set([...APP.matchAll(/\/settings#([a-z]+)/g)].map((m) => m[1]))];
   assert.deepEqual(hashes.sort(), ['conv', 'hub', 'hubsec', 'msg']);
   for (const h of hashes) assert.ok(SETTINGS.includes(`data-atab="${h}"`), h);
   assert.ok(SETTINGS.includes('href="/"'), '설정 화면에서 대화로 돌아갈 수 있다');
-  assert.ok(CLASSIC.includes('function openHash') && CLASSIC.includes('href="/"'), '예전 화면은 그대로 남아 있다');
 });
 
 test('휴대폰 폭에서는 목록과 대화를 번갈아 보여 준다', () => {
