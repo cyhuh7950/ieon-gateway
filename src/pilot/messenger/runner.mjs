@@ -85,7 +85,7 @@ export function createBotRunner(opts) {
       isAllowed: (m) => [...commonUsers(b.platform), ...(entry.def.extraUsers ?? [])].map(String).includes(String(m.userId)) });
     // 상태가 바뀌면 다음 주기(1분)를 기다리지 않고 바로 보고한다.
     const report = () => opts.api({ method: 'POST', path: '/v1/messenger/bots/status', body: { bots: [{ platform: b.platform, botId: b.botId,
-      state: entry.state, missing: [], username: entry.username, canReadAll: entry.canReadAll }] } }).catch(() => {});
+      state: entry.state, missing: [], username: entry.username, canReadAll: entry.canReadAll, detail: entry.detail ?? null }] } }).catch(() => {});
     const botLog = (e) => {
       if (['started', 'ready'].includes(e.event)) {
         entry.state = entry.conflict ? 'conflict' : 'connected';
@@ -97,7 +97,8 @@ export function createBotRunner(opts) {
       // 다른 곳에서 같은 봇을 받고 있음: 연결은 됐어도 메시지가 나뉘므로 "연결됨"으로 보이지 않게 한다.
       if (e.event === 'conflict' && !entry.conflict) { entry.conflict = true; entry.state = 'conflict'; report(); }
       if (e.event === 'conflict_clear' && entry.conflict) { entry.conflict = false; entry.state = 'connected'; report(); }
-      if (['open_error', 'closed_fatal'].includes(e.event)) entry.state = 'error';
+      // A1: 연결 실패는 바로 알리고 이유 코드(토큰 거절 등)도 함께 — 화면이 "토큰 없음"으로 잘못 보이지 않게.
+      if (['open_error', 'closed_fatal'].includes(e.event)) { entry.state = 'error'; entry.detail = /^[\w.:-]{1,40}$/.test(String(e.error ?? '')) ? String(e.error) : 'error'; report(); }
       log({ ...e, botId: b.botId });
     };
     runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
@@ -161,7 +162,7 @@ export function createBotRunner(opts) {
       else start(key, b);
       const e = running.get(key);
       statuses.push({ platform: b.platform, botId: b.botId, state: e ? e.state : 'platform_not_supported', missing: [],
-        username: e?.username ?? null, canReadAll: e?.canReadAll ?? null });
+        username: e?.username ?? null, canReadAll: e?.canReadAll ?? null, detail: e?.detail ?? null });
     }
     for (const key of [...running.keys()]) if (!wanted.has(key)) stop(key); // 꺼지거나 지워진 봇
     await opts.api({ method: 'POST', path: '/v1/messenger/bots/status', body: { bots: statuses } }).catch(() => {});

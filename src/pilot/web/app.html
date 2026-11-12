@@ -299,6 +299,7 @@ details.adv[open] summary { margin-bottom:10px; }
       <button type="button" class="iconbtn back" id="backBtn" aria-label="대화 목록으로">←</button>
       <h2 id="title">대화를 고르세요</h2>
       <span class="chip" id="engineChip" hidden></span>
+      <span class="chip" id="acctChip" hidden></span>
       <span class="chip" id="stateChip" hidden></span>
       <span class="spacer"></span>
       <button type="button" class="switch" role="switch" aria-checked="false" id="liveSwitch" hidden><span class="knob"></span><span id="liveLabel">AI 응답 꺼짐</span></button>
@@ -316,6 +317,7 @@ details.adv[open] summary { margin-bottom:10px; }
     <h3>연결 설정 <button type="button" class="ghost" id="panelClose" aria-label="닫기">✕</button></h3>
     <dl class="kv">
       <dt>엔진</dt><dd id="pEngine"></dd>
+      <dt>사용 계정</dt><dd id="pAccount"></dd>
       <dt>잇는 방법</dt><dd id="pHow"></dd>
       <dt>상태</dt><dd id="pState"></dd>
     </dl>
@@ -345,6 +347,7 @@ const HOW = { codex_thread: '보낼 때마다 같은 대화를 다시 열어 이
 const MODE = { alternate: '번갈아 쓰기', shared_server: '동시 사용' };
 const NS_STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
 const ERR = {
+  usage_limit: ['warn', '계정의 사용 한도에 걸려 실행되지 않았어요.'],
   conversation_busy: ['warn', '이 대화에서 처리 중인 질문이 있어 보낼 수 없어요.'],
   device_unavailable: ['err', 'PC 연결이 끊겨 보낼 수 없어요. PC가 켜져 있는지 확인하세요.'],
   hub_mode: ['warn', '이 PC는 허브에 연결돼 있어 여기서 보낸 질문은 처리하지 않아요. 허브 화면이나 허브에 연결된 메신저 봇에서 보내세요.'],
@@ -640,10 +643,16 @@ async function msgClaim() {
   // 토큰이 필요한 메신저는 봇이 연결될 때까지 기다린다(웹 저장 뒤 1분 안).
   if (msgPlat !== 'kakao') {
     $('m3Hint').textContent = info.name + ' 봇을 연결하는 중이에요… (2분 안에)'; $('m3Wait').textContent = '';
+    const DETAIL = { bad_access_token: '토큰이 맞지 않아요(그 메신저가 거절함) — 토큰을 다시 발급해 넣어 보세요', unauthorized: '토큰이 맞지 않아요', relay_unauthorized: '중계 연결 열쇠가 맞지 않아요', relay_missing: '공개 중계(또는 허브)가 준비돼 있지 않아요', kakaoRelayUrl_missing: '공개 중계 주소가 없어요' };
+    const savedAt = Date.now();
     for (let i = 0; i < 40; i += 1) {
       const b = await botOf(msgPlat);
       const s = b?.status?.state;
       if (s === 'connected') break;
+      // A1: 연결 실패 이유가 오면 바로 보여 준다(예: 라인이 토큰을 거절).
+      if (s === 'error' && b.status.detail && Date.parse(b.status.at) >= savedAt - 5000) { $('m3Hint').textContent = '봇이 연결되지 않았어요 — ' + (DETAIL[b.status.detail] || b.status.detail) + '. 뒤로 가서 토큰을 확인하세요.'; return; }
+      // 저장 직후에는 봇이 다음 확인 주기(최대 1분)까지 예전 상태(토큰 없음)로 남아 있다 — 75초 동안은 기다린다.
+      if (s === 'token_missing' && Date.now() - savedAt < 75_000) { await new Promise((ok) => setTimeout(ok, 3000)); if ($('msg').hidden) return; continue; }
       if (['token_missing', 'duplicate_token', 'conflict', 'error'].includes(s) && i > 3) { $('m3Hint').textContent = '봇이 연결되지 않았어요(' + ({ token_missing: '토큰 없음', duplicate_token: '토큰 중복', conflict: '다른 곳에서 같은 봇을 켜 둠', error: '연결 오류' })[s] + '). 뒤로 가서 토큰을 확인하세요.'; return; }
       await new Promise((ok) => setTimeout(ok, 3000));
       if ($('msg').hidden) return;
@@ -757,8 +766,11 @@ function cardView(k, c) {
 }
 function retryCard() {
   const { code, question } = retry;
-  const [kind, text] = ERR[code] || ['err', '보내지 못했어요: ' + code];
-  const acts = ['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit'].includes(code)
+  const [kind, base] = ERR[code] || ['err', '보내지 못했어요: ' + code];
+  // A1: 한도는 어느 계정인지와 고를 수 있는 길을 함께(실행 안 됨이 확실하므로 다시 보내기는 누를 때만)
+  const acct = conv()?.account?.label;
+  const text = code === 'usage_limit' ? base + ' 지금 쓰는 계정: ' + (acct ?? '알 수 없음') + '. 한도가 풀린 뒤 다시 보내거나, 다른 계정·API 키로 바꾸세요(설정 → 계정, 준비 중).' : base;
+  const acts = ['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit', 'usage_limit'].includes(code)
     ? [btn('다시 보내기', () => { const q = retry.question; retry = null; renderCards(true); send(q); }), btn('닫기', () => { retry = null; renderCards(true); })]
     : [btn('닫기', () => { retry = null; renderCards(true); })];
   return makeCard(kind, '보내지 못한 질문', text + ' (질문: "' + (question.length > 40 ? question.slice(0, 40) + '…' : question) + '")', acts);
@@ -794,6 +806,8 @@ function renderHead() {
   const c = conv(); if (!c) return;
   $('title').textContent = c.label;
   $('engineChip').hidden = false; $('engineChip').textContent = ENGINE[c.engine] || c.engine;
+  // A1(EA10): 이 대화의 질문이 어느 계정(접속)의 사용량으로 나가는지 늘 보이게
+  $('acctChip').hidden = !c.account; $('acctChip').textContent = c.account ? '계정 · ' + c.account.label.split(' — ')[0] : ''; $('acctChip').title = c.account?.label ?? '';
   $('stateChip').hidden = false; $('stateChip').textContent = stateOf(c)[1];
   $('panelBtn').hidden = false;
   $('question').placeholder = c.label + '에게 메시지';
@@ -858,6 +872,7 @@ $('panelClose').onclick = () => setPanel(false);
 $('backBtn').onclick = () => { $('app').classList.remove('in-chat'); setPanel(false); };
 function renderPanel(c) {
   $('pEngine').textContent = ENGINE[c.engine] || c.engine;
+  $('pAccount').textContent = c.account ? c.account.label + (c.account.mode === 'pc_default' ? ' (계정 고르기는 준비 중 — 설정 → 계정)' : '') : '—';
   $('pHow').textContent = HOW[c.engine] || '';
   $('pState').textContent = stateOf(c)[1];
   $('pId').textContent = c.conversationId;

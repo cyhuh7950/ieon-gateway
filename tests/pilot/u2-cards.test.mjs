@@ -86,7 +86,8 @@ test('화면: 카드는 위쪽에 모으고, 누른 결과를 남기며, 다시 
   assert.ok(APP.includes('const done = []') && APP.includes("'✓ '"), '결과 기록');
   assert.ok(APP.includes("btn('다시 보내기'"), '다시 보내기 버튼');
   // 결과 불명(unknown)은 다시 보내기 대상이 아니다
-  const retryCodes = APP.match(/\['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit'\]/);
+  // A1: 계정 사용 한도(usage_limit)도 실행 안 된 것이 확실해 다시 보내기 대상(누를 때만)
+  const retryCodes = APP.match(/\['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit', 'usage_limit'\]/);
   assert.ok(retryCodes, '다시 보내기는 보내지 않은 것이 확실한 경우만');
   assert.ok(!/retry = \{[^}]*unknown/.test(APP));
   assert.ok(APP.includes("'/v1/admin/denied/allow'"), '메신저 허용 요청을 그 자리에서');
