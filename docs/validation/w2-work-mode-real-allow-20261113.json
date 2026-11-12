@@ -1,0 +1,26 @@
+{
+ "at": "2026-11-12T17:56:37.440Z",
+ "seconds": 124,
+ "requestStatus": "completed",
+ "errorCode": null,
+ "answerChars": 26,
+ "decisions": [
+  {
+   "kind": "file",
+   "decision": "allow",
+   "result": "allowed",
+   "cwdIsWs": false
+  }
+ ],
+ "records": [
+  {
+   "kind": "file",
+   "status": "allowed"
+  }
+ ],
+ "fileCreated": true,
+ "fileOk": true,
+ "wsEntries": [
+  "hello.txt"
+ ]
+}

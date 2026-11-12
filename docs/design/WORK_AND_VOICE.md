@@ -80,6 +80,14 @@ OpenMausBot에도 없다. 원한다면 **새 기능**이며 전화 연결 서비
 
 순서 제안: 승인 카드(W0~W2)는 이어온 앱(AP-3)보다 먼저 웹에서 만들어 두면 앱이 그대로 쓴다. 음성(V1)은 이어온 앱(AP-3)과 함께.
 
+## 4-2. W2 구현 기록(2026-11-13, 신산님 "W2 진행")
+
+- **작업 모드(`work_modes` 표):** 대화별 켜기(기본 꺼짐), Codex 기존 대화만(새 세션·Claude는 대상 아님), 주인 웹 화면만, 처리 중엔 못 바꿈. 켠 대화의 질문에 `workMode: true`.
+- **엔진 연결(W0에서 된 것만):** 작업 모드 질문은 Codex **app-server 차례**로(`appServerTurn`) — `approvalPolicy: untrusted`·`approvalsReviewer: user`·`sandbox: workspace-write`·`sandboxPolicy: workspaceWrite(writableRoots: 작업 폴더, networkAccess: false)`. 번갈아 쓰기는 Desktop 잠금 판별 뒤 질문할 때만 stdio app-server를 띄움(SDK는 승인을 못 넘기므로), 동시 사용은 공유 서버에서 idle일 때만. 작업 폴더가 없거나 없는 폴더면 `work_dir_required`/`work_dir_missing`(보내지 않음). 엔진의 승인 요청은 W1 카드로, 답은 accept/decline만.
+- **메신저(W2-b):** 승인 요청을 그 대화방에 "승인 요청 n"으로 알리고 `/허용 n`·`/거부 n`. 주인(공통 허용 사용자)만, 알린 번호만, 같은 요청은 한 번만 알림. 서버는 웹·메신저 봇만 결정 가능(외부 프로그램 키 403). 설계의 "버튼" 대신 모든 메신저 공통의 답글 명령.
+- **실측(모델 3회):** 이어온 전용 계정·임시 폴더 새 시험 대화로 실제 서버·연결부·어댑터 전체 — ① 명령 승인 카드 → 거부 → 실행 안 됨·차례 정상(31초) ② 파일 수정 승인 카드 → 허용 → 파일 생성("hi")·차례 정상(124초). 파일 수정 승인 요청에는 작업 폴더(cwd)가 오지 않음(카드에 폴더 표시 없음).
+- **시험:** `w2-work-mode` 8건, 민감도 12종, 전체 318건 중 실패 0(건너뜀 1).
+
 ## 4-1. W1 구현 기록(2026-11-13, 신산님 "W1 Codex부터")
 
 W0 결과(Codex app-server만 가능, SDK 불가, Claude 보류)에 따라 **승인 카드 바탕**을 만들었다. 작업 모드 켜기(엔진 연결)는 W2.
