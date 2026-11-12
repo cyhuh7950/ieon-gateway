@@ -103,11 +103,15 @@ export function createBotRunner(opts) {
     runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
       onMessage: async (m, send) => {
         if (!entry.bridge.allowed(m)) await refreshAllowed();
-        // U5: 허용 목록에 없는 사람이 화면의 6자리 숫자를 보내면 주인으로 등록한다(숫자는 기록하지 않음).
-        if (!entry.bridge.allowed(m) && m.userId && /^\s*\d{6}\s*$/.test(String(m.text ?? ''))) {
+        // U5: 화면의 6자리 숫자만 보낸 글은 먼저 주인 등록 숫자인지 확인한다(숫자는 기록하지 않음).
+        // 이미 허용된 사람(주인)이 보내도 확인한다 — 화면이 "이 숫자를 보내세요"라고 하므로, 질문으로 대화에 들어가지 않게.
+        // 기다리는 숫자가 없으면(404) 허용된 사람의 글은 지금처럼 일반 글로 처리한다.
+        if (m.userId && /^\s*\d{6}\s*$/.test(String(m.text ?? ''))) {
+          const already = entry.bridge.allowed(m);
           const r = await opts.api({ method: 'POST', path: '/v1/messenger/claim', body: { platform: b.platform, botId: b.botId, userId: String(m.userId),
-            name: m.userName ?? m.name ?? null, code: String(m.text).trim() } }).catch(() => null);
+            name: m.userName ?? m.name ?? null, code: String(m.text).trim(), ...(already ? { allowed: true } : {}) } }).catch(() => null);
           log({ platform: b.platform, botId: b.botId, event: 'claim', ok: r?.status === 200 });
+          if (r?.status === 200 && already) return send('이미 허용된 분이라 따로 등록하지 않았어요. 화면에 완료로 표시돼요.');
           if (r?.status === 200) {
             refreshedAt = -Infinity; await refreshAllowed();
             return send('주인으로 등록됐어요. 이제 질문하면 이어서 답해요. /sessions로 대화를 고를 수 있어요.');
