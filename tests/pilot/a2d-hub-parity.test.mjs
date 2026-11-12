@@ -13,6 +13,7 @@ import { createApp } from '../../src/pilot/server.mjs';
 import { createDeviceAdmin, OPS } from '../../src/pilot/device-admin.mjs';
 import { createAdminQueue } from '../../src/pilot/admin-queue.mjs';
 import { createHubLink } from '../../src/pilot/hub-link.mjs';
+import { readMode, writeMode } from '../../src/pilot/mode.mjs';
 
 const T1 = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -164,4 +165,20 @@ test('허브 자신의 연결부 기기는 PC 목록에서 빠지고(hubSelf), �
   assert.equal((await run('h_self', 'accounts.get')).status, 200, '기다리지 않고 허브 자신이 처리');
   assert.equal((await run('h_self', 'device.get')).body.error, 'bad_op');
   assert.ok(SET.includes('!d.revokedAt && !d.hubSelf'), '화면 PC 목록에서 뺌');
+});
+
+test('사용 방식도 허브 화면에서: ② 정하기, ①로 바꾸면 결과를 보낸 뒤 허브 연결이 끊긴다', async (t) => {
+  const s = await setup(t);
+  const modePath = join(s.d, 'pc', 'mode.json');
+  const pc = createDeviceAdmin({ connectorConfigPath: s.pcCfg, modeAdmin: {
+    view: () => ({ mode: readMode(modePath) }),
+    set: (m) => { writeMode(modePath, m); if (m === 'pc') s.link.disconnect(); return { status: 200, body: { mode: m } }; } } });
+  s.link.setAdmin((op, args) => pc.run(op, args));
+  await s.online();
+  assert.equal((await s.viaHub('mode.get')).body.mode, null);
+  assert.equal((await s.viaHub('mode.set', { mode: 'hub' })).body.mode, 'hub');
+  assert.equal(readMode(modePath), 'hub');
+  assert.equal((await s.viaHub('mode.set', { mode: 'pc' })).body.mode, 'pc', '결과는 허브에 도착');
+  assert.equal(await s.link.adminOnce(), false, '그 뒤로는 PC가 허브 명령을 가져가지 않음');
+  assert.equal((await s.admin('hub', 'mode.set', { mode: 'pc' })).body.error, 'bad_op', '허브 자신에는 사용 방식 없음');
 });

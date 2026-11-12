@@ -12,11 +12,12 @@ export const OPS = {
   'device.get': 'read', 'device.live': 'write', 'device.codex.put': 'write', 'device.codex.delete': 'write',
   'accounts.get': 'read', 'accounts.add': 'write', 'accounts.use': 'write', 'accounts.login': 'write',
   'accounts.login.cancel': 'write', 'accounts.logout': 'write', 'accounts.delete': 'write',
+  'mode.get': 'read', 'mode.set': 'write', // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
 };
 // 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 허브 보안·Codex 탭, 허브는 기존 대화 허용 목록이 없음).
 export const HUB_SELF_OPS = new Set(['accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete']);
 
-export function createDeviceAdmin({ connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {} }) {
+export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {} }) {
   const logins = new Map(); // 계정별 공식 로그인 진행 상태
   const cfg = () => {
     if (!connectorConfigPath || !existsSync(connectorConfigPath)) throw Object.assign(new Error('no_connector_config'), { http: 404 });
@@ -53,6 +54,8 @@ export function createDeviceAdmin({ connectorConfigPath, applyDevice = async () 
       case 'device.codex.delete':
         if (!removeCodexThread(p, a.threadId)) return { status: 404, body: { error: 'not_found' } };
         return { status: 200, body: { ...device(p), ...(await applyDevice()) } };
+      case 'mode.get': return modeAdmin ? { status: 200, body: modeAdmin.view() } : { status: 404, body: { error: 'not_found' } };
+      case 'mode.set': return modeAdmin ? modeAdmin.set(String(a.mode ?? '')) : { status: 404, body: { error: 'not_found' } };
       case 'accounts.get': return { status: 200, body: accounts(p) };
       case 'accounts.add': {
         const id = 'a' + randomBytes(4).toString('hex');
