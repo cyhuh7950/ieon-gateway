@@ -41,7 +41,7 @@ test('기존 설치 업데이트: 있던 토큰·메신저 설정·봇 토큰 �
   writeFileSync(join(d, '.local/messenger/config.json'), JSON.stringify({ serverUrl: 'http://127.0.0.1:28760', envFile: 'D:/x/.local/old.env' }));
   const before = json(d, 's2/server.json');
   const changes = prepareWebFirst(d);
-  assert.deepEqual(changes.sort(), ['server:connectorConfigPath', 'server:manageLocalConnector', 'server:manageMessenger', 'server:messengerConfigPath', 'server:secretsFile']);
+  assert.deepEqual(changes.sort(), ['connector:claude', 'created:c1/.mcp.json', 'created:c1/token', 'server:connectorConfigPath', 'server:manageLocalConnector', 'server:manageMessenger', 'server:messengerConfigPath', 'server:secretsFile']);
   const s = json(d, 's2/server.json');
   assert.equal(s.secretsFile, 'D:/x/.local/old.env'); // 기존 메신저가 쓰던 파일
   assert.deepEqual(s.users, before.users);

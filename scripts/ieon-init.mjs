@@ -80,6 +80,31 @@ export function prepareWebFirst(rootDir) {
     const pcToken = readEnvFile(relaySecrets).IEON_RELAY_PC_TOKEN;
     if (pcToken && !readEnvFile(mcfg.envFile).KAKAO_RELAY_TOKEN) { writeEnvValue(mcfg.envFile, 'KAKAO_RELAY_TOKEN', pcToken); changes.push('secrets:KAKAO_RELAY_TOKEN'); }
   }
+  // Claude 채널 준비(2026-11-12): 사람이 띄운 Claude Code 창이 이어온 채널(ieon-channel.mjs)을 찾고, 연결부가 같은 열쇠로
+  // 그 채널에 질문을 넣을 수 있게 한다. 없을 때만 만들고 있는 것은 바꾸지 않는다. 열쇠 값은 파일에만 두고 출력하지 않는다.
+  // `pwsh scripts/ieon.ps1 claude`가 이 폴더(.local/c1)에서 `claude --dangerously-load-development-channels server:ieon`을 연다.
+  const C1 = join(L, 'c1');
+  mkdirSync(C1, { recursive: true });
+  const channelToken = join(C1, 'token');
+  if (!existsSync(channelToken)) {
+    writeFileSync(channelToken, randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 });
+    changes.push('created:c1/token');
+  }
+  const mcpPath = join(C1, '.mcp.json');
+  if (!existsSync(mcpPath)) {
+    writeFileSync(mcpPath, JSON.stringify({ mcpServers: { ieon: { command: 'node', args: [`${posix}/src/pilot/ieon-channel.mjs`],
+      env: { IEON_CHANNEL_PORT: '28762', IEON_CHANNEL_TOKEN_FILE: `${posix}/.local/c1/token` } } } }, null, 2) + '\n', { flag: 'wx' });
+    changes.push('created:c1/.mcp.json');
+  }
+  const connPath = join(L, 's2', 'connector.json');
+  if (existsSync(connPath)) {
+    const conn = JSON.parse(readFileSync(connPath, 'utf8'));
+    if (!conn.claude) {
+      conn.claude = { baseUrl: 'http://127.0.0.1:28762', tokenFile: `${posix}/.local/c1/token` };
+      writeFileSync(connPath, JSON.stringify(conn, null, 2) + '\n');
+      changes.push('connector:claude');
+    }
+  }
   const want = {
     connectorConfigPath: `${posix}/.local/s2/connector.json`,
     manageLocalConnector: true,
