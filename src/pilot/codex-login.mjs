@@ -57,6 +57,15 @@ export function createCodexLogin({ env = process.env, spawnImpl = spawn, entry =
       log({ event: 'codex_login', state: 'started' });
       return this.view();
     },
+    // A2: 공식 `codex logout`(이 env의 CODEX_HOME 기준). 로그인 파일은 Codex가 지운다.
+    logout() {
+      return new Promise((ok) => {
+        let p;
+        try { p = run(['logout']); } catch { return ok(false); }
+        const t = setTimeout(() => { p.kill?.(); ok(false); }, 15000);
+        p.on('exit', (code) => { clearTimeout(t); log({ event: 'codex_logout', ok: code === 0 }); ok(code === 0); });
+      });
+    },
     cancel() { if (job?.state === 'waiting') { job.state = 'cancelled'; job.child.kill?.(); } return this.view(); },
     view() { return job ? { state: job.state, url: job.url, code: job.code, startedAt: job.startedAt, error: job.error } : { state: 'idle' }; },
   };

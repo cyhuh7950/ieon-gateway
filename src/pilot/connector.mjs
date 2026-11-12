@@ -4,6 +4,7 @@
 import { appendFileSync, existsSync, openSync, fsyncSync, closeSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { EngineError } from './contracts.mjs';
+import { accountsDirFor, accountLabel, codexAccountId } from './accounts.mjs';
 
 // P3: 허브 주소 검사. 공개 주소는 https만, http는 이 PC(127.0.0.1·localhost)만. 사용자 정보·쿼리·조각은 거절한다.
 export function validateServerUrl(raw) {
@@ -40,11 +41,14 @@ function receiptLog(path) {
 }
 
 // 작업 하나를 가져와 실행·보고한다. 작업이 없으면 false.
+// A2: HTTP 헤더에는 한글을 못 실으므로(계정 이름표) ASCII 밖 글자는 JSON \u 표기로 바꿔 보낸다. 서버는 JSON.parse로 그대로 읽는다.
+export const healthHeader = (state) => JSON.stringify(state).replace(/[\u007f-￿]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+
 export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, health, log = () => {} }) {
   const headers = { authorization: `Bearer ${deviceToken}`, 'content-type': 'application/json' };
   // 엔진 상태(값만, 인증 정보 없음)를 작업 조회에 실어 보낸다. 서버는 이를 보고 꺼진 엔진으로의 질문을 미리 거절한다.
   const state = health ? await health() : null;
-  const res = await fetch(`${baseUrl}/v1/device/jobs`, { headers: state ? { ...headers, 'x-ieon-health': JSON.stringify(state) } : headers });
+  const res = await fetch(`${baseUrl}/v1/device/jobs`, { headers: state ? { ...headers, 'x-ieon-health': healthHeader(state) } : headers });
   if (res.status === 204) return false;
   if (res.status === 429) throw Object.assign(new Error('poll_429'), { retryAfterMs: 1000 * (Number(res.headers.get('retry-after')) || 30) });
   if (res.status !== 200) throw new Error(`poll_${res.status}`);
@@ -97,6 +101,7 @@ export async function runConnector({ pollMs = 2000, signal, ...opts }) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   (await import('./parent-watch.mjs')).watchParent(); // W6: 서버가 띄운 경우, 서버가 사라지면 함께 끝난다
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  config.accountsDir = accountsDirFor(process.argv[2], config); // A2: 이어온 전용 계정 폴더 뿌리
   // 허브 컨테이너(감독 프로세스가 다시 띄움)에서는 설정 파일이 바뀌면 끝나서 새 설정으로 다시 시작한다(허브 웹의 실행 스위치).
   if (process.env.IEON_EXIT_ON_CONFIG_CHANGE === '1') {
     const { watchFile } = await import('node:fs');
@@ -127,7 +132,19 @@ export async function engineHealth(config) {
     claudeChannel: channel
       ? await probe(`${channel}/v1/health`, { authorization: `Bearer ${readFileSync(config.claude.tokenFile, 'utf8').trim()}` })
       : 'not_configured',
+    // A2(EA10): 대화마다 어느 이어온 전용 계정으로 나가는지 서버(허브 포함) 화면에 보이게 이름표만 알린다. PC 기본은 빼고 보낸다.
+    ...codexAccountHealth(config),
   };
+}
+
+export function codexAccountHealth(config) {
+  const out = {};
+  for (const t of config.codex?.allowlist ?? []) {
+    if (config.codex?.modes?.[t] === 'shared_server') continue; // 공유 서버 방식은 그 서버의 로그인
+    const label = accountLabel(config, codexAccountId(config, t));
+    if (label) out[t] = label;
+  }
+  return { codexAccounts: out, codexDefault: accountLabel(config, codexAccountId(config, null)) };
 }
 
 export { receiptLog };

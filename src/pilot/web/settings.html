@@ -96,6 +96,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
 <div class="admin" id="admin">
   <nav class="atabs" id="atabs" aria-label="설정 메뉴">
     <button type="button" data-atab="pc">이 PC</button>
+    <button type="button" data-atab="acct">계정</button>
     <button type="button" data-atab="hub">밖에서도 쓰기</button>
     <button type="button" data-atab="msg">메신저</button>
     <button type="button" data-atab="conv">대화</button>
@@ -115,6 +116,23 @@ header .right button { border:1px solid var(--border); background:var(--surface)
         <input id="devDir" placeholder="작업 폴더(선택, 예: C:/work/proj)" autocomplete="off" aria-label="작업 폴더">
         <button class="primary" type="submit">허용 목록에 추가</button>
       </form>
+    </div>
+  </section>
+  <section class="atab" data-atab="acct" hidden aria-label="계정">
+    <h3>계정</h3>
+    <div id="acBox" hidden>
+      <div class="muted">질문이 어느 계정의 사용량으로 나갈지 정합니다. 대화(세션)는 계정과 상관없이 이 PC의 것을 그대로 이어 씁니다. 이어온 전용 계정은 Codex Desktop·웹의 로그인과 따로이고, 로그인은 공식 화면에서 직접 합니다(이어온은 로그인 정보를 읽지 않음). 한도에 걸려도 이어온이 스스로 다른 계정으로 바꾸지 않습니다.</div>
+      <h2>Codex 계정</h2>
+      <table class="list"><thead><tr><th>이름</th><th>상태</th><th></th></tr></thead><tbody id="acList"></tbody></table>
+      <div id="acLogin" class="state warn" hidden></div>
+      <form id="acAdd" class="row">
+        <input id="acLabel" placeholder="계정 이름표 (예: 개인, 회사)" maxlength="40" autocomplete="off" aria-label="계정 이름표">
+        <button class="primary" type="submit">계정 추가</button>
+      </form>
+      <div class="row"><label for="acDefault">기본으로 쓸 계정</label><select id="acDefault"></select></div>
+      <div class="muted">기본 계정은 새 세션과, 아래에서 따로 고르지 않은 대화에 쓰입니다. 동시 사용(공유 서버) 대화는 그 서버의 로그인을 씁니다.</div>
+      <table class="list"><thead><tr><th>Codex 대화</th><th>쓸 계정</th></tr></thead><tbody id="acThreads"></tbody></table>
+      <div class="muted">Claude 계정·API 키·호환 주소는 다음 단계에서 넣습니다. 지금 Claude는 그 PC의 Claude Code 로그인을 씁니다.</div>
     </div>
   </section>
   <section class="atab" data-atab="hub" hidden aria-label="밖에서도 쓰기">
@@ -501,6 +519,63 @@ $('devAdd').onsubmit = async (e) => {
   if (r.status !== 200) return setStatus('err', DEV_ERR[r.body.error] || r.body.error || '추가하지 못했습니다');
   $('devThread').value = ''; $('devDir').value = ''; setStatus('ok', '허용 목록에 추가했습니다' + devNote(r.body)); loadDevice();
 };
+// --- A2: 설정 → 계정(이 PC에서 연 화면만) ---
+const AC_ERR = { local_only: '이 PC에서 연 화면에서만 바꿀 수 있습니다', too_many_accounts: '계정은 5개까지 둘 수 있습니다', bad_label: '이름표를 넣으세요', bad_account: '없는 계정입니다', thread_not_allowed: '허용 목록에 없는 대화입니다' };
+const AC_LOGIN = { waiting: '로그인을 기다리는 중', failed: '로그인 실패', cancelled: '로그인 취소' };
+let acPoll = null;
+async function loadAccounts() {
+  const r = await api('/v1/admin/local/accounts'); $('acBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  const d = r.body; const tb = $('acList'); tb.innerHTML = '';
+  if (!d.accounts.length) { const tr = el('tr'); tr.append(el('td', '이어온 전용 계정 없음 — 지금은 PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)을 씁니다', 'muted')); tb.append(tr); }
+  let waiting = null;
+  for (const a of d.accounts) {
+    const tr = el('tr'); tr.append(el('td', a.label));
+    tr.append(el('td', a.loggedIn ? '로그인됨' : (AC_LOGIN[a.login.state] ?? '로그인 안 됨'), a.loggedIn ? 'ok' : 'muted'));
+    const td = el('td');
+    const act = (text, fn) => { const b = el('button', text); b.type = 'button'; b.onclick = fn; td.append(b); };
+    if (!a.loggedIn && a.login.state !== 'waiting') act('로그인', async () => { await api('/v1/admin/local/accounts/' + a.id + '/login', { method: 'POST', body: '{}' }); loadAccounts(); });
+    if (a.login.state === 'waiting') act('취소', async () => { await api('/v1/admin/local/accounts/' + a.id + '/login/cancel', { method: 'POST', body: '{}' }); loadAccounts(); });
+    if (a.loggedIn) act('로그아웃', async () => { if (!confirm(a.label + ' 계정에서 로그아웃할까요? 이 계정을 쓰는 대화는 다시 로그인할 때까지 보내지 않습니다.')) return; await api('/v1/admin/local/accounts/' + a.id + '/logout', { method: 'POST', body: '{}' }); loadAccounts(); });
+    act('지우기', async () => { if (!confirm(a.label + ' 계정을 지울까요? 로그아웃하고, 이 계정을 쓰던 대화는 PC 기본 로그인으로 돌아갑니다. 대화 기록은 지우지 않습니다.')) return;
+      const y = await api('/v1/admin/local/accounts/' + a.id, { method: 'DELETE' }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '계정을 지웠습니다' : (AC_ERR[y.body.error] || y.body.error)); loadAccounts(); });
+    tr.append(td); tb.append(tr);
+    if (a.login.state === 'waiting') waiting = a;
+  }
+  const box = $('acLogin'); box.hidden = !waiting; box.innerHTML = '';
+  if (waiting) {
+    box.append(el('div', waiting.label + ' 계정 로그인: 아래 주소를 열고 이어온에서 쓸 계정으로 로그인한 뒤 코드를 넣으세요(15분 안에).'));
+    if (waiting.login.url) { const a = el('a', waiting.login.url); a.href = waiting.login.url; a.target = '_blank'; a.rel = 'noopener'; box.append(a); }
+    box.append(el('div', '코드: ' + (waiting.login.code ?? '받는 중…'), 'code'));
+  }
+  clearTimeout(acPoll); if (waiting) acPoll = setTimeout(() => loadAccounts().catch(() => {}), 3000);
+  const opts = [['pc_default', 'PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.loggedIn ? '' : ' (로그인 안 됨)')])];
+  const fill = (sel, list, val) => { sel.innerHTML = ''; for (const [v, t] of list) { const o = el('option', t); o.value = v; sel.append(o); } sel.value = val; };
+  fill($('acDefault'), opts, d.defaultAccount);
+  const tt = $('acThreads'); tt.innerHTML = '';
+  for (const t of d.threads) {
+    const tr = el('tr'); tr.append(el('td', t.threadId));
+    const td = el('td');
+    if (t.mode === 'shared_server') td.append(el('span', '공유 서버의 로그인', 'muted'));
+    else {
+      const sel = el('select'); sel.setAttribute('aria-label', t.threadId + ' 쓸 계정');
+      fill(sel, [['inherit', '기본 계정 따름'], ...opts], d.accountFor[t.threadId] ?? 'inherit');
+      sel.onchange = () => useAccount({ threadId: t.threadId, accountId: sel.value });
+      td.append(sel);
+    }
+    tr.append(td); tt.append(tr);
+  }
+}
+async function useAccount(body) {
+  const r = await api('/v1/admin/local/accounts/use', { method: 'PUT', body: JSON.stringify(body) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '쓸 계정을 바꿨습니다' + devNote(r.body) : (AC_ERR[r.body.error] || r.body.error)); loadAccounts();
+}
+$('acDefault').onchange = () => useAccount({ accountId: $('acDefault').value });
+$('acAdd').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await api('/v1/admin/local/accounts', { method: 'POST', body: JSON.stringify({ label: $('acLabel').value.trim() }) });
+  if (r.status !== 201) return setStatus('err', AC_ERR[r.body.error] || r.body.error || '추가하지 못했습니다');
+  $('acLabel').value = ''; setStatus('ok', '계정을 추가했습니다. 로그인을 누르세요.'); loadAccounts();
+};
 async function loadHubLink() {
   const r = await api('/v1/admin/local/hub'); $('hubLinkBox').hidden = r.status !== 200; if (r.status !== 200) return;
   const s = r.body; const box = $('hubLinkState'); box.innerHTML = '';
@@ -649,6 +724,7 @@ async function loadAdmin() {
   loadPairings().catch(() => {});
   loadHubLink().catch(() => {});
   loadDevice().catch(() => {});
+  loadAccounts().catch(() => {});
   loadCodex().catch(() => {});
   loadSecurity().catch(() => {});
   loadHubEngine().catch(() => {});
@@ -772,6 +848,7 @@ function applyMode() {
   $('modeTag').textContent = hub ? '허브 · ' + location.host : '이 PC';
   document.title = '이어온 설정 — ' + (hub ? '허브' : '이 PC');
   document.querySelector('#atabs [data-atab="pc"]').hidden = hub;
+  document.querySelector('#atabs [data-atab="acct"]').hidden = hub; // A2: 계정은 그 PC에서
   document.querySelector('#atabs [data-atab="hubsec"]').hidden = !hub;
   $('inviteBox').hidden = !hub;
   let saved = null; try { saved = localStorage.getItem('ieon_stab'); } catch { saved = null; }

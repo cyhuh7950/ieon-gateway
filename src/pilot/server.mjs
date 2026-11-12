@@ -16,7 +16,8 @@ import { createWebAuth } from './web-auth.mjs';
 import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs';
 import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
-import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
+import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector, addCodexAccount, removeCodexAccount, useCodexAccount } from './device-settings.mjs';
+import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome, cleanLabel } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { listCodexThreads } from './codex-threads.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
@@ -148,6 +149,7 @@ export function createApp(config) {
   // W5: 허브 웹의 Codex 로그인(기기 코드). 허브에만 있다(PC는 그 PC의 Codex 앱 로그인을 그대로 쓴다).
   const codexLogin = access ? (config.codexLogin ?? createCodexLogin({ log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') })) : null;
   // U4: 처음 설정의 "준비 확인" — 이 PC의 Codex 로그인 여부만(공식 `codex login status`, 계정 정보는 돌려주지 않음).
+  const accountLogins = new Map(); // A2: 계정별 공식 로그인 진행 상태
   const localCodexStatus = access ? null : (config.localCodexStatus ?? (() => createCodexLogin().status()));
   const localDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') && !req.headers['x-forwarded-for'];
   // 기기 설정이 바뀌면 그 설정을 읽는 연결부를 다시 띄운다. 이 서버가 띄운 것이 아니면 다시 켜야 한다고 알린다.
@@ -201,6 +203,11 @@ export function createApp(config) {
     if (access && c.newSession) return { mode: 'hub_login', label: c.engine === 'codex_thread' ? '허브의 Codex 로그인' : '허브의 Claude 로그인' };
     if (c.engine === 'claude_channel') return { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' };
     if (c.engine === 'claude_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
+    if (c.connectMode === 'shared_server') return { mode: 'shared_server', label: '공유 서버의 로그인 — 그 PC에서 띄운 Codex 공유 서버' };
+    // A2: 연결부가 알려 준 이어온 전용 계정(대화별 → 새 세션은 기본)
+    const h = health.get(c.hostId);
+    const mine = c.newSession ? h?.codexDefault : h?.codexAccounts?.[String(c.sessionRef ?? '').toLowerCase()];
+    if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine };
     return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정' };
   };
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
@@ -268,7 +275,13 @@ export function createApp(config) {
         }
         try {
           const h = JSON.parse(req.headers['x-ieon-health'] ?? 'null');
-          if (h && typeof h === 'object') health.set(device.hostId, { codexShared: String(h.codexShared), claudeChannel: String(h.claudeChannel) });
+          if (h && typeof h === 'object') {
+            // A2: 대화별 이어온 전용 계정 이름표(문자열만, 개수·길이 제한)
+            const acc = h.codexAccounts && typeof h.codexAccounts === 'object' ? Object.entries(h.codexAccounts).slice(0, 100)
+              .filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && typeof v === 'string').map(([k, v]) => [k.toLowerCase(), cleanLabel(v)]) : [];
+            health.set(device.hostId, { codexShared: String(h.codexShared), claudeChannel: String(h.claudeChannel),
+              codexAccounts: Object.fromEntries(acc), codexDefault: typeof h.codexDefault === 'string' ? cleanLabel(h.codexDefault) : null });
+          }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }
         // W3: 이 PC가 허브에 연결돼 있으면 이 PC 서버는 작업을 내주지 않는다(한 PC가 두 서버의 질문을 함께 실행하지 않게).
         if (req.method === 'GET' && path === '/v1/device/jobs' && hubLink?.hubMode()) return json(res, 204);
@@ -427,6 +440,50 @@ export function createApp(config) {
           if (ct && req.method === 'DELETE') {
             if (!removeCodexThread(cfgPath, ct[1])) return json(res, 404, { error: 'not_found' });
             return json(res, 200, { ...readDevice(cfgPath), ...(await applyDevice()) });
+          }
+          return json(res, 404, { error: 'not_found' });
+        }
+        // A2: 설정 → 계정(이 PC에서 연 화면만). 이어온 전용 Codex 계정 등록·공식 로그인·로그아웃·지우기·고르기.
+        // 로그인은 공식 기기 코드(주소·코드만 화면에), 로그인 파일은 계정 폴더에만 — 서버는 있는지만 본다.
+        if (path.startsWith('/v1/admin/local/accounts')) {
+          if (access) return json(res, 404, { error: 'not_found' });
+          const cfgPath = config.connectorConfigPath;
+          if (!cfgPath || !existsSync(cfgPath)) return json(res, 404, { error: 'no_connector_config' });
+          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          const dir = accountsDirFor(cfgPath, JSON.parse(readFileSync(cfgPath, 'utf8')));
+          const envOf = (id) => ({ ...process.env, CODEX_HOME: codexHomeOf(dir, id), CODEX_SQLITE_HOME: desktopCodexHome() });
+          const loginOf = (id) => { if (!accountLogins.has(id)) accountLogins.set(id, (config.accountLogin ?? ((env) => createCodexLogin({ env })))(envOf(id))); return accountLogins.get(id); };
+          const view = () => {
+            const d = readDevice(cfgPath);
+            return { accounts: d.codexAccounts.map((a) => ({ ...a, engine: 'codex', loggedIn: hasLogin(codexHomeOf(dir, a.id)), login: accountLogins.get(a.id)?.view() ?? { state: 'idle' } })),
+              defaultAccount: d.codexDefaultAccount, accountFor: d.codexAccountFor, threads: d.codexThreads.map((t) => ({ threadId: t.threadId, mode: t.mode })) };
+          };
+          if (req.method === 'GET' && path === '/v1/admin/local/accounts') return json(res, 200, view());
+          if (req.method === 'POST' && path === '/v1/admin/local/accounts') {
+            const id = 'a' + randomBytes(4).toString('hex');
+            addCodexAccount(cfgPath, { id, label: (await readJson(req)).label });
+            try { createCodexHome(dir, id); } catch (e) { removeCodexAccount(cfgPath, id); throw e; }
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'account_added', engine: 'codex' }) + '\n');
+            return json(res, 201, { id, ...view() });
+          }
+          if (req.method === 'PUT' && path === '/v1/admin/local/accounts/use') {
+            const b = await readJson(req);
+            useCodexAccount(cfgPath, { threadId: b.threadId ?? null, accountId: String(b.accountId ?? '') });
+            return json(res, 200, { ...view(), ...(await applyDevice()) });
+          }
+          const am = path.match(/^\/v1\/admin\/local\/accounts\/([a-z0-9]{2,16})(\/login|\/login\/cancel|\/logout)?$/);
+          if (!am || !readDevice(cfgPath).codexAccounts.some((a) => a.id === am[1])) return json(res, 404, { error: 'not_found' });
+          const [, id, act] = am;
+          if (req.method === 'POST' && act === '/login') { loginOf(id).start(); return json(res, 200, view()); }
+          if (req.method === 'POST' && act === '/login/cancel') { loginOf(id).cancel(); return json(res, 200, view()); }
+          if (req.method === 'POST' && act === '/logout') { await loginOf(id).logout(); return json(res, 200, view()); }
+          if (req.method === 'DELETE' && !act) {
+            if (hasLogin(codexHomeOf(dir, id))) await loginOf(id).logout();
+            loginOf(id).cancel(); accountLogins.delete(id);
+            removeCodexAccount(cfgPath, id);
+            removeCodexHome(dir, id);
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'account_removed', engine: 'codex' }) + '\n');
+            return json(res, 200, { ...view(), ...(await applyDevice()) });
           }
           return json(res, 404, { error: 'not_found' });
         }

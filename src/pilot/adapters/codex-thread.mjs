@@ -25,12 +25,13 @@ async function runAlternate(threadId, question, deps) {
     throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
   }
   const { Codex } = await deps.loadSdk();
+  const codexOpts = deps.env ? { env: deps.env } : undefined; // A2: 고른 이어온 전용 계정(없으면 PC 기본 로그인)
   // ThreadOptions를 비우면 SDK(codex exec)가 사용자 config.toml의 sandbox_mode(이 PC는 danger-full-access)와
   // approval never로 실행한다(2026-10-30 rollout 확인). 외부 질문은 항상 읽기 전용·승인 없음·웹/네트워크 차단으로 고정하고,
   // SDK 옵션은 이번 실행에만 적용되고 Desktop은 다음 turn에 자기 설정을 다시 쓴다(rollout 확인).
   // workingDirectory(--cd)는 exec resume에서 os error 2로 실패하므로 넘기지 않고, codex 프로세스가 시작될 때의
   // 현재 폴더를 원래 대화 폴더로 잠시 바꾼다. 연결부는 한 번에 한 작업만 실행한다.
-  const thread = new Codex().resumeThread(threadId, {
+  const thread = new Codex(codexOpts).resumeThread(threadId, {
     sandboxMode: 'read-only',
     approvalPolicy: 'never',
     networkAccessEnabled: false,
@@ -100,12 +101,13 @@ function newSessionPlan(ns, cfg) {
 async function runNewSession({ sessionRef, question, newSession }, deps, { config, created }) {
   const plan = newSessionPlan(newSession, config);
   const { Codex } = await deps.loadSdk();
+  const codexOpts = deps.env ? { env: deps.env } : undefined;
   let thread;
   let cwd;
   const pending = sessionRef.startsWith('pending:');
   if (pending) {
     mkdirSync(plan.workspace, { recursive: true });
-    thread = new Codex().startThread({ ...plan.options, workingDirectory: plan.workspace });
+    thread = new Codex(codexOpts).startThread({ ...plan.options, workingDirectory: plan.workspace });
   } else {
     // 서버 DB만 믿지 않는다. 이 연결부가 직접 만든 대화만 새 세션으로 재개한다.
     if (sessionRef === EXCLUDED || !created.has(sessionRef)) throw new EngineError('thread_not_allowed', 403);
@@ -113,7 +115,7 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
     if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) {
       throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
     }
-    thread = new Codex().resumeThread(sessionRef, plan.options);
+    thread = new Codex(codexOpts).resumeThread(sessionRef, plan.options);
     cwd = plan.workspace;
   }
   const turn = await streamTurn(thread, question, { cwd, blocked: plan.blocked });
@@ -193,8 +195,15 @@ async function runShared(threadId, question, { endpoint, token }) {
   }
 }
 
+// A2: 계정이 없거나 로그인 전이면 모델을 부르기 전에 거절(어느 계정인지 모르는 채로 다른 계정 사용량을 쓰지 않게).
+function accountEnv(opts, threadId) {
+  if (!opts.accountEnv) return null;
+  try { return opts.accountEnv(threadId); } catch (e) { throw new EngineError(e.message, e.http ?? 409); }
+}
+
 // opts: { live, allowlist, modes: {threadId: 'alternate'|'shared_server'}, shared: {endpoint, tokenFile}, probe?, loadSdk?,
-//         newSessions?: { config(loadNewSessionsConfig 결과), created: { has(id), add(id, name) } } }
+//         newSessions?: { config(loadNewSessionsConfig 결과), created: { has(id), add(id, name) } },
+//         accountEnv?: (threadId|null) => env|null — A2 이어온 전용 계정. null이면 PC 기본 로그인. 공유 서버 방식은 그 서버의 로그인이라 쓰지 않는다 }
 export function codexThreadAdapter(opts) {
   const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')) };
   return {
@@ -203,7 +212,7 @@ export function codexThreadAdapter(opts) {
       if (newSession) {
         if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
         if (!opts.live) throw new EngineError('live_disabled', 503);
-        return runNewSession({ sessionRef: threadId, question, newSession }, deps, opts.newSessions);
+        return runNewSession({ sessionRef: threadId, question, newSession }, { ...deps, env: accountEnv(opts, null) }, opts.newSessions);
       }
       if (threadId === EXCLUDED || !opts.allowlist.includes(threadId)) throw new EngineError('thread_not_allowed', 403);
       if (!opts.live) throw new EngineError('live_disabled', 503);
@@ -214,7 +223,7 @@ export function codexThreadAdapter(opts) {
         const token = readFileSync(opts.shared.tokenFile, 'utf8').trim();
         return runShared(threadId, question, { endpoint: opts.shared.endpoint, token });
       }
-      return runAlternate(threadId, question, { ...deps, workingDirectory: opts.workingDirectories?.[threadId] });
+      return runAlternate(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId] });
     },
   };
 }
