@@ -28,7 +28,7 @@ function anything() {
   return proxy;
 }
 
-async function boot(html, { authState }) {
+async function boot(html, { authState, data = {}, after }) {
   const errors = [];
   const elements = new Map();
   const document = new Proxy({}, {
@@ -41,6 +41,8 @@ async function boot(html, { authState }) {
     },
   });
   const fetch = async (path) => {
+    const hit = Object.keys(data).find((k) => String(path) === k);
+    if (hit) return { status: 200, ok: true, json: async () => data[hit], text: async () => '' };
     const body = String(path).includes('/v1/auth/state') ? authState : {};
     return { status: String(path).includes('/v1/auth/state') ? 200 : 404, // 401이면 화면이 로그인으로 넘어가며 오류를 던진다(정상 동작) — 여기서는 시작만 본다
       ok: false, json: async () => body, text: async () => '' };
@@ -56,6 +58,8 @@ async function boot(html, { authState }) {
   process.on('unhandledRejection', onRej);
   try { vm.runInNewContext(scripts(html), ctx); } catch (e) { errors.push(e); }
   await new Promise((r) => setTimeout(r, 120));
+  // 화면이 잡아 삼키는 오류도 보려고, 시험이 직접 함수를 불러 본다(예: 목록 그리기 load)
+  if (after) { try { await after(ctx); } catch (e) { errors.push(e); } }
   process.off('unhandledRejection', onRej);
   // 가짜 DOM이 만드는 엉뚱한 값 때문이 아니라 코드 순서·이름 오류(ReferenceError, 정의 전 사용)만 문제로 본다.
   return errors.filter((e) => e instanceof ReferenceError || /before initialization|is not defined/.test(String(e?.message)));
@@ -70,3 +74,12 @@ for (const [file, states] of [['app.html', [{ loggedIn: false, mode: 'local', lo
     }
   });
 }
+// AP-1(2026-11-12 허브에서 발견): 목록 그리기(load)가 정의 전 변수를 써서 대화 목록이 통째로 안 보였다. 화면은 startApp에서 오류를
+// 삼키므로, 실제 목록 데이터로 load()를 직접 불러 순서 오류를 잡는다.
+test('화면: 대화·방이 있는 목록 그리기(load)가 정의 전 사용 없이 끝난다', async () => {
+  const conv = { conversationId: 'c1', label: '시험', engine: 'codex_thread', deviceOnline: true, busy: false, attention: 0, account: { mode: 'pc_default', label: 'PC 기본 로그인' },
+    staff: { name: '시험', roleName: null, icon: null }, host: { id: 'h_pc', name: '신산 PC' } };
+  const data = { '/v1/conversations': { conversations: [conv] }, '/v1/rooms': { rooms: [{ roomId: 'room_1', name: '방', lead: 'c1', guide: '', members: ['c1'] }] } };
+  const errs = await boot(web('app.html'), { authState: { loggedIn: true, mode: 'hub' }, data, after: (ctx) => ctx.load() });
+  assert.deepEqual(errs.map((e) => String(e.message)), []);
+});
