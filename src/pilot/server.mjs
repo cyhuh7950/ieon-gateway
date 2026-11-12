@@ -1150,8 +1150,8 @@ export function createApp(config) {
       if (allowedClients?.length && !allowedClients.includes(from)) { res.writeHead(403); return res.end(); }
       server.emit('request', req, res);
     });
-    extra.push(s2);
-    return new Promise((r, j) => { s2.once('error', j); s2.listen(port, host, () => r(`${host}:${port}`)); });
+    // 그 주소가 지금 이 PC에 없으면(Tailscale 꺼짐 등) 실패만 돌려주고 서버는 계속(2026-11-13: 이 때문에 서버 전체가 안 켜졌음)
+    return new Promise((r, j) => { s2.once('error', (e) => { s2.close(); j(e); }); s2.listen(port, host, () => { extra.push(s2); r(`${host}:${port}`); }); });
   };
 
   // P4: 허브 공개용 Unix 소켓. 같은 기계의 전달 컨테이너(ieun-relay)가 이 소켓으로 넘겨 준다(방화벽·호스트 포트 변경 없음).
@@ -1210,9 +1210,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (app.hubLink && app.mode() !== 'pc') process.stderr.write(JSON.stringify({ ch: 'server', event: 'hub_link_resume', result: app.hubLink.resume() }) + '\n');
   process.stderr.write(`ieon pilot server: http://127.0.0.1:${port}\n`);
   const hosts = [...(config.extraHosts ?? []), ...(config.webAccess?.tailscale?.listenHost ? [config.webAccess.tailscale.listenHost] : [])];
-  for (const host of new Set(hosts)) {
-    process.stderr.write(`ieon pilot server: http://${await app.listenExtra(port, host, config.extraAllowedClients)}\n`);
-  }
+  // 덤 주소(Tailscale)는 열지 못해도 서버는 계속 켜 두고 1분마다 다시 연다(이 PC 화면·메신저·허브 연결은 그대로)
+  const openExtra = async (host) => {
+    try { process.stderr.write(`ieon pilot server: http://${await app.listenExtra(port, host, config.extraAllowedClients)}\n`); }
+    catch (e) {
+      process.stderr.write(JSON.stringify({ ch: 'server', event: 'extra_listen_failed', host, error: String(e.code ?? e.message).slice(0, 40) }) + '\n');
+      if (!String(e.message).startsWith('listen_host_not_allowed')) setTimeout(() => openExtra(host), 60_000).unref?.();
+    }
+  };
+  for (const host of new Set(hosts)) await openExtra(host);
   if (config.listenSocket) process.stderr.write(`ieon pilot server: unix:${await app.listenSocket(config.listenSocket)}\n`);
   if (config.publicListen) {
     const p = await app.listenPublic(config.publicListen.port, config.publicListen.host ?? '0.0.0.0');
