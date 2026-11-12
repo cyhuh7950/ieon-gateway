@@ -2,6 +2,7 @@
 // 사용: node src/pilot/server.mjs <configPath>
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
 import { createServer } from 'node:http';
+import { hostname } from 'node:os';
 import { existsSync, readFileSync, rmSync, chmodSync } from 'node:fs';
 import { createHash, timingSafeEqual, randomBytes, randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +28,7 @@ const DEVICE_FRESH_MS = 30000;
 // 대화 중심 새 화면(설계 UI_CHAT_FIRST U1)이 `/`, 예전 화면은 U8까지 `/classic`(결정 UD4).
 const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
 const WEB_CLASSIC = fileURLToPath(new URL('./web/index.html', import.meta.url));
+const WEB_SETTINGS = fileURLToPath(new URL('./web/settings.html', import.meta.url));
 const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 
 const sha = (s) => createHash('sha256').update(s).digest();
@@ -179,6 +181,14 @@ export function createApp(config) {
     if (access || !config.connectorConfigPath || !existsSync(config.connectorConfigPath)) return null;
     try { return readDevice(config.connectorConfigPath).live; } catch { return null; }
   };
+  // U6: 허브 Codex 로그인 여부(허브 새 Codex 세션 카드용). 확인에 몇 초 걸리므로 1분마다 한 번만 묻고 결과를 둔다. 모르면 카드 없음.
+  let hubCodex = { loggedIn: null, at: 0, busy: false };
+  const noteHubCodex = (s) => { hubCodex = { loggedIn: Boolean(s?.loggedIn), at: Date.now(), busy: false }; };
+  const refreshHubCodex = () => {
+    if (!codexLogin || hubCodex.busy || Date.now() - hubCodex.at < 60_000) return;
+    hubCodex.busy = true;
+    Promise.resolve(codexLogin.status()).then(noteHubCodex, () => { hubCodex = { ...hubCodex, at: Date.now(), busy: false }; });
+  };
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
   const cardsFor = (c, live) => {
     const cards = [];
@@ -186,6 +196,7 @@ export function createApp(config) {
     else if (!online(c.hostId)) cards.push({ kind: 'device_offline' });
     else if (engineReady(c) === false) cards.push({ kind: 'engine_off', engine: c.engine });
     if (c.heldBy) cards.push({ kind: 'held', requestId: c.heldBy.requestId, status: c.heldBy.status, errorCode: c.heldBy.errorCode ?? null });
+    if (access && c.newSession && c.engine === 'codex_thread' && hubCodex.loggedIn === false) cards.push({ kind: 'hub_codex_login' });
     if (c.newSession?.state === 'archived') cards.push({ kind: 'archived' });
     if (live === false && !hubLink?.hubMode()) cards.push({ kind: 'live_off' });
     return cards;
@@ -211,9 +222,9 @@ export function createApp(config) {
         res.writeHead(200, { 'content-type': 'image/x-icon', 'cache-control': 'max-age=86400' });
         return res.end(readFileSync(WEB_ICON));
       }
-      if (req.method === 'GET' && (path === '/' || path === '/classic')) {
+      if (req.method === 'GET' && (path === '/' || path === '/classic' || path === '/settings')) {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-        return res.end(readFileSync(path === '/' ? WEB_PAGE : WEB_CLASSIC));
+        return res.end(readFileSync(path === '/' ? WEB_PAGE : path === '/settings' ? WEB_SETTINGS : WEB_CLASSIC));
       }
 
       // --- PC 연결부 API ---
@@ -254,9 +265,9 @@ export function createApp(config) {
         const retry = overLimit(`pair:${path}:${ipOf(req)}`, path === '/v1/pair/start' ? 10 : 60);
         if (retry) return tooMany(res, retry);
         const body = await readJson(req);
-        const r = path === '/v1/pair/start' ? pairing.start({ name: body.name, from: ipOf(req) }) : pairing.poll(body.pairId);
+        const r = path === '/v1/pair/start' ? pairing.start({ name: body.name, from: ipOf(req), invite: body.invite }) : pairing.poll(body.pairId);
         if (r.error) return json(res, r.http, { error: r.error });
-        if (path === '/v1/pair/start') process.stderr.write(JSON.stringify({ ch: 'server', event: 'pair_requested', from: ipOf(req) }) + '\n');
+        if (path === '/v1/pair/start') process.stderr.write(JSON.stringify({ ch: 'server', event: 'pair_requested', from: ipOf(req), invited: Boolean(r.body?.approved) }) + '\n');
         return json(res, r.http, r.body);
       }
 
@@ -305,6 +316,15 @@ export function createApp(config) {
         }
         // W3: 허브 기기 화면의 연결 요청(짝맺기) 승인·거절
         if (req.method === 'GET' && path === '/v1/admin/pairings') return json(res, 200, { pairings: pairing ? pairing.pending() : [] });
+        // U6: PC 연결 링크(1회용 초대). 초대 값은 응답에만 담고 기록하지 않는다.
+        if (req.method === 'POST' && path === '/v1/admin/pairings/invite') {
+          if (!pairing) return json(res, 404, { error: 'not_found' });
+          const b = await readJson(req);
+          const r = pairing.invite(principal.userId, b.replaceHostId ? String(b.replaceHostId) : null);
+          if (r.error) return json(res, r.http, { error: r.error });
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'pair_invite_created' }) + '\n');
+          return json(res, r.http, r.body);
+        }
         const pr = path.match(/^\/v1\/admin\/pairings\/([\w-]{6,64})\/(approve|reject)$/);
         if (pr && req.method === 'POST') {
           if (!pairing) return json(res, 404, { error: 'not_found' });
@@ -355,7 +375,7 @@ export function createApp(config) {
         // W5: 허브 Codex 로그인
         if (path.startsWith('/v1/admin/codex')) {
           if (!codexLogin) return json(res, 404, { error: 'not_found' });
-          if (req.method === 'GET' && path === '/v1/admin/codex') return json(res, 200, { login: await codexLogin.status(), job: codexLogin.view() });
+          if (req.method === 'GET' && path === '/v1/admin/codex') { const login = await codexLogin.status(); noteHubCodex(login); return json(res, 200, { login, job: codexLogin.view() }); }
           if (req.method === 'POST' && path === '/v1/admin/codex/login') return json(res, 200, codexLogin.start());
           if (req.method === 'POST' && path === '/v1/admin/codex/login/cancel') return json(res, 200, codexLogin.cancel());
           return json(res, 404, { error: 'not_found' });
@@ -443,7 +463,9 @@ export function createApp(config) {
           if (req.method === 'GET' && path === '/v1/admin/local/hub') return json(res, 200, hubLink.status());
           if (req.method === 'POST' && path === '/v1/admin/local/hub/connect') {
             const body = await readJson(req);
-            try { return json(res, 200, await hubLink.connect({ hubUrl: body.hubUrl, name: body.name })); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
+            // U6: 이름을 비우면 이 PC 이름(Windows 컴퓨터 이름), PC 연결 링크로 열었으면 초대를 함께 보낸다.
+            const name = String(body.name ?? '').trim() || hostname().slice(0, 40);
+            try { return json(res, 200, await hubLink.connect({ hubUrl: body.hubUrl, name, invite: body.invite })); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
           }
           if (req.method === 'POST' && path === '/v1/admin/local/hub/disconnect') return json(res, 200, hubLink.disconnect({ forget: (await readJson(req)).forget === true }));
           if (req.method === 'POST' && path === '/v1/admin/local/hub/reconnect') return json(res, 200, { connector: hubLink.reconnect() });
@@ -707,6 +729,9 @@ export function createApp(config) {
 
       if (req.method === 'GET' && path === '/v1/conversations') {
         const live = localLive();
+        // U6: 허브 화면은 목록을 PC별로 묶는다(기기 이름). 허브 Codex 로그인 상태도 이때 필요하면 새로 묻는다.
+        const hostNames = access ? new Map(store.listDevices().map((d) => [d.hostId, d.name])) : null;
+        if (access) refreshHubCodex();
         // hubMode: 이 PC가 허브에 연결돼 있어 여기서는 질문을 받지 않음(목록·상단 상태가 카드와 같은 말을 하도록).
         return json(res, 200, { ...(hubLink?.hubMode() ? { hubMode: true } : {}), conversations: store.conversations(principal).map((c) => ({
           conversationId: c.conversationId, label: labelOf(c), engine: c.engine,
@@ -715,6 +740,7 @@ export function createApp(config) {
           ...(c.newSession ? { newSession: c.newSession } : {}),
           ...(engineReady(c) === undefined ? {} : { engineReady: engineReady(c) }),
           attention: cardsFor(c, live).length,
+          ...(hostNames ? { host: { id: c.hostId, name: hostNames.get(c.hostId) ?? c.hostId } } : {}),
         })) });
       }
       // U2: 대화 안의 카드. 보낼 수 없는 이유·확인 필요 등 사용자가 처리할 일을 대화별로 모아 준다(동작은 기존 API).

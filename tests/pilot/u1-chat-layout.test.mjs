@@ -43,11 +43,14 @@ test('새 화면은 이미 있는 API만 부른다', () => {
   for (const p of used) assert.ok(allowed.has(p), `새 API를 부르면 안 됨: ${p}`);
 });
 
-test('새 화면에서 여는 예전 화면 탭은 실제로 있다', () => {
-  const hashes = [...new Set([...APP.matchAll(/\/classic#([a-z]+)/g)].map((m) => m[1]))];
-  assert.deepEqual(hashes.sort(), ['bots', 'pc', 'sessions']);
-  for (const h of hashes) assert.ok(CLASSIC.includes(`data-atab="${h}"`), h);
-  assert.ok(CLASSIC.includes('function openHash') && CLASSIC.includes('href="/"'), '예전 화면은 주소의 탭을 열고 새 화면으로 돌아갈 수 있다');
+// U6: 새 화면은 예전 화면 대신 설정 화면(/settings)의 탭으로 연결한다(예전 화면은 U8까지 /classic에 그대로).
+test('새 화면에서 여는 설정 탭은 실제로 있다', () => {
+  const SETTINGS = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
+  const hashes = [...new Set([...APP.matchAll(/\/settings#([a-z]+)/g)].map((m) => m[1]))];
+  assert.deepEqual(hashes.sort(), ['conv', 'hub', 'hubsec', 'msg']);
+  for (const h of hashes) assert.ok(SETTINGS.includes(`data-atab="${h}"`), h);
+  assert.ok(SETTINGS.includes('href="/"'), '설정 화면에서 대화로 돌아갈 수 있다');
+  assert.ok(CLASSIC.includes('function openHash') && CLASSIC.includes('href="/"'), '예전 화면은 그대로 남아 있다');
 });
 
 test('휴대폰 폭에서는 목록과 대화를 번갈아 보여 준다', () => {
