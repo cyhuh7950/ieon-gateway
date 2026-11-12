@@ -505,7 +505,7 @@ const HOST_ERR = { device_offline: '그 PC가 연결돼 있지 않아요(PC가 �
 async function loadTargets() {
   if (authState?.mode !== 'hub') return;
   const r = await api('/v1/admin/devices'); if (r.status !== 200) return;
-  const pcs = r.body.devices.filter((d) => !d.revokedAt);
+  const pcs = r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf); // 허브 자신의 연결부는 PC가 아님(허브 자체로 다룸)
   const fill = (sel, list, cur) => { sel.innerHTML = ''; for (const [v, txt] of list) { const o = el('option', txt); o.value = v; sel.append(o); } if (list.some(([v]) => v === cur)) sel.value = cur; return sel.value; };
   const pcList = pcs.map((d) => [d.hostId, d.name + (d.online ? '' : ' (연결 끊김)')]);
   pcTarget = pcList.length ? fill($('pcTarget'), pcList, pcTarget) : 'none';
