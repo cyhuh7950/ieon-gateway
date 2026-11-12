@@ -6,6 +6,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createBridge } from './bridge.mjs';
 import { DEFAULT_BOT, migrateRooms, resolveBotTokens } from '../bots.mjs';
+const RELAY_OFF = new Set(['kakaoRelayUrl_missing', 'relay_missing']);
 
 // 서버가 아직 봇 정의 API를 모르면(이전 버전) 메신저마다 default 봇만 쓴다.
 const LEGACY = ['telegram', 'discord', 'slack'].map((platform) => ({ platform, botId: DEFAULT_BOT, name: '기본 봇', callNames: [], extraUsers: [], enabled: true }));
@@ -98,6 +99,8 @@ export function createBotRunner(opts) {
       if (e.event === 'conflict' && !entry.conflict) { entry.conflict = true; entry.state = 'conflict'; report(); }
       if (e.event === 'conflict_clear' && entry.conflict) { entry.conflict = false; entry.state = 'connected'; report(); }
       // A1: 연결 실패는 바로 알리고 이유 코드(토큰 거절 등)도 함께 — 화면이 "토큰 없음"으로 잘못 보이지 않게.
+      // 공개 중계(카카오·라인용)를 두지 않은 PC형: 오류가 아니라 "중계 없이 쓰는 중" — 카카오·라인만 쓰지 않고 나머지는 그대로(신산님 2026-11-12).
+      if (e.event === 'open_error' && RELAY_OFF.has(String(e.error))) { entry.state = 'relay_off'; entry.detail = null; report(); log({ ...e, botId: b.botId }); return; }
       if (['open_error', 'closed_fatal'].includes(e.event)) { entry.state = 'error'; entry.detail = /^[\w.:-]{1,40}$/.test(String(e.error ?? '')) ? String(e.error) : 'error'; report(); }
       log({ ...e, botId: b.botId });
     };

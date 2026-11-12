@@ -654,6 +654,7 @@ async function msgClaim() {
       // A1: 연결 실패 이유가 오면 바로 보여 준다(예: 라인이 토큰을 거절).
       if (s === 'error' && b.status.detail && Date.parse(b.status.at) >= savedAt - 5000) { $('m3Hint').textContent = '봇이 연결되지 않았어요 — ' + (DETAIL[b.status.detail] || b.status.detail) + '. 뒤로 가서 토큰을 확인하세요.'; return; }
       // 저장 직후에는 봇이 다음 확인 주기(최대 1분)까지 예전 상태(토큰 없음)로 남아 있다 — 75초 동안은 기다린다.
+      if (s === 'relay_off') { $('m3Hint').textContent = '카카오톡·라인은 공개 중계(또는 허브)가 있어야 받을 수 있어요. 지금 이 PC는 공개 중계 없이 쓰는 중이라 이 메신저는 쓸 수 없어요(텔레그램·디스코드·슬랙은 그대로 돼요).'; return; }
       if (s === 'token_missing' && Date.now() - savedAt < 75_000) { await new Promise((ok) => setTimeout(ok, 3000)); if ($('msg').hidden) return; continue; }
       if (['token_missing', 'duplicate_token', 'conflict', 'error'].includes(s) && i > 3) { $('m3Hint').textContent = '봇이 연결되지 않았어요(' + ({ token_missing: '토큰 없음', duplicate_token: '토큰 중복', conflict: '다른 곳에서 같은 봇을 켜 둠', error: '연결 오류' })[s] + '). 뒤로 가서 토큰을 확인하세요.'; return; }
       await new Promise((ok) => setTimeout(ok, 3000));

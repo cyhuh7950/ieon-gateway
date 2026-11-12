@@ -104,10 +104,12 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <button type="button" data-atab="hubsec">허브 보안·Codex</button>
   </nav>
   <section class="atab" data-atab="pc" hidden aria-label="이 PC">
-    <h3>이 PC</h3>
+    <h3 id="pcTitle">이 PC</h3>
+    <div class="row" id="pcTargetRow" hidden><label for="pcTarget">PC</label><select id="pcTarget"></select></div>
+    <div id="pcTargetNote" class="muted" hidden></div>
     <div id="devBox" hidden>
       <h2>실제 실행·Codex 허용 목록</h2>
-      <div class="muted">이 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. 이 화면(이 PC에서 연 것)에서만 바꿀 수 있고 허브 웹에서는 바꿀 수 없습니다.</div>
+      <div class="muted">그 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. PC형은 그 PC에서 연 화면에서, 허브형은 허브 화면에서 PC를 골라 바꿉니다(허브가 그 PC에 전달).</div>
       <div class="row"><label class="chk"><input type="checkbox" id="devLive"> 실제 실행 켜기(AI 호출이 생김)</label><span id="devConn" class="muted"></span></div>
       <table class="list"><thead><tr><th>Codex 대화 ID</th><th>연결 방식</th><th>작업 폴더</th><th></th></tr></thead><tbody id="devThreads"></tbody></table>
       <form id="devAdd" class="row">
@@ -120,6 +122,8 @@ header .right button { border:1px solid var(--border); background:var(--surface)
   </section>
   <section class="atab" data-atab="acct" hidden aria-label="계정">
     <h3>계정</h3>
+    <div class="row" id="acTargetRow" hidden><label for="acTarget">어디의 계정</label><select id="acTarget"></select></div>
+    <div id="acTargetNote" class="muted" hidden></div>
     <div id="acBox" hidden>
       <div class="muted">질문이 어느 계정의 사용량으로 나갈지 정합니다. 대화(세션)는 계정과 상관없이 이 PC의 것을 그대로 이어 씁니다. 이어온 전용 계정은 Codex Desktop·웹의 로그인과 따로이고, 로그인은 공식 화면에서 직접 합니다(이어온은 로그인 정보를 읽지 않음). 한도에 걸려도 이어온이 스스로 다른 계정으로 바꾸지 않습니다.</div>
       <h2>Codex 계정</h2>
@@ -315,7 +319,9 @@ function setStatus(kind, text) {
 }
 // --- 봇 관리(웹 사용자만, MULTI_BOTS M2-W) ---
 const PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', teams: 'Teams', kakao: '카카오톡', line: '라인' };
-const STATE = { connected: ['st-ok', '연결됨'], starting: ['st-warn', '시작 중'], token_missing: ['st-err', '토큰 없음'],
+// 쓰지 않는 메신저(토큰 없음)와 공개 중계 없이 쓰는 PC의 카카오·라인은 오류가 아니므로 회색으로 둔다.
+const STATE = { connected: ['st-ok', '연결됨'], starting: ['st-warn', '시작 중'], token_missing: ['muted', '토큰 없음 · 쓰지 않으면 그대로 두세요'],
+  relay_off: ['muted', '사용 안 함 · 공개 중계 없이 쓰는 중(카카오·라인은 공개 중계가 있어야 함)'],
   duplicate_token: ['st-err', '토큰 중복'], conflict: ['st-err', '충돌 · 다른 곳에서 같은 봇을 켜 둠'], error: ['st-err', '연결 오류'], platform_not_supported: ['st-err', '지원 안 함'] };
 const ADMIN_ERR = { bad_bot_id: '봇 ID는 영문 소문자·숫자·- 2~32자', bad_name: '이름을 1~30자로', unknown_role: '없는 역할',
   bad_call_name: '부르는 이름은 한글·영문·숫자 1~20자(명령어 이름 불가)', duplicate_call_name: '같은 부르는 이름이 두 번 있음',
@@ -489,8 +495,31 @@ const DEV_ERR = { local_only: '이 PC에서 연 화면에서만 바꿀 수 있�
   bad_mode: '연결 방식이 맞지 않습니다', shared_server_not_configured: '동시 사용 설정이 없는 PC입니다', bad_working_directory: '작업 폴더는 이 PC의 전체 경로여야 합니다', working_directory_missing: '그 작업 폴더가 없습니다' };
 const MODE_TXT = { alternate: '번갈아 쓰기', shared_server: '동시 사용' };
 const devNote = (b) => (b.restarted ? ' — 연결부를 새 설정으로 다시 시작했습니다' : ' — 연결부를 다시 시작하면 적용됩니다');
+// A2-d: PC형·허브형 같은 기능. PC형은 이 PC로(/v1/admin/local/run), 허브형은 고른 PC(또는 허브 자신)로 같은 명령을 보낸다.
+let pcTarget = 'local'; let acTarget = 'local';
+const runOn = (target, op, args = {}) => api(target === 'local' ? '/v1/admin/local/run' : '/v1/admin/hosts/' + encodeURIComponent(target) + '/run', { method: 'POST', body: JSON.stringify({ op, args }) });
+const devRun = (op, args) => runOn(pcTarget, op, args);
+const acRun = (op, args) => runOn(acTarget, op, args);
+const HOST_ERR = { device_offline: '그 PC가 연결돼 있지 않아요(PC가 켜져 있고 이어온이 실행 중인지 확인)', device_no_response: '그 PC가 응답하지 않았어요. 잠시 뒤 다시 해 보세요',
+  device_admin_unknown: '그 PC가 명령을 받았지만 결과를 확인하지 못했어요. 새로 고쳐 상태를 확인하세요', unknown_host: '등록되지 않은 PC입니다', no_connector_config: '그 PC에 연결부 설정이 없어요' };
+async function loadTargets() {
+  if (authState?.mode !== 'hub') return;
+  const r = await api('/v1/admin/devices'); if (r.status !== 200) return;
+  const pcs = r.body.devices.filter((d) => !d.revokedAt);
+  const fill = (sel, list, cur) => { sel.innerHTML = ''; for (const [v, txt] of list) { const o = el('option', txt); o.value = v; sel.append(o); } if (list.some(([v]) => v === cur)) sel.value = cur; return sel.value; };
+  const pcList = pcs.map((d) => [d.hostId, d.name + (d.online ? '' : ' (연결 끊김)')]);
+  pcTarget = pcList.length ? fill($('pcTarget'), pcList, pcTarget) : 'none';
+  acTarget = fill($('acTarget'), [['hub', '허브 자체(허브에서 만든 새 세션)'], ...pcList], acTarget === 'local' ? 'hub' : acTarget);
+  $('pcTargetRow').hidden = !pcList.length; $('acTargetRow').hidden = false;
+  $('pcTargetNote').hidden = Boolean(pcList.length); $('pcTargetNote').textContent = '연결된 PC가 없어요. 밖에서도 쓰기 → PC 연결 링크로 PC를 먼저 연결하세요.';
+}
+$('pcTarget').onchange = () => { pcTarget = $('pcTarget').value; loadDevice().catch(() => {}); };
+$('acTarget').onchange = () => { acTarget = $('acTarget').value; loadAccounts().catch(() => {}); };
 async function loadDevice() {
-  const r = await api('/v1/admin/local/device'); $('devBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  if (pcTarget === 'none') { $('devBox').hidden = true; return; }
+  const r = await devRun('device.get'); $('devBox').hidden = r.status !== 200;
+  if (r.status !== 200) { if (pcTarget !== 'local') { $('pcTargetNote').hidden = false; $('pcTargetNote').textContent = HOST_ERR[r.body.error] || r.body.error; } return; }
+  if (pcTarget !== 'local') $('pcTargetNote').hidden = true;
   const d = r.body;
   $('devLive').checked = d.live;
   $('devConn').textContent = d.managed ? (d.running ? '연결부 실행 중' : '연결부 멈춤') : '';
@@ -502,7 +531,7 @@ async function loadDevice() {
     [x.threadId, MODE_TXT[x.mode] || x.mode, x.workingDirectory || '—'].forEach((v) => tr.append(el('td', v)));
     const td = el('td'); const rm = el('button', '빼기'); rm.type = 'button';
     rm.onclick = async () => { if (!confirm('이 대화를 허용 목록에서 뺄까요? 이어온에서 더 이상 보낼 수 없습니다.')) return;
-      const y = await api('/v1/admin/local/device/codex/' + x.threadId, { method: 'DELETE' });
+      const y = await devRun('device.codex.delete', { threadId: x.threadId });
       setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '뺐습니다' + devNote(y.body) : (DEV_ERR[y.body.error] || y.body.error)); loadDevice(); };
     td.append(rm); tr.append(td); tb.append(tr);
   }
@@ -510,21 +539,22 @@ async function loadDevice() {
 $('devLive').onchange = async () => {
   const on = $('devLive').checked;
   if (on && !confirm('실제 실행을 켜면 질문마다 AI(Codex·Claude)가 호출됩니다. 켤까요?')) { $('devLive').checked = false; return; }
-  const r = await api('/v1/admin/local/device/live', { method: 'PUT', body: JSON.stringify({ live: on }) });
-  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '실제 실행을 ' + (on ? '켰습니다' : '껐습니다') + devNote(r.body) : (DEV_ERR[r.body.error] || r.body.error)); loadDevice();
+  const r = await devRun('device.live', { live: on });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '실제 실행을 ' + (on ? '켰습니다' : '껐습니다') + devNote(r.body) : (DEV_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error)); loadDevice();
 };
 $('devAdd').onsubmit = async (e) => {
   e.preventDefault();
-  const r = await api('/v1/admin/local/device/codex/' + $('devThread').value.trim(), { method: 'PUT', body: JSON.stringify({ mode: $('devMode').value, workingDirectory: $('devDir').value.trim() || null }) });
-  if (r.status !== 200) return setStatus('err', DEV_ERR[r.body.error] || r.body.error || '추가하지 못했습니다');
+  const r = await devRun('device.codex.put', { threadId: $('devThread').value.trim(), mode: $('devMode').value, workingDirectory: $('devDir').value.trim() || null });
+  if (r.status !== 200) return setStatus('err', DEV_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error || '추가하지 못했습니다');
   $('devThread').value = ''; $('devDir').value = ''; setStatus('ok', '허용 목록에 추가했습니다' + devNote(r.body)); loadDevice();
 };
-// --- A2: 설정 → 계정(이 PC에서 연 화면만) ---
+// --- A2: 설정 → 계정(PC형은 이 PC, 허브형은 허브 자신 또는 고른 PC) ---
 const AC_ERR = { local_only: '이 PC에서 연 화면에서만 바꿀 수 있습니다', too_many_accounts: '계정은 5개까지 둘 수 있습니다', bad_label: '이름표를 넣으세요', bad_account: '없는 계정입니다', thread_not_allowed: '허용 목록에 없는 대화입니다' };
 const AC_LOGIN = { waiting: '로그인을 기다리는 중', failed: '로그인 실패', cancelled: '로그인 취소' };
 let acPoll = null;
 async function loadAccounts() {
-  const r = await api('/v1/admin/local/accounts'); $('acBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  const r = await acRun('accounts.get'); $('acBox').hidden = r.status !== 200;
+  $('acTargetNote').hidden = r.status === 200 || acTarget === 'local'; if (r.status !== 200) { $('acTargetNote').textContent = HOST_ERR[r.body.error] || r.body.error; return; }
   const d = r.body; const tb = $('acList'); tb.innerHTML = '';
   if (!d.accounts.length) { const tr = el('tr'); tr.append(el('td', '이어온 전용 계정 없음 — 지금은 PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)을 씁니다', 'muted')); tb.append(tr); }
   let waiting = null;
@@ -533,11 +563,11 @@ async function loadAccounts() {
     tr.append(el('td', a.loggedIn ? '로그인됨' : (AC_LOGIN[a.login.state] ?? '로그인 안 됨'), a.loggedIn ? 'ok' : 'muted'));
     const td = el('td');
     const act = (text, fn) => { const b = el('button', text); b.type = 'button'; b.onclick = fn; td.append(b); };
-    if (!a.loggedIn && a.login.state !== 'waiting') act('로그인', async () => { await api('/v1/admin/local/accounts/' + a.id + '/login', { method: 'POST', body: '{}' }); loadAccounts(); });
-    if (a.login.state === 'waiting') act('취소', async () => { await api('/v1/admin/local/accounts/' + a.id + '/login/cancel', { method: 'POST', body: '{}' }); loadAccounts(); });
-    if (a.loggedIn) act('로그아웃', async () => { if (!confirm(a.label + ' 계정에서 로그아웃할까요? 이 계정을 쓰는 대화는 다시 로그인할 때까지 보내지 않습니다.')) return; await api('/v1/admin/local/accounts/' + a.id + '/logout', { method: 'POST', body: '{}' }); loadAccounts(); });
+    if (!a.loggedIn && a.login.state !== 'waiting') act('로그인', async () => { await acRun('accounts.login', { id: a.id }); loadAccounts(); });
+    if (a.login.state === 'waiting') act('취소', async () => { await acRun('accounts.login.cancel', { id: a.id }); loadAccounts(); });
+    if (a.loggedIn) act('로그아웃', async () => { if (!confirm(a.label + ' 계정에서 로그아웃할까요? 이 계정을 쓰는 대화는 다시 로그인할 때까지 보내지 않습니다.')) return; await acRun('accounts.logout', { id: a.id }); loadAccounts(); });
     act('지우기', async () => { if (!confirm(a.label + ' 계정을 지울까요? 로그아웃하고, 이 계정을 쓰던 대화는 PC 기본 로그인으로 돌아갑니다. 대화 기록은 지우지 않습니다.')) return;
-      const y = await api('/v1/admin/local/accounts/' + a.id, { method: 'DELETE' }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '계정을 지웠습니다' : (AC_ERR[y.body.error] || y.body.error)); loadAccounts(); });
+      const y = await acRun('accounts.delete', { id: a.id }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '계정을 지웠습니다' : (AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadAccounts(); });
     tr.append(td); tb.append(tr);
     if (a.login.state === 'waiting') waiting = a;
   }
@@ -548,7 +578,7 @@ async function loadAccounts() {
     box.append(el('div', '코드: ' + (waiting.login.code ?? '받는 중…'), 'code'));
   }
   clearTimeout(acPoll); if (waiting) acPoll = setTimeout(() => loadAccounts().catch(() => {}), 3000);
-  const opts = [['pc_default', 'PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.loggedIn ? '' : ' (로그인 안 됨)')])];
+  const opts = [['pc_default', acTarget === 'hub' ? '허브 기본 로그인(허브 보안·Codex 탭의 로그인)' : 'PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.loggedIn ? '' : ' (로그인 안 됨)')])];
   const fill = (sel, list, val) => { sel.innerHTML = ''; for (const [v, t] of list) { const o = el('option', t); o.value = v; sel.append(o); } sel.value = val; };
   fill($('acDefault'), opts, d.defaultAccount);
   const tt = $('acThreads'); tt.innerHTML = '';
@@ -566,14 +596,14 @@ async function loadAccounts() {
   }
 }
 async function useAccount(body) {
-  const r = await api('/v1/admin/local/accounts/use', { method: 'PUT', body: JSON.stringify(body) });
-  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '쓸 계정을 바꿨습니다' + devNote(r.body) : (AC_ERR[r.body.error] || r.body.error)); loadAccounts();
+  const r = await acRun('accounts.use', body);
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '쓸 계정을 바꿨습니다' + devNote(r.body) : (AC_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error)); loadAccounts();
 }
 $('acDefault').onchange = () => useAccount({ accountId: $('acDefault').value });
 $('acAdd').onsubmit = async (e) => {
   e.preventDefault();
-  const r = await api('/v1/admin/local/accounts', { method: 'POST', body: JSON.stringify({ label: $('acLabel').value.trim() }) });
-  if (r.status !== 201) return setStatus('err', AC_ERR[r.body.error] || r.body.error || '추가하지 못했습니다');
+  const r = await acRun('accounts.add', { label: $('acLabel').value.trim() });
+  if (r.status !== 201) return setStatus('err', AC_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error || '추가하지 못했습니다');
   $('acLabel').value = ''; setStatus('ok', '계정을 추가했습니다. 로그인을 누르세요.'); loadAccounts();
 };
 async function loadHubLink() {
@@ -723,8 +753,7 @@ async function loadAdmin() {
   loadSecrets().catch(() => {});
   loadPairings().catch(() => {});
   loadHubLink().catch(() => {});
-  loadDevice().catch(() => {});
-  loadAccounts().catch(() => {});
+  loadTargets().catch(() => {}).finally(() => { loadDevice().catch(() => {}); loadAccounts().catch(() => {}); });
   loadCodex().catch(() => {});
   loadSecurity().catch(() => {});
   loadHubEngine().catch(() => {});
@@ -847,8 +876,9 @@ function applyMode() {
   const hub = authState?.mode === 'hub';
   $('modeTag').textContent = hub ? '허브 · ' + location.host : '이 PC';
   document.title = '이어온 설정 — ' + (hub ? '허브' : '이 PC');
-  document.querySelector('#atabs [data-atab="pc"]').hidden = hub;
-  document.querySelector('#atabs [data-atab="acct"]').hidden = hub; // A2: 계정은 그 PC에서
+  // A2-d: PC형·허브형 같은 기능 — 허브에서도 PC 설정·계정 탭을 보이고, 대상 PC를 고른다
+  document.querySelector('#atabs [data-atab="pc"]').textContent = hub ? 'PC 설정' : '이 PC';
+  $('pcTitle').textContent = hub ? 'PC 설정' : '이 PC';
   document.querySelector('#atabs [data-atab="hubsec"]').hidden = !hub;
   $('inviteBox').hidden = !hub;
   let saved = null; try { saved = localStorage.getItem('ieon_stab'); } catch { saved = null; }

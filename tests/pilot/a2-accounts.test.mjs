@@ -96,7 +96,7 @@ test('연결부 상태: 대화별 이어온 계정 이름표만 알리고(PC 기
   assert.equal(by.c2.mode, 'pc_default');
 });
 
-test('설정 → 계정 API: 추가·로그인(계정 폴더로)·고르기·지우기, 이 PC 화면만, 허브에는 없음', async (t) => {
+test('설정 → 계정 API: 추가·로그인(계정 폴더로)·고르기·지우기, 이 PC 화면만, 허브의 PC용 주소는 없음', async (t) => {
   const d = tmp(t, 'ieon-a2s-'); const desk = fakeDesktop(t, d);
   const cfg = join(d, 's2', 'connector.json'); mkdirSync(join(d, 's2'));
   writeFileSync(cfg, JSON.stringify({ live: false, codex: { allowlist: [T1], modes: {}, workingDirectories: {} } }));
@@ -154,12 +154,8 @@ test('설정 → 계정 API: 추가·로그인(계정 폴더로)·고르기·지
   assert.equal((await fetch(hb + '/v1/admin/local/accounts', { headers: { authorization: 'Bearer web', 'x-forwarded-for': '198.51.100.9' } })).status, 404);
 });
 
-test('화면: 설정 → 계정 탭(허브에서는 숨김), 계정 오류 안내', () => {
-  const S = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
+test('화면: 계정 오류 안내(탭 자체는 a2d-hub-parity 시험)', () => {
   const A = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
-  assert.ok(S.includes('data-atab="acct">계정</button>') && S.includes('id="acList"') && S.includes('id="acDefault"') && S.includes('id="acThreads"'));
-  assert.ok(S.includes('document.querySelector(\'#atabs [data-atab="acct"]\').hidden = hub;'), '허브에서는 숨김');
-  assert.ok(S.includes("'/v1/admin/local/accounts/use'") && S.includes('이어온이 스스로 다른 계정으로 바꾸지 않습니다'));
   assert.ok(A.includes("account_not_logged_in: ['warn'") && A.includes("account_missing: ['warn'"));
   assert.ok(!A.includes('준비 중 — 설정 → 계정') && !A.includes('(설정 → 계정, 준비 중)'));
 });
