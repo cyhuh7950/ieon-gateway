@@ -1,0 +1,18 @@
+{
+ "at": "2026-11-13T05:42:15.962Z",
+ "step": "create",
+ "result": {
+  "code": 0,
+  "seconds": 28,
+  "jsonShape": {
+   "conversation_id": "9e943423-83d6-448a-aaf0-48b2121879e5",
+   "status": "string(7)",
+   "response": "string(4)",
+   "duration_seconds": "number",
+   "num_turns": "number",
+   "usage": "object"
+  },
+  "stdoutChars": 259,
+  "stderrTail": ""
+ }
+}

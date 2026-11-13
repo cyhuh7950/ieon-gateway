@@ -1,0 +1,30 @@
+{
+ "at": "2026-11-13T05:44:33.606Z",
+ "step": "concurrent",
+ "result": {
+  "first": {
+   "code": 0,
+   "seconds": 26,
+   "status": "SUCCESS",
+   "sameConversation": true,
+   "conversationId": "9e943423-83d6-448a-aaf0-48b2121879e5",
+   "stderrTail": ""
+  },
+  "second": {
+   "code": 0,
+   "seconds": 11,
+   "status": "SUCCESS",
+   "sameConversation": true,
+   "conversationId": "9e943423-83d6-448a-aaf0-48b2121879e5",
+   "stderrTail": ""
+  }
+ },
+ "presenceLock": {
+  "file": "~/.gemini/antigravity-cli/presence/<id>.lock(빈 파일)",
+  "idle": "NO_WRITER_LOCK",
+  "duringRun": "WRITER_LOCK_CONFLICT(관찰 25/37)",
+  "afterRun": "NO_WRITER_LOCK",
+  "probe": "src/pilot/lock-probe.ps1 -LockPath"
+ },
+ "finding": "Antigravity CLI는 같은 대화의 동시 실행을 막지 않음(둘 다 SUCCESS) → 이어온이 보내기 전에 presence 잠금을 확인해 거부해야 함"
+}
