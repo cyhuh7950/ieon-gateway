@@ -5,6 +5,7 @@ import { claudeChannelAdapter } from './claude-channel.mjs';
 import { claudeCliAdapter } from './claude-cli.mjs';
 import { loadNewSessionsConfig } from '../new-sessions.mjs';
 import { codexEnvFor } from '../accounts.mjs';
+import { cliOnceAdapter } from './cli-once.mjs';
 
 // 이 연결부가 새 세션용으로 만든 엔진 세션 ID 기록(한 줄에 하나, 추가만 한다).
 export function createdLog(path) {
@@ -35,5 +36,8 @@ export async function buildAdapters(config) {
       accountEnv: config.accountsDir ? (threadId) => codexEnvFor(config, config.accountsDir, threadId) : undefined }),
     claude_channel: claudeChannelAdapter({ live, baseUrl: config.claude?.baseUrl, tokenFile: config.claude?.tokenFile }),
     claude_cli: claudeCliAdapter({ live, newSessions }),
+    // E1·E2: 세션 쪽은 그 PC의 허용 목록, 토큰 쪽은 지금 PC 기본 로그인(API 키 변수는 실행 때 지움)
+    agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories }),
+    grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories }),
   };
 }

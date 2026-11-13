@@ -5,7 +5,7 @@ export const STATUS = Object.freeze({
   failed: 'failed', cancelled: 'cancelled', unknown: 'unknown',
 });
 
-export const ENGINES = Object.freeze(['codex_thread', 'claude_channel', 'claude_cli']);
+export const ENGINES = Object.freeze(['codex_thread', 'claude_channel', 'claude_cli', 'agy_cli', 'grok_cli']); // E1·E2: Antigravity·Grok(질문마다 CLI 한 번)
 
 // 세션 잠금을 풀어도 되는 끝 상태. unknown·approval_required는 잠금을 유지한다.
 export const RELEASING = new Set([STATUS.completed, STATUS.failed, STATUS.cancelled]);

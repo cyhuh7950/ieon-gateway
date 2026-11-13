@@ -3,7 +3,7 @@
 // 허브 자신(허브 새 세션)의 계정도 같은 명령으로 다룬다. 업무 대화 제외·로그인 파일 미열람 같은 안전 규칙은 아래 함수들이 그대로 지킨다.
 import { existsSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { readDevice, setLive, upsertCodexThread, removeCodexThread, addCodexAccount, removeCodexAccount, useCodexAccount } from './device-settings.mjs';
+import { readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount } from './device-settings.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 
@@ -12,7 +12,8 @@ export const OPS = {
   'device.get': 'read', 'device.live': 'write', 'device.codex.put': 'write', 'device.codex.delete': 'write',
   'accounts.get': 'read', 'accounts.add': 'write', 'accounts.use': 'write', 'accounts.login': 'write',
   'accounts.login.cancel': 'write', 'accounts.logout': 'write', 'accounts.delete': 'write',
-  'mode.get': 'read', 'mode.set': 'write', // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
+  'mode.get': 'read', 'mode.set': 'write',
+  'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
 };
 // 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 허브 보안·Codex 탭, 허브는 기존 대화 허용 목록이 없음).
 export const HUB_SELF_OPS = new Set(['accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete']);
@@ -53,6 +54,12 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         return { status: 200, body: { ...device(p), ...(await applyDevice()) } };
       case 'device.codex.delete':
         if (!removeCodexThread(p, a.threadId)) return { status: 404, body: { error: 'not_found' } };
+        return { status: 200, body: { ...device(p), ...(await applyDevice()) } };
+      case 'device.cli.put':
+        upsertCliSession(p, { engine: a.engine, sessionId: a.sessionId, workingDirectory: a.workingDirectory ?? null });
+        return { status: 200, body: { ...device(p), ...(await applyDevice()) } };
+      case 'device.cli.delete':
+        if (!removeCliSession(p, { engine: a.engine, sessionId: a.sessionId })) return { status: 404, body: { error: 'not_found' } };
         return { status: 200, body: { ...device(p), ...(await applyDevice()) } };
       case 'mode.get': return modeAdmin ? { status: 200, body: modeAdmin.view() } : { status: 404, body: { error: 'not_found' } };
       case 'mode.set': return modeAdmin ? modeAdmin.set(String(a.mode ?? '')) : { status: 404, body: { error: 'not_found' } };

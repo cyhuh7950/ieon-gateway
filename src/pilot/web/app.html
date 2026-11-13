@@ -391,13 +391,17 @@ details.adv[open] summary { margin-bottom:10px; }
 </div>
 
 <script>
-const ENGINE = { codex_thread: 'Codex', claude_channel: 'Claude 채널', claude_cli: 'Claude 새 세션' };
-const AV = { codex_thread: 'Cx', claude_channel: 'Cl', claude_cli: 'Cl' };
-const HOW = { codex_thread: '보낼 때마다 같은 대화를 다시 열어 이어 씀', claude_channel: '실행 중인 세션에 직접 전달', claude_cli: '질문마다 같은 세션을 이어서 실행' };
+const ENGINE = { codex_thread: 'Codex', claude_channel: 'Claude 채널', claude_cli: 'Claude 새 세션', agy_cli: 'Antigravity', grok_cli: 'Grok' };
+const AV = { codex_thread: 'Cx', claude_channel: 'Cl', claude_cli: 'Cl', agy_cli: 'Ag', grok_cli: 'Gk' };
+const HOW = { codex_thread: '보낼 때마다 같은 대화를 다시 열어 이어 씀', claude_channel: '실행 중인 세션에 직접 전달', claude_cli: '질문마다 같은 세션을 이어서 실행',
+  agy_cli: '질문마다 Antigravity CLI로 같은 대화를 이어 씀(읽기 전용, 다른 곳에서 쓰는 중이면 보내지 않음)', grok_cli: '질문마다 Grok CLI로 같은 세션을 이어 씀(읽기 전용, 보낼 때 다른 곳에서 열어 두지 마세요)' };
 const MODE = { alternate: '번갈아 쓰기', shared_server: '동시 사용' };
 const NS_STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
 const ERR = {
   usage_limit: ['warn', '계정의 사용 한도에 걸려 실행되지 않았어요.'],
+  session_in_use: ['warn', '그 세션을 다른 곳(앱·터미널·다른 실행)에서 쓰는 중이라 보내지 않았어요. 끝난 뒤 다시 보내세요.'],
+  session_load_failed: ['err', '그 세션을 불러오지 못해 보내지 않았어요(새 세션으로 대신하지 않아요). 세션 ID를 확인하세요.'],
+  engine_not_installed: ['err', '그 PC에 이 엔진의 CLI가 설치돼 있지 않아요. 설명서의 준비물을 확인하세요.'],
   work_dir_required: ['warn', '작업 모드는 작업 폴더가 정해진 대화만 쓸 수 있어 보내지 않았어요. 설정 → PC 설정 → 허용 목록에서 작업 폴더를 넣거나 작업 모드를 끄세요.'],
   work_dir_missing: ['warn', '이 대화의 작업 폴더가 그 PC에 없어 보내지 않았어요.'],
   account_not_logged_in: ['warn', '고른 이어온 계정이 로그인돼 있지 않아 보내지 않았어요. 설정 → 계정에서 로그인하세요.'],
@@ -871,7 +875,7 @@ function retryCard() {
   // A1: 한도는 어느 계정인지와 고를 수 있는 길을 함께(실행 안 됨이 확실하므로 다시 보내기는 누를 때만)
   const acct = conv()?.account?.label;
   const text = code === 'usage_limit' ? base + ' 지금 쓰는 계정: ' + (acct ?? '알 수 없음') + '. 한도가 풀린 뒤 다시 보내거나, 등록해 둔 다른 계정으로 바꾸세요(설정 → 계정).' : base;
-  const acts = ['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit', 'usage_limit'].includes(code)
+  const acts = ['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit', 'usage_limit', 'session_in_use'].includes(code)
     ? [btn('다시 보내기', () => { const q = retry.question; retry = null; renderCards(true); send(q); }), btn('닫기', () => { retry = null; renderCards(true); })]
     : [btn('닫기', () => { retry = null; renderCards(true); })];
   return makeCard(kind, '보내지 못한 질문', text + ' (질문: "' + (question.length > 40 ? question.slice(0, 40) + '…' : question) + '")', acts);
