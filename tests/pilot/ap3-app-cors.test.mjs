@@ -71,3 +71,23 @@ test('앱 폴더: 서버와 분리된 package.json, 열쇠는 Bearer로만, 정�
   assert.ok(readFileSync(join(root, 'app/electron/main.cjs'), 'utf8').includes('app://ieon/'));
   assert.ok(existsSync(join(root, 'app/capacitor.config.ts')));
 });
+
+test('AP-3b: 앱 열쇠로 방 만들기·글 보내기·AI 직원 이름 바꾸기가 되고, 설정(역할 목록)은 안 됨', async (t) => {
+  const s = await setup(t);
+  const H = (tok, extra = {}) => ({ authorization: `Bearer ${tok}`, 'content-type': 'application/json', origin: 'https://localhost', ...extra });
+  const code = (await (await fetch(s.base + '/v1/admin/app-devices/code', { method: 'POST', headers: H('web'), body: '{}' })).json()).code;
+  const { token } = await (await fetch(s.base + '/v1/app/pair', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, name: '폰' }) })).json();
+  const st = await fetch(s.base + '/v1/conversations/c1/staff', { method: 'PUT', headers: H(token), body: JSON.stringify({ name: '코덱스', icon: '🛠', roleId: null }) });
+  assert.equal(st.status, 200); assert.equal((await st.json()).name, '코덱스');
+  const room = await fetch(s.base + '/v1/rooms', { method: 'POST', headers: H(token), body: JSON.stringify({ name: '팀', members: ['c1'], lead: 'c1', guide: '' }) });
+  assert.equal(room.status, 201);
+  const { roomId } = await room.json();
+  await fetch(s.base + '/v1/device/jobs', { headers: { authorization: 'Bearer dev' } }); // PC 연결 표시
+  const post = await fetch(s.base + `/v1/rooms/${roomId}/posts`, { method: 'POST', headers: H(token, { 'idempotency-key': 'app-room-0001' }), body: JSON.stringify({ text: '@코덱스 안녕' }) });
+  assert.equal(post.status, 202);
+  assert.equal(post.headers.get('access-control-allow-origin'), 'https://localhost');
+  const posts = (await post.json()).posts;
+  assert.deepEqual(posts.map((p) => p.kind), ['user', 'ask']);
+  assert.ok(!JSON.stringify(posts).includes('resend'), '다시 보내기용 원문은 내보내지 않음');
+  assert.equal((await (await fetch(s.base + '/v1/admin/roles', { headers: H(token) })).json()).error, 'app_not_allowed');
+});

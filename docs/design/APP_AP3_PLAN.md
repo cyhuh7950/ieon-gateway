@@ -48,3 +48,7 @@
 - 만든 것·시험: [MESSENGER_EXPANSION B13](MESSENGER_EXPANSION.md). 모델 호출 0 — 질문 왕복은 가짜 서버(가짜 PC)로 확인해 실제 Codex 왕복은 아직(필요하면 1~2차례 승인 후).
 - 만드는 법(`app/`): `npm test` · `npm run desktop`(PC 앱 실행) · `npm run package:android`(디버그 APK → `app/dist/release/`).
 - 배포: 서버 CORS 수정은 허브·이 PC 적용 승인 뒤에 실제 서버에서 앱을 쓸 수 있음.
+
+## 6. AP-3b 결과(2026-11-14)
+
+- 앱에 방(만들기·@이름·사용 중 알림·다시 보내기·넘기기·방 안 허락 카드)과 AI 직원 이름·아이콘 바꾸기, 안드로이드 뒤로 가기. 서버 코드 변경 없음(시험만 추가) — 앱만 바뀌어 배포는 필요 없고, 새 APK·PC 앱으로 쓰면 됨. 자세한 것: [MESSENGER_EXPANSION B14](MESSENGER_EXPANSION.md).
