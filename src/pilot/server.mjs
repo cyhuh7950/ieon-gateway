@@ -21,6 +21,7 @@ import { cleanLabel } from './accounts.mjs';
 import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
 import { createAdminQueue } from './admin-queue.mjs';
 import { readMode, writeMode, modeEffects } from './mode.mjs';
+import { EventEmitter } from 'node:events';
 import { createCodexLogin } from './codex-login.mjs';
 import { listCodexThreads } from './codex-threads.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
@@ -130,7 +131,7 @@ export function createApp(config) {
     else if (engineReady(c) === false) code = c.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down';
     else { r = store.submit(principal, c.conversationId, key, { question }, { prefix: prefix || null, roomId: room.roomId }); if (r.http !== 202) code = r.code; }
     if (code) store.addRoomPost(room.roomId, { kind: 'busy', conversationId: c.conversationId, code, text: question });
-    else store.addRoomPost(room.roomId, { kind: 'ask', conversationId: c.conversationId, requestId: r.requestId });
+    else { store.addRoomPost(room.roomId, { kind: 'ask', conversationId: c.conversationId, requestId: r.requestId }); notify(c.conversationId, { type: 'request', requestId: r.requestId, status: 'queued', roomId: room.roomId }); }
   };
   // 기기: server.json(파일) + 웹에서 등록한 기기(DB, 폐기되지 않은 것). P1-c
   const fileHosts = new Set((config.devices ?? []).map((d) => d.hostId));
@@ -187,6 +188,9 @@ export function createApp(config) {
   };
   // A2-d: 기기 관리 명령(PC 화면·허브가 맡긴 명령 공통). 허브는 자기 연결부 설정으로 허브 자신의 계정을 다룬다.
   const adminLog = (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n');
+  // AP-2: 새 소식(SSE)용 알림. 질문·답·승인 내용은 싣지 않고 대화·요청 번호와 상태만 — 앱은 그걸 보고 필요한 것을 다시 불러온다.
+  const events = new EventEmitter(); events.setMaxListeners(200);
+  const notify = (conversationId, e) => { if (conversationId) events.emit('e', { conversationId, at: new Date().toISOString(), ...e }); };
   // M1: 사용 방식 보기·바꾸기(PC 화면과 허브 화면이 같이 씀 — IM10). 처리 중·확인 필요 질문이 있으면 바꾸지 않는다.
   const modeAdmin = access || !modePath ? null : {
     view() {
@@ -381,7 +385,7 @@ export function createApp(config) {
         // W1: 엔진이 묻는 승인을 연결부가 올리고(그 PC가 처리 중인 질문만), 결정을 묻는다. 내용은 DB에만(로그에는 종류만).
         if (req.method === 'POST' && path === '/v1/device/approvals') {
           const r = store.addApproval(device.hostId, await readJson(req));
-          if (r.http === 201) process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_requested', host: device.hostId }) + '\n');
+          if (r.http === 201) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_requested', host: device.hostId }) + '\n'); notify(store.approvalConversation(r.approvalId), { type: 'approval', approvalId: r.approvalId, status: 'pending' }); }
           return r.http === 201 ? json(res, 201, { approvalId: r.approvalId, ttlMs: approvalTtlMs }) : json(res, r.http, { error: r.code });
         }
         const ap = path.match(/^\/v1\/device\/approvals\/(apv_[\w-]+)$/);
@@ -392,6 +396,7 @@ export function createApp(config) {
         const m = path.match(/^\/v1\/device\/jobs\/([\w-]+)\/result$/);
         if (req.method === 'POST' && m) {
           const updated = store.report(device.hostId, m[1], await readJson(req));
+          if (updated) notify(store.requestConversation(m[1]), { type: 'request', requestId: m[1], status: updated.status });
           return updated ? json(res, 200, { status: updated.status }) : json(res, 409, { error: 'not_reportable' });
         }
         return json(res, 404, { error: 'not_found' });
@@ -408,6 +413,20 @@ export function createApp(config) {
         return json(res, r.http, r.body);
       }
 
+      // AP-2: 이어온 앱이 연결 코드로 기기 열쇠를 받는다(열쇠는 응답에 한 번만, 서버는 해시만)
+      if (req.method === 'POST' && path === '/v1/app/pair') {
+        const retry = overLimit(`apppair:${ipOf(req)}`, 10);
+        if (retry) return tooMany(res, retry);
+        const b = await readJson(req);
+        const code = String(b.code ?? '').replace(/\D/g, '');
+        const name = String(b.name ?? '').trim().slice(0, 40) || '이어온 앱';
+        if (code.length !== 8) return json(res, 400, { error: 'bad_code' });
+        const token = randomBytes(32).toString('hex'); const deviceId = 'ad_' + randomBytes(6).toString('hex');
+        const r = store.useAppPairCode(createHash('sha256').update(code).digest('hex'), { deviceId, name, tokenHash: createHash('sha256').update(token).digest('hex') });
+        if (r.http !== 201) return json(res, r.http, { error: r.code });
+        process.stderr.write(JSON.stringify({ ch: 'server', event: 'app_paired' }) + '\n');
+        return json(res, 201, { token, deviceId });
+      }
       // --- 사용자(웹·외부 앱) API ---
       if (!path.startsWith('/v1/')) return json(res, 404, { error: 'not_found' });
       if (await auth.handle(req, res, path, { json, readJson })) return;
@@ -416,6 +435,12 @@ export function createApp(config) {
       if (!user) {
         const a = matchToken(req.headers.authorization, store.activeApiAppHashes());
         if (a) user = { userId: (config.users ?? []).find((u) => u.appId === 'app_web')?.userId ?? 'u_sinsan', appId: a.appId };
+      }
+      // AP-2: 이어온 앱 기기 열쇠. 웹 사용자처럼 대화·방·카드·승인을 쓰되 설정(관리)은 웹에서만.
+      let appDevice = null;
+      if (!user) {
+        const d = matchToken(req.headers.authorization, store.activeAppDeviceHashes());
+        if (d) { user = { userId: d.userId, appId: 'app_web' }; appDevice = d.deviceId; store.touchAppDevice(d.deviceId); }
       }
       // 키(Authorization)를 보냈는데 맞지 않으면 쿠키로 대신 통과시키지 않는다(폐기한 키가 브라우저 로그인으로 살아나지 않게).
       if (!user && req.headers.authorization) return json(res, 401, { error: 'unauthorized' });
@@ -437,6 +462,32 @@ export function createApp(config) {
         principal.bot = { platform, botId };
       }
 
+      if (appDevice && path.startsWith('/v1/admin/')) return json(res, 403, { error: 'app_not_allowed' }); // 설정은 웹 화면에서만
+      // AP-2: 새 소식 바로 받기(SSE). 내 대화의 요청·승인 상태가 바뀌면 번호·상태만 보낸다. 25초마다 살아 있음 표시.
+      if (req.method === 'GET' && path === '/v1/events') {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive' });
+        res.write(': ok\n\n');
+        const mine = (id) => store.conversations(principal).some((c) => c.conversationId === id);
+        const on = (e) => { if (mine(e.conversationId)) res.write(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`); };
+        events.on('e', on);
+        const ka = setInterval(() => res.write(': keepalive\n\n'), config.sseKeepaliveMs ?? 25_000);
+        req.on('close', () => { clearInterval(ka); events.off('e', on); });
+        return;
+      }
+      // AP-2: 이어온 앱 연결 — 1회용 코드(웹 화면에서 만듦, 10분·한 번), 앱이 코드로 열쇠를 받음, 기기 목록·끊기
+      if (path.startsWith('/v1/admin/app-devices')) {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        if (req.method === 'GET' && path === '/v1/admin/app-devices') return json(res, 200, { devices: store.appDevices(principal.userId) });
+        if (req.method === 'POST' && path === '/v1/admin/app-devices/code') {
+          const code = String(randomInt(0, 100_000_000)).padStart(8, '0');
+          const r = store.addAppPairCode(principal.userId, createHash('sha256').update(code).digest('hex'));
+          return r.http === 201 ? json(res, 201, { code, expiresAt: r.expiresAt }) : json(res, r.http, { error: r.code });
+        }
+        const rv = path.match(/^\/v1\/admin\/app-devices\/(ad_[\w-]+)\/revoke$/);
+        if (rv && req.method === 'POST') return store.revokeAppDevice(principal.userId, rv[1]) ? json(res, 200, { revoked: true }) : json(res, 404, { error: 'not_found' });
+        return json(res, 404, { error: 'not_found' });
+      }
       // --- 봇 관리(웹 사용자만) ---
       if (path.startsWith('/v1/admin/') && !path.startsWith('/v1/admin/settings')) {
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
@@ -1010,7 +1061,7 @@ export function createApp(config) {
         // 웹 화면 또는 메신저 봇(브리지가 주인인지 확인한 뒤)만. 외부 프로그램 키는 불가
         if (principal.appId !== 'app_web' && principal.appId !== 'app_messenger' && !principal.bot) return json(res, 403, { error: 'admin_only' });
         const r = store.decideApproval(principal, apd[1], String((await readJson(req)).decision ?? ''), { ttlMs: approvalTtlMs });
-        if (r.http === 200) process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_decided', status: r.status }) + '\n');
+        if (r.http === 200) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_decided', status: r.status }) + '\n'); notify(store.approvalConversation(apd[1]), { type: 'approval', approvalId: apd[1], status: r.status }); }
         return r.http === 200 ? json(res, 200, { status: r.status }) : json(res, r.http, { error: r.code, ...(r.status ? { status: r.status } : {}) });
       }
       const apl = path.match(/^\/v1\/conversations\/([\w-]+)\/approvals$/);
@@ -1114,6 +1165,7 @@ export function createApp(config) {
           return json(res, 503, { error: conv.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down' });
         }
         const r = store.submit(principal, m[1], key, { question });
+        if (r.http === 202) notify(m[1], { type: 'request', requestId: r.requestId, status: 'queued' });
         return r.http === 202 ? json(res, 202, { requestId: r.requestId }) : json(res, r.http, { error: r.code });
       }
       m = path.match(/^\/v1\/requests\/([\w-]+)\/review$/);
