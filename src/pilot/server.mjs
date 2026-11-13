@@ -62,6 +62,8 @@ async function readJson(req) {
 }
 
 export function createApp(config) {
+  // AP-3: 이어온 앱 출처. 설정 파일 appOrigins로 개발용 출처를 더할 수 있다(웹에서 바꾸지 않음).
+  const appOrigins = new Set(['https://localhost', 'capacitor://localhost', 'app://ieon', ...(Array.isArray(config.appOrigins) ? config.appOrigins.filter((o) => typeof o === 'string') : [])]);
   // P4: 허브 웹 접속 제한(설정 파일 webAccess). 없으면 지금처럼 127.0.0.1 전용 로컬 서버다.
   // W7: 허브는 접속 제한을 웹 "보안" 화면에서도 바꾼다(DB 값이 있으면 그 값). 믿는 앞단·Tailscale 수신 주소는 파일 값만 쓴다.
   let accessInner = null;
@@ -311,6 +313,17 @@ export function createApp(config) {
       const url = new URL(req.url, 'http://127.0.0.1');
       const path = url.pathname;
 
+      // AP-3: 이어온 앱(휴대폰 https://localhost·capacitor://localhost, PC 설치형 app://ieon)만 다른 출처 호출 허용.
+      // 앱 기기 열쇠(Authorization)로만 쓰는 길이라 쿠키는 허용하지 않는다(allow-credentials 없음 → 웹 로그인 쿠키로는 못 씀).
+      const origin = req.headers.origin;
+      if (origin && path.startsWith('/v1/') && appOrigins.has(origin)) {
+        res.setHeader('access-control-allow-origin', origin);
+        res.setHeader('vary', 'Origin');
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204, { 'access-control-allow-methods': 'GET, POST, PUT, DELETE', 'access-control-allow-headers': 'authorization, content-type, idempotency-key, accept', 'access-control-max-age': '600' });
+          return res.end();
+        }
+      }
       if (req.method === 'GET' && path === '/health') return json(res, 200, { ok: true });
       // P4: 접속 제한. 예외 경로(기기 API·카카오·Teams·health)는 각자 토큰·서명으로 인증한다.
       // 앞단 없이 이 PC의 127.0.0.1로 직접 온 요청(SSH 터널 관리)은 통과시킨다.

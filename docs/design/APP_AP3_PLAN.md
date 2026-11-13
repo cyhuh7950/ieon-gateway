@@ -41,3 +41,10 @@
 - **모델 호출**: 앱에서 질문 왕복 확인 1~2차례(시험 대화).
 - **배포**: 서버 CORS 수정은 기존처럼 PR → 허브·이 PC 적용 승인.
 - 신산님 몫(나중): 실제 안드로이드 휴대폰에 APK 설치해 보기, 스토어 계정(AP-5).
+
+## 5. AP-3a 결과(2026-11-14, 신산님 "설치·에뮬레이터 승인")
+
+- 설치: `app/` 안에만 404개(`npm install`), Electron 실행 파일은 첫 실행 때 받음. 막힌 설치 스크립트는 electron-winstaller 1개(설치 파일 만들 때만 필요 — AP-4).
+- 만든 것·시험: [MESSENGER_EXPANSION B13](MESSENGER_EXPANSION.md). 모델 호출 0 — 질문 왕복은 가짜 서버(가짜 PC)로 확인해 실제 Codex 왕복은 아직(필요하면 1~2차례 승인 후).
+- 만드는 법(`app/`): `npm test` · `npm run desktop`(PC 앱 실행) · `npm run package:android`(디버그 APK → `app/dist/release/`).
+- 배포: 서버 CORS 수정은 허브·이 PC 적용 승인 뒤에 실제 서버에서 앱을 쓸 수 있음.

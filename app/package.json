@@ -1,0 +1,41 @@
+{
+  "name": "ieon-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "이어온 앱(휴대폰·PC) — 이어온 서버의 AI 직원과 대화",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "next dev --port 3340",
+    "build": "next build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "desktop": "npm run build && electron electron/main.cjs",
+    "package:desktop": "npm run build && electron-builder --win dir",
+    "mobile:android": "npm run build && cap sync android",
+    "package:android": "npm run mobile:android && pwsh -NoProfile -File scripts/package-android-debug.ps1"
+  },
+  "build": {
+    "appId": "kr.sinsan.ieon",
+    "productName": "이어온",
+    "directories": { "output": "dist/desktop" },
+    "files": ["electron/**/*", "out/**/*", "package.json"]
+  },
+  "dependencies": {
+    "@capacitor/android": "8.4.0",
+    "@capacitor/core": "8.4.0",
+    "@capacitor/preferences": "8.0.1",
+    "next": "16.3.4",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.4.0",
+    "@types/node": "25.6.2",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "electron": "42.11.1",
+    "electron-builder": "26.15.3",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8"
+  }
+}
