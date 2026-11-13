@@ -56,6 +56,13 @@ export function probeWindows(threadId) {
   return JSON.parse(execFileSync('pwsh', ['-NoProfile', '-File', PS1, '-ThreadId', threadId], { encoding: 'utf8' }));
 }
 
+// E1·E2: 다른 엔진의 잠금 파일(<dir>/<id>.lock)도 같은 방법으로 읽기만 확인한다(예: Antigravity presence 잠금).
+export function probeLockAt(id, dir, deps = {}) {
+  validate(id);
+  if (process.platform !== 'win32') return probeLinux(id, { ...deps, lockRoot: dir });
+  return JSON.parse(execFileSync('pwsh', ['-NoProfile', '-File', PS1, '-ThreadId', id, '-LockPath', join(dir, `${id}.lock`)], { encoding: 'utf8' }));
+}
+
 export const probeLock = (threadId, deps) => (process.platform === 'win32' ? probeWindows(threadId) : probeLinux(threadId, deps));
 export const lockOutcome = (threadId) => probeLock(threadId).outcome;
 

@@ -43,7 +43,7 @@ test('만든 설정이 실제 서버·연결부 코드가 받아들이는 형식
   assert.deepEqual(server.bindings, []);
   assert.equal(server.extraHosts, undefined); // 127.0.0.1 전용
   assert.equal(existsSync(join(d, '.local/messenger')), false);
-  return buildAdapters(connector).then((a) => assert.deepEqual(Object.keys(a).sort(), ['claude_channel', 'claude_cli', 'codex_thread']));
+  return buildAdapters(connector).then((a) => assert.deepEqual(Object.keys(a).sort(), ['agy_cli', 'claude_channel', 'claude_cli', 'codex_thread', 'grok_cli']));
 });
 
 test('이미 설정이 있으면 거부하고 기존 토큰을 바꾸지 않는다', (t) => {

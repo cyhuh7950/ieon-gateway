@@ -28,6 +28,8 @@ export function readDevice(path) {
     codexThreads: allow.map((threadId) => ({ threadId, mode: c.codex?.modes?.[threadId] ?? 'alternate', workingDirectory: c.codex?.workingDirectories?.[threadId] ?? null })),
     sharedServer: Boolean(c.codex?.shared?.endpoint),
     claudeChannel: Boolean(c.claude?.baseUrl),
+    // E1·E2: Antigravity·Grok 세션 허용 목록(세션 쪽). 계정(토큰 쪽)은 지금 PC 기본 로그인
+    cliSessions: Object.entries(c.cliEngines ?? {}).flatMap(([engine, e]) => (e.allowlist ?? []).map((id) => ({ engine, sessionId: id, workingDirectory: e.workingDirectories?.[id] ?? null }))),
     // A2: 이어온 전용 Codex 계정(로그인 여부는 서버가 따로 붙인다), 엔진 기본, 대화별 선택
     codexAccounts: codexAccounts(c),
     codexDefaultAccount: c.codex?.defaultAccount ?? PC_DEFAULT,
@@ -99,6 +101,33 @@ export function upsertCodexThread(path, { threadId, mode = 'alternate', workingD
   c.codex.modes[id] = mode;
   if (dir) c.codex.workingDirectories[id] = dir.replaceAll('\\', '/'); else delete c.codex.workingDirectories[id];
   write(path, c);
+}
+
+// E1·E2: Antigravity·Grok 세션을 허용 목록에(그 PC에서만 실행). 작업 폴더는 그 CLI를 실행할 폴더(선택).
+const CLI_ID = { agy_cli: UUID, grok_cli: /^[\w-]{6,80}$/ };
+export function upsertCliSession(path, { engine, sessionId, workingDirectory = null }) {
+  if (!CLI_ID[engine]) fail('bad_engine');
+  const id = String(sessionId ?? '').trim();
+  if (!CLI_ID[engine].test(id)) fail('bad_session_id');
+  if (id.toLowerCase() === EXCLUDED_THREAD) fail('excluded_session');
+  let dir = workingDirectory ? String(workingDirectory).trim() : null;
+  if (dir) {
+    if (dir.length > 300 || !isAbsolute(dir)) fail('bad_working_directory');
+    try { if (!statSync(dir).isDirectory()) fail('bad_working_directory'); } catch (e) { if (e.http) throw e; fail('working_directory_missing'); }
+  }
+  const c = read(path);
+  c.cliEngines ??= {}; c.cliEngines[engine] ??= { allowlist: [], workingDirectories: {} };
+  const e = c.cliEngines[engine]; e.allowlist ??= []; e.workingDirectories ??= {};
+  if (!e.allowlist.includes(id)) e.allowlist.push(id);
+  if (dir) e.workingDirectories[id] = dir.replaceAll('\\', '/'); else delete e.workingDirectories[id];
+  write(path, c);
+}
+export function removeCliSession(path, { engine, sessionId }) {
+  const c = read(path); const e = c.cliEngines?.[engine];
+  if (!e?.allowlist?.includes(sessionId)) return false;
+  e.allowlist = e.allowlist.filter((x) => x !== sessionId); delete e.workingDirectories?.[sessionId];
+  write(path, c);
+  return true;
 }
 
 export function removeCodexThread(path, threadId) {

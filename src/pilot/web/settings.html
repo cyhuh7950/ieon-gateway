@@ -126,6 +126,15 @@ header .right button { border:1px solid var(--border); background:var(--surface)
         <input id="devDir" placeholder="작업 폴더(선택, 예: C:/work/proj)" autocomplete="off" aria-label="작업 폴더">
         <button class="primary" type="submit">허용 목록에 추가</button>
       </form>
+      <h2>Antigravity·Grok 허용 목록</h2>
+      <div class="muted">그 PC에서 이어 쓸 Antigravity 대화·Grok 세션 ID. 질문은 읽기 전용으로 가고, 사용량은 그 PC의 각 앱 로그인 계정으로 나가요. Grok은 구독 계정이 있어야 실제로 답해요.</div>
+      <table class="list"><thead><tr><th>엔진</th><th>세션 ID</th><th>작업 폴더</th><th></th></tr></thead><tbody id="cliList"></tbody></table>
+      <form id="cliAdd" class="row">
+        <select id="cliEngine" aria-label="엔진"><option value="agy_cli">Antigravity</option><option value="grok_cli">Grok</option></select>
+        <input id="cliId" placeholder="세션(대화) ID" maxlength="80" autocomplete="off" aria-label="세션 ID">
+        <input id="cliDir" placeholder="작업 폴더(선택)" autocomplete="off" aria-label="작업 폴더">
+        <button class="primary" type="submit">허용 목록에 추가</button>
+      </form>
     </div>
   </section>
   <section class="atab" data-atab="acct" hidden aria-label="계정">
@@ -228,7 +237,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <form id="bdForm" class="grid2" style="margin-top:10px">
       <label for="bdId">ID</label><input type="text" id="bdId" placeholder="c_로 시작 (예: c_myproj)" maxlength="62">
       <label for="bdLabel">이름</label><input type="text" id="bdLabel" maxlength="60">
-      <label for="bdEngine">엔진</label><select id="bdEngine"><option value="codex_thread">Codex 대화</option><option value="claude_channel">Claude 채널</option></select>
+      <label for="bdEngine">엔진</label><select id="bdEngine"><option value="codex_thread">Codex 대화</option><option value="claude_channel">Claude 채널</option><option value="agy_cli">Antigravity 대화</option><option value="grok_cli">Grok 세션</option></select>
       <label for="bdHost">PC</label><select id="bdHost"></select>
       <label for="bdRef">세션 ID</label><input type="text" id="bdRef" placeholder="Codex 대화 ID(UUID) / Claude 채널은 ieon">
       <span>보이는 곳</span><div><label class="chk"><input type="checkbox" id="bdWeb" checked> 웹</label><label class="chk"><input type="checkbox" id="bdMsg" checked> 메신저 기본 봇</label></div>
@@ -411,7 +420,7 @@ async function loadBindings() {
   $('bdRows').innerHTML = '';
   for (const b of bindingsList) {
     const tr = el('tr', null, b.source === 'web' ? 'pick' : ''); tr.tabIndex = 0;
-    [b.conversationId, b.label || '—', b.engine === 'codex_thread' ? 'Codex' : 'Claude 채널', b.hostId, b.sessionRef,
+    [b.conversationId, b.label || '—', ({ codex_thread: 'Codex', claude_channel: 'Claude 채널', agy_cli: 'Antigravity', grok_cli: 'Grok' })[b.engine] || b.engine, b.hostId, b.sessionRef,
       b.appIds.map((a) => ({ app_web: '웹', app_messenger: '메신저 기본 봇' }[a] || a)).join(', '), b.source === 'web' ? '웹' : 'server.json'].forEach((v) => tr.append(el('td', v)));
     if (b.source === 'web') tr.onclick = tr.onkeydown = (e) => { if (e.type === 'click' || e.key === 'Enter') editBinding(b.conversationId); };
     $('bdRows').append(tr);
@@ -430,7 +439,7 @@ $('bdForm').onsubmit = async (e) => {
   const id = $('bdId').value.trim();
   const appIds = [$('bdWeb').checked && 'app_web', $('bdMsg').checked && 'app_messenger'].filter(Boolean);
   const r = await api('/v1/admin/bindings/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ label: $('bdLabel').value.trim(), engine: $('bdEngine').value, hostId: $('bdHost').value, sessionRef: $('bdRef').value.trim() || undefined, appIds }) });
-  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '세션을 등록했습니다' + ($('bdEngine').value === 'codex_thread' ? ' — PC connector.json 허용 목록에도 넣어야 실행됩니다' : '') : (BD_ERR[r.body.error] || r.body.error));
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '세션을 등록했습니다' + ({ codex_thread: ' — PC 설정의 Codex 허용 목록에도 넣어야 실행됩니다', agy_cli: ' — PC 설정의 Antigravity·Grok 허용 목록에도 넣어야 실행됩니다', grok_cli: ' — PC 설정의 Antigravity·Grok 허용 목록에도 넣어야 실행됩니다' }[$('bdEngine').value] || '') : (BD_ERR[r.body.error] || r.body.error));
   if (r.status === 200) { await loadBindings();  editBinding(id); }
 };
 $('bdDelete').onclick = async () => {
@@ -532,6 +541,16 @@ async function loadDevice() {
   $('devLive').checked = d.live;
   $('devConn').textContent = d.managed ? (d.running ? '연결부 실행 중' : '연결부 멈춤') : '';
   $('devMode').querySelector('[value="shared_server"]').disabled = !d.sharedServer;
+  // E1·E2: Antigravity·Grok 허용 목록
+  const cl = $('cliList'); cl.innerHTML = '';
+  if (!(d.cliSessions ?? []).length) { const tr = el('tr'); tr.append(el('td', '허용된 Antigravity·Grok 세션 없음', 'muted')); cl.append(tr); }
+  for (const x of d.cliSessions ?? []) {
+    const tr = el('tr'); [({ agy_cli: 'Antigravity', grok_cli: 'Grok' })[x.engine] || x.engine, x.sessionId, x.workingDirectory || '—'].forEach((v) => tr.append(el('td', v)));
+    const td = el('td'); const rm = el('button', '빼기'); rm.type = 'button';
+    rm.onclick = async () => { if (!confirm('이 세션을 허용 목록에서 뺄까요?')) return; const y = await devRun('device.cli.delete', { engine: x.engine, sessionId: x.sessionId });
+      setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '뺐습니다' + devNote(y.body) : (DEV_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadDevice(); };
+    td.append(rm); tr.append(td); cl.append(tr);
+  }
   const tb = $('devThreads'); tb.innerHTML = '';
   if (!d.codexThreads.length) { const tr = el('tr'); tr.append(el('td', '허용된 Codex 대화 없음', 'muted')); tb.append(tr); }
   for (const x of d.codexThreads) {
@@ -549,6 +568,12 @@ $('devLive').onchange = async () => {
   if (on && !confirm('실제 실행을 켜면 질문마다 AI(Codex·Claude)가 호출됩니다. 켤까요?')) { $('devLive').checked = false; return; }
   const r = await devRun('device.live', { live: on });
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '실제 실행을 ' + (on ? '켰습니다' : '껐습니다') + devNote(r.body) : (DEV_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error)); loadDevice();
+};
+$('cliAdd').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await devRun('device.cli.put', { engine: $('cliEngine').value, sessionId: $('cliId').value.trim(), workingDirectory: $('cliDir').value.trim() || null });
+  if (r.status !== 200) return setStatus('err', ({ bad_session_id: '세션 ID 형식이 아닙니다(Antigravity는 대화 ID, 예: 9e943423-…)' })[r.body.error] || DEV_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error);
+  $('cliId').value = ''; $('cliDir').value = ''; setStatus('ok', '허용 목록에 추가했습니다' + devNote(r.body) + ' — 설정 → 대화 → 세션 등록에서 같은 ID로 등록하면 대화 목록에 생겨요'); loadDevice();
 };
 $('devAdd').onsubmit = async (e) => {
   e.preventDefault();

@@ -274,6 +274,9 @@ export function createApp(config) {
     if (access && c.newSession) return { mode: 'hub_login', label: c.engine === 'codex_thread' ? '허브의 Codex 로그인' : '허브의 Claude 로그인' };
     if (c.engine === 'claude_channel') return { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' };
     if (c.engine === 'claude_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
+    // E1·E2 토큰 쪽: 지금은 그 PC의 앱 로그인(이어온 전용 계정은 A3)
+    if (c.engine === 'agy_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Antigravity 로그인' };
+    if (c.engine === 'grok_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Grok 로그인' };
     if (c.connectMode === 'shared_server') return { mode: 'shared_server', label: '공유 서버의 로그인 — 그 PC에서 띄운 Codex 공유 서버' };
     // A2: 연결부가 알려 준 이어온 전용 계정(대화별 → 새 세션은 기본)
     const h = health.get(c.hostId);

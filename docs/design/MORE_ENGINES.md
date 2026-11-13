@@ -60,6 +60,15 @@
 | E3 | ACP 상주 연결(방식 B) — 승인 카드와 함께 | WORK_AND_VOICE W2와 함께 |
 | E4 | Grok·Gemini 새 세션 만들기(선택) | NEW_SESSIONS 규칙대로 |
 
+## 5-1. E1·E2 구현 기록(2026-11-13, 신산님 "이대로 진행")
+
+신산님 지적대로 **세션 쪽과 토큰(계정) 쪽을 나눴다** — 세션 연결·생성은 엔진 CLI가 그 PC의 세션으로, 사용량은 이어온이 정한 계정으로.
+
+- **세션 쪽(`src/pilot/adapters/cli-once.mjs`):** `agy_cli`(E0 실측 그대로: `-p … --output-format json --mode plan --sandbox --conversation <ID>`, presence 잠금으로 사용 중 거부), `grok_cli`(공식 문서: `-p … --output-format json -r <ID>`, 자동 승인·갈라 쓰기 없음, 사용 중 판별·결과 칸·읽기 전용은 **구독 뒤 실측(TO_VERIFY)**). 공통: 그 PC 허용 목록만, AI 응답 꺼짐 거부, CLI 없음 `engine_not_installed`, 다른 세션으로 답하면 결과 불명(`session_changed`, 대체 없음 ME4), 불러오기 실패가 분명하면(종료 코드≠0 + "not found") 실행 안 됨 `session_load_failed`, 그 밖의 무출력 실패는 결과 불명, 한도는 `usage_limit`.
+- **토큰 쪽:** 실행 때 API 키 변수(`GEMINI_API_KEY`·`GOOGLE_API_KEY`·`AGY_ADC_AUTH`·`XAI_API_KEY`)를 지우고, `accountEnv` 자리로 이어온이 고른 계정을 넘김(지금은 비어 있음 = PC 기본 로그인). 목록·화면의 사용 계정은 "PC 기본 로그인 — 그 PC의 Antigravity/Grok 로그인". 이어온 전용 계정은 ENGINE_ACCOUNTS A3(Antigravity는 Windows 자격 증명 관리자를 앱·CLI가 같이 써서 폴더로 나누는 방법부터 확인).
+- **등록:** 그 PC 연결부 설정 `cliEngines.<엔진>.allowlist`·`workingDirectories`(공통 명령 `device.cli.put/delete` — PC 화면·허브 화면 같은 기능), 세션 등록(`validateBinding`)에 두 엔진. 잠금 판별은 `lock-probe.mjs probeLockAt`(업무 대화 ID 거절 그대로).
+- **시험:** `e12-cli-engines` 5건, 민감도 8종, 전체 324건 중 실패 0(건너뜀 1). **미확인:** 어댑터를 거친 실제 Antigravity 실행(E0와 같은 명령이지만 이어온 경로로는 아직 — 모델 호출 1회면 확인), Grok 전부(구독 뒤), Antigravity 앱 대화 이어 쓰기, TUI를 열어 둔 상태 잠금.
+
 ## 6. 결정(2026-11-12 승인 — 아래 추천안이 결정)
 
 | 번호 | 질문 | 추천 |
