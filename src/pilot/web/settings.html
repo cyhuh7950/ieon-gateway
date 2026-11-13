@@ -315,6 +315,11 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <div id="appRows"></div>
     <form id="appAdd" class="row"><input id="appName" placeholder="프로그램 이름 (예: 내 자동화)" maxlength="40" autocomplete="off" aria-label="프로그램 이름"><button class="primary" type="submit">키 발급</button></form>
     <div id="appKey" class="state warn" hidden role="alert"><b>새 API 키(한 번만 보입니다)</b><div><code id="appKeyText"></code> <button type="button" id="appKeyCopy">복사</button> <button type="button" id="appKeyHide">닫기</button></div></div>
+    <h3>이어온 앱 연결</h3>
+    <div class="muted">휴대폰·PC의 이어온 앱을 이 서버에 연결해요. 코드를 만들어 앱에 서버 주소와 함께 넣으면 끝 — 코드는 10분 동안 한 번만 쓸 수 있어요. 앱에서는 대화·방·카드·승인을 쓰고, 설정은 이 웹 화면에서만 바꿔요.</div>
+    <div class="row"><button class="primary" type="button" id="adCode">연결 코드 만들기</button></div>
+    <div id="adCodeBox" class="state warn" hidden role="alert"></div>
+    <table class="list"><thead><tr><th>앱 기기</th><th>연결한 때</th><th>마지막 사용</th><th></th></tr></thead><tbody id="adList"></tbody></table>
   </section>
 </div>
 <script>
@@ -708,6 +713,25 @@ function renderTokens(platform, botId) {
   }
 }
 // W2b: 외부 프로그램 API 키
+// --- AP-2 이어온 앱 연결(PC 화면·허브 화면 같음) ---
+async function loadAppDevices() {
+  const r = await api('/v1/admin/app-devices'); if (r.status !== 200) return;
+  const tb = $('adList'); tb.innerHTML = '';
+  const live = r.body.devices.filter((d) => !d.revokedAt);
+  if (!live.length) { const tr = el('tr'); tr.append(el('td', '연결된 앱 없음', 'muted')); tb.append(tr); }
+  for (const d of live) {
+    const tr = el('tr'); [d.name, (d.createdAt || '').slice(0, 16).replace('T', ' '), d.lastSeenAt ? d.lastSeenAt.slice(0, 16).replace('T', ' ') : '—'].forEach((v) => tr.append(el('td', v)));
+    const td = el('td'); const b = el('button', '끊기'); b.type = 'button';
+    b.onclick = async () => { if (!confirm(d.name + ' 연결을 끊을까요? 그 앱은 다시 연결해야 써요.')) return; const x = await api('/v1/admin/app-devices/' + d.deviceId + '/revoke', { method: 'POST', body: '{}' }); setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? '연결을 끊었어요' : x.body.error); loadAppDevices(); };
+    td.append(b); tr.append(td); tb.append(tr);
+  }
+}
+$('adCode').onclick = async () => {
+  const r = await api('/v1/admin/app-devices/code', { method: 'POST', body: '{}' });
+  if (r.status !== 201) return setStatus('err', r.body.error === 'too_many_codes' ? '아직 쓰지 않은 코드가 많아요. 10분 뒤 다시 만드세요.' : r.body.error);
+  const box = $('adCodeBox'); box.innerHTML = ''; box.hidden = false;
+  box.append(el('b', '앱에 넣을 것'), el('div', '서버 주소: ' + location.origin), el('div', '연결 코드: ' + r.body.code.replace(/(\d{4})(\d{4})/, '$1 $2')), el('div', (r.body.expiresAt || '').slice(11, 16) + '(UTC)까지, 한 번만 쓸 수 있어요', 'muted'));
+};
 async function loadApps() {
   const r = await api('/v1/admin/apps'); const box = $('appRows'); box.innerHTML = '';
   const list = r.status === 200 ? r.body.apps : [];
@@ -815,6 +839,7 @@ async function loadAdmin() {
   loadDenied().catch(() => {});
   setTimeout(() => loadApps().catch(() => {}), 300); // 세션 목록(adminSessions)을 먼저 받는다
   loadSkill().catch(() => {});
+  loadAppDevices().catch(() => {});
   loadBindings().catch(() => {});
   loadDevices().catch(() => {});
   const [b, r, s] = await Promise.all([api('/v1/admin/bots'), api('/v1/admin/roles'), api('/v1/admin/sessions')]);

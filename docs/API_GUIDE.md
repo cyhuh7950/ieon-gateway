@@ -337,6 +337,19 @@ Content-Type: application/json
 
 ---
 
+## 7-1. 이어온 앱 연결과 새 소식(AP-2, 앱 만드는 사람용)
+
+이어온 앱(휴대폰·PC, AP-3에서 만듦)이 쓰는 길이다. 일반 외부 프로그램은 2-2의 API 키를 쓰면 된다.
+
+1. **연결 코드(사람이 웹에서):** 설정 → 내 프로그램 연결 → **이어온 앱 연결 → 연결 코드 만들기** → 8자리 코드(10분, 한 번만), 서버 주소가 보인다.
+2. **앱이 열쇠 받기:** `POST /v1/app/pair` `{ "code": "12345678", "name": "내 폰" }` → `201 { "token": "<64자>", "deviceId": "ad_…" }`. 열쇠는 이때 한 번만 받고 서버엔 해시만 남는다. 틀린·쓴·지난 코드는 `403 bad_code`, 1분에 10번 넘게 시도하면 `429`.
+3. **열쇠로 쓰기:** `Authorization: Bearer <token>` — 웹 화면과 같은 대화(`/v1/conversations`·질문·결과·카드)·방(`/v1/rooms`)·AI 직원·승인(`/v1/approvals/<id>`)을 쓸 수 있다. **설정(`/v1/admin/…`)은 `403 app_not_allowed`** — 웹 화면에서만.
+4. **새 소식 바로 받기:** `GET /v1/events`(같은 열쇠) → `text/event-stream`. 내 대화에서 일이 생기면
+   - `event: request` `{ conversationId, requestId, status: queued|completed|failed|unknown|approval_required, roomId? }`
+   - `event: approval` `{ conversationId, approvalId, status: pending|allowed|denied }`
+   **질문·답·승인 내용은 싣지 않는다** — 받은 번호로 `/v1/requests/<id>`·`/v1/conversations/<id>/cards`를 다시 불러온다. 25초마다 `: keepalive` 줄.
+5. **끊기:** 웹의 기기 목록에서 **끊기** → 그 열쇠는 바로 `401`.
+
 ## 8. 그 밖의 API
 
 **기록 보기 / 지우기**

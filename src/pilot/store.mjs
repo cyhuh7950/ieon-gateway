@@ -54,6 +54,11 @@ CREATE TABLE IF NOT EXISTS rooms (
   guide TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS room_members (
   room_id TEXT NOT NULL, conversation_id TEXT NOT NULL, PRIMARY KEY (room_id, conversation_id));
+CREATE TABLE IF NOT EXISTS app_devices (
+  device_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, token_sha256 TEXT NOT NULL, created_at TEXT NOT NULL,
+  last_seen_at TEXT, revoked_at TEXT);
+CREATE TABLE IF NOT EXISTS app_pair_codes (
+  code_sha256 TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at TEXT, tries INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS work_modes (
   conversation_id TEXT PRIMARY KEY, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS approvals (
@@ -543,6 +548,31 @@ export function openStore(path) {
       if (!row || !canAccess(principal, binding(row.conversation_id))) return null;
       return view(row);
     },
+
+// --- AP-2 이어온 앱 기기 연결(MESSENGER_EXPANSION B6·AP5): 1회용 연결 코드(10분) → 앱 기기 열쇠(해시만 저장) ---
+    addAppPairCode(userId, codeHash, ttlMs = 10 * 60_000) {
+      const now = Date.now();
+      db.prepare('DELETE FROM app_pair_codes WHERE expires_at < ? OR used_at IS NOT NULL').run(now);
+      if (db.prepare('SELECT COUNT(*) AS n FROM app_pair_codes WHERE user_id = ?').get(userId).n >= 5) return { http: 429, code: 'too_many_codes' };
+      db.prepare('INSERT INTO app_pair_codes (code_sha256, user_id, expires_at) VALUES (?, ?, ?)').run(codeHash, userId, now + ttlMs);
+      return { http: 201, expiresAt: new Date(now + ttlMs).toISOString() };
+    },
+    // 코드는 한 번만, 10분 안에만. 맞으면 새 앱 기기를 만든다(열쇠 해시만 저장).
+    useAppPairCode(codeHash, { deviceId, name, tokenHash }) {
+      return tx(() => {
+        const c = db.prepare('SELECT * FROM app_pair_codes WHERE code_sha256 = ?').get(codeHash);
+        if (!c || c.used_at || c.expires_at < Date.now()) return { http: 403, code: 'bad_code' };
+        db.prepare('UPDATE app_pair_codes SET used_at = ? WHERE code_sha256 = ?').run(new Date().toISOString(), codeHash);
+        db.prepare('INSERT INTO app_devices (device_id, user_id, name, token_sha256, created_at) VALUES (?, ?, ?, ?, ?)').run(deviceId, c.user_id, name, tokenHash, new Date().toISOString());
+        return { http: 201, userId: c.user_id };
+      });
+    },
+    requestConversation(requestId) { return request(requestId)?.conversation_id ?? null; },
+    approvalConversation(approvalId) { return db.prepare('SELECT conversation_id FROM approvals WHERE approval_id = ?').get(approvalId)?.conversation_id ?? null; },
+    activeAppDeviceHashes() { return db.prepare('SELECT device_id, user_id, token_sha256 FROM app_devices WHERE revoked_at IS NULL').all().map((d) => ({ deviceId: d.device_id, userId: d.user_id, tokenSha256: d.token_sha256 })); },
+    touchAppDevice(deviceId) { db.prepare('UPDATE app_devices SET last_seen_at = ? WHERE device_id = ?').run(new Date().toISOString(), deviceId); },
+    appDevices(userId) { return db.prepare('SELECT device_id, name, created_at, last_seen_at, revoked_at FROM app_devices WHERE user_id = ? ORDER BY created_at DESC').all(userId).map((d) => ({ deviceId: d.device_id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at })); },
+    revokeAppDevice(userId, deviceId) { return db.prepare('UPDATE app_devices SET revoked_at = ? WHERE device_id = ? AND user_id = ? AND revoked_at IS NULL').run(new Date().toISOString(), deviceId, userId).changes === 1; },
 
 // --- W1 승인 카드(WORK_AND_VOICE A1·A3). 15분 안에 답이 없으면 거부, 차례가 끝나면 거부, 허용·거부는 주인만 ---
     addApproval(hostId, { requestId, kind, summary, cwd }) {
