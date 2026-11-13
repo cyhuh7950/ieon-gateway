@@ -7,12 +7,13 @@
 
 | 항목 | 결과 | 증거 |
 | --- | --- | --- |
-| 실행·로그인 | **PASS** — (API 키 변수 지움)가 무료 계정 로그인으로 동작(28초). JSON: ·(SUCCESS)···· | [create](e0-agy-create-20261113.json) |
-| 같은 대화 이어 쓰기 | **PASS** — 로 같은 ID 유지, 첫 질문을 기억함(새 대화·갈라 쓰기 아님) | [resume](e0-agy-resume-20261113.json) |
+| 실행·로그인 | **PASS** — `agy -p … --output-format json --mode plan --sandbox`(API 키 변수 지움)가 무료 계정 로그인으로 동작(28초). JSON 칸: `conversation_id`·`status`(SUCCESS)·`response`·`duration_seconds`·`num_turns`·`usage` | [create](e0-agy-create-20261113.json) |
+| 같은 대화 이어 쓰기 | **PASS** — `--conversation <ID>`로 같은 ID 유지, 첫 질문을 기억함(새 대화·갈라 쓰기 아님) | [resume](e0-agy-resume-20261113.json) |
 | 읽기 전용 | **PASS** — plan 모드 + 샌드박스에서 "파일 만들어 줘" → 파일 안 생김 | 같은 파일 |
-| 저장 위치 | CLI 대화는 , 대화마다 . **데스크톱 앱 대화()와 저장소가 다름** → 앱에서 쓰던 대화를 CLI로 이어 쓸 수 있는지는 **미확인**(신산님 실제 대화를 건드려야 해서 하지 않음) | 파일 위치 |
-| 사용 중 판별 | **잠금으로 가능** — 처리 중엔 presence 잠금이 잡히고(WRITER_LOCK_CONFLICT) 끝나면 풀림, 이어온 로 그대로 판별 | [concurrent](e0-agy-concurrent-20261113.json) |
+| 저장 위치 | CLI 대화는 `~/.gemini/antigravity-cli/conversations/<ID>.db`, 대화마다 `~/.gemini/antigravity-cli/presence/<ID>.lock`(빈 파일). **데스크톱 앱 대화(`~/.gemini/antigravity/conversations`)와 저장소가 다름** → 앱에서 쓰던 대화를 CLI로 이어 쓸 수 있는지는 **미확인**(신산님 실제 대화를 건드려야 해서 하지 않음) | 파일 위치 |
+| 사용 중 판별 | **잠금으로 가능** — 처리 중엔 presence 잠금이 잡히고(WRITER_LOCK_CONFLICT) 끝나면 풀림(NO_WRITER_LOCK), 이어온 `src/pilot/lock-probe.ps1 -LockPath`로 그대로 판별 | [concurrent](e0-agy-concurrent-20261113.json) |
 | 동시 실행 | **Antigravity가 막지 않음** — 같은 대화에 동시에 두 번 보내면 둘 다 실행 → **이어온이 보내기 전에 잠금 확인 후 거부해야 함**. TUI를 열어 둔 상태에서도 잠금이 잡히는지는 미확인(신산님 손 필요) | 같은 파일 |
+| 계정(토큰) | 이번 시험은 **이 PC의 Antigravity 로그인(무료 계정)**을 그대로 씀. Antigravity는 로그인 정보를 Windows 자격 증명 관리자에 두고 앱·CLI가 같이 씀 → Codex처럼 "이어온 전용 계정 폴더"로 나누는 공식 방법이 있는지는 미확인(ENGINE_ACCOUNTS A3에서) | — |
 
 ## 1. 준비 중 확인한 사실(공식 문서·검색, 읽기만)
 
