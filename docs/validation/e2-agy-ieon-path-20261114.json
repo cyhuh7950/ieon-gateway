@@ -1,0 +1,14 @@
+{
+ "at": "2026-11-13T17:14:58.157Z",
+ "seconds": 15,
+ "account": {
+  "mode": "pc_default",
+  "label": "PC 기본 로그인 — 그 PC의 Antigravity 로그인"
+ },
+ "engineShown": "agy_cli",
+ "requestStatus": "completed",
+ "errorCode": null,
+ "answerChars": 61,
+ "remembersFirst": true,
+ "usageReported": true
+}
