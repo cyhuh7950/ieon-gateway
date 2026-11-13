@@ -7,7 +7,8 @@
 
 | # | 사실 | 출처 |
 | --- | --- | --- |
-| F1 | 이 PC(Windows)와 WSL-server에 `grok`·`agy`·`gemini` 모두 **설치돼 있지 않음** | `where`·`which` |
+| F1 | **(고침, 신산님 "둘 다 설치돼 있는데")** 명령 경로(PATH)에만 없었을 뿐 설치돼 있음: **Antigravity CLI `agy` 1.4.10** = `%USERPROFILE%.geminiinagy.exe`(PATH에 없음), Antigravity 앱·Antigravity IDE도 설치, `~/.gemini/antigravity/conversations` 있음. **Grok은 데스크톱 앱 "Grok Bot" 0.77.0(SpaceXAI, Electron 채팅 앱)만** 있고 세션 이어 쓰기용 **Grok Build CLI(`grok`)는 없음**(`~/.grok` 없음). WSL에는 둘 다 없음 | 파일 위치·버전 확인 |
+| F1-1 | `agy --help`(1.4.10): **`-p/--print` 한 번 실행, `--output-format text|json|stream-json`, `--conversation <ID>` 이어 쓰기, `-c`, `--mode accept-edits|auto|plan`, `--sandbox`(터미널 제한), `--print-timeout`**, `--dangerously-skip-permissions`(쓰지 않음), `--remote-control`(쓰지 않음) | `agy --help` |
 | F2 | **Grok Build CLI는 Windows 공식 설치가 있음**: PowerShell `irm https://x.ai/cli/install.ps1 \| iex` → `%USERPROFILE%\.grok\bin`. 로그인 `grok login`(브라우저) / `grok login --device-auth`(기기 코드), 로그인 정보는 `~/.grok/auth.json` | [docs.x.ai CLI reference](https://docs.x.ai/build/cli/reference), [flaviocopes 안내](https://flaviocopes.com/grok-build/) |
 | F3 | Grok 이어 쓰기: `-r, --resume <ID>`, `-c`(이 폴더 최근), `--fork-session`(갈라 쓰기 — **이어온은 쓰지 않음**). 권한: `--always-approve`(=`--yolo`, **쓰지 않음**)·`--allow`/`--deny` 규칙·`--sandbox <프로필>`. ACP는 `grok agent stdio` — `session/load` 지원은 문서에 없음. 질문 한 번 실행(`-p`)·JSON 출력은 "Headless & Scripting" 문서에 있다고만 확인 | 같은 문서 |
 | F4 | Grok에 **로그인 상태 확인 명령이 문서에 없음**(`grok inspect`는 설정만). 사용 중(잠금) 판별도 문서에 없음 → 실측 | 같은 문서 |
