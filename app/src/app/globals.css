@@ -66,3 +66,33 @@ input, textarea { font: inherit; width: 100%; padding: 12px; border: 1px solid v
 .composer { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--panel); }
 .composer textarea { resize: none; min-height: 46px; max-height: 30vh; field-sizing: content; }
 .composer button { white-space: nowrap; align-self: flex-end; }
+
+/* AP-3b: 방·AI 직원 */
+.sec { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 0; }
+.sec h2 { margin: 0; font-size: 14px; color: var(--muted); font-weight: 600; }
+.hint { margin: 4px 16px 0; font-size: 14px; }
+.avatar.room { background: var(--panel); border: 1px solid var(--line); }
+.avatar.sm { width: 24px; height: 24px; font-size: 12px; }
+select { font: inherit; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); }
+.sheet { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.sheet.page { border: 0; background: none; padding: 16px; gap: 14px; }
+.sheet label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 14px; }
+.sheet fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.sheet legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
+.sheet label.check { flex-direction: row; align-items: center; gap: 10px; font-weight: 400; font-size: 16px; padding: 8px 0; }
+.sheet label.check input { width: 20px; height: 20px; }
+.grid2 { display: grid; grid-template-columns: 1fr 96px; gap: 10px; }
+.icon-in { text-align: center; }
+.notice { align-self: stretch; background: var(--warn-bg); color: var(--warn); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+.notice p { margin: 0; }
+.note.info { background: var(--panel); border: 1px solid var(--line); color: var(--muted); margin: 0; }
+.whoTag { color: var(--muted); font-size: 13px; padding-left: 4px; }
+.mentions { display: flex; gap: 6px; overflow-x: auto; padding: 8px 12px 0; background: var(--panel); border-top: 1px solid var(--line); scrollbar-width: none; }
+.mentions.in { padding: 0; background: none; border: 0; flex-wrap: wrap; }
+.mchip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 999px; font-size: 14px; }
+.mchip.on { border-color: var(--brand); background: var(--brand); color: var(--brand-text); }
+.to { display: block; padding: 4px 14px 0; background: var(--panel); font-size: 13px; }
+.mentions + .composer, .to + .composer { border-top: 0; }
+.link.left { align-self: flex-start; font-size: 14px; }
+.link.danger { color: var(--err); align-self: center; }
+.sheet input[type=checkbox] { accent-color: var(--brand); }

@@ -47,7 +47,12 @@ export async function pair(server: string, code: string, name: string, f: Fetch 
   return { server, token: b.token, deviceId: b.deviceId };
 }
 
-export type Staff = { name: string; roleName: string | null; icon: string | null };
+export type Staff = { name: string; roleName: string | null; roleId?: string | null; icon: string | null; set?: boolean };
+export type Room = { roomId: string; name: string; lead: string; guide: string; members: string[] };
+export type RoomInput = { name: string; members: string[]; lead: string; guide: string };
+export type RoomPost = { postId: string; kind: "user" | "ask" | "busy"; text: string | null; conversationId: string | null; requestId: string | null; code: string | null;
+  at: string; retried: boolean; canRetry: boolean; status?: string; answer?: string | null; errorCode?: string | null };
+export type RoomDetail = Room & { posts: RoomPost[] };
 export type Conversation = {
   conversationId: string; label: string; engine: string; deviceOnline: boolean; busy: boolean;
   attention: number; staff?: Staff; workMode?: boolean; heldBy?: { requestId: string; status: string } | null;
@@ -79,6 +84,21 @@ export function client(conn: Conn, f: Fetch = fetch) {
     decide: async (approvalId: string, decision: "allow" | "deny"): Promise<string> =>
       (await call(`/v1/approvals/${encodeURIComponent(approvalId)}`, { method: "POST", body: JSON.stringify({ decision }) })).status,
     review: async (requestId: string, executed: boolean) => call(`/v1/requests/${encodeURIComponent(requestId)}/review`, { method: "POST", body: JSON.stringify({ executed }) }),
+    // AP-3b: AI 직원 이름·아이콘(역할은 웹 화면에서만 — 역할 목록은 설정 API라 앱이 못 읽음, 지금 역할은 그대로 둔다)
+    setStaff: async (id: string, s: { name: string; icon: string | null; roleId: string | null }): Promise<Staff> =>
+      call(`/v1/conversations/${encodeURIComponent(id)}/staff`, { method: "PUT", body: JSON.stringify(s) }),
+    // AP-3b: 방
+    rooms: async (): Promise<Room[]> => (await call("/v1/rooms")).rooms ?? [],
+    room: async (roomId: string): Promise<RoomDetail> => call(`/v1/rooms/${encodeURIComponent(roomId)}`),
+    saveRoom: async (roomId: string | null, r: RoomInput): Promise<Room> =>
+      call(roomId ? `/v1/rooms/${encodeURIComponent(roomId)}` : "/v1/rooms", { method: roomId ? "PUT" : "POST", body: JSON.stringify(r) }),
+    deleteRoom: async (roomId: string) => call(`/v1/rooms/${encodeURIComponent(roomId)}`, { method: "DELETE" }),
+    roomPost: async (roomId: string, text: string, key: string): Promise<RoomPost[]> =>
+      (await call(`/v1/rooms/${encodeURIComponent(roomId)}/posts`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ text }) })).posts ?? [],
+    roomRetry: async (roomId: string, postId: string, key: string): Promise<RoomPost[]> =>
+      (await call(`/v1/rooms/${encodeURIComponent(roomId)}/retry`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ postId }) })).posts ?? [],
+    roomHandoff: async (roomId: string, h: { requestId: string; to: string; note: string }, key: string): Promise<RoomPost[]> =>
+      (await call(`/v1/rooms/${encodeURIComponent(roomId)}/handoff`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify(h) })).posts ?? [],
   };
 }
 export type Client = ReturnType<typeof client>;
