@@ -349,6 +349,7 @@ Content-Type: application/json
    - `event: approval` `{ conversationId, approvalId, status: pending|allowed|denied }`
    **질문·답·승인 내용은 싣지 않는다** — 받은 번호로 `/v1/requests/<id>`·`/v1/conversations/<id>/cards`를 다시 불러온다. 25초마다 `: keepalive` 줄.
 5. **끊기:** 웹의 기기 목록에서 **끊기** → 그 열쇠는 바로 `401`.
+6. **다른 출처(CORS, AP-3):** 서버는 이어온 앱 출처만 다른 출처 호출을 허용한다 — 안드로이드 `https://localhost`, 아이폰 `capacitor://localhost`, PC 설치형 `app://ieon`(`/v1/*`만, 미리 묻기 OPTIONS에 `authorization`·`idempotency-key` 허용). **쿠키는 허용하지 않으므로**(allow-credentials 없음) 웹 로그인으로는 못 쓰고 열쇠로만 쓴다. 개발용 출처는 서버 설정 파일 `appOrigins`로만 더한다.
 
 ## 8. 그 밖의 API
 
