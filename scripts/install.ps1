@@ -85,7 +85,8 @@ Step "자동 시작 등록: 작업 '$Task'"
 # 5) 지금 시작(이미 떠 있으면 다시 시작해 새 설정을 읽게 함)
 if (Test-Up) { Stop-Ieon; Start-Sleep -Seconds 2 }
 Start-ScheduledTask -TaskName $Task
-$ok = $false; foreach ($i in 1..20) { Start-Sleep -Milliseconds 500; if (Test-Up) { $ok = $true; break } }
+# 2026-11-14: 이 PC에서 서버가 뜨는 데 1분 넘게 걸린 적이 있어(10초 대기로는 "시작되지 않았습니다"로 잘못 알림) 최대 2분까지 기다린다.
+$ok = $false; foreach ($i in 1..240) { Start-Sleep -Milliseconds 500; if (Test-Up) { $ok = $true; break } }
 if (-not $ok) { Write-Output "서버가 시작되지 않았습니다. $Run\server.log 를 확인하세요."; exit 1 }
 # 실제 AI 응답 상태를 그대로 알린다(처음 설치는 꺼짐, 운영 중 켜 둔 PC는 켜짐 그대로 — 설치가 바꾸지 않음).
 $liveOn = $false; try { $liveOn = (Get-Content (Join-Path $Local 's2\connector.json') -Raw | ConvertFrom-Json).live -eq $true } catch { $liveOn = $false }
