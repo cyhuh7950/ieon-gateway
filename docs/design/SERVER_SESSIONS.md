@@ -95,6 +95,30 @@
 - 근거(추정, 측정 전): Codex CLI·Claude Code CLI는 질문 하나에 프로세스 하나(Node 기반, 수백 MB)씩 뜬다.
 - 컨테이너 `mem_limit`·`pids_limit`은 고정값 대신 설정(`.env`)으로 바꿀 수 있게 하고, 동시 질문 수 제한(초과는 줄 세우지 않고 "바빠요" 거절 — 자동 재전송 없음 원칙)을 둔다.
 
+### 2-7. SV0 실측 결과(2026-11-14, sinsan-server Ubuntu 22.04·arm64·Docker 29.1.3, codex-cli 0.165.0 · Claude Code 2.1.325)
+
+허브 컨테이너(`ieun-relay`, 허브 자신의 Codex 로그인) 안의 시험 폴더 `/data/sv0-test`(끝나고 지움)와 일회용 시험 컨테이너(`--rm`)만 씀. 모델 호출 **Codex 2회**(허브 계정)·Claude 0회. 근거 [`docs/validation/sv0-server-20261114.json`](../validation/sv0-server-20261114.json).
+
+| 시험 | 결과 | 설계에 주는 뜻 |
+| --- | --- | --- |
+| 서버 대화 목록 `thread/list`(출처 조건 없음) | 이어온이 만든 허브 새 세션(출처 `exec`)은 **안 나옴**, 서버 CLI 화면으로 연 대화(출처 `cli`)는 나옴 | 목록에 `sourceKinds`(cli·vscode·exec·appServer)를 정해 줘야 함. **PC의 U3 대화 목록도 같은 이유로 SDK·exec로 만든 대화가 빠져 있을 수 있음** — SV1에서 함께 고침 |
+| 서버 CLI 화면(TUI)으로 대화를 열어 둔 동안 이어온 잠금 검사(`lock-probe` Linux `/proc/locks`) | **WRITER_LOCK_CONFLICT**(사용 중) → 화면이 닫힌 뒤 **NO_WRITER_LOCK** | 지금까지 미검증이던 리눅스 사용 중 판별이 실제로 동작 → 서버도 `alternate` 그대로 |
+| Docker 안 Codex 샌드박스(`workspace-write`) | **모든 명령이 실패**(`bwrap: No permissions to create a new namespace`) — 밖 쓰기·읽기뿐 아니라 작업 폴더 안 쓰기도 안 됨(막히는 쪽으로 실패) | ⚠ **지금 허브 새 세션도 명령을 하나도 못 돌린다**(글 답만 됨). 원인은 호스트가 아니라 Docker 기본 보안(seccomp·AppArmor·/proc 가림) — 호스트는 사용자 이름공간 허용(`unprivileged_userns_clone=1`, AppArmor 제한 0) |
+| 일회용 컨테이너에서 Codex 내장 bwrap만 시험 | 기본: 실패 / seccomp만 풂: 실패 / seccomp+AppArmor 풂: `/proc` 마운트 실패 / **seccomp+AppArmor+systempaths 풂: 성공** | Docker 안에서 엔진 샌드박스를 켜려면 컨테이너 보안 세 가지를 풀어야 함 → 아래 결정 필요 |
+| Claude Code CLI 설치(일회용 컨테이너, npm) | 됨(2.1.325) | 이미지에 넣을 수 있음 |
+| Claude 헤드리스 로그인 `claude auth login` | 주소를 보여 주고 "Paste code here" — **주소 열기 → 로그인 → 코드 붙여 넣기**. `--console`은 API(사용량 과금) 로그인 | 웹에서 Codex 기기 코드처럼 처리 가능(주소 보여 주기 + 코드 칸) |
+| Codex API 키 | `codex login --with-api-key`(키를 표준 입력으로) 있음 | SV3에서 웹 붙여 넣기 → 표준 입력으로만 넘김 |
+
+**미측정:** Claude 실제 호출·`--resume` 복사본 조건(신산님 서버 Claude 로그인 필요), API 키 호출(신산님 키 필요), Docker 안 Claude 샌드박스(같은 bwrap 방식이라 같은 제약일 것으로 봄 — 추정), seccomp를 통째로 풀지 않고 필요한 것만 여는 좁은 설정.
+
+**결정해 주실 것 — 서버에서 엔진 명령의 경계를 어디에 둘지**
+
+| 안 | 내용 | 장단 |
+| --- | --- | --- |
+| **A. 컨테이너가 경계(추천)** | 엔진 샌드박스는 끄고 컨테이너 자체를 경계로. 직원(또는 서비스)마다 **컨테이너를 따로** 띄워 폴더·로그인을 나눔 | Docker 보안을 풀지 않음. 직원끼리 읽기까지 진짜로 나뉨. 컨테이너 수만큼 자원 더 씀 |
+| B. 컨테이너 보안을 풀고 엔진 샌드박스 사용 | seccomp·AppArmor·systempaths를 풀거나 좁은 사용자 설정으로 엶 | 한 컨테이너로 가벼움. 컨테이너가 약해짐(같은 서버에 다른 서비스가 많음) |
+| C. 명령 없이 글 답만 | 지금 허브 새 세션 상태 그대로(명령은 실패) | 법률봇처럼 대화·문서 답 위주면 충분. 파일 작업 불가 |
+
 ## 3. 보존(바꾸지 않는 것)
 
 - PC 쪽 동작 전부(Codex `alternate`·`shared_server`, Claude 채널, 사용 중 거부, 결과 불명 자동 재전송 없음, PC 안전 설정은 PC 화면에서만).
@@ -105,7 +129,7 @@
 
 | 단계 | 내용 | 필요한 승인 |
 | --- | --- | --- |
-| **SV0** 실측 | 시험 컨테이너에서: 서버 `thread/list`, 서버 CLI로 연 대화의 사용 중 판별(리눅스), Docker 안 Codex·Claude 샌드박스 동작, Claude Code CLI 설치·헤드리스 로그인·`--resume` 복사본 조건, API 키로 한 번 호출 | 의존성 설치(시험 컨테이너)·모델 호출 몇 회 |
+| **SV0** 실측(**2026-11-14 완료**, 2-7절) | 시험 컨테이너에서: 서버 `thread/list`, 서버 CLI로 연 대화의 사용 중 판별(리눅스), Docker 안 Codex·Claude 샌드박스 동작, Claude Code CLI 설치·헤드리스 로그인·`--resume` 복사본 조건, API 키로 한 번 호출 | 의존성 설치(시험 컨테이너)·모델 호출 몇 회 |
 | **SV1** 서버 Codex 대화 | 서버 대화 목록·서버 허용 목록·"서버" 묶음·직원마다 서버/PC 고르기·`ieun.sh tui codex` | [배포] |
 | **SV2** 서버 Claude | 이미지에 Claude Code CLI, 웹 로그인, 서버 Claude 새 세션·기존 대화(`--resume`, 복사본=결과 불명) | 의존성 설치·[배포]·신산님 로그인 |
 | **SV3** API형 계정 | 계정 종류(구독/API), 키 붙여 넣기, 서비스용 직원은 API만(서버가 거절), 한도·사용량 | 키 등록(신산님)·[배포] |
