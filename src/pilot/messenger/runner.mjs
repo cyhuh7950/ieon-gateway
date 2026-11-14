@@ -77,6 +77,7 @@ export function createBotRunner(opts) {
     if (!runner) return 'platform_not_supported';
     const entry = { def: b, controller: new AbortController(), state: 'starting', username: null, canReadAll: null };
     entry.bridge = createBridge({ ...opts.bridgeOpts, api: opts.apiFor(b.platform, b.botId), roomStore, botId: b.botId,
+      log: (e) => log({ botId: b.botId, ...e }), // 전달 실패·중복 메시지 기록(내용 없이)
       botInfo: () => ({ name: entry.def.name, callNames: entry.def.callNames ?? [], role: entry.def.role ?? null,
         // 같은 메신저의 다른 봇을 부르는 이름(부르는 이름이 없으면 봇 ID). 그 이름으로 부른 글은 이 봇이 받지 않는다.
         otherCallNames: [...peers].filter((p) => p.platform === b.platform && p.botId !== b.botId)
