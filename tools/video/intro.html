@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>이어온 소개</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #08101b; font-family: 'Malgun Gothic', 'Segoe UI Emoji', sans-serif; color: #e8eef5; }
+  #stage { position: absolute; inset: 0; background: radial-gradient(1200px 700px at 50% 52%, #12304a 0%, #0b1726 55%, #070d16 100%); }
+  .abs { position: absolute; }
+  .cap { position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-size: 56px; font-weight: 700; letter-spacing: -0.01em; color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,.45); }
+  .cap small { display: block; font-size: 28px; font-weight: 400; color: #9fd8cf; margin-top: 10px; letter-spacing: .04em; }
+  .sub { position: absolute; left: 160px; right: 160px; bottom: 54px; text-align: center; font-size: 40px; line-height: 1.45; font-weight: 600; color: #fff; text-shadow: 0 2px 6px #000, 0 0 2px #000; }
+  .sub span { background: rgba(0,0,0,.55); padding: 4px 18px; border-radius: 10px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .disc { position: absolute; right: 60px; bottom: 170px; font-size: 22px; color: #9fb0c2; }
+  .logo { position: absolute; width: 220px; height: 220px; border-radius: 44px; background: #0f766e; display: grid; place-items: center; box-shadow: 0 0 0 6px rgba(20,184,166,.18), 0 20px 60px rgba(0,0,0,.5); }
+  .logo b { font-size: 132px; line-height: 1; color: #fff; font-weight: 700; }
+  .logoname { position: absolute; width: 400px; text-align: center; font-size: 34px; font-weight: 700; }
+  .logoname small { display: block; font-size: 22px; font-weight: 400; color: #8fd3c8; letter-spacing: .06em; }
+  .chip { position: absolute; height: 66px; border-radius: 33px; display: flex; align-items: center; gap: 14px; padding: 0 26px 0 12px; font-size: 28px; font-weight: 600; white-space: nowrap; background: #1b2635; border: 2px solid #3a4a5e; color: #f1f5f9; }
+  .chip i { font-style: normal; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 700; color: #fff; }
+  .chip.ai { background: #0f2f2c; border-color: #1f7a70; }
+  .bubble { position: absolute; max-width: 560px; padding: 18px 24px; border-radius: 22px; font-size: 27px; line-height: 1.45; background: #fff; color: #111; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .bubble.me { background: #2aabee; color: #fff; }
+  .panel { position: absolute; border-radius: 22px; background: #0f1b29; border: 2px solid #2b3d52; box-shadow: 0 20px 60px rgba(0,0,0,.45); overflow: hidden; }
+  .dev { position: absolute; border-radius: 44px; background: #0b0f14; padding: 14px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .dev img, .brw img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; border-radius: 32px; }
+  .brw { position: absolute; border-radius: 16px; background: #dfe3e8; padding: 40px 0 0; box-shadow: 0 30px 80px rgba(0,0,0,.6); overflow: hidden; }
+  .brw img { border-radius: 0; }
+  .brw::before { content: ''; position: absolute; left: 18px; top: 13px; width: 14px; height: 14px; border-radius: 50%; background: #ff5f57; box-shadow: 22px 0 #febc2e, 44px 0 #28c840; }
+  .brw .url { position: absolute; left: 110px; top: 8px; right: 30%; height: 24px; border-radius: 12px; background: #fff; font-size: 15px; color: #555; padding: 3px 14px; }
+  .box { position: absolute; border-radius: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; font-weight: 700; border: 3px solid #2f6f68; background: #0f2f2c; }
+  .box .t { font-size: 44px; } .box .s { font-size: 24px; font-weight: 400; color: #b8d6d1; }
+  .tag { position: absolute; padding: 12px 22px; border-radius: 16px; font-size: 26px; font-weight: 600; background: #f8fafc; color: #0f172a; box-shadow: 0 10px 30px rgba(0,0,0,.4); white-space: nowrap; }
+  .badge { position: absolute; width: 520px; padding: 20px 26px; border-radius: 20px; background: #10283a; border: 2px solid #2a6f8a; font-size: 30px; font-weight: 600; display: flex; gap: 16px; align-items: center; }
+  .badge i { font-style: normal; font-size: 40px; }
+  .step { position: absolute; width: 440px; height: 260px; border-radius: 28px; background: #10283a; border: 2px solid #2a6f8a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+  .step b { font-size: 64px; color: #5eead4; } .step span { font-size: 36px; font-weight: 700; }
+  .mono { font-family: Consolas, 'Malgun Gothic', monospace; }
+  svg { position: absolute; inset: 0; overflow: visible; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+'use strict';
+// ---- 시간표: build.mjs가 window.__TIMELINE = [{ id, start, dur, say, sayStart, sayDur }] 로 넣는다 ----
+const W = 1920, H = 1080, CX = 960, CY = 520;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const eo = (x) => 1 - Math.pow(1 - clamp(x), 3);            // ease out
+const eio = (x) => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const prog = (t, a, b) => eo((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const stage = document.getElementById('stage');
+const el = (cls, html, style = {}, parent = stage, tag = 'div') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; Object.assign(e.style, style); parent.append(e); return e; };
+const place = (e, x, y, o = 1, s = 1) => { e.style.left = x + 'px'; e.style.top = y + 'px'; e.style.opacity = o; e.style.transform = `translate(-50%,-50%) scale(${s})`; };
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgLayer() { const s = document.createElementNS(SVGNS, 'svg'); s.setAttribute('width', W); s.setAttribute('height', H); stage.append(s); return s; }
+function path(svg, d, color, width = 4, dash) { const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', color); p.setAttribute('stroke-width', width); p.setAttribute('stroke-linecap', 'round'); if (dash) p.setAttribute('stroke-dasharray', dash); svg.append(p); return p; }
+function dot(svg, r = 9, color = '#5eead4') { const c = document.createElementNS(SVGNS, 'circle'); c.setAttribute('r', r); c.setAttribute('fill', color); c.setAttribute('filter', 'drop-shadow(0 0 8px ' + color + ')'); svg.append(c); return c; }
+// 부드러운 곡선(가로로 나가는 S자)
+function curve(x1, y1, x2, y2) {
+  const mx = (x1 + x2) / 2;
+  const P = [[x1, y1], [mx, y1], [mx, y2], [x2, y2]];
+  const at = (u) => { const v = 1 - u; return [0, 1].map((k) => v * v * v * P[0][k] + 3 * v * v * u * P[1][k] + 3 * v * u * u * P[2][k] + u * u * u * P[3][k]); };
+  return { d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`, at };
+}
+function drawLine(p, f) { const L = p.getTotalLength(); p.style.strokeDasharray = L; p.style.strokeDashoffset = L * (1 - f); }
+function moveDot(c, cv, u, vis = 1) { const [x, y] = cv.at(clamp(u)); c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('opacity', vis); }
+
+// ---- 공통 부품 ----
+function caption(text, small) { return el('cap', text + (small ? `<small>${small}</small>` : '')); }
+function logo(x = CX, y = CY, s = 1, withName = true) {
+  const g = { box: el('logo', '<b>이</b>'), name: withName ? el('logoname', '이어온<small>ieon-gateway</small>') : null };
+  g.set = (o = 1, sc = s, xx = x, yy = y) => { place(g.box, xx, yy, o, sc); if (g.name) place(g.name, xx, yy + 165 * sc, o, sc); };
+  g.set(1); return g;
+}
+const MSG = [['카카오톡', '#f7e600', '#3b1e1e'], ['텔레그램', '#2aabee'], ['디스코드', '#5865f2'], ['슬랙', '#4a154b'], ['라인', '#06c755'], ['이어온 앱', '#0f766e'], ['웹 화면', '#475569']];
+const AIS = [['Codex', '#10a37f'], ['Claude Code', '#d97757'], ['Antigravity', '#4285f4'], ['Grok', '#111827']];
+function chip(label, color, textColor = '#fff', ai = false) { return el('chip' + (ai ? ' ai' : ''), `<i style="background:${color};color:${textColor}">${label[0]}</i>${label}`); }
+const LX = 330, RX = 1590;
+const leftY = (i, n) => CY - ((n - 1) * 88) / 2 + i * 88;
+const rightY = (i, n) => CY - ((n - 1) * 120) / 2 + i * 120;
+// 가운데 이어온 + 왼쪽·오른쪽 줄
+function hub(left = MSG, right = AIS.map(([a, c]) => [a, c, '#fff']), opt = {}) {
+  const svg = svgLayer();
+  const L = left.map(([n, c, tc], i) => { const y = leftY(i, left.length); const ch = chip(n, c, tc || '#fff'); const cv = curve(LX + 150, y, CX - 112, CY); const p = path(svg, cv.d, '#2dd4bf', 3.5); return { ch, cv, p, y }; });
+  const R = right.map(([n, c, tc], i) => { const y = rightY(i, right.length); const ch = chip(n, c, tc || '#fff', true); const cv = curve(CX + 112, CY, RX - 150, y); const p = path(svg, cv.d, '#2dd4bf', 3.5); return { ch, cv, p, y }; });
+  const lg = logo(CX, CY, 1, opt.name !== false);
+  return { svg, L, R, lg,
+    showL(i, f, o = 1) { const a = L[i]; place(a.ch, LX, a.y, f * o, lerp(.85, 1, f)); drawLine(a.p, f); a.p.style.opacity = o; },
+    showR(i, f, o = 1) { const a = R[i]; place(a.ch, RX, a.y, f * o, lerp(.85, 1, f)); drawLine(a.p, f); a.p.style.opacity = o; } };
+}
+function phoneShot(src, x, y, h) { const w = h * 1170 / 2532; const d = el('dev', `<img src="${src}">`, { width: w + 28 + 'px', height: h + 28 + 'px' }); place(d, x, y); return d; }
+function browserShot(src, x, y, w, url = 'ieun-gateway.sinsan.kr') { const h = w * 1200 / 1920 + 40; const b = el('brw', `<div class="url">${url}</div><img src="${src}">`, { width: w + 'px', height: h + 'px' }); place(b, x, y); return b; }
+const SHOT = '../../.local/video/shots/';
+
+// ---- 장면 ----
+const SCN = {
+  '1-1'(lt, d) {
+    const mon = el('panel', '', { width: '820px', height: '500px' });
+    const bar = el('', '<span style="color:#94a3b8;font-size:22px">작업 세션 — Codex · Claude Code</span>', { padding: '14px 22px', borderBottom: '2px solid #22324a' }, mon);
+    const body = el('mono', '', { position: 'absolute', left: '28px', right: '28px', top: '70px', fontSize: '22px', lineHeight: '34px', color: '#a7f3d0' }, mon);
+    const lines = ['> 결제 모듈 리팩터링 중…', '  ✓ approve() 정리', '  ✓ cancel() 정리', '  … refund() 테스트 실행', '  ✓ 10 / 12 통과', '> 다음: 환불 처리', '  … 코드 읽는 중', '  ✓ 타입 오류 수정', '  … 테스트 다시 실행', '  ✓ 11 / 12 통과', '> 남은 1건 확인 중', '  … 로그 분석'];
+    const N = Math.min(lines.length, Math.floor(lt * 2.2) + 1);
+    body.innerHTML = lines.slice(Math.max(0, N - 12), N).map((l) => `<div>${l}</div>`).join('');
+    place(mon, CX, CY + 20, prog(lt, 0, .6), lerp(.96, 1, prog(lt, 0, .8)));
+  },
+  '1-2'(lt) {
+    const p = eio(lt / 1.4);
+    const mon = el('panel', '<div style="padding:14px 22px;color:#94a3b8;font-size:22px;border-bottom:2px solid #22324a">작업 세션 — Codex · Claude Code</div><div class="mono" style="padding:16px 28px;font-size:22px;line-height:34px;color:#a7f3d0">> 남은 1건 확인 중<br>  … 로그 분석<br>  ✓ 원인 찾음</div>', { width: '820px', height: '500px' });
+    place(mon, lerp(CX, 560, p), CY + 20, 1, lerp(1, .78, p));
+    const ph = phone(lt);
+    place(ph, lerp(2200, 1430, prog(lt, .4, 1.6)), CY + 20);
+  },
+  '1-3'(lt) {
+    const mon = el('panel', '<div style="padding:14px 22px;color:#94a3b8;font-size:22px;border-bottom:2px solid #22324a">작업 세션 — Codex · Claude Code</div><div class="mono" style="padding:16px 28px;font-size:22px;line-height:34px;color:#a7f3d0">  ✓ 원인 찾음<br>  … 고치는 중</div>', { width: '820px', height: '500px' });
+    place(mon, 560, CY + 20, 1, .78);
+    place(phone(99), 1430, CY + 20);
+    const svg = svgLayer(); const ln = path(svg, `M${560 + 330},${CY + 20} L${1430 - 180},${CY + 20}`, '#64748b', 5, '14 14'); ln.style.opacity = prog(lt, .2, .9);
+    const x = el('', '✕', { position: 'absolute', fontSize: '110px', fontWeight: 700, color: '#f87171' }); place(x, (560 + 330 + 1430 - 180) / 2, CY + 14, prog(lt, .9, 1.3), lerp(1.6, 1, prog(lt, .9, 1.3)));
+    caption('AI는 PC 안에, 사람은 밖에').style.opacity = prog(lt, .6, 1.2);
+  },
+  '2-1'(lt) {
+    const mon = el('panel', '<div style="padding:14px 22px;color:#94a3b8;font-size:22px;border-bottom:2px solid #22324a">작업 세션 — Codex · Claude Code</div>', { width: '820px', height: '500px' });
+    place(mon, 560, CY + 20, 1, .78);
+    place(phone(99), 1430, CY + 20);
+    const svg = svgLayer();
+    const a = path(svg, `M${560 + 330},${CY + 20} L${1430 - 180},${CY + 20}`, '#64748b', 5, '14 14'); a.style.opacity = 1 - prog(lt, .8, 1.6);
+    const b = path(svg, `M${560 + 330},${CY + 20} L${1430 - 180},${CY + 20}`, '#2dd4bf', 6); b.style.opacity = prog(lt, .8, 1.6);
+    const x = el('', '✕', { position: 'absolute', fontSize: '110px', fontWeight: 700, color: '#f87171' }); place(x, 1070, CY + 14, 1 - prog(lt, 0, .5));
+    const g = logo(1070, CY + 20, .62, false); g.set(prog(lt, .35, .9), lerp(.2, .62, prog(lt, .35, 1.0)), 1070, CY + 20);
+    caption('이어온', 'ieon-gateway').style.opacity = prog(lt, .9, 1.5);
+  },
+  '2-2'(lt) {
+    const h = hub(); h.lg.set(1);
+    h.R.forEach((_, i) => h.showR(i, 0));
+    const t0 = 2.6, step = 1.15; // "카카오톡"부터 이름에 맞춰 하나씩
+    MSG.forEach((_, i) => h.showL(i, prog(lt, t0 + i * step, t0 + i * step + .7)));
+    caption('메신저와 연결').style.opacity = prog(lt, .2, .8);
+  },
+  '2-3'(lt) {
+    const h = hub(); h.lg.set(1);
+    MSG.forEach((_, i) => h.showL(i, 1, .55));
+    const t0 = 3.0, step = 1.25;
+    AIS.forEach((_, i) => h.showR(i, prog(lt, t0 + i * step, t0 + i * step + .7)));
+    caption('LLM 세션과 연결').style.opacity = prog(lt, .2, .8);
+  },
+  '2-4'(lt, d) {
+    const h = hub(); h.lg.set(1);
+    MSG.forEach((_, i) => h.showL(i, 1, i === 1 ? 1 : .28));
+    AIS.forEach((_, i) => h.showR(i, 1, i === 0 ? 1 : .28));
+    h.L[1].ch.style.borderColor = '#2aabee'; h.R[0].ch.style.borderColor = '#2dd4bf';
+    const q = el('bubble me', '어제 하던 작업 어디까지 했어?'); place(q, 700, 285, prog(lt, .2, .7) * (1 - prog(lt, 7.6, 8.1)));
+    const dq = dot(h.svg, 11, '#38bdf8');
+    const u1 = clamp((lt - .9) / 1.4), u2 = clamp((lt - 2.3) / 1.4);
+    if (lt < 2.3) moveDot(dq, h.L[1].cv, u1, lt > .9 ? 1 : 0); else moveDot(dq, h.R[0].cv, u2, lt < 3.75 ? 1 : 0);
+    // 하던 세션(오른쪽 아래)
+    const ps = el('panel', '', { width: '600px', height: '250px' }); place(ps, 1500, 790, prog(lt, 1.6, 2.3));
+    ps.innerHTML = `<div style="padding:12px 20px;font-size:22px;color:#94a3b8;border-bottom:2px solid #22324a">Codex · 하던 대화</div>
+      <div style="padding:12px 20px;font-size:21px;line-height:1.55">
+      <div style="color:#94a3b8">· 결제 모듈 리팩터링 시작해 줘</div>
+      <div style="color:#94a3b8">· 리팩터링을 시작했어요…</div>
+      <div style="color:#7dd3fc;opacity:${prog(lt, 3.7, 4.1)}">· 어제 하던 작업 어디까지 했어?</div>
+      <div style="color:#5eead4;opacity:${prog(lt, 4.9, 5.4)}">· 결제 모듈을 마쳤고, 테스트 10/12 통과…</div></div>`;
+    const da = dot(h.svg, 11, '#5eead4');
+    const v1 = clamp((lt - 5.5) / 1.4), v2 = clamp((lt - 6.9) / 1.4);
+    if (lt < 6.9) moveDot(da, h.R[0].cv, 1 - v1, lt > 5.5 ? 1 : 0); else moveDot(da, h.L[1].cv, 1 - v2, lt < 8.35 ? 1 : 0);
+    const a = el('bubble', '어제는 결제 모듈 리팩터링을 마쳤고, 테스트 12개 중 10개가 통과했어요. 남은 2개는 지금 이어서 고치겠습니다.', { maxWidth: '700px' }); place(a, 850, 280, prog(lt, 8.2, 8.8));
+    caption('새 대화가 아니라, 하던 그 세션으로').style.opacity = prog(lt, .2, .8);
+  },
+  '2-5'(lt) {
+    const ph = phoneShot(SHOT + (lt < 1.6 ? 'p_chat_wait.png' : 'p_chat_answer.png'), 470, 560, 720); ph.style.opacity = prog(lt, 0, .5);
+    const br = browserShot(SHOT + 'w_chat.png', 1270, 560, 1060); br.style.opacity = prog(lt, .4, 1);
+    const t1 = el('tag', '📱 이어온 앱'); place(t1, 470, 165, prog(lt, .5, 1));
+    const t2 = el('tag', '🖥 웹 화면'); place(t2, 1270, 205, prog(lt, .8, 1.3));
+    caption('').remove();
+  },
+  '2-6'(lt) {
+    const h = hub(); h.lg.set(1, 1 + .05 * Math.sin(lt * 4));
+    MSG.forEach((_, i) => h.showL(i, 1)); AIS.forEach((_, i) => h.showR(i, 1));
+    h.L.forEach((a, i) => moveDot(dot(h.svg, 7, '#7dd3fc'), a.cv, ((lt * .45 + i * .13) % 1)));
+    h.R.forEach((a, i) => moveDot(dot(h.svg, 7, '#5eead4'), a.cv, 1 - ((lt * .45 + i * .21) % 1)));
+    caption('연결의 한가운데, 이어온').style.opacity = prog(lt, .2, .8);
+  },
+  '3-1'(lt) {
+    const b = el('box', '<div class="t">AI 작업 세션</div><div class="s">Codex · Claude Code …</div>', { width: '560px', height: '320px' }); place(b, 1080, 540, prog(lt, 0, .6), lerp(.9, 1, prog(lt, 0, .8)));
+    person(560, 560, prog(lt, .5, 1.1));
+    caption('세션을 키우는 것은 사용자').style.opacity = prog(lt, .4, 1);
+  },
+  '3-2'(lt) {
+    const navy = prog(lt, 6.2, 7.2);
+    const b = el('box', navy < .5 ? '<div class="t">AI 작업 세션</div><div class="s">Codex · Claude Code …</div>' : '<div class="t">⚖️ 법률봇</div><div class="s">법령·판례 학습 + 법령 검색 MCP</div>', { width: '560px', height: '320px' });
+    b.style.background = `rgb(${lerp(15, 30, navy)},${lerp(47, 58, navy)},${lerp(44, 138, navy)})`; b.style.borderColor = navy > .5 ? '#60a5fa' : '#2f6f68';
+    place(b, 1080, 560, 1, 1 + .06 * Math.sin(Math.PI * clamp((lt - 6.2) / 1)));
+    person(560, 580, 1);
+    const doc = el('tag', '📚 법령·판례 자료 <span style="color:#64748b">(학습)</span>'); const pd = eio((lt - .8) / 1.8);
+    place(doc, lerp(560, 1080, pd), lerp(400, 560, pd), lt < 2.6 ? prog(lt, .5, .9) : 1 - prog(lt, 2.6, 3.0), lerp(1, .6, pd));
+    const plug = el('tag', '🔌 법령 검색 MCP', { background: '#fde68a' }); const pp = eio((lt - 3.6) / 1.7);
+    place(plug, 1080, lerp(160, 360, pp), prog(lt, 3.4, 3.8));
+    caption('학습 + 전문 MCP = 법률봇').style.opacity = prog(lt, .2, .8);
+    disc();
+  },
+  '3-3'(lt) {
+    const mk = (x, t, s, bg, bd, f) => { const b = el('box', `<div class="t">${t}</div><div class="s">${s}</div>`, { width: '440px', height: '280px', background: bg, borderColor: bd }); place(b, x, 560, f, lerp(.85, 1, f)); };
+    mk(lerp(1080, 460, eio(lt / 1.2)), '⚖️ 법률봇', '법령·판례 + 법령 검색 MCP', '#1e3a8a', '#60a5fa', 1);
+    mk(960, '🧾 세무봇', '세무 자료 + 세무 계산 MCP', '#14532d', '#4ade80', prog(lt, 1.2, 1.9));
+    mk(1460, '🛡️ 보험봇', '보험 약관 + 보험 상품 MCP', '#7c2d12', '#fb923c', prog(lt, 2.4, 3.1));
+    caption('세무봇 · 보험봇').style.opacity = prog(lt, .6, 1.2);
+    disc();
+  },
+  '3-4'(lt) {
+    const left = [['텔레그램 · 법률봇', '#2aabee'], ['카카오톡 · 세무봇 채널', '#f7e600', '#3b1e1e'], ['슬랙 · 보험봇', '#4a154b']];
+    const right = [['⚖️ 법률봇', '#1e3a8a'], ['🧾 세무봇', '#14532d'], ['🛡️ 보험봇', '#7c2d12']];
+    const h = hub(left, right); h.lg.set(1);
+    left.forEach((_, i) => h.showL(i, prog(lt, .3 + i * .5, 1 + i * .5)));
+    right.forEach((_, i) => h.showR(i, prog(lt, .3 + i * .5, 1 + i * .5)));
+    h.R.forEach((a) => { a.ch.querySelector('i').remove(); a.ch.style.paddingLeft = '26px'; });
+    const q = el('bubble me', '전세 계약 갱신 때 주의할 점은?'); place(q, 700, 300, prog(lt, 4.6, 5.1) * (1 - prog(lt, 10.1, 10.6)));
+    const dq = dot(h.svg, 11, '#38bdf8');
+    if (lt < 6.6) moveDot(dq, h.L[0].cv, (lt - 5.2) / 1.4, lt > 5.2 ? 1 : 0); else moveDot(dq, h.R[0].cv, (lt - 6.6) / 1.4, lt < 8 ? 1 : 0);
+    const da = dot(h.svg, 11, '#93c5fd');
+    if (lt < 9.4) moveDot(da, h.R[0].cv, 1 - (lt - 8) / 1.4, lt > 8 ? 1 : 0); else moveDot(da, h.L[0].cv, 1 - (lt - 9.4) / 1.4, lt < 10.8 ? 1 : 0);
+    const a = el('bubble', '갱신요구권은 만료 6~2개월 전에 한 번(2년), 보증금 증액은 5% 안에서, 확정일자·전입신고는 그대로 유지하세요. <span style="color:#64748b">(참고용)</span>', { maxWidth: '700px' }); place(a, 850, 290, prog(lt, 10.6, 11.2));
+    caption('어떤 봇이 되든, 이어온이 메신저로').style.opacity = prog(lt, .2, .8);
+    disc();
+  },
+  '3-5'(lt) {
+    const z = lerp(1, 1.06, clamp(lt / 10));
+    const br = browserShot(SHOT + 'w_room.png', 960, 505, 1100); br.style.transform = `translate(-50%,-50%) scale(${z})`; br.style.opacity = prog(lt, 0, .5);
+    const t = el('tag', '👥 전문 상담 방 — @법률봇 @세무봇 → 보험봇에게 넘기기'); place(t, 960, 95, prog(lt, .5, 1)); // 이 장면은 실제 화면 답에 (참고용)이 보여 안내 글을 빼서 겹치지 않게
+  },
+  '3-6'(lt) {
+    const left = [['텔레그램', '#2aabee'], ['카카오톡', '#f7e600', '#3b1e1e'], ['디스코드', '#5865f2'], ['슬랙', '#4a154b'], ['라인', '#06c755'], ['＋ 메신저', '#334155']];
+    const right = [['⚖️ 법률봇', '#1e3a8a'], ['🧾 세무봇', '#14532d'], ['🛡️ 보험봇', '#7c2d12'], ['＋ 봇', '#334155']];
+    const h = hub(left, right); h.lg.set(1);
+    left.forEach((_, i) => h.showL(i, i < 5 ? 1 : prog(lt, 1.2, 1.9)));
+    right.forEach((_, i) => h.showR(i, i < 3 ? 1 : prog(lt, 2.2, 2.9)));
+    h.R.forEach((a) => { const ic = a.ch.querySelector('i'); if (ic) ic.remove(); a.ch.style.paddingLeft = '26px'; });
+    // PC 여러 대
+    [['집 PC', 1470], ['회사 PC', 1730]].forEach(([n, x], i) => { const m = el('tag', '🖥 ' + n, { background: '#1e293b', color: '#e2e8f0' }); place(m, x, 800, prog(lt, 3.8 + i * .6, 4.4 + i * .6)); });
+    // 허브(구름)
+    const c = el('tag', '☁️ 허브 · ieun-gateway.sinsan.kr', { background: '#ecfeff', color: '#0e7490', fontSize: '28px' }); place(c, CX, 245, prog(lt, 6.0, 6.7));
+    const ln = path(h.svg, `M${CX},${275} L${CX},${CY - 112}`, '#22d3ee', 4, '10 10'); ln.style.opacity = prog(lt, 6.2, 6.9);
+    caption('').remove();
+  },
+  '4-1'(lt) {
+    const g = logo(CX, CY, .9); g.set(1, .9);
+    const B = [['①', '정한 세션에만', 460, 330, 2.2], ['②', '쓰는 중이면 보내지 않음', 1460, 330, 4.6], ['③', '실행은 허락 카드로', 460, 760, 7.0], ['④', '질문·답은 내 서버에만', 1460, 760, 9.0]];
+    B.forEach(([n, t, x, y, at]) => { const b = el('badge', `<i>🛡️</i><span>${n} ${t}</span>`); place(b, x, y, prog(lt, at, at + .5), lerp(.9, 1, prog(lt, at, at + .5))); });
+    caption('믿을 수 있는 연결').style.opacity = prog(lt, .2, .8);
+  },
+  '4-2'(lt) {
+    const S = [['①', '이어온 설치', 480, .4], ['②', '이어 쓸 세션 고르기', 960, 1.9], ['③', '메신저 연결', 1440, 3.5]];
+    S.forEach(([n, t, x, at]) => { const s = el('step', `<b>${n}</b><span>${t}</span>`); place(s, x, 560, prog(lt, at, at + .5), lerp(.9, 1, prog(lt, at, at + .5))); });
+    caption('연결은 세 번이면 끝').style.opacity = prog(lt, .2, .8);
+  },
+  '4-3'(lt) {
+    const g = logo(CX, 460, 1.15, false); g.set(prog(lt, 0, .6), lerp(.8, 1.15, prog(lt, 0, 1)), CX, 460);
+    const t = el('', '이어온 — 메신저와 AI를 잇다', { position: 'absolute', fontSize: '64px', fontWeight: 700 }); place(t, CX, 720, prog(lt, .6, 1.2));
+    const s = el('', 'ieon-gateway', { position: 'absolute', fontSize: '30px', color: '#8fd3c8', letterSpacing: '.08em' }); place(s, CX, 800, prog(lt, 1, 1.6));
+  },
+  '4-4'(lt, d) {
+    const g = logo(CX, 330, .7, false); g.set(1, .7, CX, 330);
+    const t = el('', '다음 이야기 — 내 세션을 전문 봇으로', { position: 'absolute', fontSize: '56px', fontWeight: 700 }); place(t, CX, 530, prog(lt, .3, .9));
+    [['⚖️ 법률봇', 640], ['🧾 세무봇', 960], ['🛡️ 보험봇', 1280]].forEach(([n, x], i) => { const tg = el('tag', n, { background: '#1e293b', color: '#e2e8f0' }); place(tg, x, lerp(760, 690, prog(lt, 1 + i * .4, 2 + i * .4)), .75 * prog(lt, 1 + i * .4, 2 + i * .4)); });
+    stage.style.opacity = 1 - prog(lt, d - .9, d);
+  },
+};
+function phone(lt) {
+  const p = el('dev', '', { width: '330px', height: '640px', padding: '12px' });
+  p.innerHTML = `<div style="width:100%;height:100%;border-radius:32px;background:#e7ebf0;overflow:hidden">
+    <div style="background:#2aabee;color:#fff;padding:18px 20px;font-size:22px;font-weight:700">텔레그램</div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="align-self:flex-start;background:#fff;color:#111;border-radius:16px;padding:10px 14px;font-size:18px">오늘 회의 몇 시야?</div>
+      <div style="align-self:flex-end;background:#d9f2ff;color:#111;border-radius:16px;padding:10px 14px;font-size:18px">3시!</div>
+      <div style="align-self:flex-end;background:#d9f2ff;color:#111;border-radius:16px;padding:10px 14px;font-size:18px;opacity:${prog(lt, 1.2, 1.6)}">AI 작업은 어떻게 됐지…?</div>
+    </div></div>`;
+  return p;
+}
+function person(x, y, o) {
+  const p = el('', `<svg width="160" height="200" viewBox="0 0 160 200" style="position:static"><circle cx="80" cy="52" r="38" fill="#e2e8f0"/><path d="M14 196 C14 128 146 128 146 196 Z" fill="#e2e8f0"/></svg><div style="text-align:center;font-size:30px;font-weight:700;margin-top:6px">사용자</div>`, { position: 'absolute' });
+  place(p, x, y, o);
+}
+function disc() { el('disc', '전문 분야 답변은 참고용입니다. 중요한 결정은 전문가와 확인하세요.'); }
+
+// ---- 그리기 ----
+let current = null;
+window.render = (t) => {
+  const TL = window.__TIMELINE || [];
+  const sc = TL.find((s) => t >= s.start && t < s.start + s.dur) || TL[TL.length - 1];
+  if (!sc) return;
+  const lt = t - sc.start;
+  stage.innerHTML = ''; stage.style.opacity = 1;
+  SCN[sc.id](lt, sc.dur);
+  // 장면 바뀔 때 살짝 어둡게(0.25초)
+  const fade = Math.min(prog(lt, 0, .25), sc.id === '4-4' ? 1 : 1);
+  if (lt < .25 && sc.id !== '1-1') stage.style.filter = `brightness(${lerp(.55, 1, fade)})`; else stage.style.filter = '';
+  // 자막(말하는 동안)
+  const s0 = sc.sayStart, s1 = sc.sayStart + sc.sayDur;
+  if (t >= s0 && t <= s1 + .25) el('sub', `<span>${sc.say}</span>`);
+};
+// 이미지 미리 불러오기
+window.__ready = Promise.all(['p_chat_wait', 'p_chat_answer', 'w_chat', 'w_room'].map((n) => new Promise((r) => { const i = new Image(); i.onload = i.onerror = r; i.src = SHOT + n + '.png'; })));
+</script>
+</body>
+</html>
