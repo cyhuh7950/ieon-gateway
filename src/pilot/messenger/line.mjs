@@ -73,7 +73,7 @@ export function runLine(opts) {
     // 답이 늦으면 답장 표가 지나기 전에 "받았어요"로 쓰고, 실제 답은 보내기로.
     const late = setTimeout(() => { if (reply.token && !reply.used && !out.length) useReply([RECEIVED]); }, replyWait);
     try {
-      await onMessage({ platform: 'line', userId: user, chatId: user, isGroup: false, called: true, text: ev.message.text }, send);
+      await onMessage({ platform: 'line', userId: user, chatId: user, isGroup: false, called: true, text: ev.message.text, ...(id ? { msgId: `ln-${id}` } : {}) }, send);
     } catch (e) {
       log({ platform: 'line', event: 'handle_error', error: String(e.message).slice(0, 80) });
       out.push('처리 중 오류가 났습니다.');

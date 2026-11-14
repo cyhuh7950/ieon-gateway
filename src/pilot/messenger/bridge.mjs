@@ -3,7 +3,7 @@
 // - 대화방마다 세션 하나를 연결하거나(/use), 1:1 대화에서 /use로 대상 세션을 고른다.
 // - 질문은 이어온 서버 API로만 넣는다. 결과 불명이면 다시 보내지 않고 /review로 정리한다.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { DEFAULT_BOT, migrateRooms } from '../bots.mjs';
 
 const MAX_CHUNK = { telegram: 3800, discord: 1900, slack: 3800, kakao: 950, line: 4800 };
@@ -88,6 +88,44 @@ export function createBridge(opts) {
   const isOwner = opts.isOwner ?? ((m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId)));
   const roomApprovals = new Map(); // 대화방 → [{ n, approvalId }] (메신저에서 /허용 n 으로 고르는 번호)
   const roomKey = (m) => `${m.platform}:${m.botId ?? opts.botId ?? DEFAULT_BOT}:${m.chatId}${m.threadKey ? `:${m.threadKey}` : ''}`;
+  const channelKey = (m) => roomKey({ ...m, threadKey: undefined });
+  // 슬랙 스레드는 자기 연결이 있으면 그것, 없으면 채널 연결을 따른다(전에는 스레드를 나누지 않아 모두 채널 연결이었음 — 그 동작 보존).
+  // 텔레그램 주제(topic)는 전부터 따로였고 채널 연결을 따르지 않는다.
+  const roomConv = (m) => rooms[roomKey(m)] ?? (m.platform === 'slack' && m.threadKey ? rooms[channelKey(m)] : undefined);
+  const log = opts.log ?? (() => {});
+  // 같은 원본 메시지는 한 번만(메신저 재전송·재접속) — 프로그램 안에서는 10분 기억, 다시 켠 뒤에는 같은 요청 열쇠로 서버가 막음
+  const seen = new Map();
+  const botOf = (m) => m.botId ?? opts.botId ?? DEFAULT_BOT;
+  const seenBefore = (m) => {
+    if (!m.msgId) return false;
+    const k = `${m.platform}:${botOf(m)}:${m.msgId}`;
+    for (const [x, at] of seen) if (Date.now() - at > 10 * 60_000) seen.delete(x);
+    if (seen.has(k)) return true;
+    seen.set(k, Date.now()); return false;
+  };
+  const idemKey = (m) => (m.msgId ? 'msg-' + createHash('sha256').update(`${m.platform}:${botOf(m)}:${m.msgId}`).digest('hex').slice(0, 40) : `msg-${randomUUID()}`);
+  // 엔진 실행 완료와 답 전달 완료를 나눈다: 대화방 → { requestId, label, delivered }
+  const lastAnswer = new Map();
+  const retryMs = opts.deliverRetryMs ?? 2000;
+  // 안내 글은 못 보내도 처리를 멈추지 않는다(기록만, 내용 없이)
+  const safeSend = async (m, send, text) => { try { await send(text); return true; } catch (e) { log({ platform: m.platform, event: 'send_failed', error: String(e.message).slice(0, 40) }); return false; } };
+  // 답 전달: 잠깐 실패(retryable)는 두 번 더 해 보고, 끝내 실패하면 기록하고 /last로 다시 받게 한다. 엔진은 다시 돌리지 않는다.
+  async function deliver(m, send, conv, requestId, answer) {
+    const parts = splitText(answer ?? '(보관하지 않은 답변)', MAX_CHUNK[m.platform] ?? 1900);
+    for (const part of parts) {
+      for (let attempt = 0; ; attempt++) {
+        try { await send(part); break; } catch (e) {
+          if (e.retryable && attempt < 2) { await new Promise((ok) => setTimeout(ok, retryMs * (attempt + 1))); continue; }
+          lastAnswer.set(roomKey(m), { requestId, label: conv.label, delivered: false });
+          log({ platform: m.platform, event: 'deliver_failed', requestId, error: String(e.message).slice(0, 40) });
+          await safeSend(m, send, `[${conv.label}] 답을 보내지 못했어요(${String(e.message).slice(0, 30)}) — 엔진은 다시 돌리지 않아요. /last 로 다시 받을 수 있어요`);
+          return false;
+        }
+      }
+    }
+    lastAnswer.set(roomKey(m), { requestId, label: conv.label, delivered: true });
+    return true;
+  }
 
   async function sessions() {
     const r = await opts.api({ method: 'GET', path: '/v1/conversations' });
@@ -98,19 +136,22 @@ export function createBridge(opts) {
   const byName = (all, name) => all.find((c) => c.newSession?.name === name);
   const nsFail = (r) => NS_ERR[r.body?.error] ?? `할 수 없음: ${r.body?.error}`;
   const describe = (c, i) => {
-    const engine = c.engine === 'claude_channel' ? 'Claude' : c.engine === 'claude_cli' ? 'Claude(새 세션)' : `Codex(${c.connectMode === 'shared_server' ? '동시 사용' : '번갈아 쓰기'})`;
+    const engine = c.engine === 'claude_channel' ? 'Claude' : c.engine === 'claude_cli' ? 'Claude(새 세션)' : c.engine === 'agy_cli' ? 'Antigravity' : c.engine === 'grok_cli' ? 'Grok' : `Codex(${c.connectMode === 'shared_server' ? '동시 사용' : '번갈아 쓰기'})`;
     const ns = c.newSession ? ` · 새 세션 ${STATE[c.newSession.state] ?? c.newSession.state}` : '';
     const state = !c.deviceOnline ? 'PC 연결 끊김' : c.heldBy ? '확인 필요' : c.engineReady === false ? '엔진 꺼짐' : c.busy ? '처리 중' : '보낼 수 있음';
-    return `${i + 1}. ${c.label} — ${engine} · ${state}${ns}${c.account?.label ? `\n   계정: ${c.account.label}` : ''}`;
+    // 어느 PC·작업 모드인지도 보이게(허브는 PC 이름을 알려 줌)
+    const where = `${c.host?.name ? ` · PC ${c.host.name}` : ''}${c.workMode ? ' · 작업 모드' : ''}`;
+    return `${i + 1}. ${c.label} — ${engine} · ${state}${where}${ns}${c.account?.label ? `\n   계정: ${c.account.label}` : ''}`;
   };
 
   async function ask(m, conv, question, send) {
     const r = await opts.api({
       method: 'POST', path: `/v1/conversations/${conv.conversationId}/requests`,
-      headers: { 'idempotency-key': `msg-${randomUUID()}` }, body: { question },
+      headers: { 'idempotency-key': idemKey(m) }, body: { question },
     });
-    if (r.status !== 202) return send(`[${conv.label}] ${ERR[r.body?.error] ?? `보낼 수 없음: ${r.body?.error}`}`);
-    await send(`[${conv.label}] 접수됨 — 답을 기다리는 중${conv.workMode ? ' (작업 모드: 파일 수정·명령 실행은 허용을 물어봐요)' : ''}`);
+    if (r.status !== 202) return safeSend(m, send, `[${conv.label}] ${ERR[r.body?.error] ?? `보낼 수 없음: ${r.body?.error}`}`);
+    lastAnswer.set(roomKey(m), { requestId: r.body.requestId, label: conv.label, delivered: null });
+    await safeSend(m, send, `[${conv.label}] 접수됨 — 답을 기다리는 중${conv.workMode ? ' (작업 모드: 파일 수정·명령 실행은 허용을 물어봐요)' : ''}`);
     const started = Date.now();
     const announced = new Set();
     // 작업 모드는 승인을 기다리는 동안(최대 15분) 더 오래 기다린다
@@ -126,24 +167,21 @@ export function createBridge(opts) {
           const list = roomApprovals.get(roomKey(m)) ?? []; const n = (list.at(-1)?.n ?? 0) + 1;
           list.push({ n, approvalId: k.approvalId }); roomApprovals.set(roomKey(m), list.slice(-20));
           const what = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' }[k.approvalKind] ?? '허용 요청';
-          await send(`[${conv.label}] 승인 요청 ${n}: ${what} — ${k.summary}${k.cwd ? ` (작업 폴더 ${k.cwd})` : ''}\n허용: /허용 ${n}   거부: /거부 ${n}   (15분 안에, 이번 한 번만)`);
+          await safeSend(m, send, `[${conv.label}] 승인 요청 ${n}: ${what} — ${k.summary}${k.cwd ? ` (작업 폴더 ${k.cwd})` : ''}\n허용: /허용 ${n}   거부: /거부 ${n}   (15분 안에, 이번 한 번만)`);
         }
       }
-      if (s.status === 'completed') {
-        for (const part of splitText(s.answer ?? '(보관하지 않은 답변)', MAX_CHUNK[m.platform] ?? 1900)) await send(part);
-        return;
-      }
+      if (s.status === 'completed') return deliver(m, send, conv, r.body.requestId, s.answer);
       // A1: 한도는 어느 계정인지와 고를 수 있는 길을 함께(실행 안 됨이 확실 — 잠그지 않음, 자동으로 다시 보내지 않음).
       if (s.status === 'failed' && s.errorCode === 'usage_limit') {
-        return send(`[${conv.label}] ${ERR.usage_limit} — 지금 쓰는 계정: ${conv.account?.label ?? '알 수 없음'}. 한도가 풀린 뒤 같은 질문을 다시 보내거나, 등록해 둔 다른 계정으로 바꾸세요(이어온 화면 → 설정 → 계정).`);
+        return safeSend(m, send, `[${conv.label}] ${ERR.usage_limit} — 지금 쓰는 계정: ${conv.account?.label ?? '알 수 없음'}. 한도가 풀린 뒤 같은 질문을 다시 보내거나, 등록해 둔 다른 계정으로 바꾸세요(이어온 화면 → 설정 → 계정).`);
       }
-      if (s.status === 'failed') return send(`[${conv.label}] ${ERR[s.errorCode] ?? `실행 실패: ${s.errorCode}`}`);
+      if (s.status === 'failed') return safeSend(m, send, `[${conv.label}] ${ERR[s.errorCode] ?? `실행 실패: ${s.errorCode}`}`);
       if (s.status === 'unknown') {
-        return send(`[${conv.label}] 결과를 확인할 수 없음${s.errorCode === 'turn_joined_by_other_input' ? '(TUI 입력이 합류했을 수 있음)' : ''} — 자동으로 다시 보내지 않습니다. 원래 세션을 확인한 뒤 /review done 또는 /review not`);
+        return safeSend(m, send, `[${conv.label}] 결과를 확인할 수 없음${s.errorCode === 'turn_joined_by_other_input' ? '(TUI 입력이 합류했을 수 있음)' : ''} — 자동으로 다시 보내지 않습니다. 원래 세션을 확인한 뒤 /review done 또는 /review not`);
       }
-      if (s.status === 'approval_required') return send(`[${conv.label}] 원래 세션에서 권한 확인이 필요해 멈춤 — 처리 후 /review done 또는 /review not`);
+      if (s.status === 'approval_required') return safeSend(m, send, `[${conv.label}] 원래 세션에서 권한 확인이 필요해 멈춤 — 처리 후 /review done 또는 /review not`);
     }
-    return send(`[${conv.label}] 아직 답이 없음 — 끝나면 /status로 확인하세요(다시 보내지 않음)`);
+    return safeSend(m, send, `[${conv.label}] 아직 답이 없음 — 끝나면 /last로 받을 수 있어요(다시 실행하지 않음)`);
   }
 
   // 그 대화방에서 다른 우리 봇이 세션에 연결돼 있는지(키 "<메신저>:<봇>:<대화방>[:<주제>]"의 대화방 부분이 같은 것).
@@ -157,6 +195,7 @@ export function createBridge(opts) {
   // m: { platform, botId?, userId, chatId, threadKey?, text, isGroup?, called?, forOther? }, send(text) → Promise
   async function handle(m, send) {
     if (m.forOther) return; // /명령@다른 봇
+    if (seenBefore(m)) return log({ platform: m.platform, event: 'duplicate' }); // 같은 원본 메시지가 다시 옴
     const bot = info();
     // 부르는 이름이 없으면 봇 ID로 부를 수 있다.
     const call = stripCallName(m.text, bot.callNames?.length ? bot.callNames : [m.botId ?? opts.botId ?? DEFAULT_BOT]);
@@ -180,7 +219,7 @@ export function createBridge(opts) {
     const all = await sessions();
     // 보관된 새 세션은 목록·번호에서 빼고 /archived로 따로 본다.
     const list = all.filter((c) => c.newSession?.state !== 'archived');
-    let current = list.find((c) => c.conversationId === rooms[roomKey(m)]);
+    let current = list.find((c) => c.conversationId === roomConv(m));
     // 역할의 기본 세션: 연결이 없는 대화방이면 /use 없이 그 세션에 연결한다(이 봇이 볼 수 있는 세션일 때만).
     if (!current && bot.role?.defaultSession && !/^\/(help|start|sessions|use|new)\b/.test(text)) {
       const d = list.find((c) => c.conversationId === bot.role.defaultSession);
@@ -196,7 +235,7 @@ export function createBridge(opts) {
       const head = bot.name ? `${bot.name}${bot.role ? ` · ${bot.role.name}${bot.role.description ? ` — ${bot.role.description}` : ''}` : ''}${bot.callNames?.length ? `\n그룹에서 부르기: "${bot.callNames[0]}, …" 또는 @멘션` : ''}\n\n` : '';
       return send(head + '명령어\n/sessions 세션 목록\n/use <번호> 이 대화방을 그 세션에 연결\n/status 연결된 세션 상태\n/review done|not 확인 필요 질문 정리\n'
         + '/new codex|claude <이름> [read_only|workspace] 새 세션을 만들고 이 대화방에 연결\n/sleep <이름> 잠재우기\n/archived 보관 목록\n'
-        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/허용 <번호> · /거부 <번호> 작업 모드 승인 요청에 답하기(주인만)\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
+        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/허용 <번호> · /거부 <번호> 작업 모드 승인 요청에 답하기(주인만)\n/last 마지막 답 다시 받기(다시 실행하지 않음)\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
     }
     const create = text.match(/^\/new\s+(codex|claude)\s+(\S+)(?:\s+(\S+))?\s*$/);
     if (create) {
@@ -246,6 +285,15 @@ export function createBridge(opts) {
       if (r.status === 200) return send(`승인 요청 ${item.n}: ${decision === 'allow' ? '허용함(이번 한 번)' : '거부함'}`);
       return send(r.body?.error === 'approval_closed' ? `승인 요청 ${item.n}은 이미 끝났어요(${({ expired: '시간이 지나 거부됨', turn_ended: '차례가 끝나 거부됨', allowed: '허용됨', denied: '거부됨' })[r.body.status] ?? r.body.status})` : `처리하지 못했어요: ${r.body?.error}`);
     }
+    // 마지막 답 다시 받기 — 요청을 다시 읽어 전달만(엔진을 다시 돌리지 않음)
+    if (/^\/last\b/.test(text)) {
+      const la = lastAnswer.get(roomKey(m));
+      if (!la) return send('다시 보낼 답이 없음(이 대화방에서 이번에 받은 질문이 없음)');
+      const s = (await opts.api({ method: 'GET', path: `/v1/requests/${la.requestId}` })).body ?? {};
+      if (s.status === 'completed') return deliver(m, send, { label: la.label }, la.requestId, s.answer);
+      const word = { queued: '기다리는 중', dispatching: '보내는 중', running: '실행 중', failed: '실패', unknown: '결과 불명', approval_required: '권한 확인 필요' }[s.status];
+      return send(`[${la.label}] 마지막 질문은 아직 끝나지 않았거나 답이 없음(${word ?? s.status ?? '알 수 없음'})`);
+    }
     if (/^\/sessions\b/.test(text)) return send(list.length ? list.map(describe).join('\n') : '연결할 수 있는 세션이 없음');
     const use = text.match(/^\/use\s+(\d+)\s*$/);
     if (use) {
@@ -256,7 +304,10 @@ export function createBridge(opts) {
       return send(`이 대화방을 "${c.label}"에 연결했습니다.`);
     }
     if (!current) return send('이 대화방에 연결된 세션이 없음 — /sessions 후 /use <번호>');
-    if (/^\/status\b/.test(text)) return send(describe(current, list.indexOf(current)));
+    if (/^\/status\b/.test(text)) {
+      const la = lastAnswer.get(roomKey(m));
+      return send(describe(current, list.indexOf(current)) + (la?.delivered === false ? '\n마지막 답: 답 전달 실패 — /last 로 다시 받기' : ''));
+    }
     const review = text.match(/^\/review\s+(done|not)\s*$/);
     if (review) {
       if (!current.heldBy) return send(`[${current.label}] 정리할 질문이 없음`);
