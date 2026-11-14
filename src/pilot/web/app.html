@@ -384,6 +384,11 @@ details.adv[open] summary { margin-bottom:10px; }
       <label class="small">역할 <select id="stRole"><option value="">없음</option></select></label>
       <button type="button" class="pbtn" id="stSave">저장</button>
     </div>
+    <div class="sec" id="pData">
+      <h4>보관 기록</h4>
+      <button type="button" class="pbtn" id="msgDel">이 대화의 서버 보관 기록 지우기</button>
+      <div class="small muted">이어온 서버(이 PC·허브)에 남은 이 대화의 질문·답만 지워요. 원래 Codex·Claude 세션 기록은 그대로예요. 처리 중일 때는 끝난 뒤 지우세요.</div>
+    </div>
     <div class="sec" id="pNew" hidden>
       <h4>새 세션</h4>
       <div id="pNewInfo" class="small"></div>
@@ -1086,6 +1091,7 @@ function renderPanel(c) {
   // W2: 작업 모드(Codex 기존 대화만)
   $('pWork').hidden = c.engine !== 'codex_thread' || Boolean(c.newSession); $('wmOn').checked = c.workMode === true; $('wmOn').disabled = c.busy || Boolean(pending);
   if (document.activeElement?.closest?.('#pStaff') == null) { $('stName').value = c.staff?.name ?? ''; $('stIcon').value = c.staff?.icon ?? ''; fillRoles(c.staff?.roleId ?? ''); }
+  $('msgDel').disabled = c.busy || Boolean(pending); // AP-5a
   $('pEngine').textContent = ENGINE[c.engine] || c.engine;
   $('pAccount').textContent = c.account ? c.account.label + (c.account.mode === 'pc_default' ? ' (이어온 전용 계정은 설정 → 계정)' : '') : '—';
   $('pHow').textContent = HOW[c.engine] || '';
@@ -1136,6 +1142,15 @@ $('wmOn').onchange = async () => {
   const r = await api('/v1/conversations/' + current + '/work-mode', { method: 'PUT', body: JSON.stringify({ on }) });
   toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '작업 모드를 ' + (on ? '켰어요' : '껐어요') : ({ conversation_busy: '처리 중인 질문이 끝난 뒤 바꿀 수 있어요', work_mode_not_supported: '이 대화는 작업 모드를 쓸 수 없어요(지금은 Codex 기존 대화만)' }[r.body.error] || r.body.error));
   load();
+};
+// AP-5a: 이 대화의 서버 보관 기록(질문·답 원문) 지우기 — 원래 엔진 세션 기록은 그대로
+$('msgDel').onclick = async () => {
+  const id = current; if (!id) return;
+  if (!confirm('이 대화의 서버 보관 기록(질문·답)을 지울까요? 되돌릴 수 없어요. 원래 Codex·Claude 세션 기록은 그대로예요.')) return;
+  const r = await api('/v1/conversations/' + id + '/messages', { method: 'DELETE' });
+  if (r.status !== 204) return toast('err', '지우지 못했어요: ' + (r.body?.error || r.status));
+  toast('ok', '이 대화의 서버 보관 기록을 지웠어요.');
+  if (current === id) select(id).catch(() => {});
 };
 $('stSave').onclick = async () => {
   const r = await api('/v1/conversations/' + current + '/staff', { method: 'PUT', body: JSON.stringify({ name: $('stName').value.trim(), icon: $('stIcon').value.trim() || null, roleId: $('stRole').value || null }) });

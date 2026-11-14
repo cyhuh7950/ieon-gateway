@@ -109,3 +109,5 @@ select { font: inherit; width: 100%; padding: 12px; border: 1px solid var(--line
 .dim { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 20px; }
 .dialog { background: var(--panel); color: var(--text); border-radius: 16px; padding: 18px; max-width: 420px; display: flex; flex-direction: column; gap: 10px; }
 .dialog p { margin: 0; line-height: 1.6; }
+.policy { margin-top: 16px; font-size: 14px; align-self: center; }
+a.link { color: var(--muted); font-size: 13px; padding: 4px; }

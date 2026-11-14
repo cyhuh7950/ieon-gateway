@@ -120,3 +120,27 @@ test('AP-4a 알림: 웹 화면은 새 소식으로 원문 없는 알림(켜기�
   assert.equal(ev.headers.get('x-accel-buffering'), 'no');
   ac.abort();
 });
+
+test('AP-5a: 앱이 스스로 이 기기 연결을 끊음(자기 열쇠만, 바로 401), 개인정보 처리방침은 누구나 열람, 앱 열쇠로 대화 보관 기록 지우기', async (t) => {
+  const s = await setup(t);
+  const H = (tok) => ({ authorization: `Bearer ${tok}`, 'content-type': 'application/json' });
+  const pairOne = async (name) => {
+    const code = (await (await fetch(s.base + '/v1/admin/app-devices/code', { method: 'POST', headers: H('web'), body: '{}' })).json()).code;
+    return (await (await fetch(s.base + '/v1/app/pair', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, name }) })).json()).token;
+  };
+  const a = await pairOne('폰A'); const b = await pairOne('폰B');
+  assert.equal((await fetch(s.base + '/v1/app/forget', { method: 'POST', headers: H('web'), body: '{}' })).status, 403, '웹 로그인으로는 못 씀(앱 전용)');
+  assert.equal((await fetch(s.base + '/v1/conversations/c1/messages', { method: 'DELETE', headers: H(a) })).status, 204, '앱 열쇠로 보관 기록 지우기');
+  const f = await fetch(s.base + '/v1/app/forget', { method: 'POST', headers: H(a), body: '{}' });
+  assert.equal(f.status, 200);
+  assert.equal((await fetch(s.base + '/v1/conversations', { headers: H(a) })).status, 401, '끊은 열쇠는 바로 막힘');
+  assert.equal((await fetch(s.base + '/v1/conversations', { headers: H(b) })).status, 200, '다른 기기는 그대로');
+  const list = (await (await fetch(s.base + '/v1/admin/app-devices', { headers: H('web') })).json()).devices;
+  assert.equal(list.filter((d) => !d.revokedAt).length, 1);
+  const p = await fetch(s.base + '/privacy');
+  assert.equal(p.status, 200);
+  const html = await p.text();
+  assert.ok(html.includes('개인정보 처리방침') && html.includes('마이크 권한을 갖지 않습니다') && html.includes('이 기기 연결 끊기'));
+  const { isExemptPath } = await import('../../src/pilot/web-access.mjs');
+  assert.ok(isExemptPath('/privacy'), '접속 제한을 켜도 열람');
+});

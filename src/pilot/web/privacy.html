@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어온 개인정보 처리방침</title>
+<style>
+  :root { --bg:#f6f7f8; --text:#16191d; --muted:#5d6670; --line:#e2e5e9; --accent:#0f766e; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111417; --text:#e8eaed; --muted:#9aa3ad; --line:#2c3238; --accent:#2bb3a5; } }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.7 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 20px 64px; }
+  h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:18px; margin:28px 0 8px; color:var(--accent); }
+  p, li { margin:6px 0; } .muted { color:var(--muted); font-size:14px; }
+  table { border-collapse:collapse; width:100%; font-size:15px; } th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  /* 휴대폰: 표를 칸마다 한 줄씩(첫 칸이 좁게 눌리지 않게) */
+  @media (max-width: 600px) {
+    table, tbody, tr, td { display:block; width:100%; } tr:first-child { display:none; }
+    tr { border:1px solid var(--line); border-radius:10px; margin:10px 0; padding:4px 0; } td { border:0; padding:4px 12px; }
+    td:first-child { font-weight:700; }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>이어온 개인정보 처리방침</h1>
+<p class="muted">시행일 2026-11-14 · 적용 대상: 이어온 앱(안드로이드·PC)과 이어온 웹 화면</p>
+
+<h2>1. 이어온은 어떻게 동작하나요</h2>
+<p>이어온은 <b>사용자 자신이 설치한 이어온 서버</b>(내 PC 또는 내 허브)에 연결해, 그 서버와 이어진 내 AI 작업 세션(Codex·Claude Code 등)과 대화하게 해 주는 앱입니다. 질문과 답은 <b>사용자가 연결한 그 서버에만</b> 저장되며, 이어온 앱 개발자에게 보내지지 않습니다. 이어온에는 회원 가입·광고·이용 분석 기능이 없습니다.</p>
+
+<h2>2. 다루는 정보</h2>
+<table>
+  <tr><th>정보</th><th>어디에 있나요</th><th>왜 필요한가요</th></tr>
+  <tr><td>서버 주소, 기기 열쇠</td><td>내 기기 안(앱 전용 저장소). 서버에는 열쇠를 알아볼 수 없게 바꾼 값(해시)만</td><td>내 서버에 연결하기 위해</td></tr>
+  <tr><td>기기 이름, 마지막 사용 시각</td><td>내 서버</td><td>웹 화면의 "연결된 앱" 목록에서 알아보고 끊을 수 있게</td></tr>
+  <tr><td>질문과 답, 허락(승인) 기록</td><td>내 서버(승인 기록은 180일 보관)</td><td>대화를 이어 보고, 허락 여부를 남기기 위해</td></tr>
+  <tr><td>음성</td><td>저장하지 않음</td><td>말로 쓰기·읽어 주기는 기기에 들어 있는 기능을 씁니다. 기기에 따라 음성이 기기 회사(구글·마이크로소프트·애플) 서버를 거칠 수 있습니다. 받아쓴 글은 사용자가 보내기를 누를 때만 질문으로 보내집니다.</td></tr>
+  <tr><td>알림 주소(휴대폰 알림을 켠 경우)</td><td>내 서버</td><td>"○○가 답했어요" 알림을 보내기 위해. 알림은 구글(Firebase)·브라우저 알림 서버를 거치므로 <b>질문·답 내용은 넣지 않고</b> AI 직원 이름과 정해진 말만 보냅니다.</td></tr>
+</table>
+
+<h2>3. 다른 곳에 주는 정보</h2>
+<p>이어온 앱 개발자는 위 정보를 받거나 다른 곳에 팔거나 넘기지 않습니다. 위 표에 적은 기기 회사의 음성 기능·알림 서버를 거치는 것만 있습니다. 내 서버와 이어진 AI 작업 세션(Codex·Claude Code 등)에는 사용자가 보낸 질문이 그 서비스의 약관에 따라 전달됩니다.</p>
+
+<h2>4. 앱이 쓰는 권한</h2>
+<p>인터넷(내 서버에 연결)과 알림만 씁니다. 안드로이드 앱은 마이크 권한을 갖지 않습니다(말로 쓰기는 기기의 받아쓰기 창이 녹음). 위치·연락처·사진·카메라 권한은 쓰지 않습니다.</p>
+
+<h2>5. 지우기</h2>
+<ul>
+  <li><b>이 기기 연결 끊기:</b> 앱 첫 화면 아래 "이 기기 연결 끊기" — 서버에서 이 기기의 열쇠를 지우고 앱에 저장된 연결 정보도 지웁니다. 웹 화면 설정 → 내 프로그램 연결 → 이어온 앱 연결에서도 끊을 수 있습니다.</li>
+  <li><b>대화 기록 지우기:</b> 앱 1:1 대화 위쪽 ✎ 또는 웹 화면의 연결 설정 → "이 대화의 서버 보관 기록 지우기" — 서버에 남은 그 대화의 질문·답을 지웁니다(AI 서비스 쪽 세션 기록은 그 서비스에서 관리).</li>
+  <li><b>모두 지우기:</b> 내 서버(이어온 프로그램)와 그 데이터 폴더를 지우면 모든 정보가 지워집니다. 앱을 지우면 기기 안 정보가 지워집니다.</li>
+</ul>
+
+<h2>6. 바뀔 때</h2>
+<p>이 방침이 바뀌면 이 화면과 앱 안내로 알립니다.</p>
+
+<h2>7. 문의</h2>
+<p>이어온 운영자 · 연락처: <span id="contact">스토어 등록 정보의 연락처</span></p>
+</main>
+</body>
+</html>

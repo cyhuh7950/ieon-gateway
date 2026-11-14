@@ -84,6 +84,10 @@ export function client(conn: Conn, f: Fetch = fetch) {
     decide: async (approvalId: string, decision: "allow" | "deny"): Promise<string> =>
       (await call(`/v1/approvals/${encodeURIComponent(approvalId)}`, { method: "POST", body: JSON.stringify({ decision }) })).status,
     review: async (requestId: string, executed: boolean) => call(`/v1/requests/${encodeURIComponent(requestId)}/review`, { method: "POST", body: JSON.stringify({ executed }) }),
+    // AP-5a: 이 기기 연결 끊기(서버에서 이 기기 열쇠를 지움 — 끊은 뒤엔 401)
+    // AP-5a: 이 대화의 서버 보관 기록(질문·답) 지우기 — 원래 엔진 세션 기록은 그대로
+    deleteMessages: async (id: string) => call(`/v1/conversations/${encodeURIComponent(id)}/messages`, { method: "DELETE" }),
+    forget: async () => call("/v1/app/forget", { method: "POST", body: "{}" }),
     // AP-3b: AI 직원 이름·아이콘(역할은 웹 화면에서만 — 역할 목록은 설정 API라 앱이 못 읽음, 지금 역할은 그대로 둔다)
     setStaff: async (id: string, s: { name: string; icon: string | null; roleId: string | null }): Promise<Staff> =>
       call(`/v1/conversations/${encodeURIComponent(id)}/staff`, { method: "PUT", body: JSON.stringify(s) }),
