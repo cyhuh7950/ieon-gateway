@@ -14,7 +14,7 @@ function stateOf(c: Conversation): [string, string] {
 }
 
 export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onEvent, onForget, onLost, notify }: {
-  api: Client; server: string; onOpen: (c: Conversation) => void; onRoom: (r: Room) => void; onNewRoom: () => void; onEvent: OnEvent; onForget: () => void; onLost: () => void;
+  api: Client; server: string; onOpen: (c: Conversation) => void; onRoom: (r: Room) => void; onNewRoom: () => void; onEvent: OnEvent; onForget: () => Promise<string | null>; onLost: () => void;
   notify: { on: boolean; toggle: () => void } | null;
 }) {
   const [list, setList] = useState<Conversation[] | null>(null);
@@ -73,8 +73,12 @@ export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onEvent, on
       )}
       <footer className="foot muted">
         <span>{new URL(server).host}</span>
+        <a className="link" href={server + "/privacy"} target="_blank" rel="noopener noreferrer">개인정보 처리방침</a>
         {notify && <button className="link" onClick={notify.toggle} aria-pressed={notify.on} title="창을 보고 있지 않을 때 '○○가 답했어요' 알림(내용은 넣지 않음)">{notify.on ? "🔔 알림 켜짐" : "🔕 알림 꺼짐"}</button>}
-        <button className="link" onClick={() => { if (confirm("이 기기에서 연결 정보를 지울까요? 다시 쓰려면 새 연결 코드가 필요해요.")) onForget(); }}>이 기기 연결 지우기</button>
+        <button className="link" onClick={async () => {
+          if (!confirm("이 기기 연결을 끊을까요?\n서버에서 이 기기의 열쇠를 지우고, 이 앱에 저장된 연결 정보도 지워요. 다시 쓰려면 새 연결 코드가 필요해요.\n대화 기록은 서버(내 PC·허브)에 그대로 남아요 — 지우려면 끊기 전에 대화 위쪽 ✎에서.")) return;
+          const warn = await onForget(); if (warn) alert(warn);
+        }}>이 기기 연결 끊기</button>
       </footer>
     </main>
   );

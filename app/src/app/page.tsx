@@ -7,6 +7,7 @@ import { clearConn, loadConn, saveConn } from "../lib/storage";
 import { noteFor, notifyOn, setNotifyOn } from "../lib/notify";
 import { staffName } from "../lib/rooms";
 import { ChatScreen } from "../components/Chat";
+import { codeOf } from "../components/common";
 import { ListScreen } from "../components/List";
 import { PairScreen } from "../components/Pair";
 import { RoomScreen } from "../components/Room";
@@ -68,7 +69,13 @@ export default function Home() {
 
   if (conn === undefined) return <main className="center muted">불러오는 중…</main>;
   if (!conn || !api || lost) return <PairScreen lost={lost} onDone={async (c) => { await saveConn(c); setLost(false); setView({ kind: "list" }); setConn(c); }} />;
-  const forget = async () => { await clearConn(); setView({ kind: "list" }); setConn(null); };
+  // AP-5a: 서버에서 이 기기 열쇠를 지운 뒤 앱에 저장된 연결 정보도 지운다. 서버에 닿지 않으면 알려 주고 앱 쪽만 지운다.
+  const forget = async (): Promise<string | null> => {
+    let warn: string | null = null;
+    try { await api.forget(); } catch (x) { const c = codeOf(x); if (c !== "unauthorized") warn = "서버에 닿지 않아 서버 쪽 연결은 남아 있어요. 웹 화면 설정 → 내 프로그램 연결 → 이어온 앱 연결에서 끊어 주세요."; }
+    await clearConn(); setView({ kind: "list" }); setConn(null);
+    return warn;
+  };
   switch (view.kind) {
     case "chat": return <ChatScreen key={view.conv.conversationId} api={api} conv={view.conv} onBack={toList} onEvent={onEvent} onLost={onLost} />;
     case "room": return <RoomScreen key={view.roomId} api={api} roomId={view.roomId} onBack={toList} onEvent={onEvent} onLost={onLost} onEdit={(room, convs) => setView({ kind: "roomForm", room, convs })} />;

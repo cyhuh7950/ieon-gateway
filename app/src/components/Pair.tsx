@@ -30,6 +30,7 @@ export function PairScreen({ lost, onDone }: { lost: boolean; onDone: (c: Conn) 
         {err && <p className="err" role="alert">{err}</p>}
         <button className="primary" disabled={busy}>{busy ? "연결 중…" : "연결"}</button>
       </form>
+      <a className="muted policy" href="https://ieun-gateway.sinsan.kr/privacy" target="_blank" rel="noopener noreferrer">개인정보 처리방침</a>
     </main>
   );
 }

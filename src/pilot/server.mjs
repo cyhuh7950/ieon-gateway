@@ -35,6 +35,7 @@ const DEVICE_FRESH_MS = 30000;
 // 대화 중심 새 화면(설계 UI_CHAT_FIRST U1)이 `/`, 예전 화면은 U8까지 `/classic`(결정 UD4).
 const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
 const WEB_SETTINGS = fileURLToPath(new URL('./web/settings.html', import.meta.url));
+const WEB_PRIVACY = fileURLToPath(new URL('./web/privacy.html', import.meta.url)); // AP-5a: 스토어용 개인정보 처리방침(누구나 열람)
 const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 // U7: 휴대폰 "홈 화면에 추가"·PC 앱 창용(PWA). 화면 코드는 그대로, 설치 정보와 아이콘만 준다. 오프라인 캐시(서비스 워커)는 두지 않는다
 // (대화는 늘 서버 상태가 기준이라 옛 화면을 보여 주면 오해가 생김).
@@ -348,6 +349,10 @@ export function createApp(config) {
         return res.end(readFileSync(WEB_PNG[path]));
       }
       // U8(UD4): 예전 화면(/classic)은 없앴다. 예전 주소로 오면 설정 화면으로 보낸다.
+      if (req.method === 'GET' && path === '/privacy') {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'max-age=3600' });
+        return res.end(readFileSync(WEB_PRIVACY));
+      }
       if (req.method === 'GET' && path === '/classic') { res.writeHead(302, { location: '/settings' }); return res.end(); }
       if (req.method === 'GET' && (path === '/' || path === '/settings')) {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -476,6 +481,13 @@ export function createApp(config) {
       }
 
       if (appDevice && path.startsWith('/v1/admin/')) return json(res, 403, { error: 'app_not_allowed' }); // 설정은 웹 화면에서만
+      // AP-5a: 앱이 스스로 이 기기 연결을 끊는다(스토어의 "데이터·계정 삭제" 요구). 자기 열쇠만 끊을 수 있고, 끊으면 바로 401.
+      if (req.method === 'POST' && path === '/v1/app/forget') {
+        if (!appDevice) return json(res, 403, { error: 'app_only' });
+        store.revokeAppDevice(principal.userId, appDevice);
+        process.stderr.write(JSON.stringify({ ch: 'server', event: 'app_forgot' }) + '\n');
+        return json(res, 200, { revoked: true });
+      }
       // AP-2: 새 소식 바로 받기(SSE). 내 대화의 요청·승인 상태가 바뀌면 번호·상태만 보낸다. 25초마다 살아 있음 표시.
       if (req.method === 'GET' && path === '/v1/events') {
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });

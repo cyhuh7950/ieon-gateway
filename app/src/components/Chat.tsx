@@ -90,7 +90,8 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
         <SpeakerToggle v={v} />
         <button className="ghost" onClick={() => setEditing((x) => !x)} aria-label="이름·아이콘 바꾸기" aria-expanded={editing}>✎</button>
       </header>
-      {editing && <StaffForm api={api} conv={conv} onDone={(c) => { setConv(c); setEditing(false); }} onLost={onLost} />}
+      {editing && <StaffForm api={api} conv={conv} onDone={(c) => { setConv(c); setEditing(false); }} onLost={onLost}
+        busy={items.some((x) => x.state === "sending" || x.state === "queued")} onCleared={() => { setItems([]); setEditing(false); }} />}
       <section className="log" aria-live="polite">
         {items.length === 0 && <p className="center muted">{blocked ? "아직 주고받은 말이 없어요." : "아직 주고받은 말이 없어요. 아래에 질문을 쓰세요."}</p>}
         {items.map((it) => (
@@ -122,7 +123,7 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
 }
 
 // 이름(@이름으로 부를 이름)·아이콘. 역할은 웹 화면에서 — 여기서는 지금 역할을 그대로 둔다.
-function StaffForm({ api, conv, onDone, onLost }: { api: Client; conv: Conversation; onDone: (c: Conversation) => void; onLost: () => void }) {
+function StaffForm({ api, conv, onDone, onLost, busy: working, onCleared }: { api: Client; conv: Conversation; onDone: (c: Conversation) => void; onLost: () => void; busy: boolean; onCleared: () => void }) {
   const [name, setName] = useState(staffName(conv));
   const [icon, setIcon] = useState(conv.staff?.icon ?? "");
   const [err, setErr] = useState("");
@@ -144,6 +145,10 @@ function StaffForm({ api, conv, onDone, onLost }: { api: Client; conv: Conversat
       <small className="muted">역할{conv.staff?.roleName ? `(지금: ${conv.staff.roleName})` : ""}은 웹 화면에서 정해요.</small>
       {err && <p className="err" role="alert">{err}</p>}
       <button className="primary" disabled={busy}>저장</button>
+      <button type="button" className="link danger" disabled={working} onClick={async () => {
+        if (!confirm("이 대화의 서버 보관 기록(질문·답)을 지울까요? 되돌릴 수 없어요. 원래 Codex·Claude 세션 기록은 그대로예요.")) return;
+        try { await api.deleteMessages(conv.conversationId); onCleared(); } catch (x) { const c = codeOf(x); if (c === "unauthorized") onLost(); else setErr(errText(c)); }
+      }}>이 대화의 서버 보관 기록 지우기</button>
     </form>
   );
 }
