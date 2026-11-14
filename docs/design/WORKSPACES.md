@@ -87,7 +87,7 @@
 
 메신저 `/status`에도 한 줄(폴더 이름만, 전체 경로는 웹에서만).
 
-## 3. 엔진별 차단 수단(공식 문서 확인 2026-11-14 — 실측 필요)
+## 3. 엔진별 차단 수단(공식 문서 확인 2026-11-14 — 실측 결과는 3-1)
 
 **Codex** ([Sandboxing](https://learn.chatgpt.com/docs/sandboxing), [Windows sandbox 글](https://openai.com/index/building-codex-windows-sandbox/))
 - `read-only`: 읽기만. `workspace-write`: 읽기 + 작업 폴더 안 쓰기·명령. `writable_roots`(app-server `writableRoots`)로 쓰기 폴더를 더함.
@@ -113,6 +113,26 @@
 | Claude 기존 세션(채널) | 그 세션 설정 | 그 세션 설정 | 그 세션 설정 — 이어온이 바꾸지 않음 |
 | Antigravity(plan·sandbox) | 쓰기 안 함 | 미확인 | 미확인 |
 
+### 3-1. WS0 실측 결과(2026-11-14, 이 PC Windows 11, codex-cli 0.165.0 · Claude Code 2.1.314)
+
+시험 폴더 `.local/ws0/{staffA,staffB,shared,outside}`(git 무시), 시험 전용 새 세션만(Codex `exec --ephemeral`, Claude `-p` 새 세션). 업무 대화·기존 세션은 건드리지 않음. 모델 호출 Codex 3회·Claude 2회. 근거: [`docs/validation/ws0-sandbox-20261114.json`](../validation/ws0-sandbox-20261114.json).
+
+| 시험 | 결과 | 판정 |
+| --- | --- | --- |
+| Codex `workspace-write`, staffA에서 `..\outside`에 쓰기(폴더가 **D:** 아래) | `Access ... is denied` — **막힘** | 설계와 같음 |
+| 같은 시험을 **%TEMP% 아래** 폴더에서 | **써짐** | ⚠ Codex는 `/tmp`·`$TMPDIR`(Windows는 %TEMP%)을 늘 쓰기 허용 → 임시 폴더 아래는 서로 막히지 않음 |
+| Codex로 `..\staffB\secret.txt` 읽기 | **읽힘** | 설계(정리만)와 같음 |
+| Codex `--add-dir shared`(= writable_roots) | shared 쓰기 됨, outside·staffB 쓰기 **막힘** | 설계와 같음 |
+| Claude `--restricted`, 도구 Read·Grep·Glob·Edit·Write, 밖 쓰기·staffB 읽기 | 둘 다 **막힘**(`--restricted confines the file tools…`, `permission_denials`에 기록) | 설계와 같음 — 별도 `--settings` 없이 `--restricted`만으로 읽기도 막힘 |
+| Claude `--add-dir shared` + Write | shared 쓰기 됨, outside 쓰기 **막힘** | 설계와 같음 |
+| Claude에 Bash를 허용(`full`과 같은 조건)하고 `cat staffB/secret.txt`, `echo > outside/c3.txt` | **둘 다 됨**(비밀 읽힘, 밖에 파일 생김) | 설계(정리만)와 같음 — Bash가 있으면 Windows에서는 막지 못함 |
+
+**설계에 반영할 점**
+1. 개인·공유 폴더는 **%TEMP%(임시 폴더) 아래에 둘 수 없게** 등록 단계에서 거부한다(Codex가 임시 폴더를 늘 쓰기 허용하므로 직원끼리 막히지 않음). 화면 안내: "임시 폴더 아래는 쓸 수 없어요".
+2. Claude 새 세션 `read_only`·`workspace`는 `--restricted`만으로 읽기·쓰기가 막힌다 → WS1-b는 `--add-dir`(공유 폴더)만 더하면 됨. 읽기 전용 공유의 `Edit(...)` 거부는 아직 실측 안 함(WS1-b에서 시험).
+3. `full`(Bash) 프로필과 Codex 읽기는 "정리만"으로 화면에 표시(표 그대로).
+4. **미측정:** Codex는 CLI `exec`로 쟀다. 작업 모드가 쓰는 SDK·app-server `writableRoots` 경로는 같은 샌드박스지만 따로 재지 않음(WS1-a 구현 후 시험 세션으로 확인). 허브(리눅스) Claude OS 샌드박스, WS0-5(직원별 Windows 사용자)는 하지 않음.
+
 ## 4. 실측 계획(구현 전에 — W0처럼)
 
 | # | 무엇을 | 성공 기준 |
@@ -124,6 +144,7 @@
 | WS0-5 | (A를 고를 경우) 다른 Windows 사용자로 엔진 실행·로그인·폴더 권한 | 읽기까지 막힘 |
 
 - 시험 폴더·시험 세션만, 모델 호출 몇 회 — **승인 뒤**.
+- **2026-11-14 실측 완료(WS0-1~4, 3-1절):** 1·2·3·4 모두 설계 표와 같음. 추가 발견 — Codex는 임시 폴더(%TEMP%)를 늘 쓰기 허용. WS0-5는 안 함(A 선택 안 됨).
 
 ## 5. 단계
 
