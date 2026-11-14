@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { client, type Conn, type Conversation, type Room } from "../lib/api";
 import { subscribe, type ServerEvent } from "../lib/sse";
 import { clearConn, loadConn, saveConn } from "../lib/storage";
+import { noteFor, notifyOn, setNotifyOn } from "../lib/notify";
+import { staffName } from "../lib/rooms";
 import { ChatScreen } from "../components/Chat";
 import { ListScreen } from "../components/List";
 import { PairScreen } from "../components/Pair";
@@ -26,6 +28,31 @@ export default function Home() {
   const onEvent = useCallback((f: (e: ServerEvent) => void) => { listeners.current.add(f); return () => { listeners.current.delete(f); }; }, []);
   const api = useMemo(() => (conn ? client(conn) : null), [conn]);
   const onLost = useCallback(() => setLost(true), []);
+  // AP-4a 알림: 이 창을 보고 있지 않을 때만, 원문 없이 "○○가 답했어요". 누르면 그 대화로.
+  const canNotify = typeof window !== "undefined" && "Notification" in window;
+  const [notify, setNotify] = useState(false);
+  const notifyRef = useRef(false); notifyRef.current = notify;
+  useEffect(() => { setNotify(canNotify && notifyOn(Boolean((globalThis as any).ieonDesktop)) && Notification.permission === "granted"); }, [canNotify]);
+  const names = useRef(new Map<string, Conversation>());
+  const shown = useRef(new Set<string>());
+  useEffect(() => {
+    if (!api || !canNotify) return;
+    return onEvent(async (e) => {
+      if (!notifyRef.current || Notification.permission !== "granted" || document.hasFocus()) return;
+      const id = e.data?.conversationId;
+      if (id && !names.current.has(id)) { try { (await api.conversations()).conversations.forEach((c) => names.current.set(c.conversationId, c)); } catch { /* 이름 없이 */ } }
+      const n = noteFor(e, (cid) => staffName(names.current.get(cid)));
+      if (!n || shown.current.has(n.tag)) return;
+      shown.current.add(n.tag);
+      const x = new Notification(n.title, { body: n.body, tag: n.tag });
+      x.onclick = () => { (globalThis as any).ieonDesktop?.focus?.(); window.focus(); const c = names.current.get(n.conversationId); if (c) setView({ kind: "chat", conv: c }); x.close(); };
+    });
+  }, [api, canNotify, onEvent]);
+  const toggleNotify = useCallback(async () => {
+    if (notify) { setNotify(false); setNotifyOn(false); return; }
+    const perm = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+    const on = perm === "granted"; setNotify(on); setNotifyOn(on);
+  }, [notify]);
   // 안드로이드 뒤로 가기·브라우저 뒤로: 목록이 아닌 화면에 있는 동안 기록을 딱 하나 쌓아 두고, 뒤로 가면 목록으로.
   // 화면의 ‹ 버튼으로 목록에 갈 때는 그 기록을 되돌려(history.back) 쌓인 기록이 남지 않게 한다.
   const pushed = useRef(false);
@@ -49,6 +76,6 @@ export default function Home() {
       onBack={() => setView(view.room ? { kind: "room", roomId: view.room.roomId } : { kind: "list" })}
       onSaved={(r) => setView({ kind: "room", roomId: r.roomId })} onDeleted={toList} />;
     default: return <ListScreen api={api} server={conn.server} onOpen={(conv) => setView({ kind: "chat", conv })} onRoom={(r) => setView({ kind: "room", roomId: r.roomId })}
-      onNewRoom={() => setView({ kind: "roomForm", room: null, convs: null })} onEvent={onEvent} onForget={forget} onLost={onLost} />;
+      onNewRoom={() => setView({ kind: "roomForm", room: null, convs: null })} onEvent={onEvent} onForget={forget} onLost={onLost} notify={canNotify ? { on: notify, toggle: toggleNotify } : null} />;
   }
 }

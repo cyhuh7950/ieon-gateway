@@ -13,8 +13,9 @@ function stateOf(c: Conversation): [string, string] {
   return ["ok", "대기"];
 }
 
-export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onEvent, onForget, onLost }: {
+export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onEvent, onForget, onLost, notify }: {
   api: Client; server: string; onOpen: (c: Conversation) => void; onRoom: (r: Room) => void; onNewRoom: () => void; onEvent: OnEvent; onForget: () => void; onLost: () => void;
+  notify: { on: boolean; toggle: () => void } | null;
 }) {
   const [list, setList] = useState<Conversation[] | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -72,6 +73,7 @@ export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onEvent, on
       )}
       <footer className="foot muted">
         <span>{new URL(server).host}</span>
+        {notify && <button className="link" onClick={notify.toggle} aria-pressed={notify.on} title="창을 보고 있지 않을 때 '○○가 답했어요' 알림(내용은 넣지 않음)">{notify.on ? "🔔 알림 켜짐" : "🔕 알림 꺼짐"}</button>}
         <button className="link" onClick={() => { if (confirm("이 기기에서 연결 정보를 지울까요? 다시 쓰려면 새 연결 코드가 필요해요.")) onForget(); }}>이 기기 연결 지우기</button>
       </footer>
     </main>

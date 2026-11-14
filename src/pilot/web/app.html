@@ -334,6 +334,7 @@ details.adv[open] summary { margin-bottom:10px; }
     <a class="modenote" id="modeNote" href="/settings#pc" hidden></a>
     <div class="list" id="list"></div>
     <div class="side-bottom">
+      <button type="button" id="notifyBtn" aria-pressed="false" hidden title="이 탭을 보고 있지 않을 때 '○○가 답했어요' 알림(내용은 넣지 않음)"><span aria-hidden="true">🔕</span>알림</button>
       <button type="button" id="msgBtn"><span aria-hidden="true">✈</span>메신저</button>
       <a href="/settings" id="settingsLink"><span aria-hidden="true">⚙</span>설정</a>
       <button type="button" id="logoutBtn" hidden><span aria-hidden="true">⎋</span>로그아웃</button>
@@ -513,6 +514,7 @@ async function boot() {
 async function startApp() {
   $('login').hidden = true; $('app').hidden = false;
   await Promise.all([load(), loadDevice(), loadDenied(), loadLimits()]).catch(() => {});
+  startEvents();
   let done = false; try { done = localStorage.getItem('ieon_setup_done') === '1'; } catch { done = false; }
   if (device && (location.hash === '#setup' || (!convs.length && !done))) openSetup();
 }
@@ -941,6 +943,53 @@ async function refresh() { await load(); await loadCards(); }
 const qa = $('question');
 qa.addEventListener('input', () => { qa.style.height = 'auto'; qa.style.height = Math.min(qa.scrollHeight, 180) + 'px'; });
 qa.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('compose').requestSubmit(); } });
+// --- AP-4a 알림: 새 소식(SSE, 번호·상태만)으로 이 탭을 보고 있지 않을 때 "○○가 답했어요"만. 원문은 넣지 않는다.
+// 켜기는 사용자가 누를 때(브라우저가 허용을 물음), 이 브라우저에만 기억. 누르면 그 대화를 연다.
+const canNotify = 'Notification' in window;
+let notifyOnNow = canNotify && Notification.permission === 'granted' && lsGetN('ieon.notify.v1') === '1';
+const notifiedTags = new Set();
+function lsGetN(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function renderNotify() {
+  const b = $('notifyBtn'); b.hidden = !canNotify; b.setAttribute('aria-pressed', String(notifyOnNow));
+  b.firstElementChild.textContent = notifyOnNow ? '🔔' : '🔕'; b.lastChild.textContent = notifyOnNow ? '알림 켜짐' : '알림';
+}
+$('notifyBtn').onclick = async () => {
+  if (notifyOnNow) notifyOnNow = false;
+  else notifyOnNow = (Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission) === 'granted';
+  if (!notifyOnNow && Notification.permission === 'denied') toast('warn', '브라우저에서 이 사이트의 알림이 막혀 있어요. 주소창 왼쪽 자물쇠에서 알림을 허용하세요.');
+  try { localStorage.setItem('ieon.notify.v1', notifyOnNow ? '1' : '0'); } catch { /* 저장 안 됨 */ }
+  renderNotify();
+};
+renderNotify();
+// 이름 뒤 "이/가"(받침 있는 한글이면 "이")
+function iga(name) { const c = name.charCodeAt(name.length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? name + '이' : name + '가'; }
+function noteFor(type, d) {
+  const who = (staffName(d.conversationId) || convs.find((c) => c.conversationId === d.conversationId)?.label || 'AI 직원');
+  if (type === 'request' && d.requestId) {
+    if (d.status === 'completed') return { body: iga(who) + ' 답했어요', tag: 'r:' + d.requestId };
+    if (d.status === 'failed') return { body: who + '에게 보내지 못했어요', tag: 'r:' + d.requestId };
+    if (d.status === 'unknown') return { body: who + ' — 확인이 필요해요', tag: 'r:' + d.requestId };
+    return null;
+  }
+  if (type === 'approval' && d.approvalId && d.status === 'pending') return { body: iga(who) + ' 허락을 기다려요', tag: 'a:' + d.approvalId };
+  return null;
+}
+let events = null;
+function startEvents() {
+  if (events || !('EventSource' in window)) return;
+  events = new EventSource('/v1/events'); // 같은 출처라 로그인 쿠키로 열린다. 끊기면 브라우저가 다시 붙는다.
+  const on = (type) => (m) => {
+    let d; try { d = JSON.parse(m.data); } catch { return; }
+    if (!notifyOnNow || Notification.permission !== 'granted' || (document.visibilityState === 'visible' && document.hasFocus())) return;
+    const n = noteFor(type, d); if (!n || notifiedTags.has(n.tag)) return;
+    notifiedTags.add(n.tag);
+    const x = new Notification('이어온', { body: n.body, tag: n.tag, icon: '/icon-192.png' });
+    x.onclick = () => { window.focus(); if (convs.some((c) => c.conversationId === d.conversationId)) select(d.conversationId).catch(() => {}); x.close(); };
+  };
+  events.addEventListener('request', on('request'));
+  events.addEventListener('approval', on('approval'));
+}
+
 // --- V1 음성(브라우저 내장 Web Speech API, 키·비용 없음). 받아쓴 글은 입력칸에 넣어 고친 뒤 보낸다. 음성으로 승인하지 않는다.
 // 음성·받아쓴 글은 서버·로그에 저장하지 않는다. 처음 한 번 안내, 자동 읽기는 이 브라우저에만 기억(기본 꺼짐).
 const SRcls = window.SpeechRecognition || window.webkitSpeechRecognition;
