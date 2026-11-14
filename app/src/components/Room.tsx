@@ -5,6 +5,7 @@ import { newKey, type Card, type Client, type Conversation, type RoomDetail, typ
 import { ROOM_BUSY, ROOM_ERR, WAITING, addMention, mentionTargets, staffName } from "../lib/rooms";
 import { CARD_TEXT, errText } from "../lib/texts";
 import { Avatar, CardView, Composer, codeOf, type OnEvent } from "./common";
+import { MicButton, ReadButton, SpeakerToggle, useAutoRead, useVoice } from "./Voice";
 
 export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { api: Client; roomId: string; onBack: () => void; onEdit: (r: RoomDetail, convs: Conversation[]) => void; onEvent: OnEvent; onLost: () => void }) {
   const [room, setRoom] = useState<RoomDetail | null>(null);
@@ -16,6 +17,7 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
   const [handing, setHanding] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const v = useVoice();
   const fail = useCallback((x: unknown) => { const c = codeOf(x); if (c === "unauthorized") onLost(); else setNote(ROOM_ERR[c] ?? errText(c)); }, [onLost]);
 
   const load = useCallback(async () => {
@@ -36,6 +38,7 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
   useEffect(() => { if (!waiting) return; const t = setInterval(load, 4000); return () => clearInterval(t); }, [waiting, load]);
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [room?.posts.length, approvals.length]);
 
+  useAutoRead(v, (room?.posts ?? []).filter((p) => p.kind === "ask").map((p) => ({ id: p.postId, text: p.status === "completed" ? p.answer : null })), Boolean(room));
   const apply = (posts: RoomPost[]) => setRoom((r) => (r ? { ...r, posts } : r));
   const post = async () => {
     const t = text.trim();
@@ -59,6 +62,7 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
         <button className="ghost" onClick={onBack} aria-label="목록으로">‹</button>
         <span className="avatar room" aria-hidden>👥</span>
         <span className="who"><b>{room.name}</b><small>AI 직원 {room.members.length}명 · 대표 @{leadName}</small></span>
+        <SpeakerToggle v={v} />
         <button className="ghost" onClick={() => onEdit(room, convs)} aria-label="방 설정">⚙</button>
       </header>
       <section className="log" aria-live="polite">
@@ -73,7 +77,7 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
           return (
             <div key={p.postId} className="turn">
               <small className="whoTag">{who}</small>
-              {p.status === "completed" && <p className="bubble ai">{p.answer ?? "(보관하지 않은 답)"}</p>}
+              {p.status === "completed" && <div className="ai-wrap"><p className="bubble ai">{p.answer ?? "(보관하지 않은 답)"}</p><ReadButton v={v} text={p.answer ?? ""} /></div>}
               {WAITING.has(p.status ?? "") && <p className="bubble ai muted">{p.status === "approval_required" ? "허락을 기다리는 중…" : "답을 기다리는 중…"}</p>}
               {p.status === "failed" && <div className="notice"><p>{errText(p.errorCode)}</p>{retryBtn}</div>}
               {p.status === "unknown" && <div className="notice"><p>결과를 확인할 수 없어요. {who} 1:1 대화의 확인 카드에서 정리하세요(자동으로 다시 보내지 않아요).</p></div>}
@@ -88,11 +92,13 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
         <div ref={endRef} />
       </section>
       {hubMode && <p className="note warn">{CARD_TEXT.hub_mode}</p>}
+      {v.hint && <p className="note info vhint" role="status">{v.hint} <button className="link" onClick={() => v.setHint("")}>닫기</button></p>}
+      {v.notice}
       <div className="mentions" role="group" aria-label="부를 AI 직원">
         {members.map((m) => <button key={m.conversationId} type="button" className="mchip" onClick={() => setText((t) => addMention(t, staffName(m)))}><Avatar c={m} small /> @{staffName(m)}</button>)}
       </div>
       {targets && <small className="to muted">→ {targets}에게 보내요</small>}
-      <Composer value={text} onChange={setText} onSubmit={post} disabled={sending || hubMode} placeholder={`@이름 (안 부르면 @${leadName})`} />
+      <Composer value={text} onChange={setText} onSubmit={post} left={<MicButton v={v} onText={(s) => setText((x) => (x.trim() ? x.trim() + " " : "") + s)} />} disabled={sending || hubMode} placeholder={`@이름 (안 부르면 @${leadName})`} />
     </main>
   );
 }

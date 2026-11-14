@@ -38,4 +38,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- V1 음성: 기기의 받아쓰기 창·읽어 주기 엔진을 찾을 수 있게(마이크 권한은 받지 않음 — 받아쓰기 창이 녹음) -->
+    <queries>
+        <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
 </manifest>

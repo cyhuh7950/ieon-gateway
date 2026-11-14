@@ -4,8 +4,9 @@ import { RETRYABLE, newKey, type Card, type Client, type Conversation } from "..
 import { ROOM_ERR, staffName } from "../lib/rooms";
 import { ENGINE, errText } from "../lib/texts";
 import { Avatar, BLOCKING, CardView, Composer, codeOf, type OnEvent } from "./common";
+import { MicButton, ReadButton, SpeakerToggle, useAutoRead, useVoice } from "./Voice";
 
-type Item = { id: string; question: string; key: string; requestId?: string; state: "sending" | "queued" | "done" | "failed" | "unknown" | "rejected"; answer?: string; errorCode?: string | null; retried?: boolean };
+type Item = { id: string; question: string; key: string; requestId?: string; state: "sending" | "queued" | "done" | "failed" | "unknown" | "rejected"; answer?: string; errorCode?: string | null; retried?: boolean; voice?: boolean };
 
 export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api: Client; conv: Conversation; onBack: () => void; onEvent: OnEvent; onLost: () => void }) {
   const [conv, setConv] = useState(conv0);
@@ -15,6 +16,9 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
   const [text, setText] = useState("");
   const [note, setNote] = useState("");
   const [editing, setEditing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [byVoice, setByVoice] = useState(false); // 이번 입력에 말로 쓴 글이 들어갔는지(대화에 🎤 표시)
+  const v = useVoice();
   const endRef = useRef<HTMLDivElement>(null);
   const itemsRef = useRef(items); itemsRef.current = items;
   const fail = useCallback((x: unknown) => { const c = codeOf(x); if (c === "unauthorized") onLost(); else setNote(errText(c)); }, [onLost]);
@@ -25,6 +29,7 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
     (async () => {
       try { setItems((await api.messages(id)).map((m) => ({ id: m.requestId, key: m.requestId, requestId: m.requestId, question: m.question, answer: m.answer, state: "done" }))); }
       catch (x) { fail(x); }
+      setLoaded(true);
       loadCards();
     })();
   }, [api, id, fail, loadCards]);
@@ -53,11 +58,11 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
     return () => clearInterval(t);
   }, [refresh]);
 
-  const send = async (question: string, key: string, existing?: Item) => {
+  const send = async (question: string, key: string, existing?: Item, voice = existing?.voice ?? false) => {
     if (existing && existing.key === key) patch(key, { state: "sending", errorCode: null });
     else {
       if (existing) patch(existing.key, { retried: true });
-      setItems((xs) => [...xs, { id: key, key, question, state: "sending" }]);
+      setItems((xs) => [...xs, { id: key, key, question, state: "sending", voice }]);
     }
     try {
       const requestId = await api.ask(id, question, key);
@@ -73,6 +78,7 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
   const retry = (it: Item) => send(it.question, it.errorCode === "network" && it.state === "rejected" ? it.key : newKey(), it);
   const decide = async (approvalId: string, d: "allow" | "deny") => { try { await api.decide(approvalId, d); } catch (x) { fail(x); } loadCards(); };
   const review = async (requestId: string, executed: boolean) => { try { await api.review(requestId, executed); } catch (x) { fail(x); } loadCards(); refresh(requestId); };
+  useAutoRead(v, items.map((x) => ({ id: x.key, text: x.state === "done" ? x.answer : null })), loaded);
   const blocked = cards.some((c) => BLOCKING.has(c.kind)) || items.some((x) => x.state === "sending" || x.state === "queued");
 
   return (
@@ -81,17 +87,18 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
         <button className="ghost" onClick={onBack} aria-label="목록으로">‹</button>
         <Avatar c={conv} />
         <span className="who"><b>{staffName(conv)}</b><small>{[conv.staff?.roleName, ENGINE[conv.engine] ?? conv.engine].filter(Boolean).join(" · ")}</small></span>
-        <button className="ghost" onClick={() => setEditing((v) => !v)} aria-label="이름·아이콘 바꾸기" aria-expanded={editing}>✎</button>
+        <SpeakerToggle v={v} />
+        <button className="ghost" onClick={() => setEditing((x) => !x)} aria-label="이름·아이콘 바꾸기" aria-expanded={editing}>✎</button>
       </header>
       {editing && <StaffForm api={api} conv={conv} onDone={(c) => { setConv(c); setEditing(false); }} onLost={onLost} />}
       <section className="log" aria-live="polite">
         {items.length === 0 && <p className="center muted">{blocked ? "아직 주고받은 말이 없어요." : "아직 주고받은 말이 없어요. 아래에 질문을 쓰세요."}</p>}
         {items.map((it) => (
           <div key={it.id} className="turn">
-            <p className="bubble me">{it.question}</p>
+            <p className="bubble me">{it.voice && <span className="via">🎤 음성</span>}{it.question}</p>
             {it.state === "sending" && <p className="bubble ai muted">보내는 중…</p>}
             {it.state === "queued" && <p className="bubble ai muted">답을 기다리는 중…</p>}
-            {it.state === "done" && <p className="bubble ai">{it.answer}</p>}
+            {it.state === "done" && <div className="ai-wrap"><p className="bubble ai">{it.answer}</p><ReadButton v={v} text={it.answer ?? ""} /></div>}
             {it.state === "unknown" && <p className="bubble ai warn">결과를 확인할 수 없어요. 아래 확인 카드에서 실행됐는지 알려 주세요(자동으로 다시 보내지 않아요).</p>}
             {(it.state === "failed" || it.state === "rejected") && (
               <div className="bubble ai err">
@@ -105,8 +112,11 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
         {note && <p className="note err" role="alert">{note}</p>}
         <div ref={endRef} />
       </section>
-      <Composer value={text} onChange={setText} disabled={blocked} placeholder={blocked ? "지금은 보낼 수 없어요" : "질문 쓰기"}
-        onSubmit={() => { const q = text.trim(); setText(""); setNote(""); send(q, newKey()); }} />
+      {v.hint && <p className="note info vhint" role="status">{v.hint} <button className="link" onClick={() => v.setHint("")}>닫기</button></p>}
+      {v.notice}
+      <Composer value={text} onChange={(x) => { setText(x); if (!x.trim()) setByVoice(false); }} disabled={blocked}
+        left={<MicButton v={v} onText={(s) => { setText((x) => (x.trim() ? x.trim() + " " : "") + s); setByVoice(true); }} />} placeholder={blocked ? "지금은 보낼 수 없어요" : "질문 쓰기"}
+        onSubmit={() => { const q = text.trim(); setText(""); setNote(""); send(q, newKey(), undefined, byVoice); setByVoice(false); }} />
     </main>
   );
 }
