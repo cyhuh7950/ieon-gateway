@@ -10,15 +10,37 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "desktop": "npm run build && electron electron/main.cjs",
-    "package:desktop": "npm run build && electron-builder --win dir",
+    "package:desktop": "npm run build && electron-builder --win nsis",
     "mobile:android": "npm run build && cap sync android",
     "package:android": "npm run mobile:android && pwsh -NoProfile -File scripts/package-android-debug.ps1"
   },
   "build": {
     "appId": "kr.sinsan.ieon",
-    "productName": "이어온",
-    "directories": { "output": "dist/desktop" },
-    "files": ["electron/**/*", "out/**/*", "package.json"]
+    "productName": "이어온 앱",
+    "artifactName": "ieon-setup-${version}.${ext}",
+    "directories": {
+      "output": "dist/desktop"
+    },
+    "files": [
+      "electron/**/*",
+      "out/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "deleteAppDataOnUninstall": false
+    }
   },
   "dependencies": {
     "@capacitor/android": "8.4.0",

@@ -1,6 +1,6 @@
 // 이어온 PC 설치형. 화면(out/)을 app://ieon 으로 열어 출처를 고정한다(서버 CORS는 이 출처만 허용).
 // 열쇠는 이 앱의 사용자 폴더(localStorage)에만. 다른 창 열기·권한 요청(카메라 등)은 거절, 바깥 링크는 기본 브라우저로.
-const { app, BrowserWindow, Menu, net, protocol, shell } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, net, protocol, shell } = require("electron");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
@@ -24,7 +24,9 @@ async function createWindow() {
   });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
   win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("app://ieon/")) e.preventDefault(); });
-  win.webContents.session.setPermissionRequestHandler((_w, _p, cb) => cb(false));
+  // 알림(AP-4a)만 허용 — 카메라·마이크 등 나머지는 거절
+  win.webContents.session.setPermissionRequestHandler((_w, perm, cb) => cb(perm === "notifications"));
+  win.webContents.session.setPermissionCheckHandler((_w, perm) => perm === "notifications");
   await win.loadURL("app://ieon/");
   return win;
 }
@@ -33,6 +35,7 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.setAppUserModelId("kr.sinsan.ieon");
   app.whenReady().then(() => {
+    ipcMain.on("ieon:focus", () => { const w = BrowserWindow.getAllWindows()[0]; if (w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); } });
     protocol.handle("app", (req) => net.fetch(pathToFileURL(fileFor(req.url)).toString()));
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: "이어온", submenu: [{ role: "reload", label: "새로 고침" }, { role: "toggleDevTools", label: "개발자 도구" }, { type: "separator" }, { role: "quit", label: "끝내기" }] },

@@ -105,3 +105,18 @@ test('V1 음성: 웹 화면에 말로 쓰기·읽어 주기·처음 안내, 받�
   const P = readFileSync(join(root, 'app/android/app/src/main/AndroidManifest.xml'), 'utf8');
   assert.ok(!P.includes('RECORD_AUDIO'), '안드로이드 앱은 마이크 권한을 갖지 않음(기기 받아쓰기 창이 녹음)');
 });
+
+test('AP-4a 알림: 웹 화면은 새 소식으로 원문 없는 알림(켜기는 사용자가), 새 소식은 앞단이 모아 두지 않게, PC 앱은 알림만 허용', async (t) => {
+  const A = readFileSync(join(root, 'src/pilot/web/app.html'), 'utf8');
+  assert.ok(A.includes('id="notifyBtn"') && A.includes("new EventSource('/v1/events')"));
+  const block = A.slice(A.indexOf('function noteFor(type, d)'), A.indexOf('let events = null'));
+  assert.ok(block.includes("' 답했어요'") && !/answer|question|summary/.test(block), '알림에 원문 없음');
+  assert.ok(A.includes('Notification.requestPermission()'), '켤 때 브라우저가 허용을 물음');
+  const M = readFileSync(join(root, 'app/electron/main.cjs'), 'utf8');
+  assert.ok(M.includes('cb(perm === "notifications")'), 'PC 앱은 알림만 허용, 나머지 권한은 거절');
+  const s = await setup(t);
+  const ac = new AbortController(); t.after(() => ac.abort());
+  const ev = await fetch(s.base + '/v1/events', { headers: { authorization: 'Bearer web' }, signal: ac.signal });
+  assert.equal(ev.headers.get('x-accel-buffering'), 'no');
+  ac.abort();
+});

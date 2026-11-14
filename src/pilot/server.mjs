@@ -479,7 +479,8 @@ export function createApp(config) {
       // AP-2: 새 소식 바로 받기(SSE). 내 대화의 요청·승인 상태가 바뀌면 번호·상태만 보낸다. 25초마다 살아 있음 표시.
       if (req.method === 'GET' && path === '/v1/events') {
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
-        res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive' });
+        // x-accel-buffering: 허브 앞단(NPM·nginx)이 새 소식을 모아 두지 않고 바로 넘기게(AP-4a 알림)
+        res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
         res.write(': ok\n\n');
         const mine = (id) => store.conversations(principal).some((c) => c.conversationId === id);
         const on = (e) => { if (mine(e.conversationId)) res.write(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`); };
