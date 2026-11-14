@@ -14,6 +14,7 @@
 - 사용 설명서: docs/MANUAL.md
 - 메신저 설정 설명서: docs/MESSENGER_MANUAL.md
 - 처음 쓰는 사람용 따라 하기(설치·설정 포함): docs/BEGINNER_GUIDE.md
+- 이어온 앱 따라 하기(앱 설치·연결·기능 확인): docs/APP_GUIDE.md
 - 개발 프로그램 연동(HTTP API): docs/API_GUIDE.md
 
 ## 목표와 현재 단계 (2026-10-30)
