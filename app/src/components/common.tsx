@@ -38,9 +38,10 @@ export function CardView({ c, decide, review, who }: { c: Card; decide: (id: str
   return t ? <div className="card info"><p>{t}</p></div> : null;
 }
 
-export function Composer({ value, onChange, onSubmit, disabled, placeholder }: { value: string; onChange: (v: string) => void; onSubmit: () => void; disabled: boolean; placeholder: string }) {
+export function Composer({ value, onChange, onSubmit, disabled, placeholder, left }: { value: string; onChange: (v: string) => void; onSubmit: () => void; disabled: boolean; placeholder: string; left?: React.ReactNode }) {
   return (
     <form className="composer" onSubmit={(e) => { e.preventDefault(); if (!disabled && value.trim()) onSubmit(); }}>
+      {left}
       <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={1} maxLength={8000}
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && window.matchMedia("(pointer: fine)").matches) { e.preventDefault(); (e.currentTarget.form as HTMLFormElement).requestSubmit(); } }} />
       <button className="primary" disabled={disabled || !value.trim()}>보내기</button>

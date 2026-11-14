@@ -137,6 +137,9 @@ ol.guide { padding-left:20px; margin:10px 0 0; font-size:14px; } ol.guide li { m
 .compose textarea { flex:1; resize:none; max-height:180px; border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:12px 14px; line-height:1.5; }
 .compose button { border:0; background:var(--accent); color:var(--on-accent); border-radius:12px; padding:12px 18px; font-weight:600; }
 .compose button:disabled, .compose textarea:disabled { opacity:.55; cursor:not-allowed; }
+.compose .mic { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:50%; width:46px; height:46px; padding:0; font-size:19px; }
+.compose .mic.on { border-color:var(--err); }
+#speakBtn[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
 
 .panel { width:320px; background:var(--surface); border-left:1px solid var(--border); overflow:auto; padding:16px 18px; }
 .panel h3 { font-size:15px; margin:0 0 12px; display:flex; justify-content:space-between; align-items:center; }
@@ -277,6 +280,13 @@ details.adv[open] summary { margin-bottom:10px; }
 </section>
 
 <!-- U4 첫 질문 확인(UD1): AI 응답이 꺼져 있을 때 웹에서 처음 보낼 때 한 번 -->
+<div class="scrim" id="voiceAsk" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="vaTitle">
+    <h2 id="vaTitle">음성 쓰기 전에</h2>
+    <p class="muted" style="margin:6px 0 0">말로 묻기·답 읽어 주기는 이 브라우저·기기에 들어 있는 기능을 써요. 기기에 따라 음성이 기기 회사(구글·마이크로소프트·애플) 서버를 거칠 수 있어요. 이어온 서버에는 음성도, 받아쓴 글도 따로 저장하지 않아요. 허락(승인)은 말로 하지 않고 카드 버튼으로만 해요.</p>
+    <div class="mrow"><button type="button" id="vaCancel">그만두기</button><button type="button" class="primary" id="vaOk">확인</button></div>
+  </div>
+</div>
 <div class="scrim" id="firstAsk" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="faTitle">
     <h2 id="faTitle">AI가 이 질문에 답해요</h2>
@@ -340,11 +350,13 @@ details.adv[open] summary { margin-bottom:10px; }
       <span class="chip" id="stateChip" hidden></span>
       <span class="spacer"></span>
       <button type="button" class="switch" role="switch" aria-checked="false" id="liveSwitch" hidden><span class="knob"></span><span id="liveLabel">AI 응답 꺼짐</span></button>
+      <button type="button" class="iconbtn" id="speakBtn" aria-pressed="false" hidden title="새 답이 오면 소리로 읽어 줘요">🔈 읽어 주기</button>
       <button type="button" class="iconbtn" id="panelBtn" aria-expanded="false" hidden>연결 설정</button>
     </div>
     <div class="cards" id="cards" aria-live="polite" aria-label="처리할 일"></div>
     <div class="msgs" id="msgs" aria-live="polite"><div class="welcome" id="welcome">왼쪽에서 대화를 고르면 이어서 질문할 수 있어요.</div></div>
     <form class="compose" id="compose">
+      <button type="button" class="mic" id="micBtn" aria-label="말로 쓰기" title="말로 쓰기(받아쓴 글은 고친 뒤 보내요)" hidden>🎤</button>
       <textarea id="question" rows="1" placeholder="메시지" aria-label="메시지" disabled></textarea>
       <button id="send" disabled>보내기</button>
     </form>
@@ -433,7 +445,7 @@ const AUTH_ERR = { bad_password: '비밀번호가 맞지 않아요', weak_passwo
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
 let authState = null, convs = [], current = null, pending = null, device = null, toastTimer = null, hubMode = false;
-let rooms = [], currentRoom = null, roomTimer = null; // AP-1
+let rooms = [], currentRoom = null, roomTimer = null; const roomSeen = new Map(); // AP-1, V1(방별 이미 본 답)
 // --- U8 새 세션 만들기(예전 화면에서 옮김). $·api 정의 뒤에 둔다(앞에 두면 화면 전체가 멈춤 — 2026-11-12 발견) ---
 async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
@@ -929,6 +941,48 @@ async function refresh() { await load(); await loadCards(); }
 const qa = $('question');
 qa.addEventListener('input', () => { qa.style.height = 'auto'; qa.style.height = Math.min(qa.scrollHeight, 180) + 'px'; });
 qa.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('compose').requestSubmit(); } });
+// --- V1 음성(브라우저 내장 Web Speech API, 키·비용 없음). 받아쓴 글은 입력칸에 넣어 고친 뒤 보낸다. 음성으로 승인하지 않는다.
+// 음성·받아쓴 글은 서버·로그에 저장하지 않는다. 처음 한 번 안내, 자동 읽기는 이 브라우저에만 기억(기본 꺼짐).
+const SRcls = window.SpeechRecognition || window.webkitSpeechRecognition;
+const canSpeak = 'speechSynthesis' in window;
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* 저장 안 됨 */ } };
+let voiceAutoOn = lsGet('ieon.voice.auto.v1') === '1';
+function voiceNotice() {
+  if (lsGet('ieon.voice.notice.v1') === '1') return Promise.resolve(true);
+  return new Promise((ok) => {
+    $('voiceAsk').hidden = false;
+    const done = (v) => { $('voiceAsk').hidden = true; $('vaOk').onclick = null; $('vaCancel').onclick = null; if (v) lsSet('ieon.voice.notice.v1', '1'); ok(v); };
+    $('vaOk').onclick = () => done(true); $('vaCancel').onclick = () => done(false);
+  });
+}
+function speakText(text) {
+  if (!canSpeak || !text) return;
+  const t = String(text).replace(/```[\s\S]*?```/g, ' 코드 생략. ').replace(/https?:\/\/\S+/g, ' 링크. ').replace(/[`*_#>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(t); u.lang = 'ko-KR';
+  const ko = speechSynthesis.getVoices().find((v) => /^ko/i.test(v.lang)); if (ko) u.voice = ko;
+  speechSynthesis.speak(u);
+}
+function voiceAuto(text) { if (voiceAutoOn) speakText(text); }
+function renderSpeak() { $('speakBtn').setAttribute('aria-pressed', String(voiceAutoOn)); $('speakBtn').textContent = voiceAutoOn ? '🔊 읽어 주기 켜짐' : '🔈 읽어 주기'; }
+$('speakBtn').hidden = !canSpeak; renderSpeak();
+$('speakBtn').onclick = async () => {
+  if (!voiceAutoOn && !(await voiceNotice())) return;
+  voiceAutoOn = !voiceAutoOn; lsSet('ieon.voice.auto.v1', voiceAutoOn ? '1' : '0'); renderSpeak();
+  if (!voiceAutoOn && canSpeak) speechSynthesis.cancel();
+};
+$('micBtn').hidden = !SRcls;
+$('micBtn').onclick = async () => {
+  if (!SRcls || qa.disabled || !(await voiceNotice())) return;
+  const rec = new SRcls(); rec.lang = 'ko-KR'; rec.interimResults = false; rec.maxAlternatives = 1;
+  let got = '';
+  $('micBtn').classList.add('on'); $('micBtn').disabled = true;
+  rec.onresult = (e) => { got = String(e.results?.[0]?.[0]?.transcript ?? ''); };
+  rec.onerror = (e) => { if (e.error !== 'aborted') toast('warn', e.error === 'not-allowed' ? '마이크를 쓸 수 없어요. 브라우저에서 마이크를 허용하세요.' : e.error === 'no-speech' ? '말소리를 듣지 못했어요. 다시 눌러 말해 주세요.' : '받아쓰기를 하지 못했어요.'); };
+  rec.onend = () => { $('micBtn').classList.remove('on'); $('micBtn').disabled = false; if (got) { qa.value = (qa.value.trim() ? qa.value.trim() + ' ' : '') + got.trim(); qa.dispatchEvent(new Event('input')); qa.focus(); } };
+  rec.start();
+};
 $('compose').onsubmit = (e) => {
   e.preventDefault();
   const question = qa.value.trim(); if (!question || pending) return;
@@ -966,7 +1020,7 @@ async function send(question) {
       await new Promise((r) => setTimeout(r, 2000));
       const r = (await api('/v1/requests/' + pending)).body;
       if (r.status === 'running' || r.status === 'dispatching') loadCards().catch(() => {}); // W1: 처리 중에 온 승인 카드를 바로 보이게
-      if (r.status === 'completed') { s2.textContent = '✓ 완료'; s2.className = 'done'; out.textContent = r.answer ?? '(보관하지 않은 답변)'; out.classList.remove('wait'); break; }
+      if (r.status === 'completed') { s2.textContent = '✓ 완료'; s2.className = 'done'; out.textContent = r.answer ?? '(보관하지 않은 답변)'; out.classList.remove('wait'); voiceAuto(r.answer); break; }
       if (r.status === 'failed') { out.remove(); s2.textContent = '보내지 못함'; retry = { conversationId: id, question, code: r.errorCode }; break; }
       if (r.status === 'unknown') { out.remove(); s2.textContent = '확인 필요'; break; }
       if (r.status === 'approval_required') { out.remove(); s2.textContent = '권한 확인 대기'; break; }
@@ -1080,6 +1134,11 @@ async function selectRoom(id) {
   if (room.guide) box.append(el('div', '공통 안내: ' + room.guide, 'notice'));
   if (!room.posts.length) box.append(el('div', '@이름으로 부른 AI 직원이 답해요. 아무도 안 부르면 대표 @' + (staffName(room.lead) || '') + '가 답해요.', 'welcome'));
   let waiting = false;
+  // V1: 이 방을 연 뒤 새로 끝난 답만 자동으로 읽는다(처음 열 때 있던 답은 읽지 않음)
+  const firstView = !roomSeen.has(id); const seen = roomSeen.get(id) ?? new Set(); roomSeen.set(id, seen);
+  const fresh = room.posts.filter((p) => p.kind === 'ask' && p.status === 'completed' && p.answer && !seen.has(p.postId));
+  fresh.forEach((p) => seen.add(p.postId));
+  if (!firstView && fresh.length) voiceAuto(fresh[fresh.length - 1].answer);
   for (const p of room.posts) {
     if (p.kind === 'user') { box.append(el('div', p.text, 'bubble me')); continue; }
     const name = '@' + (staffName(p.conversationId) || p.conversationId);

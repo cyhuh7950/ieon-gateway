@@ -10,6 +10,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    registerPlugin(VoicePlugin.class); // V1 음성(앱 안 코드, 새 부품 없음)
     super.onCreate(savedInstanceState);
     getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
       @Override

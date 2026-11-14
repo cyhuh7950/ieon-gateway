@@ -91,3 +91,17 @@ test('AP-3b: 앱 열쇠로 방 만들기·글 보내기·AI 직원 이름 바꾸
   assert.ok(!JSON.stringify(posts).includes('resend'), '다시 보내기용 원문은 내보내지 않음');
   assert.equal((await (await fetch(s.base + '/v1/admin/roles', { headers: H(token) })).json()).error, 'app_not_allowed');
 });
+
+test('V1 음성: 웹 화면에 말로 쓰기·읽어 주기·처음 안내, 받아쓴 글은 입력칸에만(바로 보내지 않음), 음성 승인 없음, 서버는 음성을 받지 않음', () => {
+  const A = readFileSync(join(root, 'src/pilot/web/app.html'), 'utf8');
+  assert.ok(A.includes('id="micBtn"') && A.includes('id="speakBtn"') && A.includes('id="voiceAsk"'));
+  assert.ok(A.includes("rec.lang = 'ko-KR'"));
+  const mic = A.slice(A.indexOf("$('micBtn').onclick"), A.indexOf("$('compose').onsubmit"));
+  assert.ok(mic.includes('qa.value =') && !mic.includes('requestSubmit') && !mic.includes('send('), '받아쓴 글은 입력칸에만');
+  assert.ok(!/decide|approvals/.test(mic), '음성으로 승인하지 않음');
+  assert.ok(A.includes('카드 버튼으로만'));
+  const S = readFileSync(join(root, 'src/pilot/server.mjs'), 'utf8');
+  assert.ok(!/audio|voice/i.test(S.replace(/\/\/.*$/gm, '')), '서버는 음성을 받거나 저장하지 않음');
+  const P = readFileSync(join(root, 'app/android/app/src/main/AndroidManifest.xml'), 'utf8');
+  assert.ok(!P.includes('RECORD_AUDIO'), '안드로이드 앱은 마이크 권한을 갖지 않음(기기 받아쓰기 창이 녹음)');
+});
