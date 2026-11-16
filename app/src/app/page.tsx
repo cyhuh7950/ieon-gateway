@@ -12,8 +12,9 @@ import { ListScreen } from "../components/List";
 import { PairScreen } from "../components/Pair";
 import { RoomScreen } from "../components/Room";
 import { RoomForm } from "../components/RoomForm";
+import { TasksScreen } from "../components/Tasks";
 
-type View = { kind: "list" } | { kind: "chat"; conv: Conversation } | { kind: "room"; roomId: string } | { kind: "roomForm"; room: Room | null; convs: Conversation[] | null };
+type View = { kind: "list" } | { kind: "tasks" } | { kind: "chat"; conv: Conversation } | { kind: "room"; roomId: string } | { kind: "roomForm"; room: Room | null; convs: Conversation[] | null };
 
 export default function Home() {
   const [conn, setConn] = useState<Conn | null | undefined>(undefined);
@@ -79,10 +80,12 @@ export default function Home() {
   switch (view.kind) {
     case "chat": return <ChatScreen key={view.conv.conversationId} api={api} conv={view.conv} onBack={toList} onEvent={onEvent} onLost={onLost} />;
     case "room": return <RoomScreen key={view.roomId} api={api} roomId={view.roomId} onBack={toList} onEvent={onEvent} onLost={onLost} onEdit={(room, convs) => setView({ kind: "roomForm", room, convs })} />;
+    case "tasks": return <TasksScreen api={api} onBack={toList} onEvent={onEvent} onLost={onLost}
+      onOpenConv={async (id) => { try { const c = (await api.conversations()).conversations.find((x) => x.conversationId === id); if (c) setView({ kind: "chat", conv: c }); } catch { /* 목록에 없으면 그대로 */ } }} />;
     case "roomForm": return <RoomForm api={api} room={view.room} convs={view.convs} onLost={onLost}
       onBack={() => setView(view.room ? { kind: "room", roomId: view.room.roomId } : { kind: "list" })}
       onSaved={(r) => setView({ kind: "room", roomId: r.roomId })} onDeleted={toList} />;
     default: return <ListScreen api={api} server={conn.server} onOpen={(conv) => setView({ kind: "chat", conv })} onRoom={(r) => setView({ kind: "room", roomId: r.roomId })}
-      onNewRoom={() => setView({ kind: "roomForm", room: null, convs: null })} onEvent={onEvent} onForget={forget} onLost={onLost} notify={canNotify ? { on: notify, toggle: toggleNotify } : null} />;
+      onNewRoom={() => setView({ kind: "roomForm", room: null, convs: null })} onTasks={() => setView({ kind: "tasks" })} onEvent={onEvent} onForget={forget} onLost={onLost} notify={canNotify ? { on: notify, toggle: toggleNotify } : null} />;
   }
 }

@@ -127,6 +127,18 @@ details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:
 .dots { display:flex; gap:6px; } .dots i { width:7px; height:7px; border-radius:99px; background:var(--border); } .dots i.on { width:20px; background:var(--accent); }
 .bigbtn { width:100%; border:0; border-radius:12px; padding:12px; background:var(--accent); color:var(--on-accent); font-weight:600; margin-top:16px; }
 .linkbtn { border:0; background:none; color:var(--muted); padding:4px 0; text-decoration:underline; }
+/* RC3: 작업 화면(오른쪽 서랍 — 대화 화면을 가리지 않고 겹쳐 보임) */
+.tasks { position:fixed; inset:0 0 0 auto; width:min(400px,100%); z-index:25; background:var(--surface); border-left:1px solid var(--border); box-shadow:var(--shadow); overflow:auto; padding:16px 18px; }
+.tasks h3 { font-size:15px; margin:0 0 8px; display:flex; justify-content:space-between; align-items:center; }
+.tasks h4 { font-size:13px; margin:16px 0 6px; color:var(--muted); }
+.task { border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin:6px 0; background:var(--surface-alt); }
+.task .t1 { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; font-size:14px; }
+.task .t1 b { font-weight:600; } .task .t1 .st { font-size:12px; padding:1px 8px; border-radius:999px; background:var(--surface); border:1px solid var(--border); }
+.task .t2 { font-size:13px; color:var(--muted); margin-top:4px; overflow-wrap:anywhere; }
+.task .acts2 { display:flex; gap:12px; margin-top:6px; flex-wrap:wrap; }
+.task .more { margin-top:8px; font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.task .more dt { color:var(--muted); margin-top:6px; } .task .more dd { margin:2px 0 0; }
+.side-bottom .badge { margin-left:auto; font-size:12px; min-width:20px; text-align:center; border-radius:999px; background:var(--accent); color:var(--on-accent); padding:0 6px; }
 /* U5 메신저 연결 */
 .code { font-size:34px; letter-spacing:8px; font-weight:700; text-align:center; padding:14px; border-radius:12px; background:var(--accent-soft); color:var(--accent); margin:14px 0 6px; font-variant-numeric:tabular-nums; }
 ol.guide { padding-left:20px; margin:10px 0 0; font-size:14px; } ol.guide li { margin:5px 0; }
@@ -335,6 +347,7 @@ details.adv[open] summary { margin-bottom:10px; }
     <div class="list" id="list"></div>
     <div class="side-bottom">
       <button type="button" id="notifyBtn" aria-pressed="false" hidden title="이 탭을 보고 있지 않을 때 '○○가 답했어요' 알림(내용은 넣지 않음)"><span aria-hidden="true">🔕</span>알림</button>
+      <button type="button" id="tasksBtn" title="질문 하나하나의 진행·승인 대기·결과를 모아 봐요"><span aria-hidden="true">☰</span>작업<span class="badge" id="tasksBadge" hidden></span></button>
       <button type="button" id="msgBtn"><span aria-hidden="true">✈</span>메신저</button>
       <a href="/settings" id="settingsLink"><span aria-hidden="true">⚙</span>설정</a>
       <button type="button" id="logoutBtn" hidden><span aria-hidden="true">⎋</span>로그아웃</button>
@@ -362,6 +375,11 @@ details.adv[open] summary { margin-bottom:10px; }
       <button id="send" disabled>보내기</button>
     </form>
   </main>
+
+  <aside class="tasks" id="tasks" aria-label="작업" hidden>
+    <h3>작업 <button type="button" class="ghost" id="tasksClose" aria-label="닫기">✕</button></h3>
+    <div id="taskBody"></div>
+  </aside>
 
   <aside class="panel" id="panel" aria-label="연결 설정" hidden>
     <h3>연결 설정 <button type="button" class="ghost" id="panelClose" aria-label="닫기">✕</button></h3>
@@ -522,6 +540,9 @@ async function startApp() {
   startEvents();
   let done = false; try { done = localStorage.getItem('ieon_setup_done') === '1'; } catch { done = false; }
   if (device && (location.hash === '#setup' || (!convs.length && !done))) openSetup();
+  // RC3: 메신저의 "작업 보기" 링크(#task=<요청 ID>) — 로그인 뒤 그 작업을 펼쳐 보여 준다(권한은 서버가 확인)
+  const tm = location.hash.match(/^#task=([\w-]+)$/); if (tm) openTasks(tm[1]).catch(() => {});
+  updateTaskBadge().catch(() => {}); setInterval(() => { if (!document.hidden) updateTaskBadge().catch(() => {}); }, 20000);
 }
 
 // --- AI 응답 스위치(이 PC 화면에서만. 허브·휴대폰에서는 서버가 404로 답해 숨긴다) ---
@@ -1302,6 +1323,95 @@ async function loadDenied() {
 boot();
 setInterval(() => { if (!$('app').hidden && !pending) load().catch(() => {}); }, 5000);
 setInterval(() => { if (!$('app').hidden) { loadDevice().catch(() => {}); loadDenied().catch(() => {}); } }, 30000);
+// --- RC3 작업 화면: 질문(작업) 하나하나의 진행·승인 대기·결과를 모아 보고, 여기서 바로 허용·거부·중지 ---
+const TSTATE = { queued: '기다리는 중', dispatching: '보내는 중', running: '실행 중', completed: '완료', failed: '실패', cancelled: '중지됨', unknown: '확인 필요', approval_required: '권한 확인 대기' };
+const ASTATE = { pending: '승인 대기', approved: '승인됨', running: '실행 중', completed: '실행 완료', failed: '실행 실패', unknown: '결과 불명', denied: '거부함', expired: '시간 지남(거부)', turn_ended: '차례 끝(거부)' };
+const AKIND = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' };
+let taskFocus = null; let taskTimer = null;
+const when = (s) => (s ? new Date(s).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
+async function updateTaskBadge(n) {
+  if (n === undefined) {
+    const [ap, act] = await Promise.all([api('/v1/approvals'), api('/v1/tasks?filter=active')]);
+    n = (ap.body?.approvals?.length ?? 0) + (act.body?.tasks?.length ?? 0);
+  }
+  $('tasksBadge').hidden = !n; $('tasksBadge').textContent = String(n);
+}
+async function openTasks(focus) { taskFocus = focus ?? null; $('tasks').hidden = false; await renderTasks(); }
+function closeTasks() {
+  $('tasks').hidden = true; clearTimeout(taskTimer); taskFocus = null;
+  if (location.hash.startsWith('#task=')) history.replaceState(null, '', location.pathname);
+}
+$('tasksBtn').onclick = () => ($('tasks').hidden ? openTasks() : closeTasks());
+$('tasksClose').onclick = closeTasks;
+window.addEventListener('hashchange', () => { const tm = location.hash.match(/^#task=([\w-]+)$/); if (tm) openTasks(tm[1]).catch(() => {}); });
+async function renderTasks() {
+  clearTimeout(taskTimer);
+  const [ap, act, all] = await Promise.all([api('/v1/approvals'), api('/v1/tasks?filter=active'), api('/v1/tasks?limit=30')]);
+  const box = $('taskBody'); box.textContent = '';
+  const aps = ap.body?.approvals ?? []; const acts = act.body?.tasks ?? [];
+  box.append(el('h4', '승인 대기 ' + aps.length));
+  if (!aps.length) box.append(el('p', '기다리는 승인이 없어요.', 'muted small'));
+  for (const a of aps) {
+    const d = el('div', null, 'task');
+    const t1 = el('div', null, 't1'); t1.append(el('b', a.label), el('span', '승인 요청 ' + (a.n ?? ''), 'st'), el('span', AKIND[a.kind] || a.kind, 'small'));
+    d.append(t1, el('div', a.summary + (a.cwd ? ' (작업 폴더 ' + a.cwd + ')' : ''), 't2'));
+    const ac = el('div', null, 'acts2');
+    for (const [label, decision] of [['허용(이번 한 번)', 'allow'], ['거부', 'deny']]) {
+      const b = el('button', label, 'linkbtn'); b.type = 'button';
+      b.onclick = async () => { b.disabled = true; await api('/v1/approvals/' + a.approvalId, { method: 'POST', body: JSON.stringify({ decision }) }); await renderTasks(); if (current === a.conversationId) loadCards().catch(() => {}); };
+      ac.append(b);
+    }
+    d.append(ac); box.append(d);
+  }
+  box.append(el('h4', '진행 중·확인 필요 ' + acts.length));
+  if (!acts.length) box.append(el('p', '진행 중인 질문이 없어요.', 'muted small'));
+  for (const t of acts) box.append(taskRow(t));
+  const recent = (all.body?.tasks ?? []).filter((t) => !acts.some((x) => x.requestId === t.requestId));
+  box.append(el('h4', '최근'));
+  if (!recent.length) box.append(el('p', '아직 질문이 없어요.', 'muted small'));
+  for (const t of recent) box.append(taskRow(t));
+  // 링크로 연 작업이 목록 밖(오래됨)이면 따로 맨 위에
+  if (taskFocus && ![...acts, ...recent].some((t) => t.requestId === taskFocus)) {
+    const r = await api('/v1/tasks/' + taskFocus);
+    box.prepend(r.status === 200 ? taskRow(r.body) : el('p', '이 작업을 볼 수 없어요(없거나 권한이 없어요).', 'notice'));
+  }
+  updateTaskBadge(aps.length + acts.length).catch(() => {});
+  if (!$('tasks').hidden && (aps.length || acts.length)) taskTimer = setTimeout(() => renderTasks().catch(() => {}), 4000);
+}
+function taskRow(t) {
+  const d = el('div', null, 'task');
+  const t1 = el('div', null, 't1');
+  t1.append(el('b', t.label), el('span', (t.stopRequested && ['dispatching', 'running'].includes(t.status) ? '멈추는 중' : TSTATE[t.status] || t.status), 'st'), el('span', when(t.createdAt), 'small muted'));
+  if (t.pendingApprovals) t1.append(el('span', '승인 대기 ' + t.pendingApprovals, 'st'));
+  d.append(t1, el('div', t.preview || '', 't2'));
+  const ac = el('div', null, 'acts2');
+  const more = el('div', null, 'more'); more.hidden = true;
+  const open = el('button', '자세히', 'linkbtn'); open.type = 'button';
+  const show = async () => {
+    more.hidden = !more.hidden; if (more.hidden) return;
+    const r = await api('/v1/tasks/' + t.requestId); more.textContent = '';
+    if (r.status !== 200) { more.append(el('p', '볼 수 없어요.', 'muted')); return; }
+    const x = r.body; const dl = el('dl');
+    const kv = (k, v) => { if (v) dl.append(el('dt', k), el('dd', v)); };
+    kv('질문', x.question); kv('상태', (TSTATE[x.status] || x.status) + (x.errorCode ? ' (' + (ERR[x.errorCode]?.[1] || x.errorCode) + ')' : ''));
+    kv('엔진', ENGINE[x.engine] || x.engine); kv('접수', when(x.createdAt)); kv('마지막 변경', when(x.updatedAt));
+    for (const a of x.approvals) kv('승인 요청 ' + (a.n ?? ''), (AKIND[a.kind] || a.kind) + ' — ' + a.summary + ' → ' + (ASTATE[a.state] || a.state) + (a.state === 'failed' && Number.isInteger(a.exitCode) ? ' (종료 코드 ' + a.exitCode + ')' : ''));
+    kv('답', x.answer);
+    more.append(dl);
+  };
+  open.onclick = show; ac.append(open);
+  if (t.canStop) {
+    const st = el('button', '중지', 'linkbtn'); st.type = 'button';
+    st.onclick = async () => { st.disabled = true; const r = await api('/v1/requests/' + t.requestId + '/stop', { method: 'POST' }); if (r.status >= 400) st.textContent = r.body?.error === 'stop_unsupported' ? '원래 창에서 멈추세요' : '멈출 수 없어요'; await renderTasks(); };
+    ac.append(st);
+  }
+  const go = el('button', '대화로', 'linkbtn'); go.type = 'button';
+  go.onclick = () => { closeTasks(); select(t.conversationId).catch(() => {}); };
+  ac.append(go);
+  d.append(ac, more);
+  if (taskFocus === t.requestId) { d.style.outline = '2px solid var(--accent)'; show(); setTimeout(() => d.scrollIntoView({ block: 'nearest' }), 0); }
+  return d;
+}
 </script>
 </body>
 </html>

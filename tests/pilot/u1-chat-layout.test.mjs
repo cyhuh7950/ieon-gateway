@@ -39,6 +39,7 @@ test('새 화면은 이미 있는 API만 부른다', () => {
     '/v1/sessions', '/v1/sessions/limits', '/v1/admin/line/webhook-url', '/v1/admin/local/mode', // M1: 사용 방식
     '/v1/rooms', '/v1/rooms/', '/v1/admin/roles', // AP-1: 방·AI 직원 역할
     '/v1/approvals/', // W1: 승인 카드
+    '/v1/approvals', '/v1/tasks?filter=active', '/v1/tasks?limit=30', '/v1/tasks/', // RC3: 작업 화면(승인 대기함·작업 목록·작업 하나)
     '/v1/events']); // AP-4a: 새 소식(알림, AP-2에서 만든 API) // U8, L1(라인 webhook 주소): 새 세션 만들기(예전 화면에서 옮김, 기존 API)
   const used = [...new Set([...APP.matchAll(/'(\/v1\/[^'+]*)'/g)].map((m) => m[1]))];
   assert.ok(used.length >= 8, used.join(','));

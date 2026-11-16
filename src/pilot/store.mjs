@@ -104,6 +104,11 @@ export function openStore(path) {
       if (!cols.has(name)) db.exec(`ALTER TABLE approvals ADD COLUMN ${name} ${type}`);
     }
   }
+  // RC3: 작업 화면에 보일 접수 시각·마지막 상태 변경 시각(전부터 있던 요청은 비어 있음)
+  if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'created_at')) {
+    db.exec('ALTER TABLE requests ADD COLUMN created_at TEXT');
+    db.exec('ALTER TABLE requests ADD COLUMN updated_at TEXT');
+  }
   // RC2: 사람이 그 요청만 멈추라고 한 시각·누가(실행 중이면 연결부가 읽어 가 엔진을 멈춘다)
   if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'stop_requested_at')) {
     db.exec('ALTER TABLE requests ADD COLUMN stop_requested_at TEXT');
@@ -188,8 +193,8 @@ export function openStore(path) {
   function setStatus(row, status, fields = {}) {
     const f = { receipt: row.receipt, answer: row.answer, error_code: row.error_code, error_http: row.error_http, ...fields };
     tx(() => {
-      db.prepare('UPDATE requests SET status = ?, receipt = ?, answer = ?, error_code = ?, error_http = ? WHERE request_id = ?')
-        .run(status, f.receipt, f.answer, f.error_code, f.error_http, row.request_id);
+      db.prepare('UPDATE requests SET status = ?, receipt = ?, answer = ?, error_code = ?, error_http = ?, updated_at = ? WHERE request_id = ?')
+        .run(status, f.receipt, f.answer, f.error_code, f.error_http, new Date().toISOString(), row.request_id);
       if (RELEASING.has(status)) db.prepare('DELETE FROM locks WHERE holder_request_id = ?').run(row.request_id);
     });
   }
@@ -283,9 +288,9 @@ export function openStore(path) {
         if (st?.guide_pending) db.prepare('UPDATE staff SET guide_pending = 0 WHERE conversation_id = ?').run(conversationId);
         const fullPrefix = (roleGuide + (prefix ?? '')) || null;
         db.prepare(`INSERT INTO requests (request_id, conversation_id, user_id, app_id, idem_key,
-          payload_hash, question, status, generation, prefix, room_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`)
+          payload_hash, question, status, generation, prefix, room_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)`)
           .run(requestId, conversationId, principal.userId, principal.appId, key, payloadHash,
-            String(payload.question ?? ''), b.generation, fullPrefix, roomId);
+            String(payload.question ?? ''), b.generation, fullPrefix, roomId, new Date().toISOString(), new Date().toISOString());
         db.prepare('INSERT INTO locks (session_key, holder_request_id) VALUES (?, ?)').run(lockKey, requestId);
         return { http: 202, requestId };
       });
@@ -392,6 +397,48 @@ export function openStore(path) {
         }
         return { http: 409, code: 'not_running', status: row.status };
       }
+    },
+    // RC3: 작업(요청 단위) 목록 — 내가 볼 수 있는 대화의 질문만. filter: active(진행 중·확인 필요) | all(최근)
+    tasks(principal, { filter = 'all', limit = 50, ttlMs } = {}) {
+      const ACTIVE = ['queued', 'dispatching', 'running', 'approval_required', 'unknown'];
+      const n = Math.min(Math.max(Number(limit) || 50, 1), 200);
+      const rows = db.prepare(`SELECT request_id FROM requests ${filter === 'active' ? `WHERE status IN (${ACTIVE.map(() => '?').join(',')})` : ''} ORDER BY rowid DESC LIMIT 1000`)
+        .all(...(filter === 'active' ? ACTIVE : []));
+      const out = [];
+      for (const r of rows) {
+        const t = this.taskDetail(principal, r.request_id, { brief: true, ttlMs });
+        if (t) out.push(t);
+        if (out.length >= n) break;
+      }
+      return out;
+    },
+    // RC3: 작업 하나 — 질문·상태·답·그 질문의 승인과 실행 결과·멈출 수 있는지
+    taskDetail(principal, requestId, { brief = false, ttlMs } = {}) {
+      const row = request(String(requestId ?? ''));
+      const b = row && binding(row.conversation_id);
+      if (!b || !canAccess(principal, b)) return null;
+      const staff = db.prepare('SELECT name, icon FROM staff WHERE conversation_id = ?').get(row.conversation_id);
+      const ids = db.prepare('SELECT approval_id FROM approvals WHERE request_id = ? ORDER BY created_at').all(row.request_id);
+      const approvals = ids.map((x) => this.approvalStatus(x.approval_id, { ttlMs })).map((a) => ({ approvalId: a.approval_id, n: a.seq ?? null, kind: a.kind, summary: a.summary, cwd: a.cwd,
+        state: approvalState(a), exitCode: a.exit_code ?? null, decidedAt: a.decided_at ?? null }));
+      const running = [STATUS.dispatching, STATUS.running].includes(row.status);
+      const t = { requestId: row.request_id, conversationId: row.conversation_id, label: staff?.name ?? b.label, icon: staff?.icon ?? null, engine: b.engine,
+        status: row.status, errorCode: row.error_code, stopRequested: Boolean(row.stop_requested_at), createdAt: row.created_at ?? null, updatedAt: row.updated_at ?? null,
+        canStop: row.status === STATUS.queued || (running && !STOP_UNSUPPORTED.has(b.engine) && !row.stop_requested_at),
+        pendingApprovals: approvals.filter((a) => a.state === 'pending').length,
+        preview: String(row.question ?? '').replace(/\s+/g, ' ').slice(0, 80) };
+      if (brief) return t;
+      return { ...t, question: row.question, answer: row.status === STATUS.completed ? row.answer : null, approvals };
+    },
+    // RC3: 승인 대기함 — 내가 볼 수 있는 모든 대화의 기다리는 승인(시간이 지난 것은 읽을 때 거부로 바뀜)
+    pendingApprovals(principal, { ttlMs } = {}) {
+      const rows = db.prepare("SELECT approval_id, conversation_id FROM approvals WHERE status = 'pending' ORDER BY created_at").all();
+      return rows.filter((r) => canAccess(principal, binding(r.conversation_id))).map((r) => this.approvalStatus(r.approval_id, { ttlMs }))
+        .filter((a) => a.status === 'pending').map((a) => {
+          const b = binding(a.conversation_id); const staff = db.prepare('SELECT name FROM staff WHERE conversation_id = ?').get(a.conversation_id);
+          return { approvalId: a.approval_id, requestId: a.request_id, conversationId: a.conversation_id, label: staff?.name ?? b.label, n: a.seq ?? null,
+            kind: a.kind, summary: a.summary, cwd: a.cwd, createdAt: a.created_at };
+        });
     },
     // RC2: 연결부가 실행 중인 요청을 멈춰야 하는지 묻는다(그 PC의 요청만)
     stopRequested(hostId, requestId) {

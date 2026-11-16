@@ -161,6 +161,8 @@ Codex 대화에서 **연결 설정 → 고급 → Codex 연결 방식**을 고�
 | `POST /v1/conversations/<id>/requests` | 질문 접수 | 202 `{"requestId"}` |
 | `GET /v1/requests/<requestId>` | 결과 조회 | `status`·`answer`·`errorCode`·`usage` |
 | `POST /v1/requests/<requestId>/review` | 확인 필요 정리, 본문 `{"executed": true\|false}` | 정리된 `status` |
+| `GET /v1/tasks?filter=active\|all` · `GET /v1/tasks/<requestId>` | 작업(질문 단위) 목록·하나(질문·승인 결과·답) | `tasks` · 작업 |
+| `GET /v1/approvals` | 모든 대화의 기다리는 승인(승인 대기함) | `approvals` |
 | `POST /v1/requests/<requestId>/stop` | 그 질문만 멈추기 | 200 `cancelled`(시작 전) · 202 `stopping`(실행 중 → 확인 뒤 `cancelled`) · 409 `not_running`·`stop_unsupported` |
 | `GET /v1/conversations/<id>/messages` | 그 세션의 이어온 질문·답 기록 | `messages` |
 | `DELETE /v1/conversations/<id>/messages` | 기록 삭제 | 204 |

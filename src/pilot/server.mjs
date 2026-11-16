@@ -293,6 +293,7 @@ export function createApp(config) {
   };
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
   const approvalTtlMs = config.approvalTtlMs ?? 15 * 60_000; // W1: 15분 안에 답이 없으면 거부
+  let webUrlSeen = null; // RC3: 마지막으로 본 공개 웹 주소(메신저 작업 열기 링크)
   const approvalShowMs = config.approvalShowMs ?? 30 * 60_000; // RC1: 결정된 승인 카드를 대화에 남겨 두는 시간
   const cardsFor = (c, live, principal) => {
     const cards = [];
@@ -493,6 +494,13 @@ export function createApp(config) {
       }
       if (!user) return json(res, 401, { error: 'unauthorized' });
       const principal = { userId: user.userId, appId: user.appId };
+      // RC3: 웹 화면이 공개 https 주소로 열렸으면 그 주소를 기억한다(메신저 답의 "작업 열기" 링크용, 설정 없이). 로컬 주소는 쓰지 않는다.
+      if (principal.appId === 'app_web') {
+        const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
+        const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim();
+        const base = proto === 'https' && /^[a-z0-9.-]+(:\d+)?$/i.test(host) && !/^(localhost|127\.|\[?::1)/i.test(host) ? `https://${host}` : null;
+        if (base && base !== webUrlSeen) { webUrlSeen = base; store.setSetting('web_url', base); }
+      }
       // 여러 봇: 메신저 토큰으로 온 요청이 x-ieon-bot: <메신저>:<봇ID>를 붙이면, 웹에 정의돼 있고 켜진 봇일 때만
       // 그 봇의 앱 ID로 처리한다. default 봇은 기존 app_messenger 그대로다. 정의 없는 봇은 거절한다.
       const botHeader = req.headers['x-ieon-bot'];
@@ -1216,8 +1224,20 @@ export function createApp(config) {
         }
         const r = store.submit(principal, m[1], key, { question });
         if (r.http === 202) notify(m[1], { type: 'request', requestId: r.requestId, status: 'queued' });
-        return r.http === 202 ? json(res, 202, { requestId: r.requestId }) : json(res, r.http, { error: r.code });
+        const web = config.publicUrl ?? store.getSetting('web_url')?.value ?? null; // RC3: 작업 열기 링크(공개 주소를 알 때만)
+        return r.http === 202 ? json(res, 202, { requestId: r.requestId, ...(web ? { taskUrl: `${web}/#task=${r.requestId}` } : {}) }) : json(res, r.http, { error: r.code });
       }
+      // RC3: 작업 화면 — 작업 목록·작업 하나·승인 대기함(내가 볼 수 있는 대화만)
+      if (req.method === 'GET' && path === '/v1/tasks') {
+        const q = new URL(req.url, 'http://x').searchParams;
+        return json(res, 200, { tasks: store.tasks(principal, { filter: q.get('filter') === 'active' ? 'active' : 'all', limit: q.get('limit'), ttlMs: approvalTtlMs }) });
+      }
+      m = path.match(/^\/v1\/tasks\/([\w-]+)$/);
+      if (req.method === 'GET' && m) {
+        const t = store.taskDetail(principal, m[1], { ttlMs: approvalTtlMs });
+        return t ? json(res, 200, t) : json(res, 404, { error: 'not_found' });
+      }
+      if (req.method === 'GET' && path === '/v1/approvals') return json(res, 200, { approvals: store.pendingApprovals(principal, { ttlMs: approvalTtlMs }) });
       // RC2: 그 요청만 멈추기(웹·앱·메신저 공통). 대기 중 → 바로 취소(200), 실행 중 → 멈추는 중(202, 연결부가 멈춘 뒤 중지됨)
       m = path.match(/^\/v1\/requests\/([\w-]+)\/stop$/);
       if (req.method === 'POST' && m) {
