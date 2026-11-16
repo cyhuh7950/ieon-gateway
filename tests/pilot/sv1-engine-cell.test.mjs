@@ -105,3 +105,25 @@ test('엔진 칸 compose·ieun.sh: 권한 없음·공개 포트 없음·허브 �
   const inv = readFileSync(new URL('../../src/hub/invite.mjs', import.meta.url), 'utf8');
   assert.ok(inv.includes('http://127.0.0.1:') && !/stdout\.write\([^)]*token/.test(inv), '컨테이너 안 서버에만, 토큰은 출력 안 함');
 });
+
+test('칸은 허브 로그인을 같이 쓴다(같은 파일을 가리킴) — 칸에 따로 로그인한 파일이 있으면 그대로, 허브 대화 이력은 붙이지 않음', async (t) => {
+  const { linkSharedLogin } = await import('../../src/engine/run.mjs');
+  const { lstatSync, readlinkSync } = await import('node:fs');
+  const d = tmp(t);
+  const shared = d + '/shared/auth.json'; const { mkdirSync } = await import('node:fs');
+  mkdirSync(d + '/shared'); writeFileSync(shared, '{}');
+  assert.equal(linkSharedLogin(d + '/c0', undefined), 'no_shared');
+  mkdirSync(d + '/c1');
+  let r;
+  try { r = linkSharedLogin(d + '/c1', shared); } catch (e) { if (e.code === 'EPERM') return t.skip('이 PC(Windows)는 심볼릭 링크를 만들 권한이 없음 — 리눅스 칸에서 실측함'); throw e; }
+  assert.equal(r, 'linked');
+  assert.ok(lstatSync(d + '/c1/auth.json').isSymbolicLink() && readlinkSync(d + '/c1/auth.json').replace(/\\/g, '/').endsWith('/shared/auth.json'));
+  assert.equal(linkSharedLogin(d + '/c1', shared), 'linked', '다시 켜도 같은 연결');
+  mkdirSync(d + '/c2'); writeFileSync(d + '/c2/auth.json', '{"own":1}');
+  assert.equal(linkSharedLogin(d + '/c2', shared), 'own_login');
+  assert.equal(readFileSync(d + '/c2/auth.json', 'utf8'), '{"own":1}', '그 칸만의 로그인은 건드리지 않음');
+  const c = readFileSync(new URL('../../deploy/hub/engine.compose.yaml', import.meta.url), 'utf8');
+  assert.ok(c.includes('../../hub/data/shared-auth/codex:/shared/codex') && !c.includes('hub/data/codex:'), '로그인 파일 폴더만 — 허브 대화 이력 폴더는 붙이지 않음');
+  const sh = readFileSync(new URL('../../deploy/hub/ieun.sh', import.meta.url), 'utf8');
+  assert.ok(sh.includes('ln -s ../shared-auth/codex/auth.json hub/data/codex/auth.json') && sh.includes('    share_login\n'), '칸을 만들 때 허브 로그인을 같이 쓰게 맞춤');
+});

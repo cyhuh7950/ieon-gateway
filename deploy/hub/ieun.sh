@@ -12,11 +12,28 @@ cmd="${1:-}"; sub="${2:-}"; name="${3:-}"
 die() { echo "$*" >&2; exit 1; }
 check_name() { echo "$1" | grep -Eq '^[a-z0-9][a-z0-9-]{0,19}$' || die "이름은 영문 소문자·숫자·- 로 1~20자(예: law, tax-1)"; }
 
+# 허브의 Codex 로그인 파일을 "같이 쓰는 폴더"(hub/data/shared-auth/codex)로 옮기고, 허브는 그 파일을 가리키게 한다(처음 한 번).
+# 칸들은 그 폴더만 붙여 같은 파일을 쓴다(허브 대화 이력은 칸에 보이지 않음). 파일 내용은 읽거나 출력하지 않는다.
+share_login() {
+  mkdir -p hub/data/shared-auth/codex
+  chown 1001:1001 hub/data/shared-auth hub/data/shared-auth/codex 2>/dev/null || true
+  chmod 700 hub/data/shared-auth hub/data/shared-auth/codex
+  if [ -f hub/data/codex/auth.json ] && [ ! -L hub/data/codex/auth.json ] && [ ! -e hub/data/shared-auth/codex/auth.json ]; then
+    mv hub/data/codex/auth.json hub/data/shared-auth/codex/auth.json
+  fi
+  if [ -e hub/data/shared-auth/codex/auth.json ] && [ ! -e hub/data/codex/auth.json ]; then
+    ln -s ../shared-auth/codex/auth.json hub/data/codex/auth.json
+    chown -h 1001:1001 hub/data/codex/auth.json 2>/dev/null || true
+  fi
+  [ -e hub/data/shared-auth/codex/auth.json ] || echo "주의: 허브가 아직 Codex에 로그인돼 있지 않아요 — 허브 화면(설정 → 허브 보안·Codex)에서 한 번 로그인하면 모든 칸이 같이 써요."
+}
+
 [ "$cmd" = engine ] || die "사용: sh deploy/hub/ieun.sh engine add|remove|list|tui ..."
 case "$sub" in
   add)
     check_name "$name"
     [ -d "engines/$name/data" ] && [ -f "engines/$name/data/.local/s2/hub/hub.json" ] && die "이미 있는 칸: $name (다시 띄우려면 docker start ieun-engine-$name)"
+    share_login
     mkdir -p "engines/$name/data"
     chown 1001:1001 "engines/$name" "engines/$name/data" 2>/dev/null || true
     chmod 700 "engines/$name/data"
@@ -31,6 +48,9 @@ case "$sub" in
     check_name "$name"
     ENGINE_NAME="$name" docker compose -f deploy/hub/engine.compose.yaml down
     echo "칸 '$name'을 껐어요. 데이터(engines/$name/data — 엔진 로그인·대화 이력)는 남겨 뒀어요. 허브 화면 기기 목록에서 이 칸을 끊을 수 있어요."
+    ;;
+  share-login)
+    share_login; echo "허브 로그인을 칸들이 같이 쓰도록 맞췄어요."
     ;;
   list)
     docker ps -a --filter "name=ieun-engine-" --format '{{.Names}}\t{{.Status}}'
