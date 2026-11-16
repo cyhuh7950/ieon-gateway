@@ -14,7 +14,20 @@ check_name() { echo "$1" | grep -Eq '^[a-z0-9][a-z0-9-]{0,19}$' || die "이름�
 
 # 허브의 Codex 로그인 파일을 "같이 쓰는 폴더"(hub/data/shared-auth/codex)로 옮기고, 허브는 그 파일을 가리키게 한다(처음 한 번).
 # 칸들은 그 폴더만 붙여 같은 파일을 쓴다(허브 대화 이력은 칸에 보이지 않음). 파일 내용은 읽거나 출력하지 않는다.
+# 설치 때 한 번: 이 폴더의 환경 파일(.env)에 OPENAI_API_KEY=... 를 적어 두면, 허브가 아직 Codex에 로그인 전일 때 그 키로 로그인한다.
+# 키는 표준 입력으로만 넘기고 화면·로그에 내지 않는다. 이미 로그인돼 있으면(구독 로그인 등) 바꾸지 않는다 — 바꾸려면 허브 화면 계정 칸에서.
+api_key_login() {
+  [ -f .env ] || return 0
+  [ -e hub/data/shared-auth/codex/auth.json ] && return 0
+  [ -e hub/data/codex/auth.json ] && return 0
+  key=$(sed -n 's/^OPENAI_API_KEY=//p' .env | head -1 | tr -d '"\r')
+  [ -n "$key" ] || return 0
+  if printf '%s\n' "$key" | docker exec -i ieun-relay node /app/node_modules/@openai/codex/bin/codex.js login --with-api-key >/dev/null 2>&1; then echo "환경 파일의 API 키로 허브 Codex에 로그인했어요(모든 칸이 같이 써요)."; else echo "환경 파일의 API 키로 로그인하지 못했어요 — 키를 확인하세요." >&2; fi
+  key=''
+}
+
 share_login() {
+  api_key_login
   mkdir -p hub/data/shared-auth/codex
   chown 1001:1001 hub/data/shared-auth hub/data/shared-auth/codex 2>/dev/null || true
   chmod 700 hub/data/shared-auth hub/data/shared-auth/codex
