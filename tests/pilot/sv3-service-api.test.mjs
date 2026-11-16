@@ -90,3 +90,14 @@ test('주인 판정: 숫자 주인 등록을 기록하면 그 사람만 주인 �
   s.app.store.setSetting('messenger_owners', { telegram: ['999'] });
   assert.equal((await s.ask('c1', { bot: 'telegram:me' })).status, 409);
 });
+
+test('연결부 시작 코드(파일 위쪽)가 부르는 계정 종류 함수는 모듈을 다 읽기 전에도 쓸 수 있어야 한다(초기화 전 접근 오류 방지)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../../src/pilot/connector.mjs', import.meta.url), 'utf8');
+  const main = src.indexOf('if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1])');
+  for (const name of ['kindOfMethod', 'codexKindCache', 'codexAccountHealth', 'engineHealth']) {
+    assert.ok(src.includes('export function ' + name + '(') || src.includes('export async function ' + name + '('), name + '는 함수 선언(끌어올려짐)');
+    assert.ok(!src.includes('export const ' + name + ' '), name + '를 const로 두지 않음');
+  }
+  assert.ok(main > 0);
+});
