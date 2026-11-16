@@ -5,6 +5,7 @@
 #   sh deploy/hub/ieun.sh engine remove <이름>    칸 끄고 지우기(데이터 폴더는 남김 — 지우려면 직접)
 #   sh deploy/hub/ieun.sh engine list             칸 목록·상태
 #   sh deploy/hub/ieun.sh engine tui <이름> [codex 대화 ID]   그 칸의 Codex CLI를 사람이 직접 열기(같은 대화 이력)
+#   sh deploy/hub/ieun.sh engine claude <이름> [새 세션 이름]   그 칸의 Claude Code를 사람이 직접 열기(서버 Claude 로그인, 세션 이름이면 이어서)
 # 초대·토큰 값은 화면에 나오지 않는다(허브 컨테이너 → 칸 데이터 폴더 파일로 바로, 권한 600).
 set -eu
 cd "$(dirname "$0")/../.."
@@ -26,8 +27,23 @@ api_key_login() {
   key=''
 }
 
+# SV2: 환경 파일에 ANTHROPIC_API_KEY=... 가 있고 서버 Claude 로그인이 아직 없으면 그 키를 같이 쓰는 폴더에 넣는다(모든 칸이 같이 씀).
+# 값은 화면·로그에 내지 않는다. 이미 로그인돼 있으면(구독 등) 바꾸지 않는다 — 바꾸려면 허브 화면 계정 칸에서.
+claude_key_login() {
+  d=hub/data/shared-auth/claude
+  mkdir -p "$d"; chown 1001:1001 "$d" 2>/dev/null || true; chmod 700 "$d"
+  [ -f .env ] || return 0
+  { [ -s "$d/oauth-token" ] || [ -s "$d/api-key" ]; } && return 0
+  k=$(sed -n 's/^ANTHROPIC_API_KEY=//p' .env | head -1 | tr -d '"\r')
+  [ -n "$k" ] || return 0
+  (umask 077; printf '%s\n' "$k" > "$d/api-key"); chown 1001:1001 "$d/api-key" 2>/dev/null || true
+  k=''
+  echo "환경 파일의 Claude API 키를 서버 Claude 로그인으로 넣었어요(모든 칸이 같이 써요)."
+}
+
 share_login() {
   api_key_login
+  claude_key_login
   mkdir -p hub/data/shared-auth/codex
   chown 1001:1001 hub/data/shared-auth hub/data/shared-auth/codex 2>/dev/null || true
   chmod 700 hub/data/shared-auth hub/data/shared-auth/codex
@@ -73,6 +89,15 @@ case "$sub" in
     shift 3 || true
     if [ "${1:-}" ]; then docker exec -it "ieun-engine-$name" node node_modules/@openai/codex/bin/codex.js resume "$1"
     else docker exec -it "ieun-engine-$name" node node_modules/@openai/codex/bin/codex.js; fi
+    ;;
+  claude)
+    # SV2: 그 칸의 Claude Code를 사람이 직접(같이 쓰는 서버 Claude 로그인). 새 세션 이름을 주면 그 작업 폴더의 마지막 세션을 이어서(--continue).
+    # 이어온이 그 세션에 질문을 보내는 중에는 열지 않는다(동시에 쓰면 Claude가 복사본을 만들고 이어온은 결과 불명으로 잠금).
+    check_name "$name"
+    shift 3 || true
+    sess="${1:-}"
+    [ -z "$sess" ] || echo "$sess" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9-]{0,31}$' || die "세션 이름이 맞지 않아요"
+    docker exec -it -e "IEON_SESS=$sess" "ieun-engine-$name" sh -c 'if [ -s /shared/claude/api-key ]; then ANTHROPIC_API_KEY=$(cat /shared/claude/api-key); export ANTHROPIC_API_KEY; elif [ -s /shared/claude/oauth-token ]; then CLAUDE_CODE_OAUTH_TOKEN=$(cat /shared/claude/oauth-token); export CLAUDE_CODE_OAUTH_TOKEN; fi; if [ -n "$IEON_SESS" ]; then cd "/data/workspaces/$IEON_SESS" && exec claude --continue; else mkdir -p /data/workspaces && cd /data/workspaces && exec claude; fi'
     ;;
   *) die "사용: sh deploy/hub/ieun.sh engine add|remove|list|tui ..." ;;
 esac

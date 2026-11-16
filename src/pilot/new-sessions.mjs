@@ -92,8 +92,10 @@ export function checkNewSession(config, ns) {
     throw Object.assign(new Error('profile_not_allowed'), { code: 'profile_not_allowed', http: 403 });
   }
   const root = resolve(config.workspaceRoot.replace(/^~(?=$|[\\/])/, homedir()));
-  const workspace = resolve(ns.workspace);
-  if (!validateName(ns.name) || dirname(workspace) !== root || basename(workspace) !== ns.name) {
+  // SV2: 작업 폴더는 이 연결부(PC·엔진 칸)의 작업 폴더 뿌리 + 이름으로 정한다. 허브가 보낸 경로의 앞부분은 다른 기계(허브)의 경로라
+  // 쓰지 않는다(이름만 맞는지 본다) — 그래서 어떤 경로가 와도 이 연결부의 workspaceRoot 바로 아래를 벗어나지 않는다.
+  const workspace = resolve(root, String(ns.name ?? ''));
+  if (!validateName(ns.name) || basename(resolve(String(ns.workspace ?? ''))) !== ns.name || dirname(workspace) !== root || basename(workspace) !== ns.name) {
     throw Object.assign(new Error('bad_workspace'), { code: 'bad_workspace', http: 400 });
   }
   return { profileName: name, profile, workspace };

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { EngineError, StoppedError } from './contracts.mjs';
 import { accountsDirFor, accountLabel, codexAccountId, codexAccounts, codexHomeOf, desktopCodexHome, PC_DEFAULT } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
+import { claudeKind } from './claude-login.mjs';
 
 // P3: 허브 주소 검사. 공개 주소는 https만, http는 이 PC(127.0.0.1·localhost)만. 사용자 정보·쿼리·조각은 거절한다.
 export function validateServerUrl(raw) {
@@ -194,6 +195,8 @@ export async function engineHealth(config) {
       : 'not_configured',
     // A2(EA10): 대화마다 어느 이어온 전용 계정으로 나가는지 서버(허브 포함) 화면에 보이게 이름표만 알린다. PC 기본은 빼고 보낸다.
     ...codexAccountHealth(config),
+    // SV2: 서버(허브·칸)가 같이 쓰는 Claude 로그인의 종류(구독/API). PC는 null(그 PC의 로그인)
+    claudeKind: claudeKind(),
   };
 }
 

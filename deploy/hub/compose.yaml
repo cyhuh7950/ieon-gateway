@@ -9,6 +9,8 @@ services:
     container_name: ieun-relay
     restart: unless-stopped
     user: "1001:1001"   # ubuntu(UID·GID 1001): hub/data의 주인과 같다
+    environment:
+      IEON_SHARED_CLAUDE_DIR: /data/shared-auth/claude   # SV2: 서버 Claude 로그인(허브 화면에서 한 번, 모든 칸이 같이 씀)
     volumes:
       - ../../hub/data:/data
     cap_drop: [ALL]

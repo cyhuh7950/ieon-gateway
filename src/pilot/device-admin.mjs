@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount } from './device-settings.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
+import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin, saveClaudeLogin, removeClaudeLogin } from './claude-login.mjs';
 
 // 명령 목록(이 밖의 것은 거절). read: 보기만(앞단을 거친 PC 화면 요청도 허용), 나머지는 바꾸기.
 export const OPS = {
@@ -14,16 +15,27 @@ export const OPS = {
   'accounts.get': 'read', 'accounts.add': 'write', 'accounts.use': 'write', 'accounts.login': 'write',
   'accounts.login.cancel': 'write', 'accounts.logout': 'write', 'accounts.delete': 'write', 'accounts.apikey': 'write', // 신산님 2026-11-16: 구독 로그인·API 키 모두 이어온 화면에서
   'mode.get': 'read', 'mode.set': 'write',
+  // SV2: 서버 Claude 로그인(허브·모든 칸이 같이 씀) — 구독(공식 setup-token, 주소+코드)·API 키 모두 이어온 화면에서
+  'claude.get': 'read', 'claude.login': 'write', 'claude.code': 'write', 'claude.login.cancel': 'write', 'claude.apikey': 'write', 'claude.logout': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
 };
 // 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 허브 보안·Codex 탭, 허브는 기존 대화 허용 목록이 없음).
-export const HUB_SELF_OPS = new Set(['accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete', 'accounts.apikey']);
+export const HUB_SELF_OPS = new Set(['accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete', 'accounts.apikey',
+  'claude.get', 'claude.login', 'claude.code', 'claude.login.cancel', 'claude.apikey', 'claude.logout']);
 // API 키 형식(OpenAI 키). 값은 검사만 하고 저장·기록하지 않는다 — Codex가 그 계정의 CODEX_HOME에 직접 저장한다.
 export const API_KEY = /^sk-[A-Za-z0-9_-]{20,300}$/;
 const DEFAULT_ID = 'pc_default';
 
-export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {} }) {
+export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {},
+  claudeDir = claudeAuthDir(), claudeLogin = null }) {
   const logins = new Map(); // 계정별 공식 로그인 진행 상태
+  let cLogin = null;
+  const claudeLoginJob = () => (cLogin ??= claudeLogin ?? createClaudeLogin({ dir: claudeDir, log }));
+  // SV2: 이 기기의 Claude 로그인 상태. shared=같이 쓰는 폴더가 있음(서버), canLogin=여기서 바꿀 수 있음(허브. 칸은 읽기만 — 허브 화면에서 한 번)
+  const claudeView = () => (claudeDir
+    ? { shared: true, canLogin: canWrite(claudeDir), kind: claudeKind(claudeDir), login: cLogin?.view() ?? { state: 'idle' } }
+    : { shared: false, canLogin: false, kind: null, login: { state: 'idle' } });
+  const claudeWritable = () => { if (!claudeDir || !canWrite(claudeDir)) throw Object.assign(new Error('claude_login_on_hub'), { http: 409 }); };
   const cfg = () => {
     if (!connectorConfigPath || !existsSync(connectorConfigPath)) throw Object.assign(new Error('no_connector_config'), { http: 404 });
     return connectorConfigPath;
@@ -60,6 +72,24 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
   };
   const knownOrDefault = (p, id) => (id === DEFAULT_ID ? DEFAULT_ID : known(p, id));
   async function perform(op, a) {
+    // Claude 로그인은 연결부 설정과 상관없이(허브 자신에도 있음)
+    switch (op) {
+      case 'claude.get': return { status: 200, body: claudeView() };
+      case 'claude.login': claudeWritable(); claudeLoginJob().start(); return { status: 200, body: claudeView() };
+      case 'claude.code': {
+        claudeWritable();
+        const r = claudeLoginJob().code(a.code);
+        return r.error ? { status: 400, body: { error: r.error } } : { status: 200, body: claudeView() };
+      }
+      case 'claude.login.cancel': claudeLoginJob().cancel(); return { status: 200, body: claudeView() };
+      case 'claude.apikey':
+        claudeWritable();
+        if (!CLAUDE_API_KEY.test(String(a.key ?? ''))) return { status: 400, body: { error: 'bad_api_key' } };
+        saveClaudeLogin(claudeDir, 'api', String(a.key)); log({ event: 'claude_api_key', ok: true });
+        return { status: 200, body: claudeView() };
+      case 'claude.logout': claudeWritable(); removeClaudeLogin(claudeDir); log({ event: 'claude_logout' }); return { status: 200, body: claudeView() };
+      default: break;
+    }
     const p = cfg();
     switch (op) {
       case 'device.get': return { status: 200, body: device(p) };
