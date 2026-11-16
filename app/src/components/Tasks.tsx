@@ -5,7 +5,7 @@ import { codeOf, type OnEvent } from "./common";
 import { errText } from "../lib/texts";
 
 export const TSTATE: Record<string, string> = { queued: "기다리는 중", dispatching: "보내는 중", running: "실행 중", completed: "완료", failed: "실패", cancelled: "중지됨", unknown: "확인 필요", approval_required: "권한 확인 대기" };
-export const ASTATE: Record<string, string> = { pending: "승인 대기", approved: "승인됨", running: "실행 중", completed: "실행 완료", failed: "실행 실패", unknown: "결과 불명", denied: "거부함", expired: "시간 지남(거부)", turn_ended: "차례 끝(거부)" };
+export const ASTATE: Record<string, string> = { handoff: "사람에게 넘김", handoff_done: "사람이 직접 처리함", handoff_dropped: "하지 않기로 함", pending: "승인 대기", approved: "승인됨", running: "실행 중", completed: "실행 완료", failed: "실행 실패", unknown: "결과 불명", denied: "거부함", expired: "시간 지남(거부)", turn_ended: "차례 끝(거부)" };
 const AKIND: Record<string, string> = { command: "명령 실행", file: "파일 수정", permissions: "권한 추가" };
 const when = (s: string | null) => (s ? new Date(s).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
 export const taskState = (t: Pick<Task, "status" | "stopRequested">) => (t.stopRequested && ["dispatching", "running"].includes(t.status) ? "멈추는 중" : TSTATE[t.status] ?? t.status);
@@ -32,7 +32,7 @@ export function TasksScreen({ api, onBack, onOpenConv, onEvent, onLost }: { api:
     setOpen(id); setDetail(null);
     try { setDetail(await api.task(id)); } catch (x) { fail(x); }
   };
-  const decide = async (id: string, d: "allow" | "deny") => { try { await api.decide(id, d); } catch (x) { fail(x); } load(); };
+  const decide = async (id: string, d: "allow" | "deny" | "done" | "drop") => { try { await api.decide(id, d); } catch (x) { fail(x); } load(); };
   const stop = async (id: string) => {
     try { await api.stop(id); } catch (x) { const c = codeOf(x); setNote(c === "stop_unsupported" ? "이 세션은 원래 창에서 멈추세요" : c === "not_running" ? "이미 끝난 질문이에요" : errText(c)); }
     load();
@@ -70,14 +70,16 @@ export function TasksScreen({ api, onBack, onOpenConv, onEvent, onLost }: { api:
       {note && <p className="note err" role="alert">{note}</p>}
       {aps === null ? <p className="center muted">불러오는 중…</p> : (
         <>
-          <div className="sec"><h2>승인 대기 {aps.length}</h2></div>
+          <div className="sec"><h2>승인 대기·사람이 직접 할 일 {aps.length}</h2></div>
           {aps.length === 0 && <p className="muted hint">기다리는 승인이 없어요.</p>}
           <ul>
             {aps.map((a) => (
               <li key={a.approvalId} className="task">
-                <p className="t1"><b>{a.label}</b> <span className="chip">승인 요청 {a.n ?? ""}</span> <small>{AKIND[a.kind] ?? a.kind}</small></p>
+                <p className="t1"><b>{a.label}</b> <span className="chip">{a.handoff ? "사람이 직접 할 일" : "승인 요청"} {a.n ?? ""}</span> <small>{AKIND[a.kind] ?? a.kind}</small></p>
                 <p className="muted small">{a.summary}{a.cwd ? ` (작업 폴더 ${a.cwd})` : ""}</p>
-                <p className="acts"><button className="small" onClick={() => decide(a.approvalId, "allow")}>허용(이번 한 번)</button> <button className="small" onClick={() => decide(a.approvalId, "deny")}>거부</button></p>
+                <p className="acts">{a.handoff
+                  ? <><button className="small" onClick={() => decide(a.approvalId, "done")}>직접 처리함</button> <button className="small" onClick={() => decide(a.approvalId, "drop")}>하지 않음</button></>
+                  : <><button className="small" onClick={() => decide(a.approvalId, "allow")}>허용(이번 한 번)</button> <button className="small" onClick={() => decide(a.approvalId, "deny")}>거부</button></>}</p>
               </li>
             ))}
           </ul>

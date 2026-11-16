@@ -301,9 +301,10 @@ export function createApp(config) {
     // RC1: 결정된 뒤에도 같은 카드가 승인됨 → 실행 중 → 완료/실패/결과 불명으로 바뀐다(결정 뒤 30분, 최근 3장까지만).
     const recent = (a) => a.state !== 'pending' && a.decidedAt && Date.now() - Date.parse(a.decidedAt) < approvalShowMs;
     const all = principal ? store.approvals(principal, c.conversationId, { ttlMs: approvalTtlMs }) ?? [] : [];
-    for (const a of [...all.filter((x) => x.state === 'pending'), ...all.filter(recent).slice(0, 3)]) {
-      // 대기 중이면 기존 그대로 'approval'(허용·거부 버튼), 결정 뒤는 'approval_result'(버튼 없음 — 예전 화면·설치된 앱은 모르는 종류라 무시)
-      cards.push({ kind: a.state === 'pending' ? 'approval' : 'approval_result', approvalId: a.approvalId, requestId: a.requestId, approvalKind: a.kind, summary: a.summary, cwd: a.cwd,
+    // RC5: 사람에게 넘긴 일(handoff)은 사람이 처리 기록을 남길 때까지 계속 보임
+    for (const a of [...all.filter((x) => x.state === 'pending' || x.state === 'handoff'), ...all.filter((x) => x.state !== 'handoff' && recent(x)).slice(0, 3)]) {
+      // 대기 중이면 기존 그대로 'approval'(허용·거부 버튼), 넘긴 일은 'handoff'(직접 처리함·하지 않음), 결정 뒤는 'approval_result'(버튼 없음 — 예전 화면·설치된 앱은 모르는 종류라 무시)
+      cards.push({ kind: a.state === 'pending' ? 'approval' : a.state === 'handoff' ? 'handoff' : 'approval_result', approvalId: a.approvalId, requestId: a.requestId, approvalKind: a.kind, summary: a.summary, cwd: a.cwd,
         n: a.n, state: a.state, agent: a.agent, engine: a.engine, exitCode: a.exitCode,
         expiresAt: new Date(Date.parse(a.createdAt) + approvalTtlMs).toISOString() });
     }
@@ -413,8 +414,8 @@ export function createApp(config) {
         // W1: 엔진이 묻는 승인을 연결부가 올리고(그 PC가 처리 중인 질문만), 결정을 묻는다. 내용은 DB에만(로그에는 종류만).
         if (req.method === 'POST' && path === '/v1/device/approvals') {
           const r = store.addApproval(device.hostId, await readJson(req));
-          if (r.http === 201) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_requested', host: device.hostId }) + '\n'); notify(store.approvalConversation(r.approvalId), { type: 'approval', approvalId: r.approvalId, status: 'pending' }); }
-          return r.http === 201 ? json(res, 201, { approvalId: r.approvalId, n: r.n, ttlMs: approvalTtlMs }) : json(res, r.http, { error: r.code });
+          if (r.http === 201) { process.stderr.write(JSON.stringify({ ch: 'server', event: r.handoff ? 'approval_handoff' : 'approval_requested', host: device.hostId }) + '\n'); notify(store.approvalConversation(r.approvalId), { type: 'approval', approvalId: r.approvalId, status: r.handoff ? 'handoff' : 'pending' }); }
+          return r.http === 201 ? json(res, 201, { approvalId: r.approvalId, n: r.n, ttlMs: approvalTtlMs, ...(r.handoff ? { handoff: true } : {}) }) : json(res, r.http, { error: r.code });
         }
         const ap = path.match(/^\/v1\/device\/approvals\/(apv_[\w-]+)$/);
         if (req.method === 'GET' && ap) {
@@ -1123,6 +1124,15 @@ export function createApp(config) {
         const r = store.decideApproval(principal, apd[1], String((await readJson(req)).decision ?? ''), { ttlMs: approvalTtlMs });
         if (r.http === 200) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_decided', status: r.status }) + '\n'); notify(store.approvalConversation(apd[1]), { type: 'approval', approvalId: apd[1], status: r.status }); }
         return r.http === 200 ? json(res, 200, { status: r.status }) : json(res, r.http, { error: r.code, ...(r.status ? { status: r.status } : {}) });
+      }
+      // RC5: "사람이 직접 할 일" 규칙 — 읽기는 볼 수 있는 사람, 바꾸기는 그 대화 주인의 웹 화면만
+      const hp = path.match(/^\/v1\/conversations\/([\w-]+)\/handoff$/);
+      if (hp && req.method === 'GET') { const p = store.handoffPolicy(principal, hp[1]); return p ? json(res, 200, p) : json(res, 404, { error: 'not_found' }); }
+      if (hp && req.method === 'PUT') {
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        const b = await readJson(req);
+        const r = store.setHandoffPolicy(principal, hp[1], { kinds: b.kinds, patterns: b.patterns });
+        return r.http === 200 ? json(res, 200, r.policy) : json(res, r.http, { error: r.code });
       }
       const apl = path.match(/^\/v1\/conversations\/([\w-]+)\/approvals$/);
       if (apl && req.method === 'GET') {

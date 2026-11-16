@@ -69,7 +69,7 @@ export type Task = { requestId: string; conversationId: string; label: string; i
 export type TaskApproval = { approvalId: string; n: number | null; kind: string; summary: string; cwd: string | null; state: string; exitCode: number | null; decidedAt: string | null };
 export type Resume = { known: boolean; verdict?: string; sameSession?: boolean; sameEngine?: boolean; sameHost?: boolean; historyKept?: boolean; deviceOnline?: boolean; then?: { engine: string }; now?: { engine: string } };
 export type TaskDetail = Task & { question: string; answer: string | null; approvals: TaskApproval[]; resume?: Resume | null };
-export type PendingApproval = { approvalId: string; requestId: string; conversationId: string; label: string; n: number | null; kind: string; summary: string; cwd: string | null; createdAt: string };
+export type PendingApproval = { approvalId: string; requestId: string; conversationId: string; label: string; n: number | null; kind: string; summary: string; cwd: string | null; createdAt: string; handoff?: boolean }; // RC5: 사람에게 넘긴 일
 
 export function client(conn: Conn, f: Fetch = fetch) {
   const call = async (path: string, init: RequestInit = {}) => {
@@ -90,7 +90,7 @@ export function client(conn: Conn, f: Fetch = fetch) {
     ask: async (id: string, question: string, key: string): Promise<string> =>
       (await call(`/v1/conversations/${encodeURIComponent(id)}/requests`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ question }) })).requestId,
     request: async (requestId: string): Promise<RequestView> => call(`/v1/requests/${encodeURIComponent(requestId)}`),
-    decide: async (approvalId: string, decision: "allow" | "deny"): Promise<string> =>
+    decide: async (approvalId: string, decision: "allow" | "deny" | "done" | "drop"): Promise<string> =>
       (await call(`/v1/approvals/${encodeURIComponent(approvalId)}`, { method: "POST", body: JSON.stringify({ decision }) })).status,
     review: async (requestId: string, executed: boolean) => call(`/v1/requests/${encodeURIComponent(requestId)}/review`, { method: "POST", body: JSON.stringify({ executed }) }),
     // RC3: 작업 목록·작업 하나·승인 대기함

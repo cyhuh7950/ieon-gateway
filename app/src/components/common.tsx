@@ -20,11 +20,12 @@ export function approvalResultText(state: string, exitCode?: number | null): [st
     failed: ["err", "실행 실패" + (Number.isInteger(exitCode) ? `(종료 코드 ${exitCode})` : "")],
     unknown: ["warn", "결과 불명 — 원래 세션에서 확인하세요(다시 실행하지 않아요)"],
     denied: ["info", "거부함 — 실행하지 않았어요"], expired: ["info", "시간이 지나 거부됨"], turn_ended: ["info", "차례가 끝나 거부됨"],
+    handoff_done: ["info", "사람이 직접 처리함"], handoff_dropped: ["info", "사람에게 넘겼고 하지 않기로 함"],
   };
   return m[state] ?? ["info", state];
 }
 
-export function CardView({ c, decide, review, who }: { c: Card; decide: (id: string, d: "allow" | "deny") => void; review?: (id: string, executed: boolean) => void; who?: string }) {
+export function CardView({ c, decide, review, who }: { c: Card; decide: (id: string, d: "allow" | "deny" | "done" | "drop") => void; review?: (id: string, executed: boolean) => void; who?: string }) {
   if (c.kind === "approval" && c.approvalId) {
     return (
       <div className="card warn">
@@ -33,6 +34,18 @@ export function CardView({ c, decide, review, who }: { c: Card; decide: (id: str
         {c.cwd && <small className="muted">폴더: {c.cwd}</small>}
         {c.expiresAt && <small className="muted">{new Date(c.expiresAt).toLocaleTimeString()}까지 정하지 않으면 거부돼요.</small>}
         <div className="acts"><button className="primary" onClick={() => decide(c.approvalId!, "allow")}>허용</button><button onClick={() => decide(c.approvalId!, "deny")}>거부</button></div>
+      </div>
+    );
+  }
+  // RC5: 사람에게 넘긴 일 — AI에게는 하지 말라고 전함, 사람이 직접 처리했는지 기록
+  if (c.kind === "handoff" && c.approvalId) {
+    return (
+      <div className="card warn">
+        <b>{who ? who + " — " : ""}사람이 직접 할 일{c.n ? ` ${c.n}` : ""}{APPROVAL_KIND[c.approvalKind ?? ""] ?? ""}</b>
+        <pre>{c.summary}</pre>
+        {c.cwd && <small className="muted">폴더: {c.cwd}</small>}
+        <small className="muted">AI에게는 하지 말라고 답했어요. 필요하면 직접 처리한 뒤 기록하세요.</small>
+        <div className="acts"><button className="primary" onClick={() => decide(c.approvalId!, "done")}>직접 처리함</button><button onClick={() => decide(c.approvalId!, "drop")}>하지 않음</button></div>
       </div>
     );
   }
