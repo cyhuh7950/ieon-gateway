@@ -14,7 +14,8 @@ const tmp = (t) => { const d = mkdtempSync(join(tmpdir(), 'ieon-sv1-')).replaceA
 
 test('엔진 칸 준비: PC와 같은 설정(토큰은 해시만)·사용 방식 ②, 두 번째에는 아무것도 바꾸지 않는다', (t) => {
   const d = tmp(t);
-  const made = prepareEngine(d);
+  const made = prepareEngine(d, { codexHome: d + '/codex' });
+  assert.ok(existsSync(d + '/codex'), '엔진 로그인 폴더(CODEX_HOME)를 미리 만든다');
   assert.ok(made.includes('s2/server.json') && made.includes('s2/user-token'));
   const p = enginePaths(d);
   const server = JSON.parse(readFileSync(p.server, 'utf8'));

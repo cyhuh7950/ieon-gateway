@@ -1,0 +1,24 @@
+{
+  "stage": "SV1 엔진 칸 실제 확인",
+  "date": "2026-11-16",
+  "approval": "신산님 \"배포·시험 칸 만들기\" → \"로그인 완료\"",
+  "host": "sinsan-server, 허브 ieun-relay + 시험 칸 ieun-engine-test1(engines/test1/data)",
+  "steps": {
+    "deploy": "허브 23:24 KST 배포(백업 backups/sv1-20261116-232430)",
+    "add": "ieun.sh engine add test1 → 초대 받기 성공 → paired_now → 허브 기기 \"서버 · test1\"(h_test1)",
+    "fix1": "연결부 설정 경로 누락(no_connector_config) → #199, 칸 --force-recreate 뒤 hub_link_resume running",
+    "login": "칸 안에서 codex login --device-auth 시작(1회용 코드는 신산님께만 안내) → 신산님 로그인 → Logged in using ChatGPT, 출력 파일 지움. CODEX_HOME 폴더가 없어 처음에 손으로 만듦 → 이번 고침으로 자동",
+    "thread": "칸 안 codex exec로 시험 대화 만들기(모델 1회)",
+    "register": "허브에서 칸 허용 목록 device.codex.put·AI 응답 켜기(device.live)·대화 등록 PUT /v1/admin/bindings/c_srv_test1 → 허브 목록 host \"서버 · test1\", online, ready",
+    "ask": "허브 → 칸 질문(읽기 전용) completed 6초, 답 7자, 재개 확인 same(모델 1회)",
+    "work": "작업 모드 켜고 파일 만들기 질문 → 승인 카드 pending → 허용 → approved → completed, 칸 안 sv1-ok.txt 내용 ok, 12초 — 컨테이너 경계(dangerFullAccess)를 app-server가 받아들임, 승인은 그대로(모델 1회). 시험 뒤 작업 모드 끔"
+  },
+  "modelCalls": 3,
+  "notTouched": "업무 대화·신산 PC 대화·허브 새 세션",
+  "remaining": [
+    "허브 화면에서 \"서버 · test1\" 대화를 사람이 직접 열어 보기(신산님)",
+    "칸 안 Claude(SV2)",
+    "API 계정(SV3)",
+    "시험 칸 정리 여부(신산님 결정)"
+  ]
+}
