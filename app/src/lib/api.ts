@@ -62,6 +62,12 @@ export type Card = { kind: string; approvalId?: string; approvalKind?: string; s
   n?: number | null; state?: string; agent?: string | null; exitCode?: number | null }; // RC1: 승인 번호·상태(승인됨→실행 중→완료/실패/결과 불명)·AI 직원
 export type Message = { requestId: string; question: string; answer: string };
 export type RequestView = { requestId: string; status: string; errorCode: string | null; answer: string | null };
+// RC3 작업 화면
+export type Task = { requestId: string; conversationId: string; label: string; icon: string | null; engine: string; status: string; errorCode: string | null;
+  stopRequested: boolean; createdAt: string | null; updatedAt: string | null; canStop: boolean; pendingApprovals: number; preview: string };
+export type TaskApproval = { approvalId: string; n: number | null; kind: string; summary: string; cwd: string | null; state: string; exitCode: number | null; decidedAt: string | null };
+export type TaskDetail = Task & { question: string; answer: string | null; approvals: TaskApproval[] };
+export type PendingApproval = { approvalId: string; requestId: string; conversationId: string; label: string; n: number | null; kind: string; summary: string; cwd: string | null; createdAt: string };
 
 export function client(conn: Conn, f: Fetch = fetch) {
   const call = async (path: string, init: RequestInit = {}) => {
@@ -85,6 +91,10 @@ export function client(conn: Conn, f: Fetch = fetch) {
     decide: async (approvalId: string, decision: "allow" | "deny"): Promise<string> =>
       (await call(`/v1/approvals/${encodeURIComponent(approvalId)}`, { method: "POST", body: JSON.stringify({ decision }) })).status,
     review: async (requestId: string, executed: boolean) => call(`/v1/requests/${encodeURIComponent(requestId)}/review`, { method: "POST", body: JSON.stringify({ executed }) }),
+    // RC3: 작업 목록·작업 하나·승인 대기함
+    tasks: async (filter: "active" | "all"): Promise<Task[]> => (await call(`/v1/tasks?filter=${filter}&limit=30`)).tasks ?? [],
+    task: async (requestId: string): Promise<TaskDetail> => call(`/v1/tasks/${encodeURIComponent(requestId)}`),
+    pendingApprovals: async (): Promise<PendingApproval[]> => (await call("/v1/approvals")).approvals ?? [],
     // RC2: 이 질문만 멈추기 — cancelled(대기 중이라 바로 취소) 또는 stopping(실행 중, 엔진이 멈춘 것을 확인하면 중지됨)
     stop: async (requestId: string): Promise<string> => (await call(`/v1/requests/${encodeURIComponent(requestId)}/stop`, { method: "POST", body: "{}" })).status,
     // AP-5a: 이 기기 연결 끊기(서버에서 이 기기 열쇠를 지움 — 끊은 뒤엔 401)

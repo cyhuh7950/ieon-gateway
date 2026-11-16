@@ -70,6 +70,9 @@ Invoke-RestMethod http://127.0.0.1:28760/v1/conversations -Headers @{ Authorizat
 | `POST /v1/conversations/{id}/requests` | 질문 접수 | 202 `{ requestId }` |
 | `GET /v1/requests/{requestId}` | 결과 조회 | 200 `{ requestId, status, answer, errorCode, usage }` |
 | `POST /v1/requests/{requestId}/review` | 결과 불명 질문 정리 | 200 `{ requestId, status, errorCode }` |
+| `GET /v1/tasks?filter=active\|all` | 작업(질문 단위) 목록 — 미리보기만, 새것부터 | 200 `{ tasks: [...] }` |
+| `GET /v1/tasks/{requestId}` | 작업 하나 — 질문·승인과 실행 결과·답(완료일 때) | 200 작업 |
+| `GET /v1/approvals` | 기다리는 승인 모아 보기 | 200 `{ approvals: [...] }` |
 | `POST /v1/requests/{requestId}/stop` | 그 질문만 멈추기 | 200 `{ status: "cancelled" }`(시작 전) · 202 `{ status: "stopping" }`(실행 중) |
 | `GET /v1/conversations/{id}/messages` | 이어온에서 주고받은 기록 | 200 `{ messages: [...] }` |
 | `DELETE /v1/conversations/{id}/messages` | 기록 삭제 | 204 |

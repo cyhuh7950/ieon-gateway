@@ -154,7 +154,9 @@ export function createBridge(opts) {
     });
     if (r.status !== 202) return safeSend(m, send, `[${conv.label}] ${ERR[r.body?.error] ?? `보낼 수 없음: ${r.body?.error}`}`);
     lastAnswer.set(roomKey(m), { requestId: r.body.requestId, label: conv.label, delivered: null, askedBy: String(m.userId) });
-    await safeSend(m, send, `[${conv.label}] 접수됨 — 답을 기다리는 중${conv.workMode ? ' (작업 모드: 파일 수정·명령 실행은 허용을 물어봐요)' : ''}`);
+    // RC3: 작업 열기 링크(서버가 공개 웹 주소를 알 때만 — 열면 로그인·권한을 먼저 확인)
+    await safeSend(m, send, `[${conv.label}] 접수됨 — 답을 기다리는 중${conv.workMode ? ' (작업 모드: 파일 수정·명령 실행은 허용을 물어봐요)' : ''}${r.body.taskUrl ? `
+작업 보기: ${r.body.taskUrl}` : ''}`);
     const started = Date.now();
     const announced = new Set();
     const told = new Set(); // 실행 결과를 알린 승인(RC1)

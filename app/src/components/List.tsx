@@ -13,8 +13,8 @@ function stateOf(c: Conversation): [string, string] {
   return ["ok", "대기"];
 }
 
-export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onEvent, onForget, onLost, notify }: {
-  api: Client; server: string; onOpen: (c: Conversation) => void; onRoom: (r: Room) => void; onNewRoom: () => void; onEvent: OnEvent; onForget: () => Promise<string | null>; onLost: () => void;
+export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onTasks, onEvent, onForget, onLost, notify }: {
+  api: Client; server: string; onOpen: (c: Conversation) => void; onRoom: (r: Room) => void; onNewRoom: () => void; onTasks: () => void; onEvent: OnEvent; onForget: () => Promise<string | null>; onLost: () => void;
   notify: { on: boolean; toggle: () => void } | null;
 }) {
   const [list, setList] = useState<Conversation[] | null>(null);
@@ -34,6 +34,7 @@ export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onEvent, on
     <main className="list">
       <header className="bar">
         <h1>이어온</h1>
+        <button className="ghost" onClick={onTasks} aria-label="작업(진행·승인 대기·결과)">☰ 작업</button>
         <button className="ghost" onClick={load} aria-label="새로 고침">↻</button>
       </header>
       {hubMode && <p className="note warn">{CARD_TEXT.hub_mode}</p>}
