@@ -42,7 +42,7 @@ case "$sub" in
     docker exec ieun-relay node src/hub/invite.mjs /data > "engines/$name/data/invite" || { rm -f "engines/$name/data/invite"; die "허브에서 초대를 받지 못했어요(허브가 켜져 있는지 확인)"; }
     chown 1001:1001 "engines/$name/data/invite" 2>/dev/null || true
     ENGINE_NAME="$name" ENGINE_LABEL="서버 · $name" docker compose -f deploy/hub/engine.compose.yaml up -d
-    echo "칸 '$name'을 띄웠어요. 잠시 뒤 허브 화면 목록에 '서버 · $name'으로 나와요(허브 화면에서 이 칸의 Codex 로그인·AI 응답·허용 목록을 정해요)."
+    echo "칸 '$name'을 띄웠어요. 허브의 Codex 로그인을 같이 써서 따로 로그인하지 않아도 돼요. 잠시 뒤 허브 화면 목록에 '서버 · $name'으로 나와요."
     ;;
   remove)
     check_name "$name"
