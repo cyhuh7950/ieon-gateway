@@ -109,6 +109,8 @@ export function openStore(path) {
     db.exec('ALTER TABLE requests ADD COLUMN created_at TEXT');
     db.exec('ALTER TABLE requests ADD COLUMN updated_at TEXT');
   }
+  // RC5: 대화마다 "사람이 직접 할 일" 규칙(종류·명령에 든 글자). 맞는 요청은 엔진에 거부로 답하고 사람에게 넘긴다.
+  db.exec('CREATE TABLE IF NOT EXISTS handoff_policies (conversation_id TEXT PRIMARY KEY, kinds TEXT NOT NULL, patterns TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL)');
   // RC4: 그때의 실행 정보(엔진·PC·세션 ID·연결 방식·작업 모드)와 실제로 답한 세션 ID — 끊긴 뒤 같은 세션인지 확인용
   if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'snap')) {
     db.exec('ALTER TABLE requests ADD COLUMN snap TEXT');
@@ -408,6 +410,32 @@ export function openStore(path) {
         return { http: 409, code: 'not_running', status: row.status };
       }
     },
+    // RC5: "사람이 직접 할 일" 규칙. kinds: command·file·permissions 중 고른 것(그 종류는 전부 넘김), patterns: 명령에 이 글자가 들어 있으면 넘김.
+    handoffPolicy(principal, conversationId) {
+      const b = binding(conversationId);
+      if (!b || !canAccess(principal, b)) return null;
+      const r = db.prepare('SELECT kinds, patterns, set_at FROM handoff_policies WHERE conversation_id = ?').get(conversationId);
+      return { kinds: r ? JSON.parse(r.kinds) : [], patterns: r ? JSON.parse(r.patterns) : [], setAt: r?.set_at ?? null };
+    },
+    setHandoffPolicy(principal, conversationId, { kinds = [], patterns = [] } = {}) {
+      const b = binding(conversationId);
+      if (!b || !canAccess(principal, b)) return { http: 404, code: 'not_found' };
+      if (!Array.isArray(kinds) || kinds.some((k) => !['command', 'file', 'permissions'].includes(k))) return { http: 400, code: 'bad_kinds' };
+      const ps = Array.isArray(patterns) ? [...new Set(patterns.map((p) => String(p ?? '').trim()).filter(Boolean))] : null;
+      if (!ps || ps.length > 20 || ps.some((p) => p.length > 60)) return { http: 400, code: 'bad_patterns' };
+      if (!kinds.length && !ps.length) { db.prepare('DELETE FROM handoff_policies WHERE conversation_id = ?').run(conversationId); return { http: 200, policy: { kinds: [], patterns: [] } }; }
+      db.prepare(`INSERT INTO handoff_policies (conversation_id, kinds, patterns, set_by, set_at) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(conversation_id) DO UPDATE SET kinds = excluded.kinds, patterns = excluded.patterns, set_by = excluded.set_by, set_at = excluded.set_at`)
+        .run(conversationId, JSON.stringify([...new Set(kinds)]), JSON.stringify(ps), principal.userId, new Date().toISOString());
+      return { http: 200, policy: { kinds: [...new Set(kinds)], patterns: ps } };
+    },
+    handoffMatch(conversationId, kind, summary) {
+      const r = db.prepare('SELECT kinds, patterns FROM handoff_policies WHERE conversation_id = ?').get(conversationId);
+      if (!r) return false;
+      if (JSON.parse(r.kinds).includes(kind)) return true;
+      const s = String(summary ?? '').toLowerCase();
+      return kind === 'command' && JSON.parse(r.patterns).some((p) => s.includes(String(p).toLowerCase()));
+    },
     // RC4: 재개 확인 — 그때 보낸 세션과 지금 이 대화의 세션이 같은지, 이어온 보관 기록이 그대로인지, 지금 막혀 있는지.
     // 엔진 쪽 이력(원래 세션에 그 차례가 남았는지)은 여기서 보지 않는다 — 사람이 원래 앱에서 확인하고 /review로 정리한다.
     resumeCheck(requestId) {
@@ -465,12 +493,12 @@ export function openStore(path) {
     },
     // RC3: 승인 대기함 — 내가 볼 수 있는 모든 대화의 기다리는 승인(시간이 지난 것은 읽을 때 거부로 바뀜)
     pendingApprovals(principal, { ttlMs } = {}) {
-      const rows = db.prepare("SELECT approval_id, conversation_id FROM approvals WHERE status = 'pending' ORDER BY created_at").all();
+      const rows = db.prepare("SELECT approval_id, conversation_id FROM approvals WHERE status IN ('pending', 'handoff') ORDER BY created_at").all();
       return rows.filter((r) => canAccess(principal, binding(r.conversation_id))).map((r) => this.approvalStatus(r.approval_id, { ttlMs }))
-        .filter((a) => a.status === 'pending').map((a) => {
+        .filter((a) => a.status === 'pending' || a.status === 'handoff').map((a) => {
           const b = binding(a.conversation_id); const staff = db.prepare('SELECT name FROM staff WHERE conversation_id = ?').get(a.conversation_id);
           return { approvalId: a.approval_id, requestId: a.request_id, conversationId: a.conversation_id, label: staff?.name ?? b.label, n: a.seq ?? null,
-            kind: a.kind, summary: a.summary, cwd: a.cwd, createdAt: a.created_at };
+            kind: a.kind, summary: a.summary, cwd: a.cwd, createdAt: a.created_at, ...(a.status === 'handoff' ? { handoff: true } : {}) };
         });
     },
     // RC2: 연결부가 실행 중인 요청을 멈춰야 하는지 묻는다(그 PC의 요청만)
@@ -723,10 +751,13 @@ export function openStore(path) {
         // RC1: 대화마다 1부터 매기는 번호(메신저 /허용 n — 메신저를 다시 켜도 같은 번호), 그때의 AI 직원 이름과 엔진
         const seq = (db.prepare('SELECT MAX(seq) AS m FROM approvals WHERE conversation_id = ?').get(row.conversation_id)?.m ?? 0) + 1;
         const agent = db.prepare('SELECT name FROM staff WHERE conversation_id = ?').get(row.conversation_id)?.name ?? b.label ?? null;
-        db.prepare("INSERT INTO approvals (approval_id, request_id, conversation_id, kind, summary, cwd, status, created_at, seq, agent, engine, item_id) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)")
-          .run(id, row.request_id, row.conversation_id, kind, String(summary ?? '').slice(0, 500), cwd ? String(cwd).slice(0, 300) : null, new Date().toISOString(),
-            seq, agent ? String(agent).slice(0, 60) : null, b.engine, itemId ? String(itemId).slice(0, 120) : null);
-        return { http: 201, approvalId: id, n: seq };
+        // RC5: "사람이 직접 할 일" 규칙에 맞으면 묻지 않고 바로 넘김(엔진에는 거부로 전달 — 연결부가 handoff를 거부로 읽음)
+        const handoff = this.handoffMatch(row.conversation_id, kind, summary);
+        const now = new Date().toISOString();
+        db.prepare("INSERT INTO approvals (approval_id, request_id, conversation_id, kind, summary, cwd, status, created_at, seq, agent, engine, item_id, decided_by, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .run(id, row.request_id, row.conversation_id, kind, String(summary ?? '').slice(0, 500), cwd ? String(cwd).slice(0, 300) : null, handoff ? 'handoff' : 'pending', now,
+            seq, agent ? String(agent).slice(0, 60) : null, b.engine, itemId ? String(itemId).slice(0, 120) : null, handoff ? 'policy' : null, handoff ? now : null);
+        return { http: 201, approvalId: id, n: seq, ...(handoff ? { handoff: true } : {}) };
       });
     },
     // 시간이 지난 것은 읽을 때 거부로 바꾼다(타이머 없이도 15분 규칙이 지켜지게)
@@ -746,6 +777,13 @@ export function openStore(path) {
     decideApproval(principal, approvalId, decision, opts) {
       const a = this.approvalStatus(approvalId, opts);
       if (!a || !canAccess(principal, binding(a.conversation_id))) return { http: 404, code: 'not_found' };
+      // RC5: 사람에게 넘긴 일 — 직접 처리함(done) 또는 하지 않음(drop)을 원래 요청에 기록(한 번만)
+      if (decision === 'done' || decision === 'drop') {
+        if (a.status !== 'handoff') return { http: 409, code: 'approval_closed', status: a.status };
+        const st = decision === 'done' ? 'handoff_done' : 'handoff_dropped';
+        const ch = db.prepare("UPDATE approvals SET status = ?, decided_by = ?, decided_at = ? WHERE approval_id = ? AND status = 'handoff'").run(st, `${principal.userId}:${principal.appId}`, new Date().toISOString(), approvalId);
+        return ch.changes === 1 ? { http: 200, status: st } : { http: 409, code: 'approval_closed', status: this.approvalStatus(approvalId, opts)?.status };
+      }
       if (!['allow', 'deny'].includes(decision)) return { http: 400, code: 'bad_decision' };
       if (a.status !== 'pending') return { http: 409, code: 'approval_closed', status: a.status };
       const done = db.prepare('UPDATE approvals SET status = ?, decided_by = ?, decided_at = ? WHERE approval_id = ? AND status = ?')

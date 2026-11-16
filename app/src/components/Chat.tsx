@@ -77,7 +77,7 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
   };
   // 서버에 닿았는지 모르는 실패(network)는 같은 요청 열쇠로 — 서버가 같은 질문을 두 번 보내지 않는다.
   const retry = (it: Item) => send(it.question, it.errorCode === "network" && it.state === "rejected" ? it.key : newKey(), it);
-  const decide = async (approvalId: string, d: "allow" | "deny") => { try { await api.decide(approvalId, d); } catch (x) { fail(x); } loadCards(); };
+  const decide = async (approvalId: string, d: "allow" | "deny" | "done" | "drop") => { try { await api.decide(approvalId, d); } catch (x) { fail(x); } loadCards(); };
   // RC2: 이 질문만 멈추기
   const stop = async (it: Item) => {
     if (!it.requestId) return;

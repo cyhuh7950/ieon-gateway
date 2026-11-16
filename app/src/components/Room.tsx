@@ -49,7 +49,7 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
   const handoff = async (p: RoomPost, to: string, noteText: string) => {
     try { apply(await api.roomHandoff(roomId, { requestId: p.requestId!, to, note: noteText }, newKey())); setHanding(null); } catch (x) { fail(x); }
   };
-  const decide = async (approvalId: string, d: "allow" | "deny") => { try { await api.decide(approvalId, d); } catch (x) { fail(x); } load(); };
+  const decide = async (approvalId: string, d: "allow" | "deny" | "done" | "drop") => { try { await api.decide(approvalId, d); } catch (x) { fail(x); } load(); };
 
   if (!room) return <main className="chat"><header className="bar"><button className="ghost" onClick={onBack} aria-label="목록으로">‹</button><span className="who"><b>방</b></span></header>{note ? <p className="note err">{note}</p> : <p className="center muted">불러오는 중…</p>}</main>;
   const nameOf = (id: string | null) => "@" + (staffName(convs.find((c) => c.conversationId === id)) || id);

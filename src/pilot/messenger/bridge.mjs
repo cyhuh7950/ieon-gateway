@@ -176,6 +176,12 @@ export function createBridge(opts) {
           if (!Number.isInteger(n)) { const list = roomApprovals.get(roomKey(m)) ?? []; n = (list.at(-1)?.n ?? 0) + 1; list.push({ n, approvalId: k.approvalId }); roomApprovals.set(roomKey(m), list.slice(-20)); }
           await safeSend(m, send, `[${conv.label}] 승인 요청 ${n}: ${what} — ${k.summary}${k.cwd ? ` (작업 폴더 ${k.cwd})` : ''}\n허용: /허용 ${n}   거부: /거부 ${n}   (15분 안에, 이번 한 번만)`);
         }
+        // RC5: 사람에게 넘긴 일 — AI에게는 하지 말라고 전했고, 직접 처리했으면 /처리 n, 안 할 거면 /중단 n
+        for (const k of cards.filter((x) => x.kind === 'handoff' && !announced.has(x.approvalId))) {
+          announced.add(k.approvalId); told.add(k.approvalId);
+          const what = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' }[k.approvalKind] ?? '요청';
+          await safeSend(m, send, `[${conv.label}] 사람이 직접 할 일 ${k.n}: ${what} — ${k.summary}${k.cwd ? ` (작업 폴더 ${k.cwd})` : ''}\nAI에게는 하지 말라고 답했어요. 직접 처리했으면 /처리 ${k.n}, 하지 않을 거면 /중단 ${k.n} (주인만)`);
+        }
         for (const k of cards.filter((x) => x.kind === 'approval_result' && x.requestId === r.body.requestId && EXEC_WORD[x.state] && !told.has(x.approvalId))) {
           told.add(k.approvalId);
           await safeSend(m, send, `[${conv.label}] 승인 요청 ${k.n}: ${EXEC_WORD[k.state]}${k.state === 'failed' && Number.isInteger(k.exitCode) ? `(종료 코드 ${k.exitCode})` : ''}`);
@@ -248,7 +254,7 @@ export function createBridge(opts) {
       const head = bot.name ? `${bot.name}${bot.role ? ` · ${bot.role.name}${bot.role.description ? ` — ${bot.role.description}` : ''}` : ''}${bot.callNames?.length ? `\n그룹에서 부르기: "${bot.callNames[0]}, …" 또는 @멘션` : ''}\n\n` : '';
       return send(head + '명령어\n/sessions 세션 목록\n/use <번호> 이 대화방을 그 세션에 연결\n/status 연결된 세션 상태\n/review done|not 확인 필요 질문 정리\n'
         + '/new codex|claude <이름> [read_only|workspace] 새 세션을 만들고 이 대화방에 연결\n/sleep <이름> 잠재우기\n/archived 보관 목록\n'
-        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/허용 <번호> · /거부 <번호> 작업 모드 승인 요청에 답하기(주인만)\n/last 마지막 답 다시 받기(다시 실행하지 않음)\n/stop 이 대화방의 마지막 질문만 멈추기(물어본 사람·주인)\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
+        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/허용 <번호> · /거부 <번호> 작업 모드 승인 요청에 답하기(주인만)\n/처리 <번호> · /중단 <번호> 사람에게 넘긴 일 기록(주인만)\n/last 마지막 답 다시 받기(다시 실행하지 않음)\n/stop 이 대화방의 마지막 질문만 멈추기(물어본 사람·주인)\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
     }
     const create = text.match(/^\/new\s+(codex|claude)\s+(\S+)(?:\s+(\S+))?\s*$/);
     if (create) {
@@ -288,7 +294,8 @@ export function createBridge(opts) {
       return send(`"${close[1]}" 삭제함${r.body.workspaceRemoved ? '(작업 폴더도 지움)' : ''}`);
     }
     // W2: 승인 답(/허용 n, /거부 n — 영문 /allow n, /deny n). 주인만, 이 대화방에 알린 번호만.
-    const dec = text.match(/^\/(허용|거부|allow|deny)\s+(\d+)\s*$/i);
+    // RC5: /처리 n · /중단 n(영문 /done n · /drop n) — 사람에게 넘긴 일의 처리 기록
+    const dec = text.match(/^\/(허용|거부|allow|deny|처리|중단|done|drop)\s+(\d+)\s*$/i);
     if (dec) {
       if (!isOwner(m)) return send('승인은 이 봇의 주인만 할 수 있어요');
       // RC1: 이 대화방에 연결된 대화의 승인 번호로 찾는다(서버가 매긴 번호 — 메신저를 다시 켜도 같다)
@@ -296,10 +303,10 @@ export function createBridge(opts) {
       const found = convId ? ((await opts.api({ method: 'GET', path: `/v1/conversations/${convId}/approvals` })).body?.approvals ?? []).find((x) => x.n === Number(dec[2])) : null;
       const item = found ? { n: found.n, approvalId: found.approvalId } : (roomApprovals.get(roomKey(m)) ?? []).find((x) => x.n === Number(dec[2])) ?? null;
       if (!item) return send(`승인 요청 ${dec[2]}번이 이 대화방에 없어요`);
-      const decision = /^(허용|allow)$/i.test(dec[1]) ? 'allow' : 'deny';
+      const decision = /^(허용|allow)$/i.test(dec[1]) ? 'allow' : /^(거부|deny)$/i.test(dec[1]) ? 'deny' : /^(처리|done)$/i.test(dec[1]) ? 'done' : 'drop';
       const r = await opts.api({ method: 'POST', path: `/v1/approvals/${item.approvalId}`, body: { decision } });
-      if (r.status === 200) return send(`승인 요청 ${item.n}: ${decision === 'allow' ? '허용함(이번 한 번)' : '거부함'}`);
-      return send(r.body?.error === 'approval_closed' ? `승인 요청 ${item.n}은 이미 끝났어요(${({ expired: '시간이 지나 거부됨', turn_ended: '차례가 끝나 거부됨', allowed: '허용됨', denied: '거부됨' })[r.body.status] ?? r.body.status})` : `처리하지 못했어요: ${r.body?.error}`);
+      if (r.status === 200) return send(`${['done', 'drop'].includes(decision) ? '사람이 직접 할 일' : '승인 요청'} ${item.n}: ${{ allow: '허용함(이번 한 번)', deny: '거부함', done: '직접 처리함으로 기록', drop: '하지 않기로 기록' }[decision]}`);
+      return send(r.body?.error === 'approval_closed' ? `승인 요청 ${item.n}은 이미 끝났어요(${({ expired: '시간이 지나 거부됨', turn_ended: '차례가 끝나 거부됨', allowed: '허용됨', denied: '거부됨', handoff: '사람에게 넘긴 일 — /처리 n 또는 /중단 n', handoff_done: '직접 처리함', handoff_dropped: '하지 않기로 함', pending: '아직 승인 대기 — /허용 n 또는 /거부 n' })[r.body.status] ?? r.body.status})` : `처리하지 못했어요: ${r.body?.error}`);
     }
     // RC2: 이 대화방의 마지막 질문만 멈추기(/stop · /중지). 물어본 사람이나 주인만. 다른 대화방·다른 질문은 그대로.
     if (/^\/(stop|중지)(\s|$)/i.test(text)) {
