@@ -5,7 +5,7 @@
 //  - 사용 방식은 ② 허브 연결(mode.json). 메신저·카카오는 이 칸에서 켜지 않는다(허브가 맡음).
 //  - 아직 짝짓지 않았고 /data/invite(ieun.sh engine add가 허브에서 받아 넣은 1회용 초대)가 있으면 IEON_HUB_URL로 짝짓고 초대 파일을 지운다.
 //  - 그 뒤 서버를 켜면 서버가 짝지은 허브로 연결부를 띄운다(hub_link_resume). 하나가 끝나면 다시 켠다.
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initLocal } from '../../scripts/ieon-init.mjs';
@@ -22,10 +22,12 @@ export function enginePaths(data) {
 }
 
 // 처음 한 번: PC와 같은 설정 + 사용 방식 ②. 이미 있으면 그대로 둔다(토큰이 바뀌지 않게).
-export function prepareEngine(data) {
+export function prepareEngine(data, { codexHome = process.env.CODEX_HOME } = {}) {
   const p = enginePaths(data);
   const made = existsSync(p.server) ? [] : initLocal(data, { workspaceRoot: posix.join(data, 'workspaces') });
   if (readMode(p.mode) !== 'hub') writeMode(p.mode, 'hub');
+  // 엔진 로그인 폴더(CODEX_HOME)가 없으면 Codex가 로그인·실행을 못 한다(2026-11-16 시험 칸에서 확인) — 미리 만든다
+  if (codexHome) mkdirSync(codexHome, { recursive: true, mode: 0o700 });
   // 서버가 짝지은 허브로 연결부를 띄우려면 연결부 설정 경로가 서버 설정에 있어야 한다(initLocal은 넣지 않음 — 2026-11-16 배포 시험에서 no_connector_config)
   const server = JSON.parse(readFileSync(p.server, 'utf8'));
   if (server.connectorConfigPath !== p.connector) { server.connectorConfigPath = p.connector; writeFileSync(p.server, JSON.stringify(server, null, 2) + '\n'); made.push('server:connectorConfigPath'); }
