@@ -58,7 +58,8 @@ export type Conversation = {
   attention: number; staff?: Staff; workMode?: boolean; heldBy?: { requestId: string; status: string } | null;
   host?: { id: string; name: string };
 };
-export type Card = { kind: string; approvalId?: string; approvalKind?: string; summary?: string; cwd?: string; expiresAt?: string; requestId?: string; status?: string; errorCode?: string | null; engine?: string };
+export type Card = { kind: string; approvalId?: string; approvalKind?: string; summary?: string; cwd?: string; expiresAt?: string; requestId?: string; status?: string; errorCode?: string | null; engine?: string;
+  n?: number | null; state?: string; agent?: string | null; exitCode?: number | null }; // RC1: 승인 번호·상태(승인됨→실행 중→완료/실패/결과 불명)·AI 직원
 export type Message = { requestId: string; question: string; answer: string };
 export type RequestView = { requestId: string; status: string; errorCode: string | null; answer: string | null };
 

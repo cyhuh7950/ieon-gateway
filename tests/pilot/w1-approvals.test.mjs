@@ -113,7 +113,8 @@ test('공유 서버의 승인 요청: 작업 모드가 아니면 바로 거부(�
   const seen = [];
   const approve = async (r) => { seen.push(r); return 'accept'; };
   assert.equal((await answerServerRequest(msg('item/commandExecution/requestApproval'), T1, approve)).result.decision, 'accept');
-  assert.deepEqual(seen[0], { kind: 'command', summary: 'dir', cwd: 'C:/w' });
+  assert.deepEqual({ kind: seen[0].kind, summary: seen[0].summary, cwd: seen[0].cwd }, { kind: 'command', summary: 'dir', cwd: 'C:/w' });
+  assert.equal(seen[0].itemId, null, '엔진이 항목 ID를 주지 않으면 null(RC1 — 결과를 짐작해 잇지 않음)');
   assert.equal((await answerServerRequest(msg('item/fileChange/requestApproval', { reason: 'a.txt 만들기' }), T1, approve)).result.decision, 'accept');
   assert.equal(seen[1].kind, 'file');
   assert.equal((await answerServerRequest(msg('item/commandExecution/requestApproval', { threadId: 'other' }), T1, approve)).result.decision, 'decline', '다른 thread');

@@ -73,6 +73,13 @@ const hash = (payload) => createHash('sha256').update(JSON.stringify(payload)).d
 
 export const CONNECT_MODES = Object.freeze(['alternate', 'shared_server']);
 const NEEDS_REVIEW = new Set([STATUS.unknown, STATUS.approvalRequired]);
+// RC1: 승인 카드 한 장의 상태 — 결정(status)과 실제 실행 결과(exec_status)를 하나로.
+// pending 승인 대기 · denied 거부 · expired 시간 지남 · turn_ended 차례가 끝남 · approved 승인됨(엔진에 전달 전)
+// · running 실행 중 · completed 완료 · failed 실패 · unknown 결과 불명
+export function approvalState(a) {
+  if (a.status !== 'allowed') return a.status;
+  return a.exec_status ?? 'approved';
+}
 
 export function openStore(path) {
   const db = new DatabaseSync(path);
@@ -90,6 +97,13 @@ export function openStore(path) {
   }
   // W1(WORK_AND_VOICE A3): 승인 기록은 180일 보관
   db.prepare('DELETE FROM approvals WHERE created_at < ?').run(new Date(Date.now() - 180 * 86400_000).toISOString());
+  // RC1: 승인 뒤 실제 실행 결과(실행 중·완료·실패·결과 불명)·대화별 번호·그때의 AI 직원과 엔진·엔진 항목 ID
+  {
+    const cols = new Set(db.prepare('PRAGMA table_info(approvals)').all().map((c) => c.name));
+    for (const [name, type] of [['exec_status', 'TEXT'], ['exec_at', 'TEXT'], ['exit_code', 'INTEGER'], ['item_id', 'TEXT'], ['seq', 'INTEGER'], ['agent', 'TEXT'], ['engine', 'TEXT']]) {
+      if (!cols.has(name)) db.exec(`ALTER TABLE approvals ADD COLUMN ${name} ${type}`);
+    }
+  }
   // AP-1: 방에서 다시 보낸 글 표시(같은 글을 두 번 다시 보내지 않게 버튼을 감춤)
   if (!db.prepare('PRAGMA table_info(room_posts)').all().some((c) => c.name === 'retried')) db.exec('ALTER TABLE room_posts ADD COLUMN retried INTEGER NOT NULL DEFAULT 0');
   if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'role_guide')) {
@@ -330,6 +344,8 @@ export function openStore(path) {
       adoptSessionRef(b, outcome.sessionRef, now);
       // W1: 차례가 끝나면 아직 답하지 않은 승인 요청은 거부(turn_ended)
       db.prepare("UPDATE approvals SET status = 'turn_ended', decided_at = ? WHERE request_id = ? AND status = 'pending'").run(new Date().toISOString(), requestId);
+      // RC1: 허용했는데 실행 결과가 오지 않은 채 차례가 끝나면 결과 불명(완료로 짐작하지 않는다)
+      db.prepare("UPDATE approvals SET exec_status = 'unknown', exec_at = ? WHERE request_id = ? AND status = 'allowed' AND (exec_status IS NULL OR exec_status = 'running')").run(new Date().toISOString(), requestId);
       if (outcome.status === STATUS.completed) {
         setStatus(row, STATUS.completed, { receipt: outcome.receipt ?? null, answer: keepAnswer(row, outcome.answer ?? null) });
         if (outcome.usage) db.prepare('UPDATE requests SET usage = ? WHERE request_id = ?').run(JSON.stringify(outcome.usage), requestId);
@@ -575,15 +591,21 @@ export function openStore(path) {
     revokeAppDevice(userId, deviceId) { return db.prepare('UPDATE app_devices SET revoked_at = ? WHERE device_id = ? AND user_id = ? AND revoked_at IS NULL').run(new Date().toISOString(), deviceId, userId).changes === 1; },
 
 // --- W1 승인 카드(WORK_AND_VOICE A1·A3). 15분 안에 답이 없으면 거부, 차례가 끝나면 거부, 허용·거부는 주인만 ---
-    addApproval(hostId, { requestId, kind, summary, cwd }) {
+    addApproval(hostId, { requestId, kind, summary, cwd, itemId }) {
       const row = request(String(requestId ?? ''));
       const b = row && binding(row.conversation_id);
       if (!b || b.hostId !== hostId || ![STATUS.dispatching, STATUS.running].includes(row.status)) return { http: 404, code: 'not_found' };
       if (!['command', 'file', 'permissions'].includes(kind)) return { http: 400, code: 'bad_kind' };
       const id = `apv_${randomUUID()}`;
-      db.prepare("INSERT INTO approvals (approval_id, request_id, conversation_id, kind, summary, cwd, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)")
-        .run(id, row.request_id, row.conversation_id, kind, String(summary ?? '').slice(0, 500), cwd ? String(cwd).slice(0, 300) : null, new Date().toISOString());
-      return { http: 201, approvalId: id };
+      return tx(() => {
+        // RC1: 대화마다 1부터 매기는 번호(메신저 /허용 n — 메신저를 다시 켜도 같은 번호), 그때의 AI 직원 이름과 엔진
+        const seq = (db.prepare('SELECT MAX(seq) AS m FROM approvals WHERE conversation_id = ?').get(row.conversation_id)?.m ?? 0) + 1;
+        const agent = db.prepare('SELECT name FROM staff WHERE conversation_id = ?').get(row.conversation_id)?.name ?? b.label ?? null;
+        db.prepare("INSERT INTO approvals (approval_id, request_id, conversation_id, kind, summary, cwd, status, created_at, seq, agent, engine, item_id) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)")
+          .run(id, row.request_id, row.conversation_id, kind, String(summary ?? '').slice(0, 500), cwd ? String(cwd).slice(0, 300) : null, new Date().toISOString(),
+            seq, agent ? String(agent).slice(0, 60) : null, b.engine, itemId ? String(itemId).slice(0, 120) : null);
+        return { http: 201, approvalId: id, n: seq };
+      });
     },
     // 시간이 지난 것은 읽을 때 거부로 바꾼다(타이머 없이도 15분 규칙이 지켜지게)
     approvalStatus(approvalId, { ttlMs = 15 * 60_000 } = {}) {
@@ -604,16 +626,37 @@ export function openStore(path) {
       if (!a || !canAccess(principal, binding(a.conversation_id))) return { http: 404, code: 'not_found' };
       if (!['allow', 'deny'].includes(decision)) return { http: 400, code: 'bad_decision' };
       if (a.status !== 'pending') return { http: 409, code: 'approval_closed', status: a.status };
-      db.prepare('UPDATE approvals SET status = ?, decided_by = ?, decided_at = ? WHERE approval_id = ? AND status = ?')
+      const done = db.prepare('UPDATE approvals SET status = ?, decided_by = ?, decided_at = ? WHERE approval_id = ? AND status = ?')
         .run(decision === 'allow' ? 'allowed' : 'denied', `${principal.userId}:${principal.appId}`, new Date().toISOString(), approvalId, 'pending');
+      // 두 화면이 같은 순간에 답해도 먼저 닿은 답 하나만 적용된다
+      if (done.changes !== 1) return { http: 409, code: 'approval_closed', status: this.approvalStatus(approvalId, opts)?.status };
       return { http: 200, status: decision === 'allow' ? 'allowed' : 'denied' };
+    },
+    // RC1: 연결부가 허용 결정을 읽어 간 순간부터 "실행 중"(엔진에 허용을 전달함)
+    markApprovalPicked(approvalId) {
+      return db.prepare("UPDATE approvals SET exec_status = 'running' WHERE approval_id = ? AND status = 'allowed' AND exec_status IS NULL").run(approvalId).changes === 1;
+    },
+    // RC1: 허용한 항목의 실제 실행 결과. 그 PC가 처리 중인 승인만, 허용된 것만, 한 번만. 엔진 항목이 다르면 받지 않는다.
+    reportApprovalResult(hostId, approvalId, { outcome, exitCode, itemId } = {}) {
+      const a = db.prepare('SELECT * FROM approvals WHERE approval_id = ?').get(approvalId);
+      if (!a || binding(a.conversation_id)?.hostId !== hostId) return { http: 404, code: 'not_found' };
+      if (!['completed', 'failed'].includes(outcome)) return { http: 400, code: 'bad_outcome' };
+      if (a.status !== 'allowed') return { http: 409, code: 'not_allowed', status: a.status };
+      if (a.item_id && itemId && String(itemId) !== a.item_id) return { http: 409, code: 'item_mismatch' };
+      if (a.exec_status && a.exec_status !== 'running') return { http: 409, code: 'result_closed', execStatus: a.exec_status };
+      const code = Number.isInteger(exitCode) ? exitCode : null;
+      db.prepare("UPDATE approvals SET exec_status = ?, exec_at = ?, exit_code = ? WHERE approval_id = ? AND status = 'allowed' AND (exec_status IS NULL OR exec_status = 'running')")
+        .run(outcome, new Date().toISOString(), code, approvalId);
+      return { http: 200, execStatus: outcome };
     },
     approvals(principal, conversationId, { pendingOnly = false, ttlMs } = {}) {
       if (!canAccess(principal, binding(conversationId))) return null;
       const rows = db.prepare(`SELECT approval_id FROM approvals WHERE conversation_id = ? ${pendingOnly ? "AND status = 'pending'" : ''} ORDER BY created_at DESC LIMIT 20`).all(conversationId);
       return rows.map((r) => this.approvalStatus(r.approval_id, { ttlMs })).filter((a) => !pendingOnly || a.status === 'pending')
         .map((a) => ({ approvalId: a.approval_id, requestId: a.request_id, kind: a.kind, summary: a.summary, cwd: a.cwd, status: a.status,
-          createdAt: a.created_at, decidedAt: a.decided_at, decidedBy: a.decided_by ? a.decided_by.split(':')[0] : null }));
+          createdAt: a.created_at, decidedAt: a.decided_at, decidedBy: a.decided_by ? a.decided_by.split(':')[0] : null,
+          n: a.seq ?? null, agent: a.agent ?? null, engine: a.engine ?? null, state: approvalState(a),
+          execStatus: a.exec_status ?? null, execAt: a.exec_at ?? null, exitCode: a.exit_code ?? null }));
     },
 
     // --- AP-1 AI 직원(대화 하나에 이름·역할·아이콘) ---

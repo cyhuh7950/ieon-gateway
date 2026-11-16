@@ -141,10 +141,15 @@ export const approvalSummary = (method, params = {}) => {
 };
 
 // 서버 요청 하나에 대한 답(JSON-RPC 응답 객체). 시험에서 바로 부른다.
-export async function answerServerRequest(msg, threadId, approve) {
+// RC1: 허용되면 track({ approvalId, itemId, kind })으로 알려, 그 항목이 끝났을 때 실행 결과를 같은 승인에 잇는다.
+export async function answerServerRequest(msg, threadId, approve, track = null) {
   const kind = APPROVAL_KIND[msg.method];
   if (!kind) return { jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'not supported by ieon' } };
-  const d = approve && msg.params?.threadId === threadId ? await approve({ kind, summary: approvalSummary(msg.method, msg.params), cwd: msg.params?.cwd ?? null }).catch(() => 'decline') : 'decline';
+  const itemId = typeof msg.params?.itemId === 'string' ? msg.params.itemId : null;
+  const d = approve && msg.params?.threadId === threadId
+    ? await approve({ kind, summary: approvalSummary(msg.method, msg.params), cwd: msg.params?.cwd ?? null, itemId,
+      onAllowed: (approvalId) => track?.({ approvalId, itemId, kind }) }).catch(() => 'decline')
+    : 'decline';
   return { jsonrpc: '2.0', id: msg.id, result: { decision: d === 'accept' ? 'accept' : 'decline' } };
 }
 
@@ -225,17 +230,45 @@ function accountEnv(opts, threadId) {
 // 인터넷 막음, 승인 판단은 늘 사람(approvalsReviewer: user). 자동 승인(never·acceptForSession·auto_review) 없음.
 // transport: { send(obj), onMessage(fn), close() } — 동시 사용은 공유 서버(WebSocket), 번갈아 쓰기는 질문할 때만 띄운 app-server(stdio).
 export const WORK_POLICY = Object.freeze({ approvalPolicy: 'untrusted', approvalsReviewer: 'user' });
-export async function appServerTurn(transport, { threadId, question, cwd, approve, checkIdle = false, timeoutMs = 30 * 60_000 }) {
+
+// RC1: 끝난 엔진 항목(명령 실행·파일 수정)을 실행 결과로. 승인 없이 지나간 항목·거부된 항목·진행 중은 null(보고하지 않음).
+// 종료 코드가 0이 아니면 실패로 본다(엔진이 completed라고 해도 명령은 실패한 것).
+const ITEM_KIND = { commandExecution: 'command', fileChange: 'file' };
+export function itemOutcome(item) {
+  const kind = ITEM_KIND[item?.type];
+  if (!kind || typeof item.id !== 'string') return null;
+  const exitCode = Number.isInteger(item.exitCode) ? item.exitCode : null;
+  if (item.status === 'failed') return { kind, itemId: item.id, outcome: 'failed', exitCode };
+  if (item.status === 'completed') return { kind, itemId: item.id, outcome: exitCode !== null && exitCode !== 0 ? 'failed' : 'completed', exitCode };
+  return null;
+}
+// 허용한 승인 목록에서 그 항목의 승인을 찾는다 — 항목 ID가 정확히 같은 것만(순서로 짐작하지 않는다).
+export function matchAllowed(allowed, done) {
+  return allowed.find((a) => !a.reported && a.itemId && a.itemId === done.itemId && a.kind === done.kind) ?? null;
+}
+
+export async function appServerTurn(transport, { threadId, question, cwd, approve, approvalResult = null, checkIdle = false, timeoutMs = 30 * 60_000 }) {
+  const allowed = []; // 이번 차례에 허용한 승인: { approvalId, itemId, kind, reported }
+  const track = (a) => {
+    allowed.push(a);
+    // 권한 추가는 실행 항목이 따로 없다 — 허용을 전달한 것이 곧 결과
+    if (a.kind === 'permissions') { a.reported = true; approvalResult?.(a.approvalId, { outcome: 'completed', itemId: a.itemId })?.catch?.(() => {}); }
+  };
   const pending = new Map(); let nextId = 1; let turnId = null; let answer = ''; let userMessages = 0; let turnError = null; let worked = false;
   const usage = {}; let finish; const done = new Promise((r) => { finish = r; });
   const call = (method, params) => { const id = nextId++; transport.send({ jsonrpc: '2.0', id, method, params }); return new Promise((resolve, reject) => pending.set(id, { resolve, reject })); };
   transport.onMessage((msg) => {
     if (msg.id !== undefined && !msg.method && pending.has(msg.id)) { const p = pending.get(msg.id); pending.delete(msg.id); return msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result); }
-    if (msg.id !== undefined && msg.method) { answerServerRequest(msg, threadId, approve).then((r) => transport.send(r)).catch(() => {}); return; }
+    if (msg.id !== undefined && msg.method) { answerServerRequest(msg, threadId, approve, track).then((r) => transport.send(r)).catch(() => {}); return; }
     const params = msg.params;
     if (!params || params.threadId !== threadId || (turnId && params.turnId && params.turnId !== turnId)) return;
     if (msg.method === 'item/started' && params.item?.type === 'userMessage') userMessages += 1;
     if (msg.method === 'item/started' && ['commandExecution', 'fileChange'].includes(params.item?.type)) worked = true;
+    if (msg.method === 'item/completed') {
+      const done = itemOutcome(params.item);
+      const a = done && matchAllowed(allowed, done);
+      if (a) { a.reported = true; approvalResult?.(a.approvalId, { outcome: done.outcome, exitCode: done.exitCode, itemId: done.itemId })?.catch?.(() => {}); }
+    }
     if (msg.method === 'item/completed' && params.item?.type === 'agentMessage') answer = params.item.text ?? answer;
     if (msg.method === 'thread/tokenUsage/updated' && turnId && params.turnId === turnId) {
       const last = params.tokenUsage?.last ?? {};
@@ -283,7 +316,7 @@ async function runAlternateWork(threadId, question, deps) {
   const outcome = deps.probe(threadId);
   if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
   const transport = (deps.appServer ?? stdioAppServer)({ env: deps.env, cwd });
-  return appServerTurn(transport, { threadId, question, cwd, approve: deps.approve, timeoutMs: deps.workTimeoutMs });
+  return appServerTurn(transport, { threadId, question, cwd, approve: deps.approve, approvalResult: deps.approvalResult, timeoutMs: deps.workTimeoutMs });
 }
 function wsTransport(endpoint, token, WS = globalThis.WebSocket) {
   const ws = new WS(endpoint, { headers: { Authorization: `Bearer ${token}` } });
@@ -301,7 +334,7 @@ export function codexThreadAdapter(opts) {
   const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')) };
   return {
     engine: 'codex_thread',
-    async run({ sessionRef: threadId, question, connectMode, newSession, workMode = false }, { approve = null } = {}) {
+    async run({ sessionRef: threadId, question, connectMode, newSession, workMode = false }, { approve = null, approvalResult = null } = {}) {
       if (newSession) {
         if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
         if (!opts.live) throw new EngineError('live_disabled', 503);
@@ -318,12 +351,12 @@ export function codexThreadAdapter(opts) {
           const cwd = workDir(opts.workingDirectories?.[threadId]);
           const tr = (opts.wsTransport ?? wsTransport)(opts.shared.endpoint, token);
           await tr.opened;
-          return appServerTurn(tr, { threadId, question, cwd, approve, checkIdle: true, timeoutMs: opts.workTimeoutMs });
+          return appServerTurn(tr, { threadId, question, cwd, approve, approvalResult, checkIdle: true, timeoutMs: opts.workTimeoutMs });
         }
         // 작업 모드가 아니면 승인 요청이 와도 바로 거부(지금처럼 읽기 전용)
         return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: null });
       }
-      if (workMode) return runAlternateWork(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], approve, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs });
+      if (workMode) return runAlternateWork(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs });
       return runAlternate(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId] });
     },
   };
