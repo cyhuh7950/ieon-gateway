@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
 
+export const THREAD_SOURCES = Object.freeze(['cli', 'vscode', 'exec', 'appServer']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CODEX_JS = fileURLToPath(new URL('../../node_modules/@openai/codex/bin/codex.js', import.meta.url));
 
@@ -60,7 +61,8 @@ export function listCodexThreads({ codex, limit = 30, timeoutMs = 45000, spawnIm
         if (msg.id === 1) {
           if (msg.error) return finish(new Error('codex_init_failed'));
           send({ method: 'initialized' });
-          send({ id: 2, method: 'thread/list', params: { limit, archived: false, excludedThreadIds: [EXCLUDED_THREAD], sortKey: 'recency_at', sortDirection: 'desc', useStateDbOnly: true } });
+          // SV0 실측: 출처(sourceKinds)를 정하지 않으면 이어온·SDK로 만든 대화(exec)가 빠진다 → 사람이 쓰는 출처와 함께 정해 준다
+          send({ id: 2, method: 'thread/list', params: { limit, archived: false, excludedThreadIds: [EXCLUDED_THREAD], sortKey: 'recency_at', sortDirection: 'desc', useStateDbOnly: true, sourceKinds: THREAD_SOURCES } });
         } else if (msg.id === 2) {
           if (msg.error) return finish(new Error('codex_list_failed'));
           return finish(null, safeThreads(msg.result?.data));
