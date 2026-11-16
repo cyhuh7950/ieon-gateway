@@ -13,15 +13,37 @@ export function Avatar({ c, small }: { c?: Conversation; small?: boolean }) {
   return <span className={"avatar" + (small ? " sm" : "")} aria-hidden>{c?.staff?.icon || n.slice(0, 1)}</span>;
 }
 
+// RC1: 승인 카드 상태 글(서버 approvalState와 같은 이름). [카드 색, 글]
+export function approvalResultText(state: string, exitCode?: number | null): [string, string] {
+  const m: Record<string, [string, string]> = {
+    approved: ["info", "승인됨 — 엔진에 전달하는 중"], running: ["info", "승인됨 — 실행 중"], completed: ["info", "실행 완료"],
+    failed: ["err", "실행 실패" + (Number.isInteger(exitCode) ? `(종료 코드 ${exitCode})` : "")],
+    unknown: ["warn", "결과 불명 — 원래 세션에서 확인하세요(다시 실행하지 않아요)"],
+    denied: ["info", "거부함 — 실행하지 않았어요"], expired: ["info", "시간이 지나 거부됨"], turn_ended: ["info", "차례가 끝나 거부됨"],
+  };
+  return m[state] ?? ["info", state];
+}
+
 export function CardView({ c, decide, review, who }: { c: Card; decide: (id: string, d: "allow" | "deny") => void; review?: (id: string, executed: boolean) => void; who?: string }) {
   if (c.kind === "approval" && c.approvalId) {
     return (
       <div className="card warn">
-        <b>{who ? who + " — " : ""}허락이 필요해요{APPROVAL_KIND[c.approvalKind ?? ""] ?? ""}</b>
+        <b>{who ? who + " — " : ""}{c.n ? `승인 요청 ${c.n} · ` : ""}허락이 필요해요{APPROVAL_KIND[c.approvalKind ?? ""] ?? ""}</b>
         <pre>{c.summary}</pre>
         {c.cwd && <small className="muted">폴더: {c.cwd}</small>}
         {c.expiresAt && <small className="muted">{new Date(c.expiresAt).toLocaleTimeString()}까지 정하지 않으면 거부돼요.</small>}
         <div className="acts"><button className="primary" onClick={() => decide(c.approvalId!, "allow")}>허용</button><button onClick={() => decide(c.approvalId!, "deny")}>거부</button></div>
+      </div>
+    );
+  }
+  // RC1: 결정한 뒤 — 승인됨 → 실행 중 → 완료/실패/결과 불명(버튼 없음)
+  if (c.kind === "approval_result" && c.approvalId) {
+    const [tone, text] = approvalResultText(c.state ?? "", c.exitCode);
+    return (
+      <div className={"card " + tone}>
+        <b>{who ? who + " — " : ""}{c.n ? `승인 요청 ${c.n}` : "승인 요청"}{APPROVAL_KIND[c.approvalKind ?? ""] ?? ""}: {text}</b>
+        {c.summary && <pre>{c.summary}</pre>}
+        {c.cwd && <small className="muted">폴더: {c.cwd}</small>}
       </div>
     );
   }

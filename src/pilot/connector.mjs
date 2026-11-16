@@ -47,9 +47,10 @@ export const healthHeader = (state) => JSON.stringify(state).replace(/[\u007f-�
 // W1: 엔진이 묻는 승인(명령 실행·파일 수정)을 서버에 올리고 사람이 허용·거부할 때까지 기다린다. 15분이 지나면 서버가 거부로 바꾼다.
 // 이어온은 "이번만 허용"과 "거부"만 쓴다(항상 허용·자동 승인 없음). 서버에 닿지 못하거나 모르는 답이면 거부.
 export function approver({ baseUrl, headers, requestId, pollMs = 2000, maxMs = 16 * 60_000, log = () => {} }) {
-  return async ({ kind, summary, cwd }) => {
+  // RC1: 허용되면 onAllowed(approvalId)를 부른다(어댑터가 그 항목의 실행 결과를 이 승인에 잇기 위해). 돌려주는 값은 전처럼 accept/decline.
+  return async ({ kind, summary, cwd, itemId, onAllowed }) => {
     try {
-      const r = await fetch(`${baseUrl}/v1/device/approvals`, { method: 'POST', headers, body: JSON.stringify({ requestId, kind, summary, cwd }) });
+      const r = await fetch(`${baseUrl}/v1/device/approvals`, { method: 'POST', headers, body: JSON.stringify({ requestId, kind, summary, cwd, itemId }) });
       if (r.status !== 201) return 'decline';
       const { approvalId } = await r.json();
       log({ event: 'approval_wait', kind });
@@ -59,10 +60,23 @@ export function approver({ baseUrl, headers, requestId, pollMs = 2000, maxMs = 1
         const s = await fetch(`${baseUrl}/v1/device/approvals/${approvalId}`, { headers }).then((x) => (x.status === 200 ? x.json() : null)).catch(() => null);
         if (!s || s.status === 'pending') continue;
         log({ event: 'approval_done', kind, status: s.status });
-        return s.status === 'allowed' ? 'accept' : 'decline';
+        if (s.status !== 'allowed') return 'decline';
+        try { onAllowed?.(approvalId); } catch { /* 결과 연결을 못 해도 허용은 그대로 전달 */ }
+        return 'accept';
       }
     } catch { /* 닿지 못하면 거부 */ }
     return 'decline';
+  };
+}
+
+// RC1: 허용한 항목이 실제로 어떻게 끝났는지 서버에 알린다(완료·실패와 종료 코드만). 못 보내면 서버가 차례 끝에 결과 불명으로 둔다.
+export function approvalReporter({ baseUrl, headers, log = () => {} }) {
+  return async (approvalId, { outcome, exitCode = null, itemId = null }) => {
+    try {
+      const r = await fetch(`${baseUrl}/v1/device/approvals/${approvalId}/result`, { method: 'POST', headers, body: JSON.stringify({ outcome, exitCode, itemId }) });
+      log({ event: 'approval_result', outcome, http: r.status });
+      return r.status === 200;
+    } catch { return false; }
   };
 }
 
@@ -94,7 +108,8 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
   try {
     const result = await adapter.run({ engine: job.engine, sessionRef: job.sessionRef, question: job.question, requestId: job.requestId,
       connectMode: job.connectMode, newSession: job.newSession, workMode: job.workMode === true },
-      { approve: approver({ baseUrl, headers, requestId: job.requestId, log, ...(approvalPollMs ? { pollMs: approvalPollMs } : {}) }) });
+      { approve: approver({ baseUrl, headers, requestId: job.requestId, log, ...(approvalPollMs ? { pollMs: approvalPollMs } : {}) }),
+        approvalResult: approvalReporter({ baseUrl, headers, log }) });
     outcome = result.approvalRequired ? { status: 'approval_required' }
       : { status: 'completed', receipt: result.receipt ?? null, answer: result.answer ?? null, usage: result.usage ?? null };
     if (result.sessionRef) outcome.sessionRef = result.sessionRef;

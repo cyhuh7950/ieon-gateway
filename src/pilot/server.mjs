@@ -293,11 +293,18 @@ export function createApp(config) {
   };
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
   const approvalTtlMs = config.approvalTtlMs ?? 15 * 60_000; // W1: 15분 안에 답이 없으면 거부
+  const approvalShowMs = config.approvalShowMs ?? 30 * 60_000; // RC1: 결정된 승인 카드를 대화에 남겨 두는 시간
   const cardsFor = (c, live, principal) => {
     const cards = [];
     // W1: 엔진이 승인을 기다리는 중(허용·거부 카드). 요약·작업 폴더만, 로그에는 남기지 않음
-    for (const a of principal ? store.approvals(principal, c.conversationId, { pendingOnly: true, ttlMs: approvalTtlMs }) ?? [] : []) {
-      cards.push({ kind: 'approval', approvalId: a.approvalId, approvalKind: a.kind, summary: a.summary, cwd: a.cwd, expiresAt: new Date(Date.parse(a.createdAt) + approvalTtlMs).toISOString() });
+    // RC1: 결정된 뒤에도 같은 카드가 승인됨 → 실행 중 → 완료/실패/결과 불명으로 바뀐다(결정 뒤 30분, 최근 3장까지만).
+    const recent = (a) => a.state !== 'pending' && a.decidedAt && Date.now() - Date.parse(a.decidedAt) < approvalShowMs;
+    const all = principal ? store.approvals(principal, c.conversationId, { ttlMs: approvalTtlMs }) ?? [] : [];
+    for (const a of [...all.filter((x) => x.state === 'pending'), ...all.filter(recent).slice(0, 3)]) {
+      // 대기 중이면 기존 그대로 'approval'(허용·거부 버튼), 결정 뒤는 'approval_result'(버튼 없음 — 예전 화면·설치된 앱은 모르는 종류라 무시)
+      cards.push({ kind: a.state === 'pending' ? 'approval' : 'approval_result', approvalId: a.approvalId, requestId: a.requestId, approvalKind: a.kind, summary: a.summary, cwd: a.cwd,
+        n: a.n, state: a.state, agent: a.agent, engine: a.engine, exitCode: a.exitCode,
+        expiresAt: new Date(Date.parse(a.createdAt) + approvalTtlMs).toISOString() });
     }
     if (hubModeOn()) cards.push({ kind: 'hub_mode', hubUrl: hubLink?.status().hubUrl ?? null });
     else if (!online(c.hostId)) cards.push({ kind: 'device_offline' });
@@ -404,12 +411,23 @@ export function createApp(config) {
         if (req.method === 'POST' && path === '/v1/device/approvals') {
           const r = store.addApproval(device.hostId, await readJson(req));
           if (r.http === 201) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_requested', host: device.hostId }) + '\n'); notify(store.approvalConversation(r.approvalId), { type: 'approval', approvalId: r.approvalId, status: 'pending' }); }
-          return r.http === 201 ? json(res, 201, { approvalId: r.approvalId, ttlMs: approvalTtlMs }) : json(res, r.http, { error: r.code });
+          return r.http === 201 ? json(res, 201, { approvalId: r.approvalId, n: r.n, ttlMs: approvalTtlMs }) : json(res, r.http, { error: r.code });
         }
         const ap = path.match(/^\/v1\/device\/approvals\/(apv_[\w-]+)$/);
         if (req.method === 'GET' && ap) {
           if (store.approvalHost(ap[1]) !== device.hostId) return json(res, 404, { error: 'not_found' });
-          return json(res, 200, { status: store.approvalStatus(ap[1], { ttlMs: approvalTtlMs }).status });
+          const st = store.approvalStatus(ap[1], { ttlMs: approvalTtlMs }).status;
+          // RC1: 연결부가 허용을 읽어 간 순간부터 실행 중
+          if (st === 'allowed' && store.markApprovalPicked(ap[1])) notify(store.approvalConversation(ap[1]), { type: 'approval', approvalId: ap[1], status: 'running' });
+          return json(res, 200, { status: st });
+        }
+        // RC1: 허용한 항목의 실제 실행 결과(완료·실패, 종료 코드까지만 — 출력 내용은 받지 않는다)
+        const apr = path.match(/^\/v1\/device\/approvals\/(apv_[\w-]+)\/result$/);
+        if (req.method === 'POST' && apr) {
+          const b = await readJson(req);
+          const r = store.reportApprovalResult(device.hostId, apr[1], { outcome: b.outcome, exitCode: b.exitCode, itemId: b.itemId });
+          if (r.http === 200) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_result', status: r.execStatus }) + '\n'); notify(store.approvalConversation(apr[1]), { type: 'approval', approvalId: apr[1], status: r.execStatus }); }
+          return r.http === 200 ? json(res, 200, { execStatus: r.execStatus }) : json(res, r.http, { error: r.code });
         }
         const m = path.match(/^\/v1\/device\/jobs\/([\w-]+)\/result$/);
         if (req.method === 'POST' && m) {

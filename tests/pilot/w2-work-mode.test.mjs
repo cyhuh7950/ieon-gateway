@@ -94,7 +94,7 @@ test('번갈아 쓰기 작업 모드: Desktop 잠금 먼저, 작업 폴더 필�
   assert.deepEqual([resume.approvalPolicy, resume.approvalsReviewer, resume.sandbox, resume.cwd], ['untrusted', 'user', 'workspace-write', d]);
   assert.deepEqual([turn.approvalPolicy, turn.approvalsReviewer], ['untrusted', 'user']);
   assert.deepEqual(turn.sandboxPolicy, { type: 'workspaceWrite', writableRoots: [d], networkAccess: false });
-  assert.deepEqual(asked, [{ kind: 'command', summary: 'dir', cwd: d }]);
+  assert.deepEqual(asked.map((a) => ({ kind: a.kind, summary: a.summary, cwd: a.cwd })), [{ kind: 'command', summary: 'dir', cwd: d }]);
   assert.deepEqual(fake.answers, ['accept']);
   assert.equal(fake.closed, true, '차례가 끝나면 app-server를 닫음');
   // 작업 모드가 아니면 지금처럼 SDK(읽기 전용)

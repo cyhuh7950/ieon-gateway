@@ -86,7 +86,10 @@ export function createBridge(opts) {
   const allowed = opts.isAllowed ?? ((m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId)));
   // W2: 승인(허용·거부)은 주인만 — 봇마다 더한 사람(extraUsers)이 아니라 공통 허용 사용자(사용자 본인)
   const isOwner = opts.isOwner ?? ((m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId)));
-  const roomApprovals = new Map(); // 대화방 → [{ n, approvalId }] (메신저에서 /허용 n 으로 고르는 번호)
+  // RC1: 승인 번호(n)는 서버가 대화마다 매긴다 — 메신저를 다시 켜도 /허용 n 이 같은 승인을 가리킨다(전에는 이 프로그램 메모리에만 있었음).
+  const EXEC_WORD = { completed: '실행 완료', failed: '실행 실패', unknown: '실행 결과를 확인하지 못함' };
+  // 서버가 예전 버전이라 카드에 번호가 없을 때만 쓰는 대비용 번호(대화방 → [{ n, approvalId }], 이 프로그램 메모리)
+  const roomApprovals = new Map();
   const roomKey = (m) => `${m.platform}:${m.botId ?? opts.botId ?? DEFAULT_BOT}:${m.chatId}${m.threadKey ? `:${m.threadKey}` : ''}`;
   const channelKey = (m) => roomKey({ ...m, threadKey: undefined });
   // 슬랙 스레드는 자기 연결이 있으면 그것, 없으면 채널 연결을 따른다(전에는 스레드를 나누지 않아 모두 채널 연결이었음 — 그 동작 보존).
@@ -154,20 +157,26 @@ export function createBridge(opts) {
     await safeSend(m, send, `[${conv.label}] 접수됨 — 답을 기다리는 중${conv.workMode ? ' (작업 모드: 파일 수정·명령 실행은 허용을 물어봐요)' : ''}`);
     const started = Date.now();
     const announced = new Set();
+    const told = new Set(); // 실행 결과를 알린 승인(RC1)
     // 작업 모드는 승인을 기다리는 동안(최대 15분) 더 오래 기다린다
     const limit = conv.workMode ? Math.max(waitMs, 20 * 60_000) : waitMs;
     while (Date.now() - started < limit) {
       await new Promise((ok) => setTimeout(ok, pollMs));
       const s = (await opts.api({ method: 'GET', path: `/v1/requests/${r.body.requestId}` })).body;
       // W2: 처리 중 승인 요청이 오면 이 대화방에 알리고 /허용 n · /거부 n 으로 받는다(이번 한 번만, 주인만)
-      if (conv.workMode && ['running', 'dispatching'].includes(s.status)) {
-        const cards = (await opts.api({ method: 'GET', path: `/v1/conversations/${conv.conversationId}/cards` })).body?.cards ?? [];
+      // RC1: 허용한 뒤의 실제 실행 결과(완료·실패·결과 불명)도 같은 대화방에 한 번 알린다. 차례가 끝난 직후에도 한 번 더 본다.
+      if (conv.workMode && (['running', 'dispatching'].includes(s.status) || announced.size > told.size)) {
+        const cards = (await opts.api({ method: 'GET', path: `/v1/conversations/${conv.conversationId}/cards` }).catch(() => null))?.body?.cards ?? [];
         for (const k of cards.filter((x) => x.kind === 'approval' && !announced.has(x.approvalId))) {
           announced.add(k.approvalId);
-          const list = roomApprovals.get(roomKey(m)) ?? []; const n = (list.at(-1)?.n ?? 0) + 1;
-          list.push({ n, approvalId: k.approvalId }); roomApprovals.set(roomKey(m), list.slice(-20));
           const what = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' }[k.approvalKind] ?? '허용 요청';
+          let n = k.n;
+          if (!Number.isInteger(n)) { const list = roomApprovals.get(roomKey(m)) ?? []; n = (list.at(-1)?.n ?? 0) + 1; list.push({ n, approvalId: k.approvalId }); roomApprovals.set(roomKey(m), list.slice(-20)); }
           await safeSend(m, send, `[${conv.label}] 승인 요청 ${n}: ${what} — ${k.summary}${k.cwd ? ` (작업 폴더 ${k.cwd})` : ''}\n허용: /허용 ${n}   거부: /거부 ${n}   (15분 안에, 이번 한 번만)`);
+        }
+        for (const k of cards.filter((x) => x.kind === 'approval_result' && x.requestId === r.body.requestId && EXEC_WORD[x.state] && !told.has(x.approvalId))) {
+          told.add(k.approvalId);
+          await safeSend(m, send, `[${conv.label}] 승인 요청 ${k.n}: ${EXEC_WORD[k.state]}${k.state === 'failed' && Number.isInteger(k.exitCode) ? `(종료 코드 ${k.exitCode})` : ''}`);
         }
       }
       if (s.status === 'completed') return deliver(m, send, conv, r.body.requestId, s.answer);
@@ -278,7 +287,10 @@ export function createBridge(opts) {
     const dec = text.match(/^\/(허용|거부|allow|deny)\s+(\d+)\s*$/i);
     if (dec) {
       if (!isOwner(m)) return send('승인은 이 봇의 주인만 할 수 있어요');
-      const item = (roomApprovals.get(roomKey(m)) ?? []).find((x) => x.n === Number(dec[2]));
+      // RC1: 이 대화방에 연결된 대화의 승인 번호로 찾는다(서버가 매긴 번호 — 메신저를 다시 켜도 같다)
+      const convId = roomConv(m);
+      const found = convId ? ((await opts.api({ method: 'GET', path: `/v1/conversations/${convId}/approvals` })).body?.approvals ?? []).find((x) => x.n === Number(dec[2])) : null;
+      const item = found ? { n: found.n, approvalId: found.approvalId } : (roomApprovals.get(roomKey(m)) ?? []).find((x) => x.n === Number(dec[2])) ?? null;
       if (!item) return send(`승인 요청 ${dec[2]}번이 이 대화방에 없어요`);
       const decision = /^(허용|allow)$/i.test(dec[1]) ? 'allow' : 'deny';
       const r = await opts.api({ method: 'POST', path: `/v1/approvals/${item.approvalId}`, body: { decision } });
