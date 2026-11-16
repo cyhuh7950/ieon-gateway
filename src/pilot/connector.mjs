@@ -199,7 +199,8 @@ export async function engineHealth(config) {
 
 // SV3: 계정 종류를 Codex에 직접 물어 자동으로 안다(공식 `codex login status` — "ChatGPT"면 구독, "API key"면 API). 사용자가 적을 필요 없음.
 // 몇 초 걸리므로 5분마다 한 번만 묻고 결과를 둔다(작업 조회는 2초마다라 그때마다 묻지 않음). 모르면 null.
-export const kindOfMethod = (m) => (m === 'api_key' ? 'api' : m === 'chatgpt' ? 'subscription' : null);
+// 함수 선언으로 둔다 — 연결부 시작 코드(이 파일 위쪽)가 모듈을 다 읽기 전에 부르므로 const면 '초기화 전 접근' 오류(2026-11-17 배포에서 발견)
+export function kindOfMethod(m) { return m === 'api_key' ? 'api' : m === 'chatgpt' ? 'subscription' : null; }
 export function codexKindCache(config, { statusOf = (env) => createCodexLogin({ env }).status(), everyMs = 5 * 60_000 } = {}) {
   let kinds = { default: null, byAccount: {} }; let at = 0; let busy = false;
   const refresh = async () => {
