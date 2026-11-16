@@ -111,6 +111,8 @@ export function openStore(path) {
   }
   // RC5: 대화마다 "사람이 직접 할 일" 규칙(종류·명령에 든 글자). 맞는 요청은 엔진에 거부로 답하고 사람에게 넘긴다.
   db.exec('CREATE TABLE IF NOT EXISTS handoff_policies (conversation_id TEXT PRIMARY KEY, kinds TEXT NOT NULL, patterns TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL)');
+  // SV3-b: 이 질문이 쓴 계정("<PC>:<계정 ID>") — 계정별 사용량·한도
+  if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'account_key')) db.exec('ALTER TABLE requests ADD COLUMN account_key TEXT');
   // RC4: 그때의 실행 정보(엔진·PC·세션 ID·연결 방식·작업 모드)와 실제로 답한 세션 ID — 끊긴 뒤 같은 세션인지 확인용
   if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'snap')) {
     db.exec('ALTER TABLE requests ADD COLUMN snap TEXT');
@@ -258,7 +260,7 @@ export function openStore(path) {
       });
     },
 
-    submit(principal, conversationId, key, payload, { prefix = null, roomId = null } = {}) {
+    submit(principal, conversationId, key, payload, { prefix = null, roomId = null, accountKey = null } = {}) {
       const b = binding(conversationId);
       if (!canAccess(principal, b)) return { http: 404, code: 'not_found' };
       // 새 세션은 첫 질문 때 연결부가 엔진 세션을 만든다(Codex N1, Claude N2: 채널이 아닌 claude_cli 엔진).
@@ -299,6 +301,7 @@ export function openStore(path) {
           .run(requestId, conversationId, principal.userId, principal.appId, key, payloadHash,
             String(payload.question ?? ''), b.generation, fullPrefix, roomId, new Date().toISOString(), new Date().toISOString());
         db.prepare('INSERT INTO locks (session_key, holder_request_id) VALUES (?, ?)').run(lockKey, requestId);
+        if (accountKey) db.prepare('UPDATE requests SET account_key = ? WHERE request_id = ?').run(String(accountKey).slice(0, 120), requestId);
         // RC4: 그때의 실행 정보(다시 붙었을 때 같은 세션인지 비교). 작업 폴더는 그 PC 설정이라 PC가 알려 주지 않으면 비워 둔다.
         db.prepare('UPDATE requests SET snap = ? WHERE request_id = ?').run(JSON.stringify({ engine: b.engine, hostId: b.hostId, sessionRef: b.sessionRef, connectMode: b.connectMode,
           workMode: Boolean(db.prepare('SELECT 1 FROM work_modes WHERE conversation_id = ?').get(conversationId)) }), requestId);
@@ -436,6 +439,18 @@ export function openStore(path) {
       const s = String(summary ?? '').toLowerCase();
       return kind === 'command' && JSON.parse(r.patterns).some((p) => s.includes(String(p).toLowerCase()));
     },
+    // SV3-b: 계정별 사용량 — 오늘(이 서버 시간 0시부터) 질문 수, 이번 달 토큰(입력+출력). 취소·접수 거절은 빼고 접수된 질문은 센다.
+    accountUsage(accountKey, now = new Date()) {
+      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const month = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const today = db.prepare("SELECT COUNT(*) AS n FROM requests WHERE account_key = ? AND created_at >= ? AND status != 'cancelled'").get(accountKey, day).n;
+      let tokens = 0;
+      for (const r of db.prepare('SELECT usage FROM requests WHERE account_key = ? AND created_at >= ? AND usage IS NOT NULL').all(accountKey, month)) {
+        try { const u = JSON.parse(r.usage); tokens += (Number(u.inputTokens) || 0) + (Number(u.outputTokens) || 0); } catch { /* 형식이 틀리면 건너뜀 */ }
+      }
+      return { todayQuestions: today, monthTokens: tokens };
+    },
+    accountKeysSeen() { return db.prepare('SELECT DISTINCT account_key FROM requests WHERE account_key IS NOT NULL').all().map((r) => r.account_key); },
     // RC4: 재개 확인 — 그때 보낸 세션과 지금 이 대화의 세션이 같은지, 이어온 보관 기록이 그대로인지, 지금 막혀 있는지.
     // 엔진 쪽 이력(원래 세션에 그 차례가 남았는지)은 여기서 보지 않는다 — 사람이 원래 앱에서 확인하고 /review로 정리한다.
     resumeCheck(requestId) {

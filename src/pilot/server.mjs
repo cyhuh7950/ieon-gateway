@@ -301,6 +301,25 @@ export function createApp(config) {
     if (!h) return null;
     return (c.newSession ? h.codexKind : (h.codexKinds?.[String(c.sessionRef ?? '').toLowerCase()] ?? h.codexKind)) ?? null;
   };
+  // SV3-b: 이 대화가 쓰는 계정의 열쇠 "<PC>:<계정 ID>"(Codex만). 사용량을 계정마다 모으고 한도를 건다.
+  const accountKeyOf = (c) => {
+    if (c.engine !== 'codex_thread' || c.connectMode === 'shared_server') return null;
+    const h = health.get(c.hostId);
+    const id = c.newSession ? (h?.codexDefaultId ?? 'pc_default') : (h?.codexAccountIds?.[String(c.sessionRef ?? '').toLowerCase()] ?? h?.codexDefaultId ?? 'pc_default');
+    return `${c.hostId}:${id}`;
+  };
+  // 한도(설정 → 계정에서 신산님이 정함, 기본은 없음): { "<PC>:<계정>": { perDay: 질문 수, tokensPerMonth: 토큰 } }. API 계정에만 건다(구독은 공급자 한도).
+  const accountLimits = () => store.getSetting('account_limits')?.value ?? {};
+  const accountOver = (c) => {
+    const key = accountKeyOf(c);
+    if (!key || accountKind(c) !== 'api') return null;
+    const lim = accountLimits()[key];
+    if (!lim) return null;
+    const u = store.accountUsage(key);
+    if (lim.perDay && u.todayQuestions >= lim.perDay) return { key, reason: 'per_day', usage: u, limit: lim };
+    if (lim.tokensPerMonth && u.monthTokens >= lim.tokensPerMonth) return { key, reason: 'tokens_per_month', usage: u, limit: lim };
+    return null;
+  };
   // SV3(SERVER_SESSIONS 2-4, 신산님 결정 "다른 사람이 쓰는 서비스는 API형"): 주인 밖의 사람도 받는 봇(봇에 더한 사람이 있음)으로 온 질문은 서비스용.
   // 주인이 웹·앱에서 같은 대화를 쓰는 것은 그대로 둔다(주인 편의). 지금은 계정 종류를 아는 Codex만 지킨다.
   // 주인이 누구인지: 메신저 설정의 공통 허용 사용자(PC형) + 숫자 주인 등록 때 기록한 사람. 둘 다 없으면(예전에 허브에서 숫자로 등록)
@@ -348,6 +367,7 @@ export function createApp(config) {
       ...(rc?.known ? { resume: { verdict: rc.verdict, sameSession: rc.sameSession, historyKept: rc.historyKept } } : {}) }); }
     if (access && c.newSession && c.engine === 'codex_thread' && hubCodex.loggedIn === false) cards.push({ kind: 'hub_codex_login' });
     if (c.newSession?.state === 'archived') cards.push({ kind: 'archived' });
+    { const o = accountOver(c); if (o) cards.push({ kind: 'account_limit', reason: o.reason, usage: o.usage, limit: o.limit }); } // SV3-b: 주인에게도 보이게
     // SV0·SV1: 허브 자신이 돌리는 새 세션은 컨테이너 안이라 명령이 실패한다 → 글 답만(명령·파일 작업은 엔진 칸으로)
     if (access && c.newSession && c.hostId === nsHost && !containerBoundary()) cards.push({ kind: 'text_only' });
     if (live === false && !hubModeOn()) cards.push({ kind: 'live_off' });
@@ -430,7 +450,10 @@ export function createApp(config) {
             const kinds = h.codexKinds && typeof h.codexKinds === 'object' ? Object.entries(h.codexKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && KIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : [];
             health.set(device.hostId, { codexShared: String(h.codexShared), claudeChannel: String(h.claudeChannel),
               codexAccounts: Object.fromEntries(acc), codexDefault: typeof h.codexDefault === 'string' ? cleanLabel(h.codexDefault) : null,
-              codexKinds: Object.fromEntries(kinds), codexKind: KIND.has(h.codexKind) ? h.codexKind : null });
+              codexKinds: Object.fromEntries(kinds), codexKind: KIND.has(h.codexKind) ? h.codexKind : null,
+              // SV3-b: 대화별 계정 ID(정해진 모양만)
+              codexAccountIds: Object.fromEntries(h.codexAccountIds && typeof h.codexAccountIds === 'object' ? Object.entries(h.codexAccountIds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && /^[a-z0-9_]{2,16}$/.test(String(v))).map(([k, v]) => [k.toLowerCase(), String(v)]) : []),
+              codexDefaultId: /^[a-z0-9_]{2,16}$/.test(String(h.codexDefaultId ?? '')) ? String(h.codexDefaultId) : null });
           }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }
         // A2-d: 허브가 맡긴 기기 관리 명령. PC(허브 연결 중인 이어온 서버)가 가져가 자기 화면과 같은 코드로 실행하고 결과를 보낸다.
@@ -955,6 +978,25 @@ export function createApp(config) {
         }
         // P1-b: 기존 세션 등록(파일 등록은 보기만, 웹 등록은 추가·수정·삭제)
         if (req.method === 'GET' && path === '/v1/admin/bindings') return json(res, 200, { bindings: store.listBindings(), hosts: knownHosts() });
+        // SV3-b: 계정별 사용량·한도(설정 → 계정). host를 주면 그 PC·칸의 계정만.
+        if (req.method === 'GET' && path === '/v1/admin/account-usage') {
+          const host = url.searchParams.get('host');
+          const lim = accountLimits();
+          const keys = [...new Set([...store.accountKeysSeen(), ...Object.keys(lim)])].filter((k) => !host || k.startsWith(host + ':'));
+          return json(res, 200, { accounts: keys.map((k) => ({ key: k, accountId: k.split(':').slice(1).join(':'), ...store.accountUsage(k), limit: lim[k] ?? null })) });
+        }
+        const al = path.match(/^\/v1\/admin\/account-limits\/([\w-]{1,48}:[a-z0-9_]{2,16})$/);
+        if (al && req.method === 'PUT') {
+          if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+          const b = await readJson(req);
+          const n = (v) => (v === null || v === undefined || v === '' ? null : Number.isInteger(Number(v)) && Number(v) > 0 && Number(v) <= 1e10 ? Number(v) : NaN);
+          const perDay = n(b.perDay); const tokensPerMonth = n(b.tokensPerMonth);
+          if (Number.isNaN(perDay) || Number.isNaN(tokensPerMonth)) return json(res, 400, { error: 'bad_limit' });
+          const all = { ...accountLimits() };
+          if (!perDay && !tokensPerMonth) delete all[al[1]]; else all[al[1]] = { ...(perDay ? { perDay } : {}), ...(tokensPerMonth ? { tokensPerMonth } : {}) };
+          store.setSetting('account_limits', all);
+          return json(res, 200, { key: al[1], limit: all[al[1]] ?? null });
+        }
         const bd = path.match(/^\/v1\/admin\/bindings\/([\w-]+)$/);
         if (bd && req.method === 'PUT') {
           const r = store.saveBinding(principal.userId, validateBinding(bd[1], await readJson(req), knownHosts()));
@@ -1275,7 +1317,10 @@ export function createApp(config) {
         }
         // SV3: 서비스용 봇(다른 사람도 받음)은 API 키 계정만 — 엔진에 보내지 않고 고치는 길을 알려 준다
         if (serviceBlocked(principal, conv)) return json(res, 409, { error: 'service_needs_api_key' });
-        const r = store.submit(principal, m[1], key, { question });
+        // SV3-b: API 계정 한도(정해 둔 경우만) — 넘으면 보내지 않고 알림(대화 카드로 주인도 봄)
+        const over = accountOver(conv);
+        if (over) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'account_limit', reason: over.reason }) + '\n'); return json(res, 429, { error: 'account_limit_reached', reason: over.reason, usage: over.usage, limit: over.limit }); }
+        const r = store.submit(principal, m[1], key, { question }, { accountKey: accountKeyOf(conv) });
         if (r.http === 202) notify(m[1], { type: 'request', requestId: r.requestId, status: 'queued' });
         const web = config.publicUrl ?? store.getSetting('web_url')?.value ?? null; // RC3: 작업 열기 링크(공개 주소를 알 때만)
         return r.http === 202 ? json(res, 202, { requestId: r.requestId, ...(web ? { taskUrl: `${web}/#task=${r.requestId}` } : {}) }) : json(res, r.http, { error: r.code });

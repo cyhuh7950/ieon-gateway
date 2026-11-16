@@ -231,7 +231,10 @@ export function codexAccountHealth(config) {
   const kc = config.kindCache;
   const kinds = {};
   if (kc) { kc.get(); for (const t of config.codex?.allowlist ?? []) if (config.codex?.modes?.[t] !== 'shared_server') { const k = kc.kindFor(t); if (k) kinds[t] = k; } }
-  return { codexAccounts: out, codexDefault: accountLabel(config, codexAccountId(config, null)), ...(kc ? { codexKinds: kinds, codexKind: kc.kindFor(null) } : {}) };
+  // SV3-b: 대화별 계정 ID(사용량·한도를 계정마다 — 이름표는 바뀔 수 있어 ID로)
+  const ids = {};
+  for (const t of config.codex?.allowlist ?? []) if (config.codex?.modes?.[t] !== 'shared_server') ids[t] = codexAccountId(config, t);
+  return { codexAccounts: out, codexDefault: accountLabel(config, codexAccountId(config, null)), codexAccountIds: ids, codexDefaultId: codexAccountId(config, null), ...(kc ? { codexKinds: kinds, codexKind: kc.kindFor(null) } : {}) };
 }
 
 export { receiptLog };
