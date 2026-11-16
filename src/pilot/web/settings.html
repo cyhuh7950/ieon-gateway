@@ -155,6 +155,9 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <div class="row"><label for="acDefault">기본으로 쓸 계정</label><select id="acDefault"></select></div>
       <div class="muted">기본 계정은 새 세션과, 아래에서 따로 고르지 않은 대화에 쓰입니다. 동시 사용(공유 서버) 대화는 그 서버의 로그인을 씁니다.</div>
       <table class="list"><thead><tr><th>Codex 대화</th><th>쓸 계정</th></tr></thead><tbody id="acThreads"></tbody></table>
+      <h2>사용량·한도</h2>
+      <div class="muted">계정마다 오늘 질문 수와 이번 달 토큰입니다. 한도는 <b>API 키 계정</b>에만 걸려요(기본은 한도 없음). 넘으면 그 계정으로는 보내지 않고 알려요(자동으로 다시 보내지 않음).</div>
+      <table class="list"><thead><tr><th>계정</th><th>오늘 질문</th><th>이번 달 토큰</th><th>하루 질문 한도</th><th>한 달 토큰 한도</th><th></th></tr></thead><tbody id="acUsage"></tbody></table>
       <div class="muted">Claude 계정은 다음 단계(SV2)에서 넣습니다. 지금 Claude는 그 PC의 Claude Code 로그인을 씁니다.</div>
     </div>
   </section>
@@ -539,6 +542,25 @@ async function loadTargets() {
 }
 $('pcTarget').onchange = () => { pcTarget = $('pcTarget').value; loadDevice().catch(() => {}); loadMode().catch(() => {}); };
 $('acTarget').onchange = () => { acTarget = $('acTarget').value; loadAccounts().catch(() => {}); };
+// SV3-b: 계정별 사용량·한도(허브·PC 화면 같은 표). 고른 PC·칸이 있으면 그 계정만.
+async function loadUsage() {
+  const host = acTarget === 'local' || acTarget === 'hub' ? '' : acTarget;
+  const r = await api('/v1/admin/account-usage' + (host ? '?host=' + encodeURIComponent(host) : ''));
+  const tb = $('acUsage'); tb.innerHTML = '';
+  const list = r.status === 200 ? r.body.accounts : [];
+  if (!list.length) { const tr = el('tr'); tr.append(el('td', '아직 기록이 없어요', 'muted')); tb.append(tr); return; }
+  for (const a of list) {
+    const tr = el('tr');
+    tr.append(el('td', a.accountId === 'pc_default' ? a.key.split(':')[0] + ' 기본 로그인' : a.key), el('td', String(a.todayQuestions)), el('td', a.monthTokens.toLocaleString('ko-KR')));
+    const d = el('input'); d.type = 'number'; d.min = '1'; d.placeholder = '없음'; d.value = a.limit?.perDay ?? ''; d.style.width = '7em'; d.setAttribute('aria-label', a.key + ' 하루 질문 한도');
+    const m = el('input'); m.type = 'number'; m.min = '1'; m.placeholder = '없음'; m.value = a.limit?.tokensPerMonth ?? ''; m.style.width = '10em'; m.setAttribute('aria-label', a.key + ' 한 달 토큰 한도');
+    const td1 = el('td'); td1.append(d); const td2 = el('td'); td2.append(m);
+    const b = el('button', '저장'); b.type = 'button';
+    b.onclick = async () => { const y = await api('/v1/admin/account-limits/' + encodeURIComponent(a.key), { method: 'PUT', body: JSON.stringify({ perDay: d.value || null, tokensPerMonth: m.value || null }) }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? (y.body.limit ? '한도를 저장했어요' : '한도를 없앴어요') : '한도는 1 이상의 정수로 넣으세요'); loadUsage(); };
+    const td3 = el('td'); td3.append(b);
+    tr.append(td1, td2, td3); tb.append(tr);
+  }
+}
 async function loadDevice() {
   if (pcTarget === 'none') { $('devBox').hidden = true; return; }
   const r = await devRun('device.get'); $('devBox').hidden = r.status !== 200;
@@ -636,6 +658,7 @@ async function loadAccounts() {
     box.append(el('div', '코드: ' + (waiting.login.code ?? '받는 중…'), 'code'));
   }
   clearTimeout(acPoll); if (waiting) acPoll = setTimeout(() => loadAccounts().catch(() => {}), 3000);
+  loadUsage().catch(() => {});
   const opts = [['pc_default', acTarget === 'hub' ? '허브 기본 로그인(허브 보안·Codex 탭의 로그인)' : 'PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.loggedIn ? '' : ' (로그인 안 됨)')])];
   const fill = (sel, list, val) => { sel.innerHTML = ''; for (const [v, t] of list) { const o = el('option', t); o.value = v; sel.append(o); } sel.value = val; };
   fill($('acDefault'), opts, d.defaultAccount);

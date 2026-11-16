@@ -80,8 +80,8 @@ test('어댑터: 고른 계정 환경을 SDK에만 넘기고, 거절이면 SDK�
 
 test('연결부 상태: 대화별 이어온 계정 이름표만 알리고(PC 기본·공유 서버는 빼고), 서버 목록에 그 계정이 보인다', async (t) => {
   const cfg = { codex: { allowlist: [T1, T2], modes: { [T2]: 'shared_server' }, accounts: [{ id: 'a1', label: '회사' }], defaultAccount: 'a1' } };
-  assert.deepEqual(codexAccountHealth(cfg), { codexAccounts: { [T1]: '회사' }, codexDefault: '회사' });
-  assert.deepEqual(codexAccountHealth({ codex: { allowlist: [T1] } }), { codexAccounts: {}, codexDefault: null });
+  assert.deepEqual(codexAccountHealth(cfg), { codexAccounts: { [T1]: '회사' }, codexDefault: '회사', codexAccountIds: { [T1]: 'a1' }, codexDefaultId: 'a1' }); // SV3-b: 계정 ID도(공유 서버 대화는 빼고)
+  assert.deepEqual(codexAccountHealth({ codex: { allowlist: [T1] } }), { codexAccounts: {}, codexDefault: null, codexAccountIds: { [T1]: 'pc_default' }, codexDefaultId: 'pc_default' });
   const d = tmp(t, 'ieon-a2h-');
   const app = createApp({ dbPath: join(d, 'p.db'), users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }], devices: [{ tokenSha256: sha('dev'), hostId: 'h_pc' }],
     bindings: [{ conversationId: 'c1', ownerUserId: 'u_sinsan', appIds: ['app_web'], hostId: 'h_pc', engine: 'codex_thread', sessionRef: T1 },
