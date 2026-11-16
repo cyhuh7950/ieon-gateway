@@ -155,6 +155,10 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <div class="row"><label for="acDefault">기본으로 쓸 계정</label><select id="acDefault"></select></div>
       <div class="muted">기본 계정은 새 세션과, 아래에서 따로 고르지 않은 대화에 쓰입니다. 동시 사용(공유 서버) 대화는 그 서버의 로그인을 씁니다.</div>
       <table class="list"><thead><tr><th>Codex 대화</th><th>쓸 계정</th></tr></thead><tbody id="acThreads"></tbody></table>
+      <h2>Claude 계정</h2>
+      <div id="clBox" class="muted">불러오는 중…</div>
+      <form id="clKeyForm" class="row" hidden><input id="clKey" type="password" placeholder="Claude API 키(sk-ant-…)" autocomplete="off" aria-label="Claude API 키"><button class="primary" type="submit">API 키 넣기</button><button type="button" id="clKeyCancel">취소</button></form>
+      <form id="clCodeForm" class="row" hidden><input id="clCode" placeholder="승인 뒤 받은 코드 붙여 넣기" autocomplete="off" aria-label="Claude 로그인 코드"><button class="primary" type="submit">코드 넣기</button></form>
       <h2>사용량·한도</h2>
       <div class="muted">계정마다 오늘 질문 수와 이번 달 토큰입니다. 한도는 <b>API 키 계정</b>에만 걸려요(기본은 한도 없음). 넘으면 그 계정으로는 보내지 않고 알려요(자동으로 다시 보내지 않음).</div>
       <table class="list"><thead><tr><th>계정</th><th>오늘 질문</th><th>이번 달 토큰</th><th>하루 질문 한도</th><th>한 달 토큰 한도</th><th></th></tr></thead><tbody id="acUsage"></tbody></table>
@@ -659,6 +663,7 @@ async function loadAccounts() {
   }
   clearTimeout(acPoll); if (waiting) acPoll = setTimeout(() => loadAccounts().catch(() => {}), 3000);
   loadUsage().catch(() => {});
+  loadClaude().catch(() => {});
   const opts = [['pc_default', acTarget === 'hub' ? '허브 기본 로그인(허브 보안·Codex 탭의 로그인)' : 'PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.loggedIn ? '' : ' (로그인 안 됨)')])];
   const fill = (sel, list, val) => { sel.innerHTML = ''; for (const [v, t] of list) { const o = el('option', t); o.value = v; sel.append(o); } sel.value = val; };
   fill($('acDefault'), opts, d.defaultAccount);
@@ -676,6 +681,53 @@ async function loadAccounts() {
     tr.append(td); tt.append(tr);
   }
 }
+// SV2(신산님 2026-11-17 제1원칙): 서버 Claude 로그인은 허브 화면에서 한 번 — 허브와 모든 엔진 칸이 같이 씀. 구독(승인 창 → 코드 붙여 넣기)·API 키 둘 다.
+// 토큰·키는 화면에 다시 보이지 않고 서버의 같이 쓰는 폴더에만 저장된다. PC는 그 PC의 Claude Code 로그인을 그대로 쓴다.
+const CL_KIND = { api: 'API 키', subscription: '구독' };
+const CL_ERR = { bad_api_key: 'Claude API 키(sk-ant-로 시작) 형식이 아니에요', bad_code: '코드 형식이 아니에요', not_waiting: '로그인을 다시 시작하세요', claude_login_on_hub: '서버 Claude 로그인은 "허브" 계정 화면에서 바꿔요(모든 칸이 같이 씀)' };
+const CL_FAIL = { timeout: '15분이 지나 취소됐어요', login_failed: '로그인하지 못했어요(코드를 다시 확인하세요)', exited: '로그인 창이 닫혔어요', claude_not_installed: '서버에 Claude Code가 없어요', not_writable: '여기서는 바꿀 수 없어요', save_failed: '저장하지 못했어요' };
+let clPoll = null;
+async function loadClaude() {
+  const r = await acRun('claude.get'); const box = $('clBox'); box.innerHTML = '';
+  if (r.status !== 200) { box.textContent = HOST_ERR[r.body.error] || CL_ERR[r.body.error] || r.body.error; return; }
+  const c = r.body;
+  if (!c.shared) { box.textContent = '이 PC의 Claude Code 로그인을 그대로 써요(따로 할 일 없음).'; $('clKeyForm').hidden = true; $('clCodeForm').hidden = true; return; }
+  const state = c.kind ? '로그인됨 · ' + CL_KIND[c.kind] : (c.login.state === 'waiting' ? '로그인을 기다리는 중' : '로그인 필요');
+  box.append(el('div', (c.canLogin ? '서버 Claude 로그인(허브·모든 칸이 같이 씀): ' : '허브의 Claude 로그인을 같이 써요: ') + state, c.kind ? 'ok' : 'warn'));
+  if (c.login.state === 'failed' || c.login.state === 'cancelled') box.append(el('div', c.login.state === 'cancelled' ? '로그인을 취소했어요' : (CL_FAIL[c.login.error] || '로그인하지 못했어요'), 'warn'));
+  if (!c.canLogin) { box.append(el('div', '바꾸려면 위 "어디의 계정"에서 허브를 고르세요.')); return; }
+  const row = el('div'); row.className = 'row';
+  const act = (text, fn, primary) => { const b = el('button', text); b.type = 'button'; if (primary) b.className = 'primary'; b.onclick = fn; row.append(b); };
+  if (c.login.state === 'waiting') {
+    box.append(el('div', '① "승인 창 열기"에서 Claude 계정으로 승인 → ② 나온 코드를 복사해 아래 칸에 붙여 넣기. 토큰은 이어온이 서버에 바로 저장해요(1년 동안 유지).'));
+    if (c.login.url) act('승인 창 열기', () => window.open(c.login.url, 'ieon_claude_login', 'width=520,height=760'), true);
+    else box.append(el('div', '승인 주소를 받는 중…'));
+    act('취소', async () => { await acRun('claude.login.cancel'); loadClaude(); });
+    $('clCodeForm').hidden = !c.login.url || c.login.codeSent;
+    if (c.login.codeSent) box.append(el('div', '코드를 넣었어요 — 확인 중…'));
+  } else {
+    $('clCodeForm').hidden = true;
+    act(c.kind ? '다시 로그인(구독)' : '로그인(구독)', async () => { const y = await acRun('claude.login'); if (y.status !== 200) setStatus('err', CL_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); loadClaude(); }, !c.kind);
+    act('API 키', () => { $('clKeyForm').hidden = false; $('clKey').value = ''; $('clKey').focus(); });
+    if (c.kind) act('로그아웃', async () => { if (!confirm('서버 Claude 로그인을 지울까요? 허브와 모든 칸의 Claude 대화는 다시 로그인할 때까지 보내지 못해요.')) return; await acRun('claude.logout'); loadClaude(); });
+  }
+  box.append(row);
+  clearTimeout(clPoll); if (c.login.state === 'waiting') clPoll = setTimeout(() => loadClaude().catch(() => {}), 3000);
+}
+document.addEventListener('submit', async (e) => {
+  if (e.target?.id === 'clKeyForm') {
+    e.preventDefault(); const v = $('clKey').value.trim(); $('clKey').value = '';
+    if (!/^sk-ant-[A-Za-z0-9_-]{20,300}$/.test(v)) return setStatus('err', CL_ERR.bad_api_key);
+    const r = await acRun('claude.apikey', { key: v }); $('clKeyForm').hidden = true;
+    setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'Claude API 키를 넣었어요 — 허브와 모든 칸이 같이 써요' : (CL_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error)); loadClaude();
+  }
+  if (e.target?.id === 'clCodeForm') {
+    e.preventDefault(); const v = $('clCode').value.trim(); $('clCode').value = '';
+    const r = await acRun('claude.code', { code: v });
+    if (r.status !== 200) setStatus('err', CL_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error); loadClaude();
+  }
+});
+document.addEventListener('click', (e) => { if (e.target?.id === 'clKeyCancel') { $('clKeyForm').hidden = true; $('clKey').value = ''; } });
 async function useAccount(body) {
   const r = await acRun('accounts.use', body);
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '쓸 계정을 바꿨습니다' + devNote(r.body) : (AC_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error)); loadAccounts();

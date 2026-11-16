@@ -9,14 +9,16 @@ import { mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { EngineError, StoppedError } from '../contracts.mjs';
 import { checkNewSession } from '../new-sessions.mjs';
+import { claudeAuthEnv } from '../claude-login.mjs';
 
 const TIMEOUT_MS = 300000;
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // RC2: signal(멈춤)이 오면 그 실행만 끝낸다 — 프로세스가 닫힌 뒤 stopped로 알린다.
-export function spawnClaude(args, input, { cwd, timeoutMs = TIMEOUT_MS, signal = null }) {
+// SV2: 서버(허브·엔진 칸)에서는 같이 쓰는 Claude 로그인(구독 토큰 또는 API 키)을 실행할 때마다 읽어 넣는다. PC는 그 PC의 로그인 그대로.
+export function spawnClaude(args, input, { cwd, timeoutMs = TIMEOUT_MS, signal = null, env = claudeAuthEnv() }) {
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, { cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn('claude', args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     let stdout = ''; let stopped = false;
     const onStop = () => { stopped = true; child.kill(); };
     if (signal?.aborted) onStop(); else signal?.addEventListener('abort', onStop, { once: true });

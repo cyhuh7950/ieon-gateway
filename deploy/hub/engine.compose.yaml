@@ -16,10 +16,12 @@ services:
       IEON_HUB_URL: ${IEON_HUB_URL:-https://ieun-gateway.sinsan.kr}
       IEON_ENGINE_NAME: ${ENGINE_LABEL:-서버}
       IEON_SHARED_CODEX_AUTH: /shared/codex/auth.json   # 허브의 Codex 로그인을 같이 씀(칸마다 로그인하지 않음)
+      IEON_SHARED_CLAUDE_DIR: /shared/claude   # SV2: 허브의 Claude 로그인을 같이 씀(읽기만 — 바꾸기는 허브 화면에서)
       IEON_CONTAINER_BOUNDARY: "1"   # 작업 모드는 컨테이너가 경계(엔진 샌드박스 대신) — 명령·파일 수정은 여전히 승인 카드로 묻는다
     volumes:
       - ../../engines/${ENGINE_NAME}/data:/data
       - ../../hub/data/shared-auth/codex:/shared/codex   # 허브 로그인 파일만 있는 폴더(허브 대화 이력은 붙이지 않음)
+      - ../../hub/data/shared-auth/claude:/shared/claude:ro   # SV2: 허브 Claude 로그인(구독 토큰 또는 API 키 파일 하나)
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: ${ENGINE_MEM:-1g}

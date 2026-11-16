@@ -214,9 +214,10 @@ export function createApp(config) {
       return { status: 200, body: { ...this.view(), hub } };
     },
   };
-  const deviceAdmin = access ? null : createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath, applyDevice, accountLogin: config.accountLogin, log: adminLog, modeAdmin,
+  const claudeOpts = { ...(config.claudeAuthDir !== undefined ? { claudeDir: config.claudeAuthDir } : {}), ...(config.claudeLogin ? { claudeLogin: config.claudeLogin } : {}) }; // SV2
+  const deviceAdmin = access ? null : createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath, applyDevice, accountLogin: config.accountLogin, log: adminLog, modeAdmin, ...claudeOpts,
     connectorState: () => ({ managed: Boolean(localConnector), running: localConnector?.running() ?? null, mode: mode() }) }); // M1: 허브 화면에도 그 PC의 사용 방식
-  const hubAdmin = access ? createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json'), accountLogin: config.accountLogin, log: adminLog,
+  const hubAdmin = access ? createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json'), accountLogin: config.accountLogin, log: adminLog, ...claudeOpts,
     applyDevice: async () => ({ restarted: true, restartRequired: false }) }) : null; // 허브 연결부는 설정 파일이 바뀌면 스스로 다시 시작
   // A2-d: 허브 자신의 연결부(허브 새 세션 실행) 기기 ID. 허브 연결부 설정의 기기 토큰과 맞는 기기를 찾는다(토큰은 해시로만 비교, 출력 없음).
   // 이 기기는 PC가 아니므로 PC 목록에서 빼고, 그쪽으로 온 관리 명령은 허브 자신(계정 명령만)으로 처리한다.
@@ -281,6 +282,7 @@ export function createApp(config) {
     // A2-d: 허브 새 세션도 허브에서 고른 이어온 계정이면 그 이름표(허브 연결부가 알려 줌)
     const hubMine = access && c.newSession && c.engine === 'codex_thread' ? health.get(c.hostId)?.codexDefault : null;
     if (hubMine) return { mode: 'ieon_login', label: '이어온 계정 ' + hubMine + ' (허브)' };
+    if (c.engine === 'claude_cli' && health.get(c.hostId)?.claudeKind) return { mode: 'hub_login', label: '서버 Claude 로그인(허브·모든 칸이 같이 씀)', ...kindTag(c) }; // SV2
     if (access && c.newSession) return { mode: 'hub_login', label: c.engine === 'codex_thread' ? '허브의 Codex 로그인' : '허브의 Claude 로그인' };
     if (c.engine === 'claude_channel') return { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' };
     if (c.engine === 'claude_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
@@ -296,6 +298,7 @@ export function createApp(config) {
   };
   // SV3: 이 대화의 질문이 나가는 계정의 종류(구독/API). Codex 기존 대화·새 세션만 안다(그 밖은 null).
   const accountKind = (c) => {
+    if (c.engine === 'claude_cli') return health.get(c.hostId)?.claudeKind ?? null; // SV2: 서버 Claude 로그인 종류
     if (c.engine !== 'codex_thread' || c.connectMode === 'shared_server') return null;
     const h = health.get(c.hostId);
     if (!h) return null;
@@ -303,6 +306,7 @@ export function createApp(config) {
   };
   // SV3-b: 이 대화가 쓰는 계정의 열쇠 "<PC>:<계정 ID>"(Codex만). 사용량을 계정마다 모으고 한도를 건다.
   const accountKeyOf = (c) => {
+    if (c.engine === 'claude_cli') return health.get(c.hostId)?.claudeKind ? `${c.hostId}:claude` : null; // SV2: 서버 Claude 로그인 한 벌
     if (c.engine !== 'codex_thread' || c.connectMode === 'shared_server') return null;
     const h = health.get(c.hostId);
     const id = c.newSession ? (h?.codexDefaultId ?? 'pc_default') : (h?.codexAccountIds?.[String(c.sessionRef ?? '').toLowerCase()] ?? h?.codexDefaultId ?? 'pc_default');
@@ -339,6 +343,7 @@ export function createApp(config) {
     if (!principal.bot) return false;
     const bot = store.bot(principal.bot.platform, principal.bot.botId);
     if (!bot || !hasOthers(principal.bot.platform, bot)) return false; // 주인만 받는 봇은 개인용
+    if (c.engine === 'claude_cli') { const k = accountKind(c); return k !== null && k !== 'api'; } // SV2: 서버 Claude가 구독 로그인이면 서비스용은 막음(종류를 모르는 PC Claude는 그대로)
     if (c.engine !== 'codex_thread' || c.connectMode === 'shared_server') return false;
     return accountKind(c) !== 'api';
   };
@@ -453,7 +458,8 @@ export function createApp(config) {
               codexKinds: Object.fromEntries(kinds), codexKind: KIND.has(h.codexKind) ? h.codexKind : null,
               // SV3-b: 대화별 계정 ID(정해진 모양만)
               codexAccountIds: Object.fromEntries(h.codexAccountIds && typeof h.codexAccountIds === 'object' ? Object.entries(h.codexAccountIds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && /^[a-z0-9_]{2,16}$/.test(String(v))).map(([k, v]) => [k.toLowerCase(), String(v)]) : []),
-              codexDefaultId: /^[a-z0-9_]{2,16}$/.test(String(h.codexDefaultId ?? '')) ? String(h.codexDefaultId) : null });
+              codexDefaultId: /^[a-z0-9_]{2,16}$/.test(String(h.codexDefaultId ?? '')) ? String(h.codexDefaultId) : null,
+              claudeKind: KIND.has(h.claudeKind) ? h.claudeKind : null }); // SV2
           }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }
         // A2-d: 허브가 맡긴 기기 관리 명령. PC(허브 연결 중인 이어온 서버)가 가져가 자기 화면과 같은 코드로 실행하고 결과를 보낸다.
@@ -1170,8 +1176,11 @@ export function createApp(config) {
           // 봇에서 만들면 그 봇의 역할(엔진·권한 제한, AI 역할 안내)을 적용한다.
           const bot = principal.bot && store.bot(principal.bot.platform, principal.bot.botId);
           const role = bot?.roleId ? store.listRoles().find((q) => q.roleId === bot.roleId) ?? null : null;
+          // SV2: 만들 곳을 고를 수 있다(허브 목록의 PC·엔진 칸). 없으면 지금처럼 기본(허브 자신 또는 첫 PC).
+          const target = body.hostId === undefined || body.hostId === null || body.hostId === '' ? nsHost : String(body.hostId);
+          if (target !== nsHost && !knownHosts().includes(target)) return json(res, 404, { error: 'unknown_host' });
           const r = store.createSession(principal, { engine: body.engine, name: body.name, profile: body.profile,
-            hostId: nsHost, via: principal.bot ? 'chat' : (VIA[principal.appId] ?? 'api'), role }, nsCfg);
+            hostId: target, via: principal.bot ? 'chat' : (VIA[principal.appId] ?? 'api'), role }, nsCfg);
           return r.http === 201 ? json(res, 201, { conversationId: r.conversationId, name: r.name, engine: r.engine, profile: r.profile })
             : json(res, r.http, { error: r.code, ...(r.limit ? { limit: r.limit } : {}), ...(r.allowed ? { allowed: r.allowed } : {}) });
         }

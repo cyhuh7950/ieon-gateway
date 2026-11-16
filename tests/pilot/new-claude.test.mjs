@@ -98,9 +98,12 @@ test('live가 꺼져 있거나 실행이 실패하면 실행하지 않거나 실
   await assert.rejects(err.adapter.run(job(err.root)), (e) => e.unknownCode === 'claude_error' && /^[0-9a-f-]{36}$/.test(e.sessionRef));
 });
 
-test('작업 폴더는 workspaceRoot 바로 아래만 허용한다', async (t) => {
-  const { adapter, root } = setup(t);
-  await assert.rejects(adapter.run(job(root, { newSession: { name: 'cl', profile: 'workspace', workspace: join(root, '..', 'cl') } })),
+test('작업 폴더는 이 연결부의 workspaceRoot 바로 아래만 — 허브가 보낸 경로 앞부분은 쓰지 않고, 이름이 다르면 거부(SV2)', async (t) => {
+  const { adapter, claude, root } = setup(t);
+  // 허브(다른 기계)의 경로가 와도 이 연결부(엔진 칸)의 뿌리 + 이름으로 실행 — 밖으로 나가지 않는다
+  await adapter.run(job(root, { newSession: { name: 'cl', profile: 'workspace', workspace: join(root, '..', 'other-machine', 'cl') } }));
+  assert.equal(claude.calls[0].cwd, join(root, 'cl'));
+  await assert.rejects(adapter.run(job(root, { newSession: { name: 'cl', profile: 'workspace', workspace: join(root, '..', 'escape') } })),
     { code: 'bad_workspace' });
 });
 

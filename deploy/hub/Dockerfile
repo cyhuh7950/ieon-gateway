@@ -6,7 +6,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+# SV2: 서버 Claude(허브 새 세션·엔진 칸). 판을 고정해 실측한 동작(환경 변수 로그인·setup-token 화면)이 바뀌지 않게 한다. 로그인은 이어온 화면에서 한 번.
+RUN npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.326 && npm cache clean --force
 COPY src/ ./src/
 COPY scripts/ ./scripts/
-ENV NODE_ENV=production HOME=/data/home CODEX_HOME=/data/codex
+ENV NODE_ENV=production HOME=/data/home CODEX_HOME=/data/codex DISABLE_AUTOUPDATER=1
 CMD ["node", "src/hub/run.mjs", "/data"]
