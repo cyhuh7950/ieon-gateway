@@ -152,6 +152,7 @@ export function createApp(config) {
   // W2: 허용 목록에 없는 사람이 보낸 최근 메시지(메신저가 알려 줌). 웹의 "이 사람 허용" 버튼에 쓴다. 메시지 내용은 받지 않는다.
   const denied = new Map();
   // U5(UD3): 메신저 주인 등록 숫자. 봇마다 하나, 6자리·10분·1회용, 틀린 시도 5번이면 잠김. 숫자는 로그에 남기지 않는다.
+  const noteOwner = (platform, userId) => { const all = store.getSetting('messenger_owners')?.value ?? {}; const list = new Set((all[platform] ?? []).map(String)); list.add(String(userId)); store.setSetting('messenger_owners', { ...all, [platform]: [...list] }); };
   const claims = new Map(); // "<메신저>:<봇ID>" → { code, expMs, tries, state: waiting|claimed|locked, name }
   const CLAIM_MS = config.claimMs ?? 10 * 60_000; // 시험에서만 짧게
   const claimView = (c) => (!c ? 'none' : c.state === 'waiting' && Date.now() > c.expMs ? 'expired' : c.state);
@@ -275,6 +276,7 @@ export function createApp(config) {
   };
   // A1(ENGINE_ACCOUNTS EA10 최소 규칙): 이 대화의 질문이 어느 계정(접속)의 사용량으로 나가는지 늘 보이게 한다.
   // 계정 고르기(A2) 전에는 어떤 접속인지 사실대로 알린다 — PC 대화는 그 PC의 앱 로그인을 그대로 쓴다.
+  const kindTag = (c) => { const k = accountKind(c); return k ? { kind: k } : {}; }; // SV3: 구독/API
   const accountOf = (c) => {
     // A2-d: 허브 새 세션도 허브에서 고른 이어온 계정이면 그 이름표(허브 연결부가 알려 줌)
     const hubMine = access && c.newSession && c.engine === 'codex_thread' ? health.get(c.hostId)?.codexDefault : null;
@@ -289,8 +291,37 @@ export function createApp(config) {
     // A2: 연결부가 알려 준 이어온 전용 계정(대화별 → 새 세션은 기본)
     const h = health.get(c.hostId);
     const mine = c.newSession ? h?.codexDefault : h?.codexAccounts?.[String(c.sessionRef ?? '').toLowerCase()];
-    if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine };
-    return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정' };
+    if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine, ...kindTag(c) };
+    return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정', ...kindTag(c) };
+  };
+  // SV3: 이 대화의 질문이 나가는 계정의 종류(구독/API). Codex 기존 대화·새 세션만 안다(그 밖은 null).
+  const accountKind = (c) => {
+    if (c.engine !== 'codex_thread' || c.connectMode === 'shared_server') return null;
+    const h = health.get(c.hostId);
+    if (!h) return null;
+    return (c.newSession ? h.codexKind : (h.codexKinds?.[String(c.sessionRef ?? '').toLowerCase()] ?? h.codexKind)) ?? null;
+  };
+  // SV3(SERVER_SESSIONS 2-4, 신산님 결정 "다른 사람이 쓰는 서비스는 API형"): 주인 밖의 사람도 받는 봇(봇에 더한 사람이 있음)으로 온 질문은 서비스용.
+  // 주인이 웹·앱에서 같은 대화를 쓰는 것은 그대로 둔다(주인 편의). 지금은 계정 종류를 아는 Codex만 지킨다.
+  // 주인이 누구인지: 메신저 설정의 공통 허용 사용자(PC형) + 숫자 주인 등록 때 기록한 사람. 둘 다 없으면(예전에 허브에서 숫자로 등록)
+  // 봇에 더한 사람 중 처음 사람이 주인이다(허브는 숫자 주인 등록 때 주인을 그 칸에 넣었다 — 2026-11-17 허브 실데이터 확인).
+  const messengerOwners = (platform) => {
+    let cfg = [];
+    try { if (config.messengerConfigPath && existsSync(config.messengerConfigPath)) cfg = (JSON.parse(readFileSync(config.messengerConfigPath, 'utf8')).allowedUsers?.[platform] ?? []).map(String); } catch { cfg = []; }
+    return [...cfg, ...((store.getSetting('messenger_owners')?.value ?? {})[platform] ?? []).map(String)];
+  };
+  const hasOthers = (platform, bot) => {
+    const extra = (bot.extraUsers ?? []).map(String);
+    const owners = messengerOwners(platform);
+    const known = owners.length ? owners : extra.slice(0, 1);
+    return extra.some((u) => !known.includes(u));
+  };
+  const serviceBlocked = (principal, c) => {
+    if (!principal.bot) return false;
+    const bot = store.bot(principal.bot.platform, principal.bot.botId);
+    if (!bot || !hasOthers(principal.bot.platform, bot)) return false; // 주인만 받는 봇은 개인용
+    if (c.engine !== 'codex_thread' || c.connectMode === 'shared_server') return false;
+    return accountKind(c) !== 'api';
   };
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
   const approvalTtlMs = config.approvalTtlMs ?? 15 * 60_000; // W1: 15분 안에 답이 없으면 거부
@@ -394,8 +425,12 @@ export function createApp(config) {
             // A2: 대화별 이어온 전용 계정 이름표(문자열만, 개수·길이 제한)
             const acc = h.codexAccounts && typeof h.codexAccounts === 'object' ? Object.entries(h.codexAccounts).slice(0, 100)
               .filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && typeof v === 'string').map(([k, v]) => [k.toLowerCase(), cleanLabel(v)]) : [];
+            // SV3: 계정 종류(구독/API) — 정해진 값만
+            const KIND = new Set(['api', 'subscription']);
+            const kinds = h.codexKinds && typeof h.codexKinds === 'object' ? Object.entries(h.codexKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && KIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : [];
             health.set(device.hostId, { codexShared: String(h.codexShared), claudeChannel: String(h.claudeChannel),
-              codexAccounts: Object.fromEntries(acc), codexDefault: typeof h.codexDefault === 'string' ? cleanLabel(h.codexDefault) : null });
+              codexAccounts: Object.fromEntries(acc), codexDefault: typeof h.codexDefault === 'string' ? cleanLabel(h.codexDefault) : null,
+              codexKinds: Object.fromEntries(kinds), codexKind: KIND.has(h.codexKind) ? h.codexKind : null });
           }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }
         // A2-d: 허브가 맡긴 기기 관리 명령. PC(허브 연결 중인 이어온 서버)가 가져가 자기 화면과 같은 코드로 실행하고 결과를 보낸다.
@@ -1030,6 +1065,7 @@ export function createApp(config) {
           }
           const bot = store.bot(platform, botId);
           if (!bot) return json(res, 404, { error: 'unknown_bot' });
+          noteOwner(platform, userId); // SV3: 서비스용 판정에 쓰는 주인 기록
           if (owner) { // 이미 허용됨: 허용 목록은 그대로 두고 화면에 완료만 알린다
             c.state = 'claimed'; c.name = b.name ? String(b.name).slice(0, 60) : null;
             process.stderr.write(JSON.stringify({ ch: 'server', event: 'claim_done', platform, botId, already: true }) + '\n');
@@ -1237,6 +1273,8 @@ export function createApp(config) {
         if (engineReady(conv) === false) {
           return json(res, 503, { error: conv.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down' });
         }
+        // SV3: 서비스용 봇(다른 사람도 받음)은 API 키 계정만 — 엔진에 보내지 않고 고치는 길을 알려 준다
+        if (serviceBlocked(principal, conv)) return json(res, 409, { error: 'service_needs_api_key' });
         const r = store.submit(principal, m[1], key, { question });
         if (r.http === 202) notify(m[1], { type: 'request', requestId: r.requestId, status: 'queued' });
         const web = config.publicUrl ?? store.getSetting('web_url')?.value ?? null; // RC3: 작업 열기 링크(공개 주소를 알 때만)
