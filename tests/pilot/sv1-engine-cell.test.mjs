@@ -21,6 +21,7 @@ test('엔진 칸 준비: PC와 같은 설정(토큰은 해시만)·사용 방식
   const token = readFileSync(join(d, '.local/s2/user-token'), 'utf8');
   assert.ok(!JSON.stringify(server).includes(token), '설정에는 토큰 원문이 없다');
   assert.equal(JSON.parse(readFileSync(p.mode, 'utf8')).mode, 'hub');
+  assert.equal(server.connectorConfigPath, p.connector, '서버가 허브로 연결부를 띄울 수 있게 연결부 설정 경로');
   assert.equal(JSON.parse(readFileSync(p.connector, 'utf8')).live, false, 'AI 응답은 꺼진 채로 시작(허브 화면에서 켬)');
   const before = readFileSync(p.server, 'utf8');
   assert.deepEqual(prepareEngine(d), []);
