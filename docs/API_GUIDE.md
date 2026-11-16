@@ -369,6 +369,8 @@ POST /v1/requests/req_123/stop
 - 결과 조회에 `stopRequested: true`가 붙으면 멈춤 요청을 받은 상태다.
 - 409: `not_running`(이미 끝남, 응답에 그때 `status`), `stop_unsupported`(사람이 띄운 Claude 채널 창은 실행 중에 멈출 수 없음 — 원래 창에서).
 
+**재개 확인(RC4)** — `GET /v1/tasks/{requestId}`의 `resume`: `known`(이 기능 전에 접수된 질문은 false), `verdict`(`same` 같은 세션 · `needs_review` 같은 세션이지만 확인 필요 질문이 막고 있음 · `mismatch` 세션·엔진·PC가 바뀜), `sameSession`·`sameEngine`·`sameHost`·`sameConnectMode`·`historyKept`(이어온 보관 기록이 그대로인지)·`isLatest`·`deviceOnline`, `then`/`now`(엔진·PC·연결 방식, 그때는 작업 모드 여부까지), `heldBy`. **세션 ID는 싣지 않는다** — 같은지·다른지만. 원래 세션에 그 차례가 실제로 남았는지는 보지 않으니 원래 앱에서 확인하고 7절처럼 정리한다.
+
 
 **기록 보기 / 지우기**
 
