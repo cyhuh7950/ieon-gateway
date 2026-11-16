@@ -8,6 +8,7 @@ import { DEFAULT_BOT, migrateRooms } from '../bots.mjs';
 
 const MAX_CHUNK = { telegram: 3800, discord: 1900, slack: 3800, kakao: 950, line: 4800 };
 const ERR = {
+  service_needs_api_key: '이 봇은 주인 말고 다른 사람도 받는 서비스용이라 API 키 계정이 필요해요 — 이어온 화면 설정 → 계정에서 그 PC·칸의 [API 키]를 한 번 넣으면 바로 돼요(주인은 웹에서 그대로 쓸 수 있어요)',
   conversation_busy: '이 세션에서 처리 중인 질문이 있어 보낼 수 없음',
   device_unavailable: 'PC 연결이 끊겨 보낼 수 없음',
   hub_mode: '이 PC는 허브에 연결돼 있어 여기서 받은 질문은 처리하지 않음 — 허브에 연결된 봇이나 허브 화면에서 보내기',

@@ -4,7 +4,8 @@
 import { appendFileSync, existsSync, openSync, fsyncSync, closeSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { EngineError, StoppedError } from './contracts.mjs';
-import { accountsDirFor, accountLabel, codexAccountId } from './accounts.mjs';
+import { accountsDirFor, accountLabel, codexAccountId, codexAccounts, codexHomeOf, desktopCodexHome, PC_DEFAULT } from './accounts.mjs';
+import { createCodexLogin } from './codex-login.mjs';
 
 // P3: 허브 주소 검사. 공개 주소는 https만, http는 이 PC(127.0.0.1·localhost)만. 사용자 정보·쿼리·조각은 거절한다.
 export function validateServerUrl(raw) {
@@ -160,6 +161,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   (await import('./parent-watch.mjs')).watchParent(); // W6: 서버가 띄운 경우, 서버가 사라지면 함께 끝난다
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
   config.accountsDir = accountsDirFor(process.argv[2], config); // A2: 이어온 전용 계정 폴더 뿌리
+  config.kindCache = codexKindCache(config); // SV3: 계정 종류(구독/API) 자동 인식
   // 허브 컨테이너(감독 프로세스가 다시 띄움)에서는 설정 파일이 바뀌면 끝나서 새 설정으로 다시 시작한다(허브 웹의 실행 스위치).
   if (process.env.IEON_EXIT_ON_CONFIG_CHANGE === '1') {
     const { watchFile } = await import('node:fs');
@@ -195,6 +197,29 @@ export async function engineHealth(config) {
   };
 }
 
+// SV3: 계정 종류를 Codex에 직접 물어 자동으로 안다(공식 `codex login status` — "ChatGPT"면 구독, "API key"면 API). 사용자가 적을 필요 없음.
+// 몇 초 걸리므로 5분마다 한 번만 묻고 결과를 둔다(작업 조회는 2초마다라 그때마다 묻지 않음). 모르면 null.
+export const kindOfMethod = (m) => (m === 'api_key' ? 'api' : m === 'chatgpt' ? 'subscription' : null);
+export function codexKindCache(config, { statusOf = (env) => createCodexLogin({ env }).status(), everyMs = 5 * 60_000 } = {}) {
+  let kinds = { default: null, byAccount: {} }; let at = 0; let busy = false;
+  const refresh = async () => {
+    busy = true;
+    try {
+      const next = { default: kindOfMethod((await statusOf({ ...process.env }))?.method), byAccount: {} };
+      for (const a of codexAccounts(config)) {
+        try { next.byAccount[a.id] = kindOfMethod((await statusOf({ ...process.env, CODEX_HOME: codexHomeOf(config.accountsDir, a.id), CODEX_SQLITE_HOME: desktopCodexHome() }))?.method); } catch { next.byAccount[a.id] = null; }
+      }
+      kinds = next; at = Date.now();
+    } finally { busy = false; }
+  };
+  return {
+    refresh,
+    get() { if (!busy && Date.now() - at > everyMs) refresh().catch(() => {}); return kinds; },
+    // 대화(또는 새 세션=기본)가 쓰는 계정의 종류
+    kindFor(threadId) { const id = codexAccountId(config, threadId); return id === PC_DEFAULT ? kinds.default : (kinds.byAccount[id] ?? null); },
+  };
+}
+
 export function codexAccountHealth(config) {
   const out = {};
   for (const t of config.codex?.allowlist ?? []) {
@@ -202,7 +227,10 @@ export function codexAccountHealth(config) {
     const label = accountLabel(config, codexAccountId(config, t));
     if (label) out[t] = label;
   }
-  return { codexAccounts: out, codexDefault: accountLabel(config, codexAccountId(config, null)) };
+  const kc = config.kindCache;
+  const kinds = {};
+  if (kc) { kc.get(); for (const t of config.codex?.allowlist ?? []) if (config.codex?.modes?.[t] !== 'shared_server') { const k = kc.kindFor(t); if (k) kinds[t] = k; } }
+  return { codexAccounts: out, codexDefault: accountLabel(config, codexAccountId(config, null)), ...(kc ? { codexKinds: kinds, codexKind: kc.kindFor(null) } : {}) };
 }
 
 export { receiptLog };
