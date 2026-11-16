@@ -1,7 +1,8 @@
 // A2-d(신산님 2026-11-12 "AI 응답·허용 목록까지"): 기기 관리 명령 한 벌. PC형 화면(이 PC 로컬 웹)과 허브형 화면(허브가 그 PC에
 // 명령을 맡기면 PC가 가져가 실행)이 **같은 코드**로 같은 기능을 쓴다 — 실제 실행(AI 응답)·Codex 허용 목록·이어온 전용 계정.
 // 허브 자신(허브 새 세션)의 계정도 같은 명령으로 다룬다. 업무 대화 제외·로그인 파일 미열람 같은 안전 규칙은 아래 함수들이 그대로 지킨다.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount } from './device-settings.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome } from './accounts.mjs';
@@ -11,12 +12,15 @@ import { createCodexLogin } from './codex-login.mjs';
 export const OPS = {
   'device.get': 'read', 'device.live': 'write', 'device.codex.put': 'write', 'device.codex.delete': 'write',
   'accounts.get': 'read', 'accounts.add': 'write', 'accounts.use': 'write', 'accounts.login': 'write',
-  'accounts.login.cancel': 'write', 'accounts.logout': 'write', 'accounts.delete': 'write',
+  'accounts.login.cancel': 'write', 'accounts.logout': 'write', 'accounts.delete': 'write', 'accounts.apikey': 'write', // 신산님 2026-11-16: 구독 로그인·API 키 모두 이어온 화면에서
   'mode.get': 'read', 'mode.set': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
 };
 // 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 허브 보안·Codex 탭, 허브는 기존 대화 허용 목록이 없음).
-export const HUB_SELF_OPS = new Set(['accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete']);
+export const HUB_SELF_OPS = new Set(['accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete', 'accounts.apikey']);
+// API 키 형식(OpenAI 키). 값은 검사만 하고 저장·기록하지 않는다 — Codex가 그 계정의 CODEX_HOME에 직접 저장한다.
+export const API_KEY = /^sk-[A-Za-z0-9_-]{20,300}$/;
+const DEFAULT_ID = 'pc_default';
 
 export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {} }) {
   const logins = new Map(); // 계정별 공식 로그인 진행 상태
@@ -25,7 +29,12 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     return connectorConfigPath;
   };
   const dirOf = (p) => accountsDirFor(p, JSON.parse(readFileSync(p, 'utf8')));
-  const envOf = (p, id) => ({ ...process.env, CODEX_HOME: codexHomeOf(dirOf(p), id), CODEX_SQLITE_HOME: desktopCodexHome() });
+  // 기본 로그인(pc_default)은 그 PC·칸이 원래 쓰는 CODEX_HOME 그대로(엔진 칸은 /data/codex)
+  const envOf = (p, id) => (id === DEFAULT_ID ? { ...process.env } : { ...process.env, CODEX_HOME: codexHomeOf(dirOf(p), id), CODEX_SQLITE_HOME: desktopCodexHome() });
+  // 어떤 방식으로 로그인했는지(구독/API) — 로그인 파일을 읽지 않고, 이어온 화면에서 한 방식을 따로 적어 둔다(SV3 서비스용 판단에 씀)
+  const kindsPath = (p) => join(dirOf(p), 'login-kinds.json');
+  const kinds = (p) => { try { return JSON.parse(readFileSync(kindsPath(p), 'utf8')); } catch { return {}; } };
+  const setKind = (p, id, kind) => { const k = kinds(p); if (kind) k[id] = kind; else delete k[id]; mkdirSync(dirOf(p), { recursive: true }); writeFileSync(kindsPath(p), JSON.stringify(k, null, 2) + '\n', { mode: 0o600 }); };
   const loginOf = (p, id) => {
     if (!logins.has(id)) logins.set(id, (accountLogin ?? ((env) => createCodexLogin({ env })))(envOf(p, id)));
     return logins.get(id);
@@ -33,7 +42,10 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
   const device = (p) => ({ ...readDevice(p), ...connectorState() });
   const accounts = (p) => {
     const d = readDevice(p); const dir = dirOf(p);
-    return { accounts: d.codexAccounts.map((a) => ({ ...a, engine: 'codex', loggedIn: hasLogin(codexHomeOf(dir, a.id)), login: logins.get(a.id)?.view() ?? { state: 'idle' } })),
+    const k = kinds(p);
+    for (const [id, l] of logins) if (l.view().state === 'done' && !k[id]) { setKind(p, id, 'subscription'); k[id] = 'subscription'; } // 기기 코드 로그인이 끝나면 구독으로 적음
+    return { defaultLogin: { loggedIn: hasLogin(desktopCodexHome()), login: logins.get(DEFAULT_ID)?.view() ?? { state: 'idle' }, kind: k[DEFAULT_ID] ?? null },
+      accounts: d.codexAccounts.map((a) => ({ ...a, engine: 'codex', loggedIn: hasLogin(codexHomeOf(dir, a.id)), login: logins.get(a.id)?.view() ?? { state: 'idle' }, kind: k[a.id] ?? null })),
       defaultAccount: d.codexDefaultAccount, accountFor: d.codexAccountFor, threads: d.codexThreads.map((t) => ({ threadId: t.threadId, mode: t.mode })) };
   };
   const known = (p, id) => {
@@ -41,6 +53,12 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     return id;
   };
 
+  // 기본 로그인 파일이 같이 쓰는 로그인을 가리키는 연결이면 { link, target }(Codex 로그아웃은 연결만 지우므로 원본도 지우고 연결을 되살린다)
+  const sharedTarget = () => {
+    const link = join(desktopCodexHome(), 'auth.json');
+    try { if (!lstatSync(link).isSymbolicLink()) return null; return { link, target: resolve(dirname(link), readlinkSync(link)) }; } catch { return null; }
+  };
+  const knownOrDefault = (p, id) => (id === DEFAULT_ID ? DEFAULT_ID : known(p, id));
   async function perform(op, a) {
     const p = cfg();
     switch (op) {
@@ -74,9 +92,23 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
       case 'accounts.use':
         useCodexAccount(p, { threadId: a.threadId ?? null, accountId: String(a.accountId ?? '') });
         return { status: 200, body: { ...accounts(p), ...(await applyDevice()) } };
-      case 'accounts.login': loginOf(p, known(p, a.id)).start(); return { status: 200, body: accounts(p) };
-      case 'accounts.login.cancel': loginOf(p, known(p, a.id)).cancel(); return { status: 200, body: accounts(p) };
-      case 'accounts.logout': await loginOf(p, known(p, a.id)).logout(); return { status: 200, body: accounts(p) };
+      case 'accounts.login': loginOf(p, knownOrDefault(p, a.id)).start(); return { status: 200, body: accounts(p) };
+      case 'accounts.login.cancel': loginOf(p, knownOrDefault(p, a.id)).cancel(); return { status: 200, body: accounts(p) };
+      case 'accounts.logout': {
+        const id = knownOrDefault(p, a.id);
+        const shared = id === DEFAULT_ID ? sharedTarget() : null; // 허브·칸이 같이 쓰는 로그인이면 원본 경로
+        await loginOf(p, id).logout();
+        if (shared) { rmSync(shared.target, { force: true }); try { rmSync(shared.link, { force: true }); symlinkSync(shared.target, shared.link); } catch { /* 다시 로그인하면 ieun.sh share-login이 맞춤 */ } }
+        setKind(p, id, null); return { status: 200, body: accounts(p) };
+      }
+      case 'accounts.apikey': {
+        const id = knownOrDefault(p, a.id);
+        if (!API_KEY.test(String(a.key ?? ''))) return { status: 400, body: { error: 'bad_api_key' } };
+        const ok = await loginOf(p, id).apiKeyLogin(String(a.key));
+        if (!ok) return { status: 502, body: { error: 'api_key_login_failed' } };
+        setKind(p, id, 'api'); log({ event: 'account_api_key', ok: true });
+        return { status: 200, body: accounts(p) };
+      }
       case 'accounts.delete': {
         const id = known(p, a.id);
         if (hasLogin(codexHomeOf(dirOf(p), id))) await loginOf(p, id).logout();

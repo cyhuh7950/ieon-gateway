@@ -144,7 +144,9 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <div id="acBox" hidden>
       <div class="muted">질문이 어느 계정의 사용량으로 나갈지 정합니다. 대화(세션)는 계정과 상관없이 이 PC의 것을 그대로 이어 씁니다. 이어온 전용 계정은 Codex Desktop·웹의 로그인과 따로이고, 로그인은 공식 화면에서 직접 합니다(이어온은 로그인 정보를 읽지 않음). 한도에 걸려도 이어온이 스스로 다른 계정으로 바꾸지 않습니다.</div>
       <h2>Codex 계정</h2>
+      <div class="muted">로그인은 두 가지 중 편한 것: <b>로그인</b>(ChatGPT 구독 — 버튼을 누르고 "승인 창 열기"에서 승인만, 코드는 자동으로 복사돼요) 또는 <b>API 키</b>(OpenAI API 키를 한 번 넣으면 이어온이 안에서 로그인까지 — 사용량만큼 요금, 다른 사람이 쓰는 서비스용).</div>
       <table class="list"><thead><tr><th>이름</th><th>상태</th><th></th></tr></thead><tbody id="acList"></tbody></table>
+      <form id="acKeyForm" class="row" hidden><input id="acKey" type="password" placeholder="OpenAI API 키(sk-…)" autocomplete="off" aria-label="API 키"><button class="primary" type="submit">API 키로 로그인</button><button type="button" id="acKeyCancel">취소</button></form>
       <div id="acLogin" class="state warn" hidden></div>
       <form id="acAdd" class="row">
         <input id="acLabel" placeholder="계정 이름표 (예: 개인, 회사)" maxlength="40" autocomplete="off" aria-label="계정 이름표">
@@ -153,7 +155,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <div class="row"><label for="acDefault">기본으로 쓸 계정</label><select id="acDefault"></select></div>
       <div class="muted">기본 계정은 새 세션과, 아래에서 따로 고르지 않은 대화에 쓰입니다. 동시 사용(공유 서버) 대화는 그 서버의 로그인을 씁니다.</div>
       <table class="list"><thead><tr><th>Codex 대화</th><th>쓸 계정</th></tr></thead><tbody id="acThreads"></tbody></table>
-      <div class="muted">Claude 계정·API 키·호환 주소는 다음 단계에서 넣습니다. 지금 Claude는 그 PC의 Claude Code 로그인을 씁니다.</div>
+      <div class="muted">Claude 계정은 다음 단계(SV2)에서 넣습니다. 지금 Claude는 그 PC의 Claude Code 로그인을 씁니다.</div>
     </div>
   </section>
   <section class="atab" data-atab="hub" hidden aria-label="밖에서도 쓰기">
@@ -589,30 +591,48 @@ $('devAdd').onsubmit = async (e) => {
 // --- A2: 설정 → 계정(PC형은 이 PC, 허브형은 허브 자신 또는 고른 PC) ---
 const AC_ERR = { local_only: '이 PC에서 연 화면에서만 바꿀 수 있습니다', too_many_accounts: '계정은 5개까지 둘 수 있습니다', bad_label: '이름표를 넣으세요', bad_account: '없는 계정입니다', thread_not_allowed: '허용 목록에 없는 대화입니다' };
 const AC_LOGIN = { waiting: '로그인을 기다리는 중', failed: '로그인 실패', cancelled: '로그인 취소' };
-let acPoll = null;
+let acPoll = null; let acKeyFor = null;
+// API 키는 이 화면에서 한 번 넣으면 그 PC·칸의 Codex가 직접 저장한다. 이어온은 키를 기록하거나 다시 보여 주지 않는다.
+document.addEventListener('submit', async (e) => {
+  if (e.target?.id !== 'acKeyForm') return; e.preventDefault();
+  const key = $('acKey').value.trim(); $('acKey').value = '';
+  if (!acKeyFor || !/^sk-[A-Za-z0-9_-]{20,300}$/.test(key)) return setStatus('err', 'OpenAI API 키(sk-로 시작)를 넣으세요');
+  const r = await acRun('accounts.apikey', { id: acKeyFor.id, key });
+  $('acKeyForm').hidden = true; acKeyFor = null;
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'API 키로 로그인했어요' : ({ bad_api_key: 'API 키 형식이 아니에요', api_key_login_failed: '이 키로 로그인하지 못했어요(키를 확인하세요)' }[r.body.error] || HOST_ERR[r.body.error] || r.body.error));
+  loadAccounts();
+});
+document.addEventListener('click', (e) => { if (e.target?.id === 'acKeyCancel') { $('acKeyForm').hidden = true; $('acKey').value = ''; acKeyFor = null; } });
 async function loadAccounts() {
   const r = await acRun('accounts.get'); $('acBox').hidden = r.status !== 200;
   $('acTargetNote').hidden = r.status === 200 || acTarget === 'local'; if (r.status !== 200) { $('acTargetNote').textContent = HOST_ERR[r.body.error] || r.body.error; return; }
   const d = r.body; const tb = $('acList'); tb.innerHTML = '';
-  if (!d.accounts.length) { const tr = el('tr'); tr.append(el('td', '이어온 전용 계정 없음 — 지금은 PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)을 씁니다', 'muted')); tb.append(tr); }
   let waiting = null;
-  for (const a of d.accounts) {
+  // 신산님 2026-11-16: 기본 로그인(그 PC·칸이 원래 쓰는 로그인)에도 로그인·API 키 — 칸을 새로 만들면 여기서 바로
+  const KIND = { api: ' · API 키', subscription: ' · 구독' };
+  const rows = [{ id: 'pc_default', label: acTarget === 'hub' ? '허브 기본 로그인(모든 서버 칸이 같이 씀)' : '기본 로그인(그 PC·칸이 원래 쓰는 로그인)', ...(d.defaultLogin ?? { loggedIn: true, login: { state: 'idle' } }), builtin: true }, ...d.accounts];
+  for (const a of rows) {
     const tr = el('tr'); tr.append(el('td', a.label));
-    tr.append(el('td', a.loggedIn ? '로그인됨' : (AC_LOGIN[a.login.state] ?? '로그인 안 됨'), a.loggedIn ? 'ok' : 'muted'));
+    tr.append(el('td', a.loggedIn ? '로그인됨' + (KIND[a.kind] ?? '') : (AC_LOGIN[a.login.state] ?? '로그인 필요'), a.loggedIn ? 'ok' : 'warn'));
     const td = el('td');
     const act = (text, fn) => { const b = el('button', text); b.type = 'button'; b.onclick = fn; td.append(b); };
     if (!a.loggedIn && a.login.state !== 'waiting') act('로그인', async () => { await acRun('accounts.login', { id: a.id }); loadAccounts(); });
     if (a.login.state === 'waiting') act('취소', async () => { await acRun('accounts.login.cancel', { id: a.id }); loadAccounts(); });
+    if (!a.loggedIn) act('API 키', () => { acKeyFor = a; $('acKeyForm').hidden = false; $('acKey').value = ''; $('acKey').focus(); });
     if (a.loggedIn) act('로그아웃', async () => { if (!confirm(a.label + ' 계정에서 로그아웃할까요? 이 계정을 쓰는 대화는 다시 로그인할 때까지 보내지 않습니다.')) return; await acRun('accounts.logout', { id: a.id }); loadAccounts(); });
-    act('지우기', async () => { if (!confirm(a.label + ' 계정을 지울까요? 로그아웃하고, 이 계정을 쓰던 대화는 PC 기본 로그인으로 돌아갑니다. 대화 기록은 지우지 않습니다.')) return;
+    if (!a.builtin) act('지우기', async () => { if (!confirm(a.label + ' 계정을 지울까요? 로그아웃하고, 이 계정을 쓰던 대화는 PC 기본 로그인으로 돌아갑니다. 대화 기록은 지우지 않습니다.')) return;
       const y = await acRun('accounts.delete', { id: a.id }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '계정을 지웠습니다' : (AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadAccounts(); });
     tr.append(td); tb.append(tr);
     if (a.login.state === 'waiting') waiting = a;
   }
   const box = $('acLogin'); box.hidden = !waiting; box.innerHTML = '';
   if (waiting) {
-    box.append(el('div', waiting.label + ' 계정 로그인: 아래 주소를 열고 이어온에서 쓸 계정으로 로그인한 뒤 코드를 넣으세요(15분 안에).'));
-    if (waiting.login.url) { const a = el('a', waiting.login.url); a.href = waiting.login.url; a.target = '_blank'; a.rel = 'noopener'; box.append(a); }
+    box.append(el('div', waiting.label + ' 로그인: "승인 창 열기"를 누르고 열린 창에서 승인만 하세요(코드는 자동으로 복사돼요 — 칸에 붙여 넣기). 끝나면 여기 상태가 저절로 "로그인됨"으로 바뀌어요(15분 안에).'));
+    if (waiting.login.url && waiting.login.code) {
+      const b = el('button', '승인 창 열기'); b.type = 'button'; b.className = 'primary';
+      b.onclick = async () => { try { await navigator.clipboard.writeText(waiting.login.code); } catch { /* 복사 못 해도 아래 코드를 보고 넣으면 됨 */ } window.open(waiting.login.url, 'ieon_codex_login', 'width=520,height=720'); };
+      box.append(b);
+    }
     box.append(el('div', '코드: ' + (waiting.login.code ?? '받는 중…'), 'code'));
   }
   clearTimeout(acPoll); if (waiting) acPoll = setTimeout(() => loadAccounts().catch(() => {}), 3000);

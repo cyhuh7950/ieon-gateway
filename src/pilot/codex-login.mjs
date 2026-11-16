@@ -66,6 +66,17 @@ export function createCodexLogin({ env = process.env, spawnImpl = spawn, entry =
         p.on('exit', (code) => { clearTimeout(t); log({ event: 'codex_logout', ok: code === 0 }); ok(code === 0); });
       });
     },
+    // 이어온 화면에 넣은 API 키로 공식 `codex login --with-api-key`(키는 표준 입력으로만 — 명령줄·로그·응답에 남기지 않음)
+    apiKeyLogin(key) {
+      return new Promise((ok) => {
+        let p;
+        try { p = spawnImpl(process.execPath, [entry(), 'login', '--with-api-key'], { env, stdio: ['pipe', 'ignore', 'ignore'] }); } catch { return ok(false); }
+        const t = setTimeout(() => { p.kill?.(); ok(false); }, 30000);
+        p.on('exit', (code) => { clearTimeout(t); log({ event: 'codex_login_api_key', ok: code === 0 }); ok(code === 0); });
+        p.on('error', () => { clearTimeout(t); ok(false); });
+        p.stdin?.end(String(key) + '\n');
+      });
+    },
     cancel() { if (job?.state === 'waiting') { job.state = 'cancelled'; job.child.kill?.(); } return this.view(); },
     view() { return job ? { state: job.state, url: job.url, code: job.code, startedAt: job.startedAt, error: job.error } : { state: 'idle' }; },
   };
