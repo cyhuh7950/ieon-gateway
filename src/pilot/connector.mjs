@@ -3,7 +3,7 @@
 // 실행 전 request_id를 로컬 receipt에 내구 저장하고, 이미 본 요청은 다시 실행하지 않는다.
 import { appendFileSync, existsSync, openSync, fsyncSync, closeSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { EngineError } from './contracts.mjs';
+import { EngineError, StoppedError } from './contracts.mjs';
 import { accountsDirFor, accountLabel, codexAccountId } from './accounts.mjs';
 
 // P3: 허브 주소 검사. 공개 주소는 https만, http는 이 PC(127.0.0.1·localhost)만. 사용자 정보·쿼리·조각은 거절한다.
@@ -80,7 +80,22 @@ export function approvalReporter({ baseUrl, headers, log = () => {} }) {
   };
 }
 
-export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, health, log = () => {}, approvalPollMs }) {
+// RC2: 실행하는 동안 서버에 "이 요청을 멈출까?"를 묻고, 멈추라고 하면 엔진에 멈춤 신호를 보낸다. 신호만 보낼 뿐 결과는 어댑터가 확인한다.
+export function stopWatcher({ baseUrl, headers, requestId, pollMs = 2000, log = () => {} }) {
+  const controller = new AbortController();
+  let timer = null; let closed = false;
+  const tick = async () => {
+    if (closed) return;
+    const r = await fetch(`${baseUrl}/v1/device/jobs/${requestId}/control`, { headers }).then((x) => (x.status === 200 ? x.json() : null)).catch(() => null);
+    if (closed) return;
+    if (r?.stop === true) { log({ event: 'stop_requested', requestId }); controller.abort(); return; }
+    timer = setTimeout(tick, pollMs);
+  };
+  timer = setTimeout(tick, pollMs);
+  return { signal: controller.signal, close() { closed = true; clearTimeout(timer); } };
+}
+
+export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, health, log = () => {}, approvalPollMs, stopPollMs }) {
   const headers = { authorization: `Bearer ${deviceToken}`, 'content-type': 'application/json' };
   // 엔진 상태(값만, 인증 정보 없음)를 작업 조회에 실어 보낸다. 서버는 이를 보고 꺼진 엔진으로의 질문을 미리 거절한다.
   const state = health ? await health() : null;
@@ -105,20 +120,25 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
   }
   receipts.add(job.requestId);
   let outcome;
+  const watch = stopWatcher({ baseUrl, headers, requestId: job.requestId, log, ...(stopPollMs ? { pollMs: stopPollMs } : {}) });
   try {
     const result = await adapter.run({ engine: job.engine, sessionRef: job.sessionRef, question: job.question, requestId: job.requestId,
       connectMode: job.connectMode, newSession: job.newSession, workMode: job.workMode === true },
       { approve: approver({ baseUrl, headers, requestId: job.requestId, log, ...(approvalPollMs ? { pollMs: approvalPollMs } : {}) }),
-        approvalResult: approvalReporter({ baseUrl, headers, log }) });
+        approvalResult: approvalReporter({ baseUrl, headers, log }), signal: watch.signal });
     outcome = result.approvalRequired ? { status: 'approval_required' }
       : { status: 'completed', receipt: result.receipt ?? null, answer: result.answer ?? null, usage: result.usage ?? null };
     if (result.sessionRef) outcome.sessionRef = result.sessionRef;
   } catch (error) {
-    outcome = error instanceof EngineError
+    // RC2: 엔진 차례가 실제로 멈춘 것을 어댑터가 확인한 경우만 중지됨. 멈춤 신호를 보냈는데 확인하지 못하면 결과 불명.
+    outcome = error instanceof StoppedError ? { status: 'cancelled', errorCode: 'stopped_by_user' }
+      : error instanceof EngineError
       ? { status: 'failed', errorCode: error.code, http: error.http }
-      : { status: 'unknown', errorCode: error.unknownCode ?? 'result_unknown' };
+      : { status: 'unknown', errorCode: watch.signal.aborted ? 'stop_unconfirmed' : (error.unknownCode ?? 'result_unknown') };
     // 새 세션이 실행 도중 실패해도 이미 만들어진 엔진 세션 ID는 서버에 알린다.
     if (error.sessionRef) outcome.sessionRef = error.sessionRef;
+  } finally {
+    watch.close();
   }
   log({ event: 'job_done', requestId: job.requestId, status: outcome.status, errorCode: outcome.errorCode, usage: outcome.usage });
   await report(outcome);

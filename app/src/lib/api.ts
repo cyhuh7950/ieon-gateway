@@ -85,6 +85,8 @@ export function client(conn: Conn, f: Fetch = fetch) {
     decide: async (approvalId: string, decision: "allow" | "deny"): Promise<string> =>
       (await call(`/v1/approvals/${encodeURIComponent(approvalId)}`, { method: "POST", body: JSON.stringify({ decision }) })).status,
     review: async (requestId: string, executed: boolean) => call(`/v1/requests/${encodeURIComponent(requestId)}/review`, { method: "POST", body: JSON.stringify({ executed }) }),
+    // RC2: 이 질문만 멈추기 — cancelled(대기 중이라 바로 취소) 또는 stopping(실행 중, 엔진이 멈춘 것을 확인하면 중지됨)
+    stop: async (requestId: string): Promise<string> => (await call(`/v1/requests/${encodeURIComponent(requestId)}/stop`, { method: "POST", body: "{}" })).status,
     // AP-5a: 이 기기 연결 끊기(서버에서 이 기기 열쇠를 지움 — 끊은 뒤엔 401)
     // AP-5a: 이 대화의 서버 보관 기록(질문·답) 지우기 — 원래 엔진 세션 기록은 그대로
     deleteMessages: async (id: string) => call(`/v1/conversations/${encodeURIComponent(id)}/messages`, { method: "DELETE" }),

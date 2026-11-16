@@ -153,7 +153,7 @@ export function createBridge(opts) {
       headers: { 'idempotency-key': idemKey(m) }, body: { question },
     });
     if (r.status !== 202) return safeSend(m, send, `[${conv.label}] ${ERR[r.body?.error] ?? `보낼 수 없음: ${r.body?.error}`}`);
-    lastAnswer.set(roomKey(m), { requestId: r.body.requestId, label: conv.label, delivered: null });
+    lastAnswer.set(roomKey(m), { requestId: r.body.requestId, label: conv.label, delivered: null, askedBy: String(m.userId) });
     await safeSend(m, send, `[${conv.label}] 접수됨 — 답을 기다리는 중${conv.workMode ? ' (작업 모드: 파일 수정·명령 실행은 허용을 물어봐요)' : ''}`);
     const started = Date.now();
     const announced = new Set();
@@ -189,6 +189,8 @@ export function createBridge(opts) {
         return safeSend(m, send, `[${conv.label}] 결과를 확인할 수 없음${s.errorCode === 'turn_joined_by_other_input' ? '(TUI 입력이 합류했을 수 있음)' : ''} — 자동으로 다시 보내지 않습니다. 원래 세션을 확인한 뒤 /review done 또는 /review not`);
       }
       if (s.status === 'approval_required') return safeSend(m, send, `[${conv.label}] 원래 세션에서 권한 확인이 필요해 멈춤 — 처리 후 /review done 또는 /review not`);
+      // RC2: 사람이 이 질문만 멈춤(엔진 차례가 끝난 것까지 확인됨)
+      if (s.status === 'cancelled') return safeSend(m, send, `[${conv.label}] 중지됨 — 이 질문만 멈췄어요(다시 보내지 않음)`);
     }
     return safeSend(m, send, `[${conv.label}] 아직 답이 없음 — 끝나면 /last로 받을 수 있어요(다시 실행하지 않음)`);
   }
@@ -244,7 +246,7 @@ export function createBridge(opts) {
       const head = bot.name ? `${bot.name}${bot.role ? ` · ${bot.role.name}${bot.role.description ? ` — ${bot.role.description}` : ''}` : ''}${bot.callNames?.length ? `\n그룹에서 부르기: "${bot.callNames[0]}, …" 또는 @멘션` : ''}\n\n` : '';
       return send(head + '명령어\n/sessions 세션 목록\n/use <번호> 이 대화방을 그 세션에 연결\n/status 연결된 세션 상태\n/review done|not 확인 필요 질문 정리\n'
         + '/new codex|claude <이름> [read_only|workspace] 새 세션을 만들고 이 대화방에 연결\n/sleep <이름> 잠재우기\n/archived 보관 목록\n'
-        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/허용 <번호> · /거부 <번호> 작업 모드 승인 요청에 답하기(주인만)\n/last 마지막 답 다시 받기(다시 실행하지 않음)\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
+        + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/허용 <번호> · /거부 <번호> 작업 모드 승인 요청에 답하기(주인만)\n/last 마지막 답 다시 받기(다시 실행하지 않음)\n/stop 이 대화방의 마지막 질문만 멈추기(물어본 사람·주인)\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
     }
     const create = text.match(/^\/new\s+(codex|claude)\s+(\S+)(?:\s+(\S+))?\s*$/);
     if (create) {
@@ -297,13 +299,25 @@ export function createBridge(opts) {
       if (r.status === 200) return send(`승인 요청 ${item.n}: ${decision === 'allow' ? '허용함(이번 한 번)' : '거부함'}`);
       return send(r.body?.error === 'approval_closed' ? `승인 요청 ${item.n}은 이미 끝났어요(${({ expired: '시간이 지나 거부됨', turn_ended: '차례가 끝나 거부됨', allowed: '허용됨', denied: '거부됨' })[r.body.status] ?? r.body.status})` : `처리하지 못했어요: ${r.body?.error}`);
     }
+    // RC2: 이 대화방의 마지막 질문만 멈추기(/stop · /중지). 물어본 사람이나 주인만. 다른 대화방·다른 질문은 그대로.
+    if (/^\/(stop|중지)(\s|$)/i.test(text)) {
+      const la = lastAnswer.get(roomKey(m));
+      if (!la) return send('멈출 질문이 없음(이 대화방에서 이번에 받은 질문이 없음)');
+      if (la.askedBy !== String(m.userId) && !isOwner(m)) return send('그 질문을 보낸 사람이나 주인만 멈출 수 있어요');
+      const r = await opts.api({ method: 'POST', path: `/v1/requests/${la.requestId}/stop` });
+      if (r.status === 200) return send(`[${la.label}] 중지됨 — 아직 시작 전이라 바로 취소했어요`);
+      if (r.status === 202) return send(`[${la.label}] 멈추는 중 — 엔진이 멈춘 것을 확인하면 "중지됨"으로 알려요`);
+      if (r.body?.error === 'stop_unsupported') return send(`[${la.label}] 이 세션(사람이 띄운 Claude 창)은 실행 중에 여기서 멈출 수 없어요 — 원래 창에서 멈추세요`);
+      const word = { completed: '이미 끝남', failed: '이미 실패함', cancelled: '이미 중지됨', unknown: '결과 불명(원래 세션 확인 필요)', approval_required: '권한 확인 대기' }[r.body?.status];
+      return send(`[${la.label}] 멈출 수 없어요: ${word ?? r.body?.error ?? '알 수 없음'}`);
+    }
     // 마지막 답 다시 받기 — 요청을 다시 읽어 전달만(엔진을 다시 돌리지 않음)
     if (/^\/last\b/.test(text)) {
       const la = lastAnswer.get(roomKey(m));
       if (!la) return send('다시 보낼 답이 없음(이 대화방에서 이번에 받은 질문이 없음)');
       const s = (await opts.api({ method: 'GET', path: `/v1/requests/${la.requestId}` })).body ?? {};
       if (s.status === 'completed') return deliver(m, send, { label: la.label }, la.requestId, s.answer);
-      const word = { queued: '기다리는 중', dispatching: '보내는 중', running: '실행 중', failed: '실패', unknown: '결과 불명', approval_required: '권한 확인 필요' }[s.status];
+      const word = { queued: '기다리는 중', dispatching: '보내는 중', running: '실행 중', failed: '실패', unknown: '결과 불명', approval_required: '권한 확인 필요', cancelled: '중지됨' }[s.status];
       return send(`[${la.label}] 마지막 질문은 아직 끝나지 않았거나 답이 없음(${word ?? s.status ?? '알 수 없음'})`);
     }
     if (/^\/sessions\b/.test(text)) return send(list.length ? list.map(describe).join('\n') : '연결할 수 있는 세션이 없음');

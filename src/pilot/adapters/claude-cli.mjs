@@ -7,21 +7,24 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { EngineError } from '../contracts.mjs';
+import { EngineError, StoppedError } from '../contracts.mjs';
 import { checkNewSession } from '../new-sessions.mjs';
 
 const TIMEOUT_MS = 300000;
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function spawnClaude(args, input, { cwd, timeoutMs = TIMEOUT_MS }) {
+// RC2: signal(멈춤)이 오면 그 실행만 끝낸다 — 프로세스가 닫힌 뒤 stopped로 알린다.
+export function spawnClaude(args, input, { cwd, timeoutMs = TIMEOUT_MS, signal = null }) {
   return new Promise((resolve, reject) => {
     const child = spawn('claude', args, { cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
-    let stdout = '';
+    let stdout = ''; let stopped = false;
+    const onStop = () => { stopped = true; child.kill(); };
+    if (signal?.aborted) onStop(); else signal?.addEventListener('abort', onStop, { once: true });
     const timer = setTimeout(() => { child.kill(); reject(new Error('claude_timeout')); }, timeoutMs);
     child.stdout.on('data', (d) => { stdout += d; });
     child.stderr.resume(); // 오류 원문(질문이 섞일 수 있음)은 보관하지 않는다.
     child.on('error', (e) => { clearTimeout(timer); reject(e.code === 'ENOENT' ? new EngineError('claude_not_installed', 503) : e); });
-    child.on('close', (code) => { clearTimeout(timer); resolve({ code, stdout }); });
+    child.on('close', (code) => { clearTimeout(timer); signal?.removeEventListener?.('abort', onStop); resolve({ code, stdout, stopped }); });
     child.stdin.end(input);
   });
 }
@@ -31,7 +34,7 @@ export function claudeCliAdapter(opts) {
   const run = opts.spawnClaude ?? spawnClaude;
   return {
     engine: 'claude_cli',
-    async run({ sessionRef, question, newSession }) {
+    async run({ sessionRef, question, newSession }, { signal = null } = {}) {
       if (!newSession || !opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
       if (!opts.live) throw new EngineError('live_disabled', 503);
       const { config, created } = opts.newSessions;
@@ -45,7 +48,8 @@ export function claudeCliAdapter(opts) {
       const args = ['-p', '--output-format', 'json', '--restricted', '--strict-mcp-config', '--permission-prompts', 'none',
         '--tools', tools, '--allowedTools', tools, ...(pending ? ['--session-id', id] : ['--resume', id])];
       if (pending) created.add(id, newSession.name);
-      const { code, stdout } = await run(args, question, { cwd: checked.workspace });
+      const { code, stdout, stopped } = await run(args, question, { cwd: checked.workspace, signal });
+      if (stopped) throw Object.assign(new StoppedError(), { sessionRef: id }); // 사람이 멈춤 — 세션 ID는 남겨 같은 세션으로 이어 감
       let out;
       try { out = JSON.parse(stdout); } catch { throw Object.assign(new Error('claude_bad_output'), { unknownCode: `claude_exit_${code}`, sessionRef: id }); }
       // 같은 세션이 사람 쪽에서 실행 중이면 claude가 복사본을 만들어 다른 ID로 답한다. 모델은 돌았으므로 결과 불명이다.

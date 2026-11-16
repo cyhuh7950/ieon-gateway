@@ -1,7 +1,7 @@
 // 접수·중복·세션 잠금·상태·receipt를 SQLite 단일 writer로 원자 저장한다.
 import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
-import { STATUS, RELEASING, EngineError } from './contracts.mjs';
+import { STATUS, RELEASING, EngineError, STOP_UNSUPPORTED } from './contracts.mjs';
 import { canAccess, sessionKey } from './guard.mjs';
 import { NEW_ENGINES, SESSION_STATES, resolveProfile, validateName, workspacePath, appAllowed } from './new-sessions.mjs';
 import { PLATFORMS, DEFAULT_BOT, validBotId, validCallName, normalizeCallName, botAppId } from './bots.mjs';
@@ -104,6 +104,11 @@ export function openStore(path) {
       if (!cols.has(name)) db.exec(`ALTER TABLE approvals ADD COLUMN ${name} ${type}`);
     }
   }
+  // RC2: 사람이 그 요청만 멈추라고 한 시각·누가(실행 중이면 연결부가 읽어 가 엔진을 멈춘다)
+  if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'stop_requested_at')) {
+    db.exec('ALTER TABLE requests ADD COLUMN stop_requested_at TEXT');
+    db.exec('ALTER TABLE requests ADD COLUMN stop_by TEXT');
+  }
   // AP-1: 방에서 다시 보낸 글 표시(같은 글을 두 번 다시 보내지 않게 버튼을 감춤)
   if (!db.prepare('PRAGMA table_info(room_posts)').all().some((c) => c.name === 'retried')) db.exec('ALTER TABLE room_posts ADD COLUMN retried INTEGER NOT NULL DEFAULT 0');
   if (!db.prepare('PRAGMA table_info(new_sessions)').all().some((c) => c.name === 'role_guide')) {
@@ -177,6 +182,7 @@ export function openStore(path) {
   const view = (row) => row && {
     requestId: row.request_id, status: row.status, errorCode: row.error_code,
     http: row.error_http, receipt: row.receipt, answer: row.answer, usage: row.usage ? JSON.parse(row.usage) : null,
+    stopRequested: Boolean(row.stop_requested_at),
   };
 
   function setStatus(row, status, fields = {}) {
@@ -353,10 +359,46 @@ export function openStore(path) {
         setStatus(row, STATUS.failed, { error_code: outcome.errorCode ?? 'failed', error_http: outcome.http ?? null });
       } else if (outcome.status === STATUS.approvalRequired) {
         setStatus(row, STATUS.approvalRequired);
+      } else if (outcome.status === STATUS.cancelled && row.stop_requested_at) {
+        // RC2: 사람이 멈추라고 했고 연결부가 엔진 차례가 끝난 것을 확인함 → 중지됨(세션 잠금도 풂)
+        setStatus(row, STATUS.cancelled, { error_code: 'stopped_by_user' });
       } else {
-        setStatus(row, STATUS.unknown, { error_code: outcome.errorCode ?? null });
+        // 멈추라고 하지 않았는데 중지됐다고 오거나, 멈춘 것을 확인하지 못한 경우 → 결과 불명(자동 재전송 없음)
+        setStatus(row, STATUS.unknown, { error_code: outcome.status === STATUS.cancelled ? 'unexpected_stop' : (outcome.errorCode ?? null) });
       }
       return view(request(requestId));
+    },
+
+    // RC2: 그 요청만 멈추기. 대기 중이면 바로 취소, 실행 중이면 멈춤 요청을 남기고 연결부가 엔진을 멈춘 뒤 보고한다.
+    // 이미 끝난 요청은 바꾸지 않는다(먼저 확정된 쪽이 이긴다). 사람이 띄운 Claude 채널은 실행 중에는 멈출 수 없다.
+    stopRequest(principal, requestId) {
+      // 동기 DB 호출만 쓰므로 이 안에서 다른 요청이 끼어들지 않는다(setStatus가 자체 트랜잭션을 씀)
+      {
+        const row = request(requestId);
+        const b = row && binding(row.conversation_id);
+        if (!b || !canAccess(principal, b)) return { http: 404, code: 'not_found' };
+        const now = new Date().toISOString();
+        if (row.status === STATUS.queued) {
+          db.prepare('UPDATE requests SET stop_requested_at = ?, stop_by = ? WHERE request_id = ?').run(now, principal.userId, requestId);
+          setStatus(request(requestId), STATUS.cancelled, { error_code: 'stopped_by_user' });
+          return { http: 200, status: STATUS.cancelled };
+        }
+        if (row.status === STATUS.dispatching || row.status === STATUS.running) {
+          if (STOP_UNSUPPORTED.has(b.engine)) return { http: 409, code: 'stop_unsupported', status: row.status };
+          if (!row.stop_requested_at) db.prepare('UPDATE requests SET stop_requested_at = ?, stop_by = ? WHERE request_id = ?').run(now, principal.userId, requestId);
+          // 기다리던 승인 카드는 더 묻지 않는다(엔진에는 거부로 전달되고, 곧 차례가 멈춘다)
+          db.prepare("UPDATE approvals SET status = 'turn_ended', decided_at = ? WHERE request_id = ? AND status = 'pending'").run(now, requestId);
+          return { http: 202, status: 'stopping' };
+        }
+        return { http: 409, code: 'not_running', status: row.status };
+      }
+    },
+    // RC2: 연결부가 실행 중인 요청을 멈춰야 하는지 묻는다(그 PC의 요청만)
+    stopRequested(hostId, requestId) {
+      const row = request(String(requestId ?? ''));
+      const b = row && binding(row.conversation_id);
+      if (!b || b.hostId !== hostId) return null;
+      return Boolean(row.stop_requested_at) && [STATUS.dispatching, STATUS.running].includes(row.status);
     },
 
     conversations(principal) {

@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import { checkNewSession } from '../new-sessions.mjs';
 import { lockOutcome } from '../lock-probe.mjs';
 import { randomUUID } from 'node:crypto';
-import { EngineError } from '../contracts.mjs';
+import { EngineError, StoppedError } from '../contracts.mjs';
 
 const EXCLUDED = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
 const BLOCKED_SDK = new Set(['command_execution', 'file_change', 'mcp_tool_call', 'web_search']);
@@ -40,7 +40,8 @@ async function runAlternate(threadId, question, deps) {
     webSearchMode: 'disabled',
     skipGitRepoCheck: true,
   });
-  const turn = await streamTurn(thread, question, { cwd: deps.workingDirectory, blocked: BLOCKED_SDK });
+  const turn = await streamTurn(thread, question, { cwd: deps.workingDirectory, blocked: BLOCKED_SDK, stop: deps.signal });
+  if (turn.stopped) throw new StoppedError();
   if (turn.blocked) return { approvalRequired: true };
   if (limitHit(turn)) throw new EngineError('usage_limit', 429);
   if (turn.failed || (turn.returned ?? thread.id) !== threadId) throw new Error('turn_failed_or_thread_mismatch');
@@ -49,8 +50,12 @@ async function runAlternate(threadId, question, deps) {
 
 // SDK turn 하나를 끝까지 읽는다. blocked에 든 item이 시작되면 그 자리에서 멈춘다.
 // cwd를 주면 codex 프로세스가 시작되는 동안만 현재 폴더를 바꾼다(resume은 --cd가 os error 2로 실패한다).
-async function streamTurn(thread, question, { cwd, blocked: blockedTypes }) {
+// RC2: stop(멈춤 신호)이 오면 SDK 실행을 끊는다(codex 프로세스 종료) — 끝까지 읽기를 마치면 stopped로 알린다.
+async function streamTurn(thread, question, { cwd, blocked: blockedTypes, stop }) {
   const controller = new AbortController();
+  let stopped = false;
+  const onStop = () => { stopped = true; controller.abort(); };
+  if (stop?.aborted) onStop(); else stop?.addEventListener('abort', onStop, { once: true });
   const { events } = await thread.runStreamed(question, { signal: controller.signal });
   const iterator = events[Symbol.asyncIterator]();
   const previousCwd = process.cwd();
@@ -69,6 +74,7 @@ async function streamTurn(thread, question, { cwd, blocked: blockedTypes }) {
   let failMessage = null; // 실패 이유(한도 판별용, 기록하지 않음)
   let worked = false; // 사용자 메시지 말고 모델이 만든 항목이 하나라도 있었는지
   const all = (async function* () { if (!first.done) yield first.value; yield* rest; })();
+  try {
   for await (const event of all) {
     if (event.type === 'thread.started') returned = event.thread_id;
     if (event.type === 'item.started' || event.type === 'item.completed') {
@@ -79,7 +85,12 @@ async function streamTurn(thread, question, { cwd, blocked: blockedTypes }) {
     if (event.type === 'turn.failed') { failed = true; failMessage = event.error?.message ?? failMessage; }
     if (event.type === 'error') failMessage = event.message ?? failMessage;
   }
-  return { answer, returned, blocked, failed, failMessage, worked };
+  } catch (e) {
+    if (!stopped && !blocked) throw e; // 멈춤·막힘으로 끊은 것만 정상 종료로 본다
+  } finally {
+    stop?.removeEventListener?.('abort', onStop);
+  }
+  return { answer, returned, blocked, failed, failMessage, worked, stopped: stopped && !blocked };
 }
 
 // 새 세션(설계 NEW_SESSIONS N1). 서버가 보낸 프로필·작업 폴더를 연결부 설정으로 다시 검사한다.
@@ -120,9 +131,10 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
     thread = new Codex(codexOpts).resumeThread(sessionRef, plan.options);
     cwd = plan.workspace;
   }
-  const turn = await streamTurn(thread, question, { cwd, blocked: plan.blocked });
+  const turn = await streamTurn(thread, question, { cwd, blocked: plan.blocked, stop: deps.signal });
   const threadId = pending ? (turn.returned ?? thread.id) : sessionRef;
   if (pending && threadId) created.add(threadId, newSession.name);
+  if (turn.stopped) throw Object.assign(new StoppedError(), { sessionRef: threadId });
   // 멈추거나 실패해도 이미 만들어진 대화 ID는 서버에 남겨 같은 세션으로 이어 가게 한다.
   if (turn.blocked) return { approvalRequired: true, sessionRef: threadId };
   if (limitHit(turn)) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: threadId });
@@ -153,7 +165,7 @@ export async function answerServerRequest(msg, threadId, approve, track = null) 
   return { jsonrpc: '2.0', id: msg.id, result: { decision: d === 'accept' ? 'accept' : 'decline' } };
 }
 
-async function runShared(threadId, question, { endpoint, token, approve = null }) {
+async function runShared(threadId, question, { endpoint, token, approve = null, signal = null }) {
   const ws = new WebSocket(endpoint, { headers: { Authorization: `Bearer ${token}` } });
   const pending = new Map();
   let nextId = 1;
@@ -207,7 +219,11 @@ async function runShared(threadId, question, { endpoint, token, approve = null }
     await call('thread/resume', { threadId, excludeTurns: true });
     const started = await call('turn/start', { threadId, clientUserMessageId: randomUUID(), input: [{ type: 'text', text: question, text_elements: [] }] });
     turnId = started.turn?.id ?? null;
-    const status2 = await Promise.race([done, new Promise((r) => setTimeout(() => r('timeout'), 180000))]);
+    // RC2: 멈춤 신호 → 그 차례만 끊기(turn/interrupt). 엔진이 interrupted로 끝냈다고 알려 와야 중지됨.
+    const interrupt = () => { if (turnId) call('turn/interrupt', { threadId, turnId }).catch(() => {}); };
+    if (signal?.aborted) interrupt(); else signal?.addEventListener('abort', interrupt, { once: true });
+    const status2 = await Promise.race([done, new Promise((r) => setTimeout(() => r('timeout'), 180000))]).finally(() => signal?.removeEventListener?.('abort', interrupt));
+    if (status2 === 'interrupted' && signal?.aborted && !blocked) throw new StoppedError();
     if (blocked) return { approvalRequired: true };
     if (status2 === 'failed' && !answer && isUsageLimit(JSON.stringify(turnError))) throw new EngineError('usage_limit', 429);
     if (status2 !== 'completed') throw new Error(`turn_${status2}`);
@@ -247,7 +263,7 @@ export function matchAllowed(allowed, done) {
   return allowed.find((a) => !a.reported && a.itemId && a.itemId === done.itemId && a.kind === done.kind) ?? null;
 }
 
-export async function appServerTurn(transport, { threadId, question, cwd, approve, approvalResult = null, checkIdle = false, timeoutMs = 30 * 60_000 }) {
+export async function appServerTurn(transport, { threadId, question, cwd, approve, approvalResult = null, checkIdle = false, timeoutMs = 30 * 60_000, signal = null }) {
   const allowed = []; // 이번 차례에 허용한 승인: { approvalId, itemId, kind, reported }
   const track = (a) => {
     allowed.push(a);
@@ -289,8 +305,12 @@ export async function appServerTurn(transport, { threadId, question, cwd, approv
       sandboxPolicy: { type: 'workspaceWrite', writableRoots: [cwd], networkAccess: false },
       input: [{ type: 'text', text: question, text_elements: [] }] });
     turnId = started.turn?.id ?? null;
+    // RC2: 멈춤 신호가 오면 그 차례를 끊는다(turn/interrupt). 엔진이 interrupted로 끝냈다고 알려 와야 중지됨.
+    const interrupt = () => { if (turnId) call('turn/interrupt', { threadId, turnId }).catch(() => {}); };
+    if (signal?.aborted) interrupt(); else signal?.addEventListener('abort', interrupt, { once: true });
     let timer; // 차례가 끝나면 시간 제한 타이머를 지운다(남으면 30분 동안 쌓임)
-    const status = await Promise.race([done, new Promise((r) => { timer = setTimeout(() => r('timeout'), timeoutMs); })]).finally(() => clearTimeout(timer));
+    const status = await Promise.race([done, new Promise((r) => { timer = setTimeout(() => r('timeout'), timeoutMs); })]).finally(() => { clearTimeout(timer); signal?.removeEventListener?.('abort', interrupt); });
+    if (status === 'interrupted' && signal?.aborted) throw new StoppedError();
     if (status === 'failed' && !answer && !worked && isUsageLimit(JSON.stringify(turnError))) throw new EngineError('usage_limit', 429);
     if (status !== 'completed') throw new Error(`turn_${status}`);
     if (userMessages > 1) throw Object.assign(new Error('turn_joined_by_other_input'), { unknownCode: 'turn_joined_by_other_input' });
@@ -316,7 +336,7 @@ async function runAlternateWork(threadId, question, deps) {
   const outcome = deps.probe(threadId);
   if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
   const transport = (deps.appServer ?? stdioAppServer)({ env: deps.env, cwd });
-  return appServerTurn(transport, { threadId, question, cwd, approve: deps.approve, approvalResult: deps.approvalResult, timeoutMs: deps.workTimeoutMs });
+  return appServerTurn(transport, { threadId, question, cwd, approve: deps.approve, approvalResult: deps.approvalResult, timeoutMs: deps.workTimeoutMs, signal: deps.signal });
 }
 function wsTransport(endpoint, token, WS = globalThis.WebSocket) {
   const ws = new WS(endpoint, { headers: { Authorization: `Bearer ${token}` } });
@@ -334,11 +354,11 @@ export function codexThreadAdapter(opts) {
   const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')) };
   return {
     engine: 'codex_thread',
-    async run({ sessionRef: threadId, question, connectMode, newSession, workMode = false }, { approve = null, approvalResult = null } = {}) {
+    async run({ sessionRef: threadId, question, connectMode, newSession, workMode = false }, { approve = null, approvalResult = null, signal = null } = {}) {
       if (newSession) {
         if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
         if (!opts.live) throw new EngineError('live_disabled', 503);
-        return runNewSession({ sessionRef: threadId, question, newSession }, { ...deps, env: accountEnv(opts, null) }, opts.newSessions);
+        return runNewSession({ sessionRef: threadId, question, newSession }, { ...deps, env: accountEnv(opts, null), signal }, opts.newSessions);
       }
       if (threadId === EXCLUDED || !opts.allowlist.includes(threadId)) throw new EngineError('thread_not_allowed', 403);
       if (!opts.live) throw new EngineError('live_disabled', 503);
@@ -351,13 +371,13 @@ export function codexThreadAdapter(opts) {
           const cwd = workDir(opts.workingDirectories?.[threadId]);
           const tr = (opts.wsTransport ?? wsTransport)(opts.shared.endpoint, token);
           await tr.opened;
-          return appServerTurn(tr, { threadId, question, cwd, approve, approvalResult, checkIdle: true, timeoutMs: opts.workTimeoutMs });
+          return appServerTurn(tr, { threadId, question, cwd, approve, approvalResult, checkIdle: true, timeoutMs: opts.workTimeoutMs, signal });
         }
         // 작업 모드가 아니면 승인 요청이 와도 바로 거부(지금처럼 읽기 전용)
-        return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: null });
+        return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: null, signal });
       }
-      if (workMode) return runAlternateWork(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs });
-      return runAlternate(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId] });
+      if (workMode) return runAlternateWork(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs, signal });
+      return runAlternate(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], signal });
     },
   };
 }
