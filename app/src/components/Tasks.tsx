@@ -54,6 +54,7 @@ export function TasksScreen({ api, onBack, onOpenConv, onEvent, onLost }: { api:
           {detail.approvals.map((a) => (
             <div key={a.approvalId}><dt>승인 요청 {a.n ?? ""}</dt><dd>{AKIND[a.kind] ?? a.kind} — {a.summary} → {ASTATE[a.state] ?? a.state}{a.state === "failed" && Number.isInteger(a.exitCode) ? ` (종료 코드 ${a.exitCode})` : ""}</dd></div>
           ))}
+          {detail.resume?.known && <><dt>재개 확인</dt><dd>{({ same: "같은 세션", needs_review: "같은 세션 — 확인 필요 질문이 막고 있음", mismatch: "⚠ 세션이 바뀜" } as Record<string, string>)[detail.resume.verdict ?? ""] ?? detail.resume.verdict} · 그때 {detail.resume.then?.engine}{detail.resume.sameEngine ? "" : ` → 지금 ${detail.resume.now?.engine}`}{detail.resume.sameHost === false ? " · 다른 PC" : ""}{detail.resume.historyKept ? "" : " · 이어온 보관 기록은 그 뒤 지워짐"}{detail.resume.deviceOnline === false ? " · 지금 PC 연결 끊김" : ""}</dd></>}
           {detail.answer && <><dt>답</dt><dd>{detail.answer}</dd></>}
         </dl>
       ) : <p className="muted small">불러오는 중…</p>)}

@@ -59,14 +59,16 @@ export type Conversation = {
   host?: { id: string; name: string };
 };
 export type Card = { kind: string; approvalId?: string; approvalKind?: string; summary?: string; cwd?: string; expiresAt?: string; requestId?: string; status?: string; errorCode?: string | null; engine?: string;
-  n?: number | null; state?: string; agent?: string | null; exitCode?: number | null }; // RC1: 승인 번호·상태(승인됨→실행 중→완료/실패/결과 불명)·AI 직원
+  n?: number | null; state?: string; agent?: string | null; exitCode?: number | null; // RC1: 승인 번호·상태(승인됨→실행 중→완료/실패/결과 불명)·AI 직원
+  resume?: { verdict: string; sameSession: boolean; historyKept: boolean } }; // RC4: 확인 필요 질문의 그때·지금 세션
 export type Message = { requestId: string; question: string; answer: string };
 export type RequestView = { requestId: string; status: string; errorCode: string | null; answer: string | null };
 // RC3 작업 화면
 export type Task = { requestId: string; conversationId: string; label: string; icon: string | null; engine: string; status: string; errorCode: string | null;
   stopRequested: boolean; createdAt: string | null; updatedAt: string | null; canStop: boolean; pendingApprovals: number; preview: string };
 export type TaskApproval = { approvalId: string; n: number | null; kind: string; summary: string; cwd: string | null; state: string; exitCode: number | null; decidedAt: string | null };
-export type TaskDetail = Task & { question: string; answer: string | null; approvals: TaskApproval[] };
+export type Resume = { known: boolean; verdict?: string; sameSession?: boolean; sameEngine?: boolean; sameHost?: boolean; historyKept?: boolean; deviceOnline?: boolean; then?: { engine: string }; now?: { engine: string } };
+export type TaskDetail = Task & { question: string; answer: string | null; approvals: TaskApproval[]; resume?: Resume | null };
 export type PendingApproval = { approvalId: string; requestId: string; conversationId: string; label: string; n: number | null; kind: string; summary: string; cwd: string | null; createdAt: string };
 
 export function client(conn: Conn, f: Fetch = fetch) {
