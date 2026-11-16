@@ -429,6 +429,12 @@ export function createApp(config) {
           if (r.http === 200) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_result', status: r.execStatus }) + '\n'); notify(store.approvalConversation(apr[1]), { type: 'approval', approvalId: apr[1], status: r.execStatus }); }
           return r.http === 200 ? json(res, 200, { execStatus: r.execStatus }) : json(res, r.http, { error: r.code });
         }
+        // RC2: 실행 중인 요청을 멈춰야 하는지(연결부가 실행하는 동안 몇 초마다 묻는다)
+        const jc = path.match(/^\/v1\/device\/jobs\/([\w-]+)\/control$/);
+        if (req.method === 'GET' && jc) {
+          const stop = store.stopRequested(device.hostId, jc[1]);
+          return stop === null ? json(res, 404, { error: 'not_found' }) : json(res, 200, { stop });
+        }
         const m = path.match(/^\/v1\/device\/jobs\/([\w-]+)\/result$/);
         if (req.method === 'POST' && m) {
           const updated = store.report(device.hostId, m[1], await readJson(req));
@@ -1212,6 +1218,17 @@ export function createApp(config) {
         if (r.http === 202) notify(m[1], { type: 'request', requestId: r.requestId, status: 'queued' });
         return r.http === 202 ? json(res, 202, { requestId: r.requestId }) : json(res, r.http, { error: r.code });
       }
+      // RC2: 그 요청만 멈추기(웹·앱·메신저 공통). 대기 중 → 바로 취소(200), 실행 중 → 멈추는 중(202, 연결부가 멈춘 뒤 중지됨)
+      m = path.match(/^\/v1\/requests\/([\w-]+)\/stop$/);
+      if (req.method === 'POST' && m) {
+        const r = store.stopRequest(principal, m[1]);
+        if (r.http === 200 || r.http === 202) {
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'request_stop', status: r.status }) + '\n');
+          notify(store.requestConversation(m[1]), { type: 'request', requestId: m[1], status: r.status });
+          return json(res, r.http, { requestId: m[1], status: r.status });
+        }
+        return json(res, r.http, { error: r.code, ...(r.status ? { status: r.status } : {}) });
+      }
       m = path.match(/^\/v1\/requests\/([\w-]+)\/review$/);
       if (req.method === 'POST' && m) {
         const r = store.resolveByReview(principal, m[1], (await readJson(req)).executed);
@@ -1221,7 +1238,7 @@ export function createApp(config) {
       m = path.match(/^\/v1\/requests\/([\w-]+)$/);
       if (req.method === 'GET' && m) {
         const r = store.getRequest(principal, m[1]);
-        return r ? json(res, 200, { requestId: r.requestId, status: r.status, errorCode: r.errorCode, answer: r.answer, usage: r.usage })
+        return r ? json(res, 200, { requestId: r.requestId, status: r.status, errorCode: r.errorCode, answer: r.answer, usage: r.usage, stopRequested: r.stopRequested })
           : json(res, 404, { error: 'not_found' });
       }
       m = path.match(/^\/v1\/conversations\/([\w-]+)\/messages$/);

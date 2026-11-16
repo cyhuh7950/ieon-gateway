@@ -70,6 +70,7 @@ Invoke-RestMethod http://127.0.0.1:28760/v1/conversations -Headers @{ Authorizat
 | `POST /v1/conversations/{id}/requests` | 질문 접수 | 202 `{ requestId }` |
 | `GET /v1/requests/{requestId}` | 결과 조회 | 200 `{ requestId, status, answer, errorCode, usage }` |
 | `POST /v1/requests/{requestId}/review` | 결과 불명 질문 정리 | 200 `{ requestId, status, errorCode }` |
+| `POST /v1/requests/{requestId}/stop` | 그 질문만 멈추기 | 200 `{ status: "cancelled" }`(시작 전) · 202 `{ status: "stopping" }`(실행 중) |
 | `GET /v1/conversations/{id}/messages` | 이어온에서 주고받은 기록 | 200 `{ messages: [...] }` |
 | `DELETE /v1/conversations/{id}/messages` | 기록 삭제 | 204 |
 | `PUT /v1/conversations/{id}/settings` | Codex 연결 모드 변경 | 200 `{ connectMode }` |
@@ -353,6 +354,18 @@ Content-Type: application/json
 6. **다른 출처(CORS, AP-3):** 서버는 이어온 앱 출처만 다른 출처 호출을 허용한다 — 안드로이드 `https://localhost`, 아이폰 `capacitor://localhost`, PC 설치형 `app://ieon`(`/v1/*`만, 미리 묻기 OPTIONS에 `authorization`·`idempotency-key` 허용). **쿠키는 허용하지 않으므로**(allow-credentials 없음) 웹 로그인으로는 못 쓰고 열쇠로만 쓴다. 개발용 출처는 서버 설정 파일 `appOrigins`로만 더한다.
 
 ## 8. 그 밖의 API
+
+**질문 멈추기(RC2)**
+
+```http
+POST /v1/requests/req_123/stop
+```
+
+- 시작 전(`queued`)이면 바로 취소 → 200 `{"status":"cancelled"}`.
+- 실행 중이면 202 `{"status":"stopping"}`. 이어온이 엔진을 멈추고 **멈춘 것을 확인한 뒤** 결과 조회가 `cancelled`(`errorCode: "stopped_by_user"`)가 된다. 확인하지 못하면 `unknown`(`stop_unconfirmed`) — 7절처럼 정리한다. 멈추라고 했어도 엔진이 먼저 답을 끝냈으면 `completed`.
+- 결과 조회에 `stopRequested: true`가 붙으면 멈춤 요청을 받은 상태다.
+- 409: `not_running`(이미 끝남, 응답에 그때 `status`), `stop_unsupported`(사람이 띄운 Claude 채널 창은 실행 중에 멈출 수 없음 — 원래 창에서).
+
 
 **기록 보기 / 지우기**
 

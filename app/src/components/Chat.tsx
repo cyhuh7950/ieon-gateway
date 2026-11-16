@@ -6,7 +6,7 @@ import { ENGINE, errText } from "../lib/texts";
 import { Avatar, BLOCKING, CardView, Composer, codeOf, type OnEvent } from "./common";
 import { MicButton, ReadButton, SpeakerToggle, useAutoRead, useVoice } from "./Voice";
 
-type Item = { id: string; question: string; key: string; requestId?: string; state: "sending" | "queued" | "done" | "failed" | "unknown" | "rejected"; answer?: string; errorCode?: string | null; retried?: boolean; voice?: boolean };
+type Item = { id: string; question: string; key: string; requestId?: string; state: "sending" | "queued" | "done" | "failed" | "unknown" | "rejected" | "stopped"; stopping?: boolean; answer?: string; errorCode?: string | null; retried?: boolean; voice?: boolean };
 
 export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api: Client; conv: Conversation; onBack: () => void; onEvent: OnEvent; onLost: () => void }) {
   const [conv, setConv] = useState(conv0);
@@ -43,6 +43,7 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
       if (r.status === "completed") patch(it.key, { state: "done", answer: r.answer ?? "" });
       else if (r.status === "failed") patch(it.key, { state: "failed", errorCode: r.errorCode });
       else if (r.status === "unknown") patch(it.key, { state: "unknown", errorCode: r.errorCode });
+      else if (r.status === "cancelled") patch(it.key, { state: "stopped" });
       if (r.status !== "queued") loadCards();
     } catch (x) { fail(x); }
   }, [api, loadCards, fail]);
@@ -77,6 +78,14 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
   // 서버에 닿았는지 모르는 실패(network)는 같은 요청 열쇠로 — 서버가 같은 질문을 두 번 보내지 않는다.
   const retry = (it: Item) => send(it.question, it.errorCode === "network" && it.state === "rejected" ? it.key : newKey(), it);
   const decide = async (approvalId: string, d: "allow" | "deny") => { try { await api.decide(approvalId, d); } catch (x) { fail(x); } loadCards(); };
+  // RC2: 이 질문만 멈추기
+  const stop = async (it: Item) => {
+    if (!it.requestId) return;
+    patch(it.key, { stopping: true });
+    try { const s = await api.stop(it.requestId); if (s === "cancelled") patch(it.key, { state: "stopped" }); }
+    catch (x) { patch(it.key, { stopping: false }); const c = codeOf(x); setNote(c === "stop_unsupported" ? "이 세션은 원래 창에서 멈추세요" : c === "not_running" ? "이미 끝난 질문이에요" : errText(c)); }
+    refresh(it.requestId);
+  };
   const review = async (requestId: string, executed: boolean) => { try { await api.review(requestId, executed); } catch (x) { fail(x); } loadCards(); refresh(requestId); };
   useAutoRead(v, items.map((x) => ({ id: x.key, text: x.state === "done" ? x.answer : null })), loaded);
   const blocked = cards.some((c) => BLOCKING.has(c.kind)) || items.some((x) => x.state === "sending" || x.state === "queued");
@@ -98,7 +107,8 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
           <div key={it.id} className="turn">
             <p className="bubble me">{it.voice && <span className="via">🎤 음성</span>}{it.question}</p>
             {it.state === "sending" && <p className="bubble ai muted">보내는 중…</p>}
-            {it.state === "queued" && <p className="bubble ai muted">답을 기다리는 중…</p>}
+            {it.state === "queued" && <div className="ai-wrap"><p className="bubble ai muted">{it.stopping ? "멈추는 중…" : "답을 기다리는 중…"}</p>{!it.stopping && <button className="small" onClick={() => stop(it)}>중지</button>}</div>}
+            {it.state === "stopped" && <p className="bubble ai muted">중지됨 — 이 질문만 멈췄어요</p>}
             {it.state === "done" && <div className="ai-wrap"><p className="bubble ai">{it.answer}</p><ReadButton v={v} text={it.answer ?? ""} /></div>}
             {it.state === "unknown" && <p className="bubble ai warn">결과를 확인할 수 없어요. 아래 확인 카드에서 실행됐는지 알려 주세요(자동으로 다시 보내지 않아요).</p>}
             {(it.state === "failed" || it.state === "rejected") && (

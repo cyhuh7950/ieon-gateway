@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { EngineError } from '../contracts.mjs';
+import { EngineError, StoppedError } from '../contracts.mjs';
 import { probeLockAt } from '../lock-probe.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,15 +41,18 @@ export const CLI_ENGINES = Object.freeze({
   },
 });
 
-export function runCli(bin, args, { cwd, env, timeoutMs = 300_000 }) {
+// RC2: signal(멈춤)이 오면 그 실행만 끝낸다 — 프로세스가 실제로 닫힌 뒤 stopped로 알린다.
+export function runCli(bin, args, { cwd, env, timeoutMs = 300_000, signal = null }) {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
-    let stdout = ''; let stderr = '';
+    let stdout = ''; let stderr = ''; let stopped = false;
+    const onStop = () => { stopped = true; child.kill(); };
+    if (signal?.aborted) onStop(); else signal?.addEventListener('abort', onStop, { once: true });
     const timer = setTimeout(() => { child.kill(); reject(Object.assign(new Error('cli_timeout'), { unknownCode: 'cli_timeout' })); }, timeoutMs);
     child.stdout.on('data', (d) => { stdout += d; });
     child.stderr.on('data', (d) => { if (stderr.length < 4000) stderr += d; }); // 불러오기 실패 판별용으로만 잠깐 보고 버린다
     child.on('error', (e) => { clearTimeout(timer); reject(e.code === 'ENOENT' ? new EngineError('engine_not_installed', 503) : e); });
-    child.on('close', (code) => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
+    child.on('close', (code) => { clearTimeout(timer); signal?.removeEventListener?.('abort', onStop); resolve({ code, stdout, stderr, stopped }); });
   });
 }
 
@@ -65,7 +68,7 @@ export function cliOnceAdapter(opts) {
   const probe = opts.probe ?? ((id, dir) => probeLockAt(id, dir).outcome);
   return {
     engine: opts.engine,
-    async run({ sessionRef: id, question }) {
+    async run({ sessionRef: id, question }, { signal = null } = {}) {
       if (!spec.validId(String(id)) || !(opts.allowlist ?? []).includes(id)) throw new EngineError('session_not_allowed', 403);
       if (!opts.live) throw new EngineError('live_disabled', 503);
       const bin = opts.bin ?? spec.bin();
@@ -80,7 +83,8 @@ export function cliOnceAdapter(opts) {
       const env = { ...process.env };
       for (const k of spec.keyVars) delete env[k];
       Object.assign(env, opts.accountEnv?.(id) ?? {});
-      const { code, stdout, stderr } = await run(bin, spec.args(id, question), { cwd: opts.workingDirectories?.[id] ?? undefined, env });
+      const { code, stdout, stderr, stopped } = await run(bin, spec.args(id, question), { cwd: opts.workingDirectories?.[id] ?? undefined, env, signal });
+      if (stopped) throw new StoppedError(); // 사람이 멈춤 — 프로세스가 닫힌 것까지 확인함
       const j = lastJson(stdout);
       if (!j) {
         // 아무 결과도 없이 끝남: 불러오기 실패가 분명하면 실행 안 됨(거부), 그 밖에는 실행됐을 수 있어 결과 불명

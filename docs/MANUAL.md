@@ -137,7 +137,7 @@ Codex 대화에서 **연결 설정 → 고급 → Codex 연결 방식**을 고�
 2. 짧은 안내를 따라 봇 토큰을 칸에 넣는다(텔레그램·디스코드 1칸, 슬랙 2칸, 이미 저장돼 있으면 바꿀 때만). 저장한 값은 다시 보이지 않는다. 카카오톡은 스킬 URL을 복사해 오픈빌더 스킬 URL에 붙인다.
 3. 봇이 연결되면 6자리 숫자가 크게 나온다. 그 숫자를 봇에게 보내면 보낸 사람이 그 봇의 주인(허용 사용자)으로 등록된다("○○님이 주인으로 등록됐어요"). 숫자는 10분·1회용이고, 5번 틀리면 잠겨 새로 받아야 한다. 이미 허용된 사람이 보내면 봇이 "이미 허용된 분이라 따로 등록하지 않았어요"라고 답하고 화면은 완료로 바뀐다.
    - 다른 방법: 봇에게 아무 말이나 보낸 뒤 대화 화면의 "허용 대기" 띠나 **설정 → 메신저 → 허용 요청**에서 **허용**. 허용 목록 밖 사용자에게는 `/whoami` 외에 응답하지 않는다.
-4. 명령어: `/sessions`, `/use <번호>`(이 대화방을 세션에 연결), `/status`, `/review done|not`(확인 필요 정리), `/help`. 그 밖의 글은 연결된 세션에 질문으로 간다. 슬랙에서는 `/` 대신 `!`(예: `!sessions`)를 쓴다.
+4. 명령어: `/sessions`, `/use <번호>`(이 대화방을 세션에 연결), `/status`, `/review done|not`(확인 필요 정리), `/stop`(이 대화방의 마지막 질문만 멈추기), `/help`. 그 밖의 글은 연결된 세션에 질문으로 간다. 슬랙에서는 `/` 대신 `!`(예: `!sessions`)를 쓴다.
 
 메신저별 준비:
 
@@ -161,6 +161,7 @@ Codex 대화에서 **연결 설정 → 고급 → Codex 연결 방식**을 고�
 | `POST /v1/conversations/<id>/requests` | 질문 접수 | 202 `{"requestId"}` |
 | `GET /v1/requests/<requestId>` | 결과 조회 | `status`·`answer`·`errorCode`·`usage` |
 | `POST /v1/requests/<requestId>/review` | 확인 필요 정리, 본문 `{"executed": true\|false}` | 정리된 `status` |
+| `POST /v1/requests/<requestId>/stop` | 그 질문만 멈추기 | 200 `cancelled`(시작 전) · 202 `stopping`(실행 중 → 확인 뒤 `cancelled`) · 409 `not_running`·`stop_unsupported` |
 | `GET /v1/conversations/<id>/messages` | 그 세션의 이어온 질문·답 기록 | `messages` |
 | `DELETE /v1/conversations/<id>/messages` | 기록 삭제 | 204 |
 | `PUT /v1/conversations/<id>/settings` | Codex 연결 모드, 본문 `{"connectMode": "alternate"\|"shared_server"}` | `connectMode` |
