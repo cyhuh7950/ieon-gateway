@@ -246,6 +246,8 @@ function accountEnv(opts, threadId) {
 // 인터넷 막음, 승인 판단은 늘 사람(approvalsReviewer: user). 자동 승인(never·acceptForSession·auto_review) 없음.
 // transport: { send(obj), onMessage(fn), close() } — 동시 사용은 공유 서버(WebSocket), 번갈아 쓰기는 질문할 때만 띄운 app-server(stdio).
 export const WORK_POLICY = Object.freeze({ approvalPolicy: 'untrusted', approvalsReviewer: 'user' });
+// SV1: 엔진 칸 컨테이너 안에서만 켜지는 표시(엔진 칸 compose가 넣음). PC·허브 자체에서는 꺼져 있다.
+export const containerBoundary = (env = process.env) => env.IEON_CONTAINER_BOUNDARY === '1';
 
 // RC1: 끝난 엔진 항목(명령 실행·파일 수정)을 실행 결과로. 승인 없이 지나간 항목·거부된 항목·진행 중은 null(보고하지 않음).
 // 종료 코드가 0이 아니면 실패로 본다(엔진이 completed라고 해도 명령은 실패한 것).
@@ -300,9 +302,11 @@ export async function appServerTurn(transport, { threadId, question, cwd, approv
       const status = read.thread?.status?.type;
       if (status !== 'idle') throw new EngineError(status === 'notLoaded' ? 'thread_not_open' : 'thread_busy', 409);
     }
-    await call('thread/resume', { threadId, excludeTurns: true, cwd, sandbox: 'workspace-write', ...WORK_POLICY });
+    // SV1 엔진 칸(IEON_CONTAINER_BOUNDARY=1): 컨테이너가 경계 — 엔진 샌드박스(bwrap)가 Docker 안에서 안 되므로 끄되, 명령·파일 수정은 여전히 승인 카드로 묻는다
+    const boundary = containerBoundary();
+    await call('thread/resume', { threadId, excludeTurns: true, cwd, sandbox: boundary ? 'danger-full-access' : 'workspace-write', ...WORK_POLICY });
     const started = await call('turn/start', { threadId, cwd, clientUserMessageId: randomUUID(), ...WORK_POLICY,
-      sandboxPolicy: { type: 'workspaceWrite', writableRoots: [cwd], networkAccess: false },
+      sandboxPolicy: boundary ? { type: 'dangerFullAccess' } : { type: 'workspaceWrite', writableRoots: [cwd], networkAccess: false },
       input: [{ type: 'text', text: question, text_elements: [] }] });
     turnId = started.turn?.id ?? null;
     // RC2: 멈춤 신호가 오면 그 차례를 끊는다(turn/interrupt). 엔진이 interrupted로 끝냈다고 알려 와야 중지됨.

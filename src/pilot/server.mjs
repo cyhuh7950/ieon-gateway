@@ -16,6 +16,7 @@ import { createWebAuth } from './web-auth.mjs';
 import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs';
 import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
+import { containerBoundary } from './adapters/codex-thread.mjs';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
 import { cleanLabel } from './accounts.mjs';
 import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
@@ -316,6 +317,8 @@ export function createApp(config) {
       ...(rc?.known ? { resume: { verdict: rc.verdict, sameSession: rc.sameSession, historyKept: rc.historyKept } } : {}) }); }
     if (access && c.newSession && c.engine === 'codex_thread' && hubCodex.loggedIn === false) cards.push({ kind: 'hub_codex_login' });
     if (c.newSession?.state === 'archived') cards.push({ kind: 'archived' });
+    // SV0·SV1: 허브 자신이 돌리는 새 세션은 컨테이너 안이라 명령이 실패한다 → 글 답만(명령·파일 작업은 엔진 칸으로)
+    if (access && c.newSession && c.hostId === nsHost && !containerBoundary()) cards.push({ kind: 'text_only' });
     if (live === false && !hubModeOn()) cards.push({ kind: 'live_off' });
     return cards;
   };

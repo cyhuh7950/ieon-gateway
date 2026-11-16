@@ -19,3 +19,4 @@ node_modules/
 *.secrets
 # Serena 도구의 로컬 폴더(개인 도구 상태)
 .serena/
+engines/

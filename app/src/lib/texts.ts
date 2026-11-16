@@ -32,7 +32,9 @@ export const ENGINE: Record<string, string> = {
 };
 
 // 대화를 막는 상태 카드(보내기 전 알려 줌)
+// SV1: 허브 새 세션은 글 답만
 export const CARD_TEXT: Record<string, string> = {
+  text_only: "이 세션은 글로만 답해요(허브가 직접 돌리는 새 세션은 명령 실행·파일 작업이 안 돼요 — 서버의 엔진 칸 대화에 맡기세요).",
   hub_mode: "이 PC는 허브에 연결돼 있어요. 허브 주소로 연결한 앱에서 보내세요.",
   device_offline: "PC 연결이 끊겨 있어요. PC가 켜져 있는지 확인하세요.",
   engine_off: "이 AI가 지금 실행 중이 아니에요.",

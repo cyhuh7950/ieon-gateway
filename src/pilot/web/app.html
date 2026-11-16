@@ -926,6 +926,7 @@ function cardView(k, c) {
     const card = makeCard('warn', '확인이 필요한 질문', text + rs, [btn('실행됐어요', () => review(card, k.requestId, true)), btn('실행되지 않았어요', () => review(card, k.requestId, false))]);
     return card;
   }
+  if (k.kind === 'text_only') return makeCard('info', '이 세션은 글로만 답해요', '허브가 직접 돌리는 새 세션은 서버 컨테이너 안이라 명령 실행·파일 작업이 되지 않아요. 그런 일은 서버의 엔진 칸("서버 · 이름") 대화에 맡기세요.');
   if (k.kind === 'hub_codex_login') {
     const a = el('a', '로그인하러 가기'); a.href = '/settings#hubsec';
     return makeCard('err', '허브의 Codex 로그인이 필요해요', '이 허브가 Codex에 로그인돼 있지 않아 새 Codex 세션이 답할 수 없어요. 설정 → 허브 보안·Codex에서 로그인하세요(주소와 코드가 나와요).', [a]);
