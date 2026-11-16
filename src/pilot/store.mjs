@@ -109,6 +109,11 @@ export function openStore(path) {
     db.exec('ALTER TABLE requests ADD COLUMN created_at TEXT');
     db.exec('ALTER TABLE requests ADD COLUMN updated_at TEXT');
   }
+  // RC4: 그때의 실행 정보(엔진·PC·세션 ID·연결 방식·작업 모드)와 실제로 답한 세션 ID — 끊긴 뒤 같은 세션인지 확인용
+  if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'snap')) {
+    db.exec('ALTER TABLE requests ADD COLUMN snap TEXT');
+    db.exec('ALTER TABLE requests ADD COLUMN ran_session_ref TEXT');
+  }
   // RC2: 사람이 그 요청만 멈추라고 한 시각·누가(실행 중이면 연결부가 읽어 가 엔진을 멈춘다)
   if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'stop_requested_at')) {
     db.exec('ALTER TABLE requests ADD COLUMN stop_requested_at TEXT');
@@ -292,6 +297,9 @@ export function openStore(path) {
           .run(requestId, conversationId, principal.userId, principal.appId, key, payloadHash,
             String(payload.question ?? ''), b.generation, fullPrefix, roomId, new Date().toISOString(), new Date().toISOString());
         db.prepare('INSERT INTO locks (session_key, holder_request_id) VALUES (?, ?)').run(lockKey, requestId);
+        // RC4: 그때의 실행 정보(다시 붙었을 때 같은 세션인지 비교). 작업 폴더는 그 PC 설정이라 PC가 알려 주지 않으면 비워 둔다.
+        db.prepare('UPDATE requests SET snap = ? WHERE request_id = ?').run(JSON.stringify({ engine: b.engine, hostId: b.hostId, sessionRef: b.sessionRef, connectMode: b.connectMode,
+          workMode: Boolean(db.prepare('SELECT 1 FROM work_modes WHERE conversation_id = ?').get(conversationId)) }), requestId);
         return { http: 202, requestId };
       });
     },
@@ -353,6 +361,8 @@ export function openStore(path) {
       const b = row && binding(row.conversation_id);
       if (!b || b.hostId !== hostId || ![STATUS.dispatching, STATUS.running].includes(row.status)) return null;
       adoptSessionRef(b, outcome.sessionRef, now);
+      // RC4: 실제로 답한 세션 ID(새 세션은 이때 정해짐). 형식이 맞는 것만.
+      if (typeof outcome.sessionRef === 'string' && /^[\w:-]{6,120}$/.test(outcome.sessionRef)) db.prepare('UPDATE requests SET ran_session_ref = ? WHERE request_id = ?').run(outcome.sessionRef, requestId);
       // W1: 차례가 끝나면 아직 답하지 않은 승인 요청은 거부(turn_ended)
       db.prepare("UPDATE approvals SET status = 'turn_ended', decided_at = ? WHERE request_id = ? AND status = 'pending'").run(new Date().toISOString(), requestId);
       // RC1: 허용했는데 실행 결과가 오지 않은 채 차례가 끝나면 결과 불명(완료로 짐작하지 않는다)
@@ -398,6 +408,29 @@ export function openStore(path) {
         return { http: 409, code: 'not_running', status: row.status };
       }
     },
+    // RC4: 재개 확인 — 그때 보낸 세션과 지금 이 대화의 세션이 같은지, 이어온 보관 기록이 그대로인지, 지금 막혀 있는지.
+    // 엔진 쪽 이력(원래 세션에 그 차례가 남았는지)은 여기서 보지 않는다 — 사람이 원래 앱에서 확인하고 /review로 정리한다.
+    resumeCheck(requestId) {
+      const row = request(String(requestId ?? ''));
+      const b = row && binding(row.conversation_id);
+      if (!b) return null;
+      let snap = null; try { snap = row.snap ? JSON.parse(row.snap) : null; } catch { snap = null; }
+      if (!snap) return { known: false }; // RC4 전에 접수된 질문 — 그때 정보가 없음
+      const thenRef = row.ran_session_ref ?? snap.sessionRef;
+      const pendingThen = String(snap.sessionRef ?? '').startsWith('pending:');
+      const sameSession = thenRef === b.sessionRef || (pendingThen && !row.ran_session_ref && String(b.sessionRef).startsWith('pending:'));
+      const last = db.prepare('SELECT request_id, status FROM requests WHERE conversation_id = ? ORDER BY rowid DESC LIMIT 1').get(row.conversation_id);
+      const held = db.prepare("SELECT r.request_id, r.status FROM locks l JOIN requests r ON r.request_id = l.holder_request_id WHERE l.session_key = ?").get(sessionKey(b));
+      const checks = { sameSession, sameEngine: snap.engine === b.engine, sameHost: snap.hostId === b.hostId, sameConnectMode: (snap.connectMode ?? null) === (b.connectMode ?? null),
+        historyKept: row.generation === b.generation, isLatest: last?.request_id === row.request_id };
+      const verdict = !checks.sameSession || !checks.sameEngine || !checks.sameHost ? 'mismatch'
+        : held && ['unknown', 'approval_required'].includes(held.status) ? 'needs_review' : 'same';
+      // 세션 ID는 응답에 싣지 않는다(지금까지처럼 서버 안에서만) — 같은지·다른지만 알려 준다.
+      return { known: true, verdict, ...checks,
+        then: { engine: snap.engine, hostId: snap.hostId, connectMode: snap.connectMode ?? null, workMode: Boolean(snap.workMode) },
+        now: { engine: b.engine, hostId: b.hostId, connectMode: b.connectMode ?? null },
+        heldBy: held ? { requestId: held.request_id, status: held.status, isThis: held.request_id === row.request_id } : null };
+    },
     // RC3: 작업(요청 단위) 목록 — 내가 볼 수 있는 대화의 질문만. filter: active(진행 중·확인 필요) | all(최근)
     tasks(principal, { filter = 'all', limit = 50, ttlMs } = {}) {
       const ACTIVE = ['queued', 'dispatching', 'running', 'approval_required', 'unknown'];
@@ -428,7 +461,7 @@ export function openStore(path) {
         pendingApprovals: approvals.filter((a) => a.state === 'pending').length,
         preview: String(row.question ?? '').replace(/\s+/g, ' ').slice(0, 80) };
       if (brief) return t;
-      return { ...t, question: row.question, answer: row.status === STATUS.completed ? row.answer : null, approvals };
+      return { ...t, question: row.question, answer: row.status === STATUS.completed ? row.answer : null, approvals, resume: this.resumeCheck(row.request_id) };
     },
     // RC3: 승인 대기함 — 내가 볼 수 있는 모든 대화의 기다리는 승인(시간이 지난 것은 읽을 때 거부로 바뀜)
     pendingApprovals(principal, { ttlMs } = {}) {

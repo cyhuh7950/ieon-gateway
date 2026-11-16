@@ -334,7 +334,14 @@ export function createBridge(opts) {
     if (!current) return send('이 대화방에 연결된 세션이 없음 — /sessions 후 /use <번호>');
     if (/^\/status\b/.test(text)) {
       const la = lastAnswer.get(roomKey(m));
-      return send(describe(current, list.indexOf(current)) + (la?.delivered === false ? '\n마지막 답: 답 전달 실패 — /last 로 다시 받기' : ''));
+      // RC4: 이 대화를 막고 있는 확인 필요 질문이 있으면 그때 보낸 세션과 지금 세션이 같은지 한 줄
+      let rs = '';
+      if (current.heldBy?.requestId) {
+        const r = (await opts.api({ method: 'GET', path: `/v1/tasks/${current.heldBy.requestId}` }).catch(() => null))?.body?.resume;
+        if (r?.known) rs = r.sameSession ? '\n확인 필요 질문: 그때 보낸 세션과 지금 세션이 같음 — 원래 앱에서 확인 후 /review done 또는 /review not'
+          : '\n확인 필요 질문: ⚠ 그때 보낸 세션과 지금 연결된 세션이 다름 — 그때 세션을 열어 확인';
+      }
+      return send(describe(current, list.indexOf(current)) + (la?.delivered === false ? '\n마지막 답: 답 전달 실패 — /last 로 다시 받기' : '') + rs);
     }
     const review = text.match(/^\/review\s+(done|not)\s*$/);
     if (review) {

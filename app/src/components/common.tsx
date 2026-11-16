@@ -52,6 +52,7 @@ export function CardView({ c, decide, review, who }: { c: Card; decide: (id: str
       <div className="card warn">
         <b>확인이 필요한 질문</b>
         <p>{c.status === "unknown" ? "보낸 질문이 실행됐는지 알 수 없어요. 직접 확인한 뒤 알려 주세요." : "처리 중인 질문이 있어요."}</p>
+        {c.resume && <p className="muted small">{c.resume.sameSession ? "그때 보낸 세션과 지금 이 대화의 세션이 같아요." : "⚠ 그때 보낸 세션과 지금 연결된 세션이 달라요 — 그때 세션을 열어 확인하세요."}{c.resume.historyKept ? "" : " 이어온 보관 기록은 그 뒤 지워졌어요."}</p>}
         {c.status === "unknown" && <div className="acts"><button onClick={() => review(c.requestId!, true)}>실행됐어요</button><button onClick={() => review(c.requestId!, false)}>실행되지 않았어요</button></div>}
       </div>
     );

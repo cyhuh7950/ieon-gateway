@@ -310,7 +310,9 @@ export function createApp(config) {
     if (hubModeOn()) cards.push({ kind: 'hub_mode', hubUrl: hubLink?.status().hubUrl ?? null });
     else if (!online(c.hostId)) cards.push({ kind: 'device_offline' });
     else if (engineReady(c) === false) cards.push({ kind: 'engine_off', engine: c.engine });
-    if (c.heldBy) cards.push({ kind: 'held', requestId: c.heldBy.requestId, status: c.heldBy.status, errorCode: c.heldBy.errorCode ?? null });
+    // RC4: 확인 필요 카드에 그때 세션과 지금 세션이 같은지(사람이 원래 앱에서 확인할 때 참고)
+    if (c.heldBy) { const rc = store.resumeCheck(c.heldBy.requestId); cards.push({ kind: 'held', requestId: c.heldBy.requestId, status: c.heldBy.status, errorCode: c.heldBy.errorCode ?? null,
+      ...(rc?.known ? { resume: { verdict: rc.verdict, sameSession: rc.sameSession, historyKept: rc.historyKept } } : {}) }); }
     if (access && c.newSession && c.engine === 'codex_thread' && hubCodex.loggedIn === false) cards.push({ kind: 'hub_codex_login' });
     if (c.newSession?.state === 'archived') cards.push({ kind: 'archived' });
     if (live === false && !hubModeOn()) cards.push({ kind: 'live_off' });
@@ -1235,6 +1237,7 @@ export function createApp(config) {
       m = path.match(/^\/v1\/tasks\/([\w-]+)$/);
       if (req.method === 'GET' && m) {
         const t = store.taskDetail(principal, m[1], { ttlMs: approvalTtlMs });
+        if (t?.resume?.known) t.resume.deviceOnline = online(t.resume.now.hostId); // RC4: 지금 그 PC가 붙어 있는지
         return t ? json(res, 200, t) : json(res, 404, { error: 'not_found' });
       }
       if (req.method === 'GET' && path === '/v1/approvals') return json(res, 200, { approvals: store.pendingApprovals(principal, { ttlMs: approvalTtlMs }) });
