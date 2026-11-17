@@ -54,3 +54,4 @@ report(await runner.sync());
 setInterval(() => runner.sync().then(report).catch((e) => log({ event: 'sync_error', error: String(e.message).slice(0, 80) })), 60 * 1000);
 // 새 세션 보관 예고를 10분마다 확인해 연결된 대화방에 보낸다.
 setInterval(() => runner.deliverNotices().catch(() => {}), 10 * 60 * 1000).unref();
+setInterval(() => runner.deliverScheduled().catch(() => {}), 60 * 1000).unref(); // W3 예약 질문의 답

@@ -401,7 +401,10 @@ export function createApp(config) {
   };
   // W3 예약 작업 실행기(설계 WORK_AND_VOICE A4): 때가 된 예약을 주인 이름(웹 앱)으로 보낸다. 같은 회차는 같은 접수 키라 서버를 다시 켜도 두 번 가지 않음.
   // 결과 불명·권한 확인 대기가 남아 있으면 멈춤(사람이 다시 켜야 함), 작업 모드 대화·하루 한도·보낼 수 없는 상태는 그 회차를 건너뜀(자동 재전송 없음).
+  const schedNotices = []; // 끝난 예약 질문의 답(메신저 방에 알림). 메모리에만, 200개까지, GET /v1/schedules/notices?after=
   const runSchedules = (now = new Date()) => {
+    for (const n of store.takeScheduleResults()) schedNotices.push({ ...n, when: describeSchedule(n), at: now.toISOString() });
+    if (schedNotices.length > 200) schedNotices.splice(0, schedNotices.length - 200);
     for (const s of store.dueSchedules(now.toISOString())) {
       const at = now.toISOString(); const day = localDay(now, s.tz); const next = s.kind === 'once' ? null : nextRun({ ...s, lastRunAt: at }, now);
       const done = (result, extra = {}) => { store.recordScheduleRun(s.scheduleId, { at, result, nextRunAt: next, day, counted: false, disable: s.kind === 'once', ...extra });
@@ -1425,6 +1428,12 @@ export function createApp(config) {
       if (path === '/v1/schedules' || path.startsWith('/v1/schedules/')) {
         const view = (s) => ({ ...s, when: describeSchedule(s), label: (() => { const c = store.conversations(principal).find((x) => x.conversationId === s.conversationId); return c ? labelOf(c) : null; })() });
         if (req.method === 'GET' && path === '/v1/schedules') return json(res, 200, { schedules: store.schedules(principal).map(view), max: MAX_SCHEDULES });
+        // 메신저 봇이 가져가 그 대화에 연결된 방에 답을 올림(볼 수 있는 대화만)
+        if (req.method === 'GET' && path === '/v1/schedules/notices') {
+          const after = new URL(req.url, 'http://x').searchParams.get('after') ?? '';
+          const mine = new Map(store.conversations(principal).map((c) => [c.conversationId, labelOf(c)]));
+          return json(res, 200, { notices: schedNotices.filter((n) => n.at > after && mine.has(n.conversationId)).map((n) => ({ ...n, label: mine.get(n.conversationId) })) });
+        }
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
         if (req.method === 'POST' && path === '/v1/schedules') {
           const b = await readJson(req);

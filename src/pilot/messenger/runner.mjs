@@ -181,5 +181,11 @@ export function createBotRunner(opts) {
     return n;
   }
 
-  return { sync, deliverNotices, running, stopAll: () => [...running.keys()].forEach(stop), roomStore };
+  // W3: 예약 질문의 답(1분마다)
+  async function deliverScheduled() {
+    let n = 0;
+    for (const e of running.values()) n += await e.bridge.deliverScheduled?.().catch(() => 0) ?? 0;
+    return n;
+  }
+  return { sync, deliverNotices, deliverScheduled, running, stopAll: () => [...running.keys()].forEach(stop), roomStore };
 }

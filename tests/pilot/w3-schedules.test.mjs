@@ -86,6 +86,12 @@ test('서버: 주인 웹 화면만 만들기·켜기, 때가 되면 주인 이�
   await call(`/v1/device/jobs/${job2.requestId}/result`, { method: 'POST', token: 'dev', body: { status: 'completed', answer: 'a' } });
   app.runSchedules(at(150));
   assert.equal((await get()).lastResult, 'day_limit');
+  // 끝난 예약 질문의 답은 메신저 봇이 가져가 그 대화에 연결된 방에 올림(한 번만)
+  const notes = (await call('/v1/schedules/notices?after=', { token: 'msg' })).body.notices;
+  assert.deepEqual(notes.map((n) => [n.status, n.answer, n.label, n.when]), [['unknown', null, 'c1', '15분마다'], ['completed', 'a', 'c1', '15분마다']]);
+  app.runSchedules(at(160));
+  assert.equal((await call('/v1/schedules/notices?after=', { token: 'msg' })).body.notices.length, 2, '같은 답을 다시 알리지 않음');
+  assert.equal((await call('/v1/schedules/notices?after=', { token: 'other' })).body.notices.length, 0, '남의 대화 답은 안 보임');
   // 작업 모드 대화는 질문만 규칙으로 건너뜀
   await call('/v1/conversations/c1/work-mode', { method: 'PUT', body: { on: true } });
   const made2 = await call('/v1/schedules', { method: 'POST', body: { conversationId: 'c1', kind: 'interval', minutes: 15, question: 'q2' } });
