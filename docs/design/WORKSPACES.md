@@ -153,7 +153,7 @@
 - **새 세션에도 붙이기:** 엔진 세션 ID가 첫 질문 뒤에 정해지므로 그 기기 설정에 `"<엔진>:new:<세션 이름>"`으로 둠(이름 = 새 세션 작업 폴더 이름). 공유 폴더만 — 개인 폴더는 이어온이 만든 작업 폴더(`new_session_auto_folder`). 대상 Codex·Claude 새 세션.
 - **Codex 새 세션:** 공유(쓰기) 폴더를 SDK `additionalDirectories`(= `--add-dir`, writable_roots)로 — 새로 만들 때·이어 갈 때 모두, read_only 권한이면 넣지 않음. 승인 없이(never) 샌드박스만이라 막는 정도 **쓰기 차단**, 읽기는 정리만. full 권한은 정리만.
 - **허브 자체 새 세션:** 설정 → 작업 폴더에서 "허브 자체"를 고르면 허브 컨테이너 안 폴더를 등록·붙임(허브 자신에 허용한 명령에 `workspace.get`·`folder.add`·`folder.delete` 추가, 붙이기는 서버 전용 주소가 허브 자신에게).
-- **시험:** `tests/pilot/ws1b-claude-dirs.test.mjs` 5건(모델 0). **미확인(실측 필요, 모델 호출):** 읽기만 공유의 `Edit(...)` 거부가 `--restricted`에서 실제로 고치기를 막는지(3-1 실측 2), `--add-dir` 공유 폴더 쓰기 됨.
+- **시험:** `tests/pilot/ws1b-claude-dirs.test.mjs` 5건(모델 0). **실측 PASS(2026-11-18, 칸 test1, 모델 1회):** 공유(쓰기) 폴더에 Write 됨, 공유(읽기만) 폴더 Read 됨·Edit 거부("denied by your permission settings"), 파일 그대로. 남은 점: 거부가 있으면 요청이 "권한 확인 대기"로 끝나 답이 비어 보이고 무엇이 거부됐는지 안 나옴(Claude 새 세션 기존 동작).
 
 ## 4. 실측 계획(구현 전에 — W0처럼)
 
