@@ -21,6 +21,7 @@ import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalC
 import { cleanLabel } from './accounts.mjs';
 import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
 import { WS_ENGINES } from './workspaces.mjs';
+import { validateSchedule, nextRun, localDay, describeSchedule, MAX_SCHEDULES } from './schedules.mjs';
 import { createAdminQueue } from './admin-queue.mjs';
 import { readMode, writeMode, modeEffects } from './mode.mjs';
 import { EventEmitter } from 'node:events';
@@ -385,6 +386,39 @@ export function createApp(config) {
     return cards;
   };
 
+  // 질문 접수 한 벌 — 웹·앱·외부 프로그램 질문과 W3 예약이 같은 검사를 거친다(허브 연결 중·PC 끊김·엔진 꺼짐·서비스용·계정 한도·동시 질문 수).
+  const askConversation = (principal, conv, key, question) => {
+    if (hubModeOn()) return { status: 409, body: { error: 'hub_mode' } };
+    if (!online(conv.hostId)) return { status: 503, body: { error: 'device_unavailable' } };
+    if (engineReady(conv) === false) return { status: 503, body: { error: conv.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down' } };
+    if (serviceBlocked(principal, conv)) return { status: 409, body: { error: 'service_needs_api_key' } };
+    const over = accountOver(conv);
+    if (over) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'account_limit', reason: over.reason }) + '\n'); return { status: 429, body: { error: 'account_limit_reached', reason: over.reason, usage: over.usage, limit: over.limit } }; }
+    const r = store.submit(principal, conv.conversationId, key, { question }, { accountKey: accountKeyOf(conv) });
+    if (r.http === 202) notify(conv.conversationId, { type: 'request', requestId: r.requestId, status: 'queued' });
+    const web = config.publicUrl ?? store.getSetting('web_url')?.value ?? null; // RC3: 작업 열기 링크(공개 주소를 알 때만)
+    return r.http === 202 ? { status: 202, body: { requestId: r.requestId, ...(web ? { taskUrl: `${web}/#task=${r.requestId}` } : {}) } } : { status: r.http, body: { error: r.code } };
+  };
+  // W3 예약 작업 실행기(설계 WORK_AND_VOICE A4): 때가 된 예약을 주인 이름(웹 앱)으로 보낸다. 같은 회차는 같은 접수 키라 서버를 다시 켜도 두 번 가지 않음.
+  // 결과 불명·권한 확인 대기가 남아 있으면 멈춤(사람이 다시 켜야 함), 작업 모드 대화·하루 한도·보낼 수 없는 상태는 그 회차를 건너뜀(자동 재전송 없음).
+  const runSchedules = (now = new Date()) => {
+    for (const s of store.dueSchedules(now.toISOString())) {
+      const at = now.toISOString(); const day = localDay(now, s.tz); const next = s.kind === 'once' ? null : nextRun({ ...s, lastRunAt: at }, now);
+      const done = (result, extra = {}) => { store.recordScheduleRun(s.scheduleId, { at, result, nextRunAt: next, day, counted: false, disable: s.kind === 'once', ...extra });
+        process.stderr.write(JSON.stringify({ ch: 'server', event: 'schedule_run', result }) + '\n'); };
+      const prev = s.lastRequestId ? store.requestStatus(s.lastRequestId) : null;
+      if (prev === 'unknown' || prev === 'approval_required') { store.pauseSchedule(s.scheduleId, 'last_unknown'); process.stderr.write(JSON.stringify({ ch: 'server', event: 'schedule_paused', reason: 'last_unknown' }) + '\n'); continue; }
+      if ((s.runsDay === day ? s.runsToday : 0) >= s.maxPerDay) { done('day_limit'); continue; }
+      if (store.workMode(s.conversationId)) { done('work_mode'); continue; } // 질문만 — 작업 모드 예약 금지
+      const principal = { userId: s.ownerUserId, appId: 'app_web' };
+      const conv = store.conversations(principal).find((c) => c.conversationId === s.conversationId);
+      if (!conv) { done('not_found', { pause: 'conversation_gone' }); continue; }
+      const r = askConversation(principal, conv, `sched-${s.scheduleId}-${Date.parse(s.nextRunAt)}`.slice(0, 64), s.question);
+      if (r.status === 202) done('sent', { requestId: r.body.requestId, counted: true }); else done(r.body.error ?? 'error');
+    }
+  };
+  const scheduleTimer = config.schedulesOff ? null : setInterval(() => { try { runSchedules(); } catch (e) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'schedule_error', error: String(e?.message ?? e).slice(0, 80) }) + '\n'); } }, config.scheduleTickMs ?? 30_000);
+  scheduleTimer?.unref?.();
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
@@ -1383,21 +1417,38 @@ export function createApp(config) {
         if (!key || !/^[\w-]{8,64}$/.test(key) || !question || question.length > MAX_QUESTION) return json(res, 400, { error: 'bad_request' });
         const conv = store.conversations(principal).find((c) => c.conversationId === m[1]);
         if (!conv) return json(res, 404, { error: 'not_found' });
-        // 이 PC가 허브에 연결돼 있으면 이 PC 서버는 작업을 내주지 않으므로, 받아 두면 처리되지 않은 채 남는다 → 처음부터 받지 않는다(U2).
-        if (hubModeOn()) return json(res, 409, { error: 'hub_mode' });
-        if (!online(conv.hostId)) return json(res, 503, { error: 'device_unavailable' });
-        if (engineReady(conv) === false) {
-          return json(res, 503, { error: conv.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down' });
+        // 허브 연결 중(U2)·PC 끊김·엔진 꺼짐·서비스용(SV3)·계정 한도(SV3-b)·동시 질문 수 검사는 askConversation 한 곳에서
+        const r = askConversation(principal, conv, key, question);
+        return json(res, r.status, r.body);
+      }
+      // --- W3 예약 작업: 만들기·켜기(= 사람의 승인)·끄기·지우기는 주인의 웹 화면만, 보기는 주인 ---
+      if (path === '/v1/schedules' || path.startsWith('/v1/schedules/')) {
+        const view = (s) => ({ ...s, when: describeSchedule(s), label: (() => { const c = store.conversations(principal).find((x) => x.conversationId === s.conversationId); return c ? labelOf(c) : null; })() });
+        if (req.method === 'GET' && path === '/v1/schedules') return json(res, 200, { schedules: store.schedules(principal).map(view), max: MAX_SCHEDULES });
+        if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
+        if (req.method === 'POST' && path === '/v1/schedules') {
+          const b = await readJson(req);
+          let v; try { v = validateSchedule(b); } catch (e) { return json(res, 400, { error: e.message }); }
+          const conv = store.conversations(principal).find((c) => c.conversationId === String(b.conversationId ?? ''));
+          if (!conv) return json(res, 404, { error: 'not_found' });
+          const first = nextRun(v);
+          if (!first) return json(res, 400, { error: 'bad_at' }); // 한 번 예약이 이미 지난 시각
+          const r = store.addSchedule(principal, conv.conversationId, v, { id: 'sch_' + randomBytes(6).toString('hex'), nextRunAt: first, max: MAX_SCHEDULES });
+          if (r.http === 201) process.stderr.write(JSON.stringify({ ch: 'server', event: 'schedule_added', kind: v.kind }) + '\n');
+          return r.http === 201 ? json(res, 201, view(r.schedule)) : json(res, r.http, { error: r.code });
         }
-        // SV3: 서비스용 봇(다른 사람도 받음)은 API 키 계정만 — 엔진에 보내지 않고 고치는 길을 알려 준다
-        if (serviceBlocked(principal, conv)) return json(res, 409, { error: 'service_needs_api_key' });
-        // SV3-b: API 계정 한도(정해 둔 경우만) — 넘으면 보내지 않고 알림(대화 카드로 주인도 봄)
-        const over = accountOver(conv);
-        if (over) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'account_limit', reason: over.reason }) + '\n'); return json(res, 429, { error: 'account_limit_reached', reason: over.reason, usage: over.usage, limit: over.limit }); }
-        const r = store.submit(principal, m[1], key, { question }, { accountKey: accountKeyOf(conv) });
-        if (r.http === 202) notify(m[1], { type: 'request', requestId: r.requestId, status: 'queued' });
-        const web = config.publicUrl ?? store.getSetting('web_url')?.value ?? null; // RC3: 작업 열기 링크(공개 주소를 알 때만)
-        return r.http === 202 ? json(res, 202, { requestId: r.requestId, ...(web ? { taskUrl: `${web}/#task=${r.requestId}` } : {}) }) : json(res, r.http, { error: r.code });
+        const sm = path.match(/^\/v1\/schedules\/(sch_[0-9a-f]{12})$/);
+        if (sm && req.method === 'PUT') {
+          const cur = store.schedule(principal, sm[1]);
+          if (!cur) return json(res, 404, { error: 'not_found' });
+          const on = (await readJson(req)).enabled === true;
+          const next = on ? nextRun({ ...cur, lastRunAt: null }) : cur.nextRunAt;
+          if (on && !next) return json(res, 400, { error: 'bad_at' });
+          const r = store.setScheduleEnabled(principal, sm[1], on, next);
+          return r.http === 200 ? json(res, 200, view(r.schedule)) : json(res, r.http, { error: r.code });
+        }
+        if (sm && req.method === 'DELETE') { const r = store.deleteSchedule(principal, sm[1]); return r.http === 204 ? json(res, 204) : json(res, r.http, { error: r.code }); }
+        return json(res, 404, { error: 'not_found' });
       }
       // RC3: 작업 화면 — 작업 목록·작업 하나·승인 대기함(내가 볼 수 있는 대화만)
       if (req.method === 'GET' && path === '/v1/tasks') {
@@ -1487,7 +1538,8 @@ export function createApp(config) {
     server, store, listenExtra, listenSocket, listenPublic, newSessions: nsCfg, notices,
     listen: (port) => new Promise((r) => server.listen(port, '127.0.0.1', () => r(server.address().port))),
     hubLink, localConnector, mode,
-    close: () => new Promise((r) => { clearInterval(cleanupTimer); relay?.close(); hubLink?.close(); localConnector?.stop(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
+    runSchedules, // 시험용(시계를 넘겨 바로 실행)
+    close: () => new Promise((r) => { clearInterval(cleanupTimer); if (scheduleTimer) clearInterval(scheduleTimer); relay?.close(); hubLink?.close(); localConnector?.stop(); extra.forEach((s2) => s2.close()); server.close(() => { store.close(); r(); }); }),
   };
 }
 
