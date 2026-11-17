@@ -32,7 +32,7 @@ test('데이터 이전: 이전 경로를 /data로 바꾸고, 소켓 대신 공�
   assert.deepEqual(s.webAccess.trustedProxies, ['172.19.0.0/16']);
   assert.equal(s.users[0].tokenSha256, 'ab');
   assert.equal(JSON.parse(readFileSync(join(d, 's2/connector.json'), 'utf8')).deviceTokenFile, '/data/s2/device-token');
-  assert.deepEqual(JSON.parse(readFileSync(join(d, 'new-sessions.json'), 'utf8')), { enabled: false, workspaceRoot: '/data/workspaces' });
+  assert.deepEqual(JSON.parse(readFileSync(join(d, 'new-sessions.json'), 'utf8')), { enabled: true, workspaceRoot: '/data/workspaces' });
   assert.ok(existsSync(join(d, 's2/server.json.bak-w0')));
   assert.ok(!readFileSync(join(d, 's2/server.json'), 'utf8').includes('/home/ieon'));
   assert.deepEqual(migrateHubData(d), []); // 두 번 돌려도 같다

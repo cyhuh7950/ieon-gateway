@@ -9,7 +9,7 @@ export const SESSION_STATES = Object.freeze(['pending', 'active', 'sleeping', 'a
 const CODEX_SANDBOXES = new Set(['read-only', 'workspace-write']);
 
 const DEFAULTS = Object.freeze({
-  enabled: false,
+  enabled: true, // 신산님 2026-11-17 "기본 켜기": 설치하면 바로 새 세션을 만들 수 있게(끄려면 설정 파일 enabled:false 또는 화면)
   workspaceRoot: process.platform === 'win32' ? 'D:/ieon-workspaces' : '~/ieon-workspaces',
   // app_bot_*: 웹 봇 관리에서 정의한 모든 추가 봇(MULTI_BOTS 4절)
   creatorApps: ['app_web', 'app_messenger', 'app_bot_*'],
@@ -59,7 +59,7 @@ export function loadNewSessionsConfig(raw = {}) {
   const creatorApps = raw.creatorApps ?? DEFAULTS.creatorApps;
   if (!Array.isArray(creatorApps)) fail('creatorApps');
 
-  return { enabled: raw.enabled === true, workspaceRoot: raw.workspaceRoot ?? DEFAULTS.workspaceRoot,
+  return { enabled: raw.enabled !== false, workspaceRoot: raw.workspaceRoot ?? DEFAULTS.workspaceRoot,
     creatorApps, limits, permissions, cleanup, sessionOverrides };
 }
 

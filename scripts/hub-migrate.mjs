@@ -1,7 +1,7 @@
 // W0: 옮긴 허브 데이터의 설정 경로를 컨테이너 경로로 바꾼다. 사용: node scripts/hub-migrate.mjs <데이터 폴더> [이전 .local 경로]
 // - 설정 JSON(server·connector·messenger·new-sessions)의 이전 경로 문자열을 /data로 바꾼다(토큰·DB 내용은 건드리지 않는다).
 // - server.json: Unix 소켓 대신 publicListen(0.0.0.0:28770), trustedProxies에서 "unix" 제거.
-// - new-sessions.json: 작업 폴더를 /data/workspaces로, Codex 로그인 전이라 새 세션은 끈다(웹 Codex 로그인 후 다시 켬, WEB_FIRST W5).
+// - new-sessions.json: 작업 폴더를 /data/workspaces로, 새 세션은 켠다(신산님 2026-11-17 "기본 켜기" — 예전엔 Codex 로그인 전이라 껐음, WEB_FIRST W5 AI 판단).
 // - 바꾸기 전 파일은 같은 이름 .bak-w0로 남긴다. 값은 출력하지 않는다.
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,7 +29,7 @@ export function migrateHubData(data, oldLocal = '/home/ieon/deploy/ieon-gateway/
   });
   rewrite('s2/connector.json', (c) => c);
   rewrite('messenger/config.json', (c) => c);
-  rewrite('new-sessions.json', (c) => ({ ...c, enabled: false, workspaceRoot: `${newLocal}/workspaces` }));
+  rewrite('new-sessions.json', (c) => ({ ...c, enabled: true, workspaceRoot: `${newLocal}/workspaces` }));
   return changed;
 }
 
