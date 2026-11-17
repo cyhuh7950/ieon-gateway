@@ -72,12 +72,53 @@ test('구독 로그인: 주소를 보여 주고, 붙여 넣은 코드를 넣으�
   assert.notEqual(fake.calls[0].env.HOME, process.env.HOME, '임시 HOME — 서버의 다른 Claude 설정을 건드리지 않음');
   assert.deepEqual(login.code('bad code!'), { error: 'bad_code' });
   login.code('abc123#state456');
+  await until(() => fake.calls[0].child.code);
   assert.equal(fake.calls[0].child.code, 'abc123#state456');
   await until(() => login.view().state === 'done');
   assert.equal(login.view().state, 'done');
   assert.equal(readFileSync(join(d, 'oauth-token'), 'utf8').trim(), FAKE_TOKEN);
   assert.ok(!JSON.stringify(login.view()).includes('sk-ant'), '화면 응답에 토큰 없음');
   assert.ok(!JSON.stringify(logs).includes('sk-ant') && !JSON.stringify(logs).includes('abc123'), '로그에 토큰·코드 없음');
+});
+
+test('구독 로그인: Claude가 코드를 거절하면(실측 문장) "확인 중"에 머물지 않고 실패 + 그 안내를 화면에, 아무 결과 없으면 no_token', async (t) => {
+  const d = tmp(t);
+  const reject = (cmd, args, opts) => {
+    const child = new EventEmitter();
+    child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.stdin = new PassThrough();
+    child.kill = () => setImmediate(() => child.emit('exit', null));
+    setImmediate(() => child.stdout.write(`\x1b]8;id=1;https://claude.ai/oauth/authorize?x=1\x07u\x1b]8;;\x07\r\nPaste code here if prompted > `));
+    let got = '';
+    child.stdin.on('data', (x) => { got += x; if (got.endsWith('\r')) setImmediate(() => child.stdout.write(
+      '\x1b(B\x0f ✻ Finishing sign-i…\r\n OAuth\x1b[1Cerror:\x1b[1CThat code wasn\'t accepted. It may be incomplete, expired, already used, or from an earlier sign-in attempt.\r\n\r\nPress\x1b[1CEnter\x1b[1Cto\x1b[1Cretry.\r\n')); });
+    return child;
+  };
+  const login = createClaudeLogin({ dir: d, spawnImpl: reject });
+  login.start(); await until(() => login.view().url);
+  login.code('abc123#state456');
+  await until(() => login.view().state !== 'waiting');
+  const v = login.view();
+  assert.deepEqual([v.state, v.error], ['failed', 'oauth_error']);
+  assert.match(v.detail, /^OAuth error: That code wasn't accepted/);
+  assert.ok(!existsSync(join(d, 'oauth-token')));
+  // 다시 시작할 수 있다
+  assert.equal(login.start().state, 'waiting');
+  login.cancel();
+
+  const silent = (cmd, args, opts) => {
+    const child = new EventEmitter();
+    child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.stdin = new PassThrough();
+    child.kill = () => setImmediate(() => child.emit('exit', null));
+    setImmediate(() => child.stdout.write('\x1b]8;id=1;https://claude.ai/oauth/authorize?x=1\x07u\x1b]8;;\x07\r\n'));
+    return child;
+  };
+  const logs = [];
+  const l2 = createClaudeLogin({ dir: d, spawnImpl: silent, noTokenMs: 50, log: (e) => logs.push(e) });
+  l2.start(); await until(() => l2.view().url);
+  l2.code('abc123#state456');
+  await until(() => l2.view().state !== 'waiting');
+  assert.equal(l2.view().error, 'no_token');
+  assert.ok(logs.some((e) => e.event === 'claude_login_no_token') && !JSON.stringify(logs).includes('abc123'));
 });
 
 test('기기 관리 명령: 허브(쓸 수 있음)에서 API 키·로그아웃, 같이 쓰는 폴더가 없는 PC는 그 PC 로그인 그대로(바꾸기는 허브에서)', async (t) => {
