@@ -123,5 +123,5 @@ export function client(conn: Conn, f: Fetch = fetch) {
 export type Client = ReturnType<typeof client>;
 
 // 보내지 않은 것이 확실한 실패만 "다시 보내기"를 보여 준다(결과 불명은 자동·수동 재전송 대상이 아님 — 확인 카드로).
-export const RETRYABLE = new Set(["desktop_holds_thread", "thread_busy", "conversation_busy", "active_limit", "usage_limit", "device_unavailable",
+export const RETRYABLE = new Set(["desktop_holds_thread", "thread_busy", "conversation_busy", "host_busy", "active_limit", "usage_limit", "device_unavailable",
   "session_not_running", "shared_server_down", "account_not_logged_in", "session_in_use", "network"]);
