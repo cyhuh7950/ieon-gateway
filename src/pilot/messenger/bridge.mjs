@@ -141,7 +141,7 @@ export function createBridge(opts) {
   const byName = (all, name) => all.find((c) => c.newSession?.name === name);
   const nsFail = (r) => NS_ERR[r.body?.error] ?? `할 수 없음: ${r.body?.error}`;
   const describe = (c, i) => {
-    const engine = c.engine === 'claude_channel' ? 'Claude' : c.engine === 'claude_cli' ? 'Claude(새 세션)' : c.engine === 'agy_cli' ? 'Antigravity' : c.engine === 'grok_cli' ? 'Grok' : `Codex(${c.connectMode === 'shared_server' ? '동시 사용' : '번갈아 쓰기'})`;
+    const engine = c.engine === 'claude_channel' ? 'Claude' : c.engine === 'claude_cli' ? 'Claude(CLI)' : c.engine === 'agy_cli' ? 'Antigravity' : c.engine === 'grok_cli' ? 'Grok' : `Codex(${c.connectMode === 'shared_server' ? '동시 사용' : '번갈아 쓰기'})`;
     const ns = c.newSession ? ` · 새 세션 ${STATE[c.newSession.state] ?? c.newSession.state}` : '';
     const state = !c.deviceOnline ? 'PC 연결 끊김' : c.heldBy ? '확인 필요' : c.engineReady === false ? '엔진 꺼짐' : c.busy ? '처리 중' : '보낼 수 있음';
     // 어느 PC·작업 모드인지도 보이게(허브는 PC 이름을 알려 줌)

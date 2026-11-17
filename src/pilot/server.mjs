@@ -764,6 +764,23 @@ export function createApp(config) {
           if (!online(hr[1])) return json(res, 503, { error: 'device_offline' });
           const r = await adminQueue.send(hr[1], op, b.args && typeof b.args === 'object' ? b.args : {});
           process.stderr.write(JSON.stringify({ ch: 'server', event: 'host_admin', host: hr[1], op, status: r.status }) + '\n');
+          // SV2 기존 대화(신산님 2026-11-17): 서버 칸의 Claude 대화를 [연결]하면 칸이 허용 목록에 넣고, 허브가 바로 이어온 대화로 등록한다(한 번에).
+          if (op === 'claude.connect' && r.status === 200) {
+            const host = hr[1]; const sessionRef = String(r.body.sessionId);
+            const existing = store.listBindings().find((x) => x.engine === 'claude_cli' && x.hostId === host && String(x.sessionRef).toLowerCase() === sessionRef.toLowerCase());
+            let conversationId = existing?.conversationId;
+            if (!conversationId) {
+              const ids = new Set(store.listBindings().map((x) => x.conversationId));
+              const base = 'c_' + sessionRef.replaceAll('-', '').slice(0, 12);
+              conversationId = base; for (let n = 2; ids.has(conversationId); n += 1) conversationId = base + '_' + n;
+              const label = String(b.args?.label ?? '').trim().slice(0, 60) || String(r.body.title ?? '').slice(0, 60) || 'Claude 대화';
+              const appIds = (config.users ?? []).some((u) => u.appId === 'app_messenger') ? ['app_web', 'app_messenger'] : ['app_web'];
+              let v; try { v = validateBinding(conversationId, { engine: 'claude_cli', label, hostId: host, sessionRef, appIds }, knownHosts()); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
+              const s2 = store.saveBinding(principal.userId, v);
+              if (s2.http !== 200) return json(res, s2.http, { error: s2.code });
+            }
+            return json(res, 200, { ...r.body, conversationId, created: !existing });
+          }
           return json(res, r.status, r.body);
         }
         if (path === '/v1/admin/local/engines' && req.method === 'GET') {

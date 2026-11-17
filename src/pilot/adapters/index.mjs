@@ -35,7 +35,8 @@ export async function buildAdapters(config) {
       // A2: 이어온 전용 Codex 계정(설정 파일 경로를 아는 연결부가 accountsDir를 채워 준다)
       accountEnv: config.accountsDir ? (threadId) => codexEnvFor(config, config.accountsDir, threadId) : undefined }),
     claude_channel: claudeChannelAdapter({ live, baseUrl: config.claude?.baseUrl, tokenFile: config.claude?.tokenFile }),
-    claude_cli: claudeCliAdapter({ live, newSessions }),
+    // SV2: 새 세션 + 서버 칸에서 고른 기존 Claude 대화(허용 목록·대화별 작업 폴더)
+    claude_cli: claudeCliAdapter({ live, newSessions, allowlist: config.cliEngines?.claude_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.claude_cli?.workingDirectories }),
     // E1·E2: 세션 쪽은 그 PC의 허용 목록, 토큰 쪽은 지금 PC 기본 로그인(API 키 변수는 실행 때 지움)
     agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories }),
     grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories }),

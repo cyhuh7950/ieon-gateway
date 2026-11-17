@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount } from './device-settings.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
+import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
 import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin, saveClaudeLogin, removeClaudeLogin } from './claude-login.mjs';
 
 // 명령 목록(이 밖의 것은 거절). read: 보기만(앞단을 거친 PC 화면 요청도 허용), 나머지는 바꾸기.
@@ -17,6 +18,8 @@ export const OPS = {
   'mode.get': 'read', 'mode.set': 'write',
   // SV2: 서버 Claude 로그인(허브·모든 칸이 같이 씀) — 구독(공식 setup-token, 주소+코드)·API 키 모두 이어온 화면에서
   'claude.get': 'read', 'claude.login': 'write', 'claude.code': 'write', 'claude.login.cancel': 'write', 'claude.apikey': 'write', 'claude.logout': 'write',
+  // SV2 기존 대화: 서버 칸에서 사람이 연 Claude 대화 목록·연결(연결 = 그 칸의 허용 목록에 넣기, 허브가 대화로 등록)
+  'claude.sessions': 'read', 'claude.connect': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
 };
 // 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 허브 보안·Codex 탭, 허브는 기존 대화 허용 목록이 없음).
@@ -27,7 +30,7 @@ export const API_KEY = /^sk-[A-Za-z0-9_-]{20,300}$/;
 const DEFAULT_ID = 'pc_default';
 
 export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {},
-  claudeDir = claudeAuthDir(), claudeLogin = null }) {
+  claudeDir = claudeAuthDir(), claudeLogin = null, claudeProjects = claudeProjectsDir(), busyOf = claudeBusy }) {
   const logins = new Map(); // 계정별 공식 로그인 진행 상태
   let cLogin = null;
   const claudeLoginJob = () => (cLogin ??= claudeLogin ?? createClaudeLogin({ dir: claudeDir, log }));
@@ -52,6 +55,13 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     return logins.get(id);
   };
   const device = (p) => ({ ...readDevice(p), ...connectorState() });
+  // 이어온이 만든 Claude 새 세션 ID(이미 대화 목록에 있으므로 고르기 목록에서 뺀다)
+  const createdIds = (p) => {
+    try {
+      const f = JSON.parse(readFileSync(p, 'utf8')).newSessions?.createdPath;
+      return new Set(f && existsSync(f) ? readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l).id; } catch { return null; } }).filter(Boolean) : []);
+    } catch { return new Set(); }
+  };
   const accounts = (p) => {
     const d = readDevice(p); const dir = dirOf(p);
     const k = kinds(p);
@@ -92,7 +102,23 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     }
     const p = cfg();
     switch (op) {
-      case 'device.get': return { status: 200, body: device(p) };
+      case 'device.get': return { status: 200, body: { ...device(p), claudeServer: Boolean(claudeDir) } };
+      // SV2: 서버(같이 쓰는 Claude 로그인이 있는 곳)에서만 — PC의 Claude는 채널 그대로(설계 2-2)
+      case 'claude.sessions': {
+        if (!claudeDir) return { status: 404, body: { error: 'claude_not_server' } };
+        const on = new Set(readDevice(p).cliSessions.filter((x) => x.engine === 'claude_cli').map((x) => x.sessionId));
+        const sessions = listClaudeSessions({ dir: claudeProjects, skip: createdIds(p) })
+          .map((x) => ({ ...x, connected: on.has(x.sessionId), busy: busyOf(x.cwd) === 'busy' }));
+        return { status: 200, body: { sessions } };
+      }
+      case 'claude.connect': {
+        if (!claudeDir) return { status: 404, body: { error: 'claude_not_server' } };
+        const s = findClaudeSession(String(a.sessionId ?? '').trim(), claudeProjects);
+        if (!s) return { status: 404, body: { error: 'session_not_found' } };
+        if (!s.cwd) return { status: 409, body: { error: 'no_working_directory' } };
+        upsertCliSession(p, { engine: 'claude_cli', sessionId: s.sessionId, workingDirectory: s.cwd });
+        return { status: 200, body: { sessionId: s.sessionId, title: s.title, cwd: s.cwd, ...(await applyDevice()) } };
+      }
       case 'device.live':
         setLive(p, a.live);
         log({ event: 'device_live', live: a.live });

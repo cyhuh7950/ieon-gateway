@@ -5,7 +5,8 @@
 // --strict-mcp-config(MCP 없음), --tools·--allowedTools는 프로필 도구만, --permission-prompts none(그 밖은 자동 거부).
 // 질문은 표준 입력으로만 넘기고 로그에 남기지 않는다.
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
+import { claudeBusy } from '../claude-sessions.mjs';
 import { randomUUID } from 'node:crypto';
 import { EngineError, StoppedError } from '../contracts.mjs';
 import { checkNewSession } from '../new-sessions.mjs';
@@ -31,26 +32,46 @@ export function spawnClaude(args, input, { cwd, timeoutMs = TIMEOUT_MS, signal =
   });
 }
 
-// opts: { live, spawnClaude?, newSessions?: { config, created: { has(id), add(id, name) } } }
+// SV2 기존 대화(서버 칸에서 사람이 연 Claude 대화를 고른 것)의 도구: 새 세션 기본 프로필(없으면 작업 폴더 안 읽기·쓰기). 명령(Bash)은 열지 않는다.
+const DEFAULT_TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write'];
+
+// opts: { live, spawnClaude?, newSessions?: { config, created: { has(id), add(id, name) } },
+//         allowlist?: [기존 대화 세션 ID], workingDirectories?: {id: 작업 폴더}, busy?(cwd) }
 export function claudeCliAdapter(opts) {
   const run = opts.spawnClaude ?? spawnClaude;
+  const busy = opts.busy ?? claudeBusy;
+  // 새 세션(이어온이 만든 것): 작업 폴더·도구를 이 연결부 설정으로 다시 검사
+  const forNew = (sessionRef, newSession) => {
+    if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
+    if (!opts.live) throw new EngineError('live_disabled', 503);
+    const { config, created } = opts.newSessions;
+    let checked;
+    try { checked = checkNewSession(config, newSession); } catch (e) { throw new EngineError(e.code, e.http); }
+    const pending = sessionRef.startsWith('pending:');
+    const id = pending ? randomUUID() : sessionRef;
+    if (!pending && !created.has(id)) throw new EngineError('session_not_allowed', 403);
+    if (pending) { mkdirSync(checked.workspace, { recursive: true }); created.add(id, newSession.name); }
+    return { id, pending, cwd: checked.workspace, tools: checked.profile.claude.allowedTools };
+  };
+  // 기존 대화(서버 칸 허용 목록에 고른 것): 같은 ID로 그 대화의 작업 폴더에서 --resume. 사람이 그 폴더에서 Claude를 실행 중이면 보내지 않는다.
+  const forExisting = (id) => {
+    if (!ID.test(String(id)) || !(opts.allowlist ?? []).includes(id)) throw new EngineError('session_not_allowed', 403);
+    if (!opts.live) throw new EngineError('live_disabled', 503);
+    const cwd = opts.workingDirectories?.[id];
+    if (!cwd || !existsSync(cwd)) throw new EngineError('working_directory_missing', 409);
+    if (busy(cwd) === 'busy') throw new EngineError('session_in_use', 409);
+    const cfg = opts.newSessions?.config;
+    const tools = cfg?.permissions.profiles[cfg.permissions.default === 'full' ? 'workspace' : cfg.permissions.default]?.claude.allowedTools ?? DEFAULT_TOOLS;
+    return { id, pending: false, cwd, tools };
+  };
   return {
     engine: 'claude_cli',
     async run({ sessionRef, question, newSession }, { signal = null } = {}) {
-      if (!newSession || !opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
-      if (!opts.live) throw new EngineError('live_disabled', 503);
-      const { config, created } = opts.newSessions;
-      let checked;
-      try { checked = checkNewSession(config, newSession); } catch (e) { throw new EngineError(e.code, e.http); }
-      const tools = checked.profile.claude.allowedTools.join(',');
-      const pending = sessionRef.startsWith('pending:');
-      const id = pending ? randomUUID() : sessionRef;
-      if (!pending && !created.has(id)) throw new EngineError('session_not_allowed', 403);
-      if (pending) mkdirSync(checked.workspace, { recursive: true });
+      const { id, pending, cwd, tools: list } = newSession ? forNew(sessionRef, newSession) : forExisting(sessionRef);
+      const tools = list.join(',');
       const args = ['-p', '--output-format', 'json', '--restricted', '--strict-mcp-config', '--permission-prompts', 'none',
         '--tools', tools, '--allowedTools', tools, ...(pending ? ['--session-id', id] : ['--resume', id])];
-      if (pending) created.add(id, newSession.name);
-      const { code, stdout, stopped } = await run(args, question, { cwd: checked.workspace, signal });
+      const { code, stdout, stopped } = await run(args, question, { cwd, signal });
       if (stopped) throw Object.assign(new StoppedError(), { sessionRef: id }); // 사람이 멈춤 — 세션 ID는 남겨 같은 세션으로 이어 감
       let out;
       try { out = JSON.parse(stdout); } catch { throw Object.assign(new Error('claude_bad_output'), { unknownCode: `claude_exit_${code}`, sessionRef: id }); }
