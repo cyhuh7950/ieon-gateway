@@ -10,7 +10,7 @@ const req = (name, engine = 'codex', extra = {}) => ({ engine, name, hostId: 'h_
 
 test('설정: 기본값을 채우고 잘못된 값은 거부한다', () => {
   const c = loadNewSessionsConfig({});
-  assert.equal(c.enabled, false);
+  assert.equal(c.enabled, true); // 기본 켜짐(신산님 2026-11-17)
   assert.deepEqual(c.limits, { maxSessions: 10, maxActive: 3, maxPerEngine: { codex: 10, claude: 3 } });
   assert.equal(c.permissions.default, 'workspace');
   assert.equal(c.permissions.allowFullFromChat, false);
@@ -68,7 +68,7 @@ test('새 세션을 만들면 목록에 새 세션으로 보이고 작업 폴더
 
 test('기능이 꺼져 있거나 허용되지 않은 앱·잘못된 입력이면 만들지 않는다', (t) => {
   const { store } = tempStore(t, []);
-  assert.deepEqual(store.createSession(owner, req('aa'), loadNewSessionsConfig({})), { http: 403, code: 'new_sessions_disabled' });
+  assert.deepEqual(store.createSession(owner, req('aa'), loadNewSessionsConfig({ enabled: false })), { http: 403, code: 'new_sessions_disabled' });
   assert.deepEqual(store.createSession(otherApp, req('aa'), cfg()), { http: 403, code: 'app_not_allowed' });
   assert.deepEqual(store.createSession(owner, req('a'), cfg()), { http: 400, code: 'bad_name' });
   assert.deepEqual(store.createSession(owner, req('aa', 'gpt'), cfg()), { http: 400, code: 'bad_engine' });
