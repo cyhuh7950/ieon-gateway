@@ -8,6 +8,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { validateName } from './new-sessions.mjs';
 
 const EXCLUDED = '01a0dadd-739f-74d2-93c5-9c405cc1019b'; // 업무 대화(AGENTS 안전 규칙)
 export const WS_ENGINES = ['codex_thread', 'claude_cli', 'agy_cli', 'grok_cli'];
@@ -57,12 +58,19 @@ export function removeFolder(c, id) {
   c.workspaces = { ...w, folders: w.folders.filter((f) => f.id !== id) };
 }
 
-// 직원에 붙이기(personal·shared 모두 비면 떼기). 그 기기 허용 목록에 있는 세션만.
+// WS1-b: 새 세션은 엔진 세션 ID가 첫 질문 뒤에 정해지므로 "new:<세션 이름>"으로 붙인다(이름은 그 기기 새 세션 작업 폴더 이름과 같음).
+const NEW_ENGINES = ['codex_thread', 'claude_cli'];
+export const keyOf = (engine, ref) => `${engine}:${engine === 'codex_thread' && !String(ref).startsWith('new:') ? String(ref).toLowerCase() : ref}`;
+
+// 직원에 붙이기(personal·shared 모두 비면 떼기). 그 기기 허용 목록에 있는 세션, 또는 새 세션(공유 폴더만 — 개인 폴더는 자동 폴더).
 export function attachWorkspace(c, { engine, sessionRef, personal = null, shared = [] }) {
   if (!WS_ENGINES.includes(engine)) fail('bad_engine');
   const ref = String(sessionRef ?? '').trim();
   if (!ref || ref.toLowerCase() === EXCLUDED) fail('excluded_session');
-  if (!allowed(c, engine).includes(engine === 'codex_thread' ? ref.toLowerCase() : ref)) fail('session_not_allowed', 403);
+  if (ref.startsWith('new:')) {
+    if (!NEW_ENGINES.includes(engine) || !validateName(ref.slice(4))) fail('bad_session');
+    if (personal) fail('new_session_auto_folder');
+  } else if (!allowed(c, engine).includes(engine === 'codex_thread' ? ref.toLowerCase() : ref)) fail('session_not_allowed', 403);
   const w = readWorkspaces(c);
   const ids = new Set(w.folders.map((f) => f.id));
   const pid = personal ? String(personal) : null;
@@ -75,7 +83,7 @@ export function attachWorkspace(c, { engine, sessionRef, personal = null, shared
     seen.add(id);
     return { id, write: s.write === true };
   });
-  const key = `${engine}:${engine === 'codex_thread' ? ref.toLowerCase() : ref}`;
+  const key = keyOf(engine, ref);
   const attach = { ...w.attach };
   if (!pid && !list.length) delete attach[key]; else attach[key] = { personal: pid, shared: list };
   c.workspaces = { ...w, attach };
@@ -84,7 +92,7 @@ export function attachWorkspace(c, { engine, sessionRef, personal = null, shared
 // 실행 때 쓰는 모양: { personal: 경로|null, write: [경로], read: [경로] }. 지워진 폴더는 건너뛴다.
 export function workspaceFor(c, engine, sessionRef) {
   const w = readWorkspaces(c);
-  const a = w.attach[`${engine}:${engine === 'codex_thread' ? String(sessionRef).toLowerCase() : sessionRef}`];
+  const a = w.attach[keyOf(engine, sessionRef)];
   if (!a) return null;
   const byId = new Map(w.folders.map((f) => [f.id, f]));
   const personal = byId.get(a.personal)?.path ?? null;
@@ -101,7 +109,19 @@ export function workspaceLine(ws) {
 
 // 차단 수준(설계 3절 표 + WS0 실측 + 2026-11-18 작업 모드 실측). 사람이 알아볼 말로: 허용 필요 = 사람이 카드에서 허용해야만 써짐, 정리만 = 안내만.
 // 작업 모드(approvalPolicy untrusted)는 파일을 고칠 때마다 카드로 묻고, 사람이 허용하면 작업 폴더 밖도 써진다(실측: outside 파일 생김) — 그래서 "차단"이라 하지 않는다.
-export function blockLevel(engine, { boundary = false } = {}) {
+// WS1-b: Claude(서버 기존 대화·새 세션)는 --restricted로 파일 도구를 작업 폴더 + --add-dir 폴더 안에 가두고 그 밖은 자동 거부(WS0 실측) → 차단.
+// 명령 도구(Bash)가 있는 full 권한 새 세션은 명령으로 우회되므로(WS0 실측) 정리만. Codex 새 세션은 승인 없이(never) 샌드박스만 → 쓰기 차단.
+export function blockLevel(engine, { boundary = false, newSession = false, full = false } = {}) {
+  if (engine === 'claude_cli') {
+    return full
+      ? { write: 'organize', writeText: '정리만 — full 권한은 명령 도구(Bash)가 있어 폴더 밖도 쓸 수 있어요', read: 'organize', readText: '정리만 — full 권한은 명령으로 다른 폴더도 읽을 수 있어요' }
+      : { write: 'blocked', writeText: '차단 — 작업 폴더·공유(쓰기) 폴더 안만 고치고, 공유(읽기만)·그 밖은 못 고쳐요(Claude --restricted)', read: 'blocked', readText: '차단 — 작업 폴더·붙인 공유 폴더 밖은 못 읽어요(명령 도구 없음)' };
+  }
+  if (engine === 'codex_thread' && newSession) {
+    return boundary
+      ? { write: 'limited', writeText: '엔진 칸 컨테이너가 경계 — 칸 밖은 못 쓰고, 칸 안 폴더끼리는 정리만', read: 'organize', readText: '정리만 — 칸 안 다른 폴더도 읽을 수 있어요' }
+      : { write: full ? 'organize' : 'blocked', writeText: full ? '정리만 — full 권한은 명령·인터넷이 열려 있어요' : '차단(Codex 샌드박스, 승인 없이 실행) — 작업 폴더·공유(쓰기) 폴더 밖은 못 써요', read: 'organize', readText: '정리만 — 이 직원은 다른 폴더도 읽을 수 있어요' };
+  }
   if (engine === 'codex_thread') {
     return boundary
       ? { write: 'limited', writeText: '엔진 칸 컨테이너가 경계 — 칸 밖은 못 쓰고, 칸 안 폴더끼리는 정리만(파일 수정은 승인 카드로 물음)', read: 'organize', readText: '정리만 — 칸 안 다른 폴더도 읽을 수 있어요' }
@@ -116,13 +136,26 @@ export function workspacesView(c, { boundary = false } = {}) {
   const w = readWorkspaces(c);
   const byId = new Map(w.folders.map((f) => [f.id, f]));
   const attached = Object.entries(w.attach).map(([key, a]) => {
-    const i = key.indexOf(':'); const engine = key.slice(0, i);
-    return { engine, sessionRef: key.slice(i + 1), personal: a.personal ?? null, shared: a.shared ?? [], level: blockLevel(engine, { boundary }),
+    const i = key.indexOf(':'); const engine = key.slice(0, i); const sessionRef = key.slice(i + 1);
+    return { engine, sessionRef, personal: a.personal ?? null, shared: a.shared ?? [], level: blockLevel(engine, { boundary, newSession: sessionRef.startsWith('new:') }),
       summary: summaryOf(a, byId) };
   });
   const used = new Set(Object.values(w.attach).flatMap((a) => [a.personal, ...(a.shared ?? []).map((s) => s.id)]).filter(Boolean));
   return { folders: w.folders.map((f) => ({ ...f, inUse: used.has(f.id) })), attached, tempRoots: tempRoots(),
-    levels: Object.fromEntries(WS_ENGINES.map((e) => [e, blockLevel(e, { boundary })])) }; // 붙이기 전 확인 화면용
+    levels: Object.fromEntries(WS_ENGINES.map((e) => [e, blockLevel(e, { boundary })])), // 붙이기 전 확인 화면용
+    newLevels: Object.fromEntries(NEW_ENGINES.map((e) => [e, blockLevel(e, { boundary, newSession: true })])),
+    fullLevels: Object.fromEntries(NEW_ENGINES.map((e) => [e, blockLevel(e, { boundary, newSession: true, full: true })])) };
+}
+
+// WS1-b: Claude 실행 인자 — 붙인 폴더(개인·공유)를 --add-dir로 더하고, 공유(읽기만)는 --settings의 Edit 거부 규칙으로 고치기를 막는다.
+// 규칙 경로는 Claude 형식(절대 경로는 //로 시작, Windows D:/x → //d/x). --restricted에서도 --settings는 읽는다(설계 3절).
+export const rulePath = (p) => { const n = String(p).replaceAll('\\', '/').replace(/\/+$/, ''); const m = n.match(/^([A-Za-z]):\/(.*)$/); return (m ? `//${m[1].toLowerCase()}/${m[2]}` : `/${n}`) + '/**'; };
+export function claudeDirArgs(ws) {
+  if (!ws) return [];
+  const dirs = [...new Set([ws.personal, ...ws.write, ...ws.read].filter(Boolean))];
+  const args = dirs.flatMap((d) => ['--add-dir', d]);
+  if (ws.read.length) args.push('--settings', JSON.stringify({ permissions: { deny: ws.read.map((d) => `Edit(${rulePath(d)})`) } }));
+  return args;
 }
 
 // 이름만(메신저 /status·대화 목록 — 경로 없이)

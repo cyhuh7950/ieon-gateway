@@ -113,6 +113,7 @@ function newSessionPlan(ns, cfg) {
 
 async function runNewSession({ sessionRef, question, newSession }, deps, { config, created }) {
   const plan = newSessionPlan(newSession, config);
+  if (deps.extraDirs?.length && plan.options.sandboxMode === 'workspace-write') plan.options.additionalDirectories = deps.extraDirs; // WS1-b: 공유(쓰기) 폴더
   const { Codex } = await deps.loadSdk();
   const codexOpts = deps.env ? { env: deps.env } : undefined;
   let thread;
@@ -387,7 +388,7 @@ export function codexThreadAdapter(opts) {
       if (newSession) {
         if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
         if (!opts.live) throw new EngineError('live_disabled', 503);
-        return runNewSession({ sessionRef: threadId, question, newSession }, { ...deps, env: accountEnv(opts, null), signal }, opts.newSessions);
+        return runNewSession({ sessionRef: threadId, question, newSession }, { ...deps, env: accountEnv(opts, null), signal, extraDirs: liveRoots(opts.newSessionDirs?.(newSession.name)) }, opts.newSessions);
       }
       if (threadId === EXCLUDED || !opts.allowlist.includes(threadId)) throw new EngineError('thread_not_allowed', 403);
       if (!opts.live) throw new EngineError('live_disabled', 503);

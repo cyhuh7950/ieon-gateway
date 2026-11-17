@@ -73,7 +73,7 @@ test('붙이기: 그 기기 허용 목록의 세션만, 업무 대화·없는 �
   assert.deepEqual(v.attached[0].summary, { personal: '개인', shared: [{ name: '공유', write: true }, { name: '자료', write: false }] });
   assert.equal(v.attached[0].level.write, 'approval', '2026-11-18 실측: 사람이 허용하면 작업 폴더 밖도 써짐 — 차단이 아니라 허용 필요');
   assert.equal(v.attached[0].level.read, 'organize', 'Codex는 읽기를 막지 못함(WS0) — 정리만으로 표시');
-  assert.equal(v.levels.claude_cli.write, 'organize');
+  assert.equal(v.levels.claude_cli.write, 'blocked', 'WS1-b: Claude는 --restricted·--add-dir로 차단');
   assert.equal(blockLevel('codex_thread', { boundary: true }).write, 'limited', '엔진 칸은 컨테이너가 경계');
   // 허용 목록에서 빼면 작업 공간도 뗀다
   writeFileSync(cfg, JSON.stringify(c));
@@ -162,7 +162,7 @@ test('메신저 /status·설정 화면: 작업 공간은 폴더 이름만, 설�
   assert.ok(set.includes('data-atab="ws"') && set.includes("'/v1/admin/workspaces/attach'") && set.includes('승인할까요?'));
 });
 
-test('기기 명령: workspace.* 는 PC형·허브형 같은 명령(허브 자신은 아님)', async (t) => {
+test('기기 명령: workspace.* 는 PC형·허브형 같은 명령(허브 자신은 폴더 등록·보기만, WS1-b)', async (t) => {
   const d = dirs(t);
   const cfg = join(d, 'connector.json'); writeFileSync(cfg, JSON.stringify({ codex: { allowlist: [T1] } }));
   const adm = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: null, applyDevice: async () => ({ restarted: true }) });
@@ -171,5 +171,5 @@ test('기기 명령: workspace.* 는 PC형·허브형 같은 명령(허브 자�
   assert.deepEqual([a.status, a.body.restarted, a.body.attached.length], [200, true, 1]);
   assert.equal((await adm.run('workspace.folder.delete', { id: f.body.id })).body.error, 'folder_in_use');
   const { HUB_SELF_OPS } = await import('../../src/pilot/device-admin.mjs');
-  assert.ok(![...HUB_SELF_OPS].some((o) => o.startsWith('workspace.')));
+  assert.ok(HUB_SELF_OPS.has('workspace.folder.add') && !HUB_SELF_OPS.has('workspace.attach'));
 });
