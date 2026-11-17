@@ -685,7 +685,7 @@ async function loadAccounts() {
 // 토큰·키는 화면에 다시 보이지 않고 서버의 같이 쓰는 폴더에만 저장된다. PC는 그 PC의 Claude Code 로그인을 그대로 쓴다.
 const CL_KIND = { api: 'API 키', subscription: '구독' };
 const CL_ERR = { bad_api_key: 'Claude API 키(sk-ant-로 시작) 형식이 아니에요', bad_code: '코드 형식이 아니에요', not_waiting: '로그인을 다시 시작하세요', claude_login_on_hub: '서버 Claude 로그인은 "허브" 계정 화면에서 바꿔요(모든 칸이 같이 씀)' };
-const CL_FAIL = { timeout: '15분이 지나 취소됐어요', login_failed: '로그인하지 못했어요(코드를 다시 확인하세요)', exited: '로그인 창이 닫혔어요', claude_not_installed: '서버에 Claude Code가 없어요', not_writable: '여기서는 바꿀 수 없어요', save_failed: '저장하지 못했어요' };
+const CL_FAIL = { timeout: '15분이 지나 취소됐어요', login_failed: '로그인하지 못했어요(코드를 다시 확인하세요)', exited: '로그인 창이 닫혔어요', claude_not_installed: '서버에 Claude Code가 없어요', not_writable: '여기서는 바꿀 수 없어요', save_failed: '저장하지 못했어요', oauth_error: 'Claude가 코드를 받지 않았어요. [다시 로그인]을 눌러 새 승인 창에서 받은 코드를 바로 붙여 넣어 주세요', no_token: '코드를 넣었지만 2분 안에 결과가 오지 않았어요. [다시 로그인]으로 다시 해 주세요' };
 let clPoll = null;
 async function loadClaude() {
   const r = await acRun('claude.get'); const box = $('clBox'); box.innerHTML = '';
@@ -694,7 +694,7 @@ async function loadClaude() {
   if (!c.shared) { box.textContent = '이 PC의 Claude Code 로그인을 그대로 써요(따로 할 일 없음).'; $('clKeyForm').hidden = true; $('clCodeForm').hidden = true; return; }
   const state = c.kind ? '로그인됨 · ' + CL_KIND[c.kind] : (c.login.state === 'waiting' ? '로그인을 기다리는 중' : '로그인 필요');
   box.append(el('div', (c.canLogin ? '서버 Claude 로그인(허브·모든 칸이 같이 씀): ' : '허브의 Claude 로그인을 같이 써요: ') + state, c.kind ? 'ok' : 'warn'));
-  if (c.login.state === 'failed' || c.login.state === 'cancelled') box.append(el('div', c.login.state === 'cancelled' ? '로그인을 취소했어요' : (CL_FAIL[c.login.error] || '로그인하지 못했어요'), 'warn'));
+  if (c.login.state === 'failed' || c.login.state === 'cancelled') { box.append(el('div', c.login.state === 'cancelled' ? '로그인을 취소했어요' : (CL_FAIL[c.login.error] || '로그인하지 못했어요'), 'warn')); if (c.login.detail) box.append(el('div', 'Claude 안내: ' + c.login.detail)); }
   if (!c.canLogin) { box.append(el('div', '바꾸려면 위 "어디의 계정"에서 허브를 고르세요.')); return; }
   const row = el('div'); row.className = 'row';
   const act = (text, fn, primary) => { const b = el('button', text); b.type = 'button'; if (primary) b.className = 'primary'; b.onclick = fn; row.append(b); };

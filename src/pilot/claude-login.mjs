@@ -49,11 +49,20 @@ export function canWrite(dir) {
 }
 
 // setup-token 화면 출력에서 로그인 주소를 찾는다. 터미널 링크(OSC 8)에 든 전체 주소를 먼저 보고, 없으면 글자 그대로의 주소.
-const strip = (s) => String(s).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+// 화면 글자만: 터미널 링크 제거, 커서를 n칸 옮기는 신호(ink가 띄어쓰기 대신 씀)는 빈칸으로, 나머지 제어 신호는 지움
+const strip = (s) => String(s).replace(/\x1b\]8;[^\x07]*\x07/g, '').replace(/\x1b\[(\d*)C/g, (_, n) => ' '.repeat(Math.min(+n || 1, 50)))
+  .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\x1b[()][A-Za-z0-9]/g, '');
+// 코드를 넣은 뒤 Claude가 낸 오류 문장(실측: "OAuth error: That code wasn't accepted…" + "Press Enter to retry"). 비밀값은 없지만 혹시 몰라 sk-ant…는 가린다.
+export function parseSetupError(text) {
+  const t = strip(text);
+  const m = t.match(/(?:OAuth )?error:?[ \t]*[^\r\n]{0,240}/i);
+  if (!m && !/Press\s*Enter\s*to\s*retry/i.test(t)) return null;
+  return (m?.[0] ?? 'error').replace(/sk-ant-[A-Za-z0-9_-]+/g, '…').replace(/\s+/g, ' ').trim().slice(0, 240);
+}
 export function parseSetupToken(text) {
   const raw = String(text);
   const osc = raw.match(/\x1b\]8;[^;\x07\x1b]*;(https:\/\/[^\x07\x1b\s]+)/);
-  const plain = strip(raw.replace(/\x1b\]8;[^\x07]*\x07/g, '')).match(/https:\/\/[^\s"'<>]+/);
+  const plain = strip(raw).match(/https:\/\/[^\s"'<>]+/);
   const url = (osc?.[1] ?? plain?.[0] ?? null)?.replace(/[).,;]+$/, '') ?? null;
   const token = (strip(raw).replace(/\s+/g, ' ').match(OAUTH_TOKEN) ?? [])[0] ?? null;
   return { url, token };
@@ -61,11 +70,12 @@ export function parseSetupToken(text) {
 
 // 웹의 [Claude 로그인]: 서버가 공식 `claude setup-token`을 가상 터미널(script)로 띄워 주소를 화면에 보여 주고, 신산님이 그 주소에서 승인한 뒤
 // 받은 코드를 이어온 화면 칸에 붙여 넣으면 이어온이 터미널에 넣어 준다. 나온 토큰은 화면에 보이지 않고 바로 같이 쓰는 폴더에 저장된다.
-export function createClaudeLogin({ dir = claudeAuthDir(), spawnImpl = spawn, timeoutMs = 15 * 60_000, log = () => {} } = {}) {
+export function createClaudeLogin({ dir = claudeAuthDir(), spawnImpl = spawn, timeoutMs = 15 * 60_000, noTokenMs = 120_000, log = () => {} } = {}) {
   let job = null; // { child, state: waiting|done|failed|cancelled, url, codeSent, startedAt, error, home }
-  const finish = (cur, state, error = null) => {
+  const finish = (cur, state, error = null, detail = null) => {
     if (cur.state !== 'waiting') return;
-    cur.state = state; cur.error = error;
+    cur.state = state; cur.error = error; cur.detail = detail;
+    clearTimeout(cur.noToken);
     try { cur.child.kill?.(); } catch { /* 이미 끝남 */ }
     try { rmSync(cur.home, { recursive: true, force: true }); } catch { /* 임시 폴더 */ }
     log({ event: 'claude_login', state });
@@ -90,7 +100,24 @@ export function createClaudeLogin({ dir = claudeAuthDir(), spawnImpl = spawn, ti
         cur.url ??= p.url;
         if (p.token && cur.state === 'waiting') {
           try { saveClaudeLogin(dir, 'subscription', p.token); finish(cur, 'done'); } catch { finish(cur, 'failed', 'save_failed'); }
+          return;
         }
+        // 코드를 넣은 뒤 Claude가 오류를 내고 "Enter로 다시"를 기다리면 계속 "확인 중"으로 남지 않게 실패로 끝내고 그 문장을 화면에 보인다
+        if (cur.codeSent && cur.state === 'waiting') {
+          const err = parseSetupError(out.slice(cur.mark));
+          if (err) finish(cur, 'failed', 'oauth_error', err);
+        }
+      };
+      cur.peek = () => out.length;
+      // 코드를 넣고 2분이 지나도 토큰도 오류도 없으면 실패로 알린다(로그에는 어떤 낱말이 보였는지만 — 화면 원문·값은 남기지 않음)
+      cur.watch = () => {
+        clearTimeout(cur.noToken);
+        cur.noToken = setTimeout(() => {
+          const t = strip(out.slice(cur.mark));
+          log({ event: 'claude_login_no_token', seen: ['token', 'success', 'error', 'retry', 'paste'].filter((w) => new RegExp(w, 'i').test(t)), chars: t.length });
+          finish(cur, 'failed', 'no_token');
+        }, noTokenMs);
+        cur.noToken.unref?.();
       };
       child.stdout?.on('data', onData); child.stderr?.on('data', onData);
       child.on('error', () => finish(cur, 'failed', 'claude_not_installed'));
@@ -104,10 +131,14 @@ export function createClaudeLogin({ dir = claudeAuthDir(), spawnImpl = spawn, ti
       const v = String(value ?? '').trim();
       if (job?.state !== 'waiting') return { error: 'not_waiting' };
       if (!/^[A-Za-z0-9#_\-.~]{8,2000}$/.test(v)) return { error: 'bad_code' };
-      job.child.stdin?.write(v + '\r'); job.codeSent = true;
+      // 코드와 Enter를 따로 보낸다(한 덩어리면 붙여 넣기로 보고 Enter를 글자로 먹는 터미널 화면이 있음). 이전 시도의 오류 문장과 섞이지 않게 지금부터의 출력만 본다.
+      const cur = job;
+      cur.mark = cur.peek(); cur.codeSent = true;
+      cur.child.stdin?.write(v);
+      setTimeout(() => { if (cur.state === 'waiting') { cur.child.stdin?.write('\r'); cur.watch(); } }, 300).unref?.();
       return this.view();
     },
     cancel() { if (job?.state === 'waiting') finish(job, 'cancelled'); return this.view(); },
-    view() { return job ? { state: job.state, url: job.url, codeSent: job.codeSent, startedAt: job.startedAt, error: job.error } : { state: 'idle' }; },
+    view() { return job ? { state: job.state, url: job.url, codeSent: job.codeSent, startedAt: job.startedAt, error: job.error, detail: job.detail ?? null } : { state: 'idle' }; },
   };
 }
