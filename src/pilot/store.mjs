@@ -109,6 +109,10 @@ export function openStore(path) {
     db.exec('ALTER TABLE requests ADD COLUMN created_at TEXT');
     db.exec('ALTER TABLE requests ADD COLUMN updated_at TEXT');
   }
+  // WS1-a 작업공간: 직원에 붙인 폴더 이름·권한·차단 수준(화면·메신저 표시용 — 실제 기준은 그 기기 설정)과 붙이기 기록(누가·언제·어느 폴더·권한, 180일)
+  db.exec('CREATE TABLE IF NOT EXISTS workspace_views (conversation_id TEXT PRIMARY KEY, view TEXT NOT NULL, updated_at TEXT NOT NULL)');
+  db.exec('CREATE TABLE IF NOT EXISTS workspace_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, host_id TEXT, detail TEXT NOT NULL)');
+  db.prepare('DELETE FROM workspace_log WHERE at < ?').run(new Date(Date.now() - 180 * 86400_000).toISOString());
   // RC5: 대화마다 "사람이 직접 할 일" 규칙(종류·명령에 든 글자). 맞는 요청은 엔진에 거부로 답하고 사람에게 넘긴다.
   db.exec('CREATE TABLE IF NOT EXISTS handoff_policies (conversation_id TEXT PRIMARY KEY, kinds TEXT NOT NULL, patterns TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL)');
   // SV3-b: 이 질문이 쓴 계정("<PC>:<계정 ID>") — 계정별 사용량·한도
@@ -696,6 +700,24 @@ export function openStore(path) {
     // W2(WORK_AND_VOICE A1·WV1·WV4): 대화별 작업 모드(기본 꺼짐). 지금은 Codex 기존 대화만(W0: app-server 경로 가능, Claude는 보류).
     // 새 세션은 자기 권한 프로필이 따로 있어 대상이 아님. 처리 중이면 바꾸지 않는다.
     workMode(conversationId) { return Boolean(db.prepare('SELECT 1 FROM work_modes WHERE conversation_id = ?').get(conversationId)); },
+    // WS1-a: 붙인 작업 공간 표시(없으면 null)·기록
+    workspaceView(conversationId) { const r = db.prepare('SELECT view FROM workspace_views WHERE conversation_id = ?').get(conversationId); try { return r ? JSON.parse(r.view) : null; } catch { return null; } },
+    saveWorkspace(principal, conversationId, view) {
+      const b = binding(conversationId);
+      if (!canAccess(principal, b)) return { http: 404, code: 'not_found' };
+      const at = new Date().toISOString();
+      if (view) db.prepare('INSERT INTO workspace_views (conversation_id, view, updated_at) VALUES (?, ?, ?) ON CONFLICT(conversation_id) DO UPDATE SET view = excluded.view, updated_at = excluded.updated_at').run(conversationId, JSON.stringify(view), at);
+      else db.prepare('DELETE FROM workspace_views WHERE conversation_id = ?').run(conversationId);
+      db.prepare('INSERT INTO workspace_log (at, user_id, conversation_id, host_id, detail) VALUES (?, ?, ?, ?, ?)').run(at, principal.userId, conversationId, b.hostId ?? null,
+        JSON.stringify(view ? { personal: view.personal, shared: view.shared } : { detached: true }));
+      return { http: 200 };
+    },
+    workspaceLog(principal, conversationId, limit = 20) {
+      const b = binding(conversationId);
+      if (!canAccess(principal, b)) return null;
+      return db.prepare('SELECT at, user_id, detail FROM workspace_log WHERE conversation_id = ? ORDER BY id DESC LIMIT ?').all(conversationId, limit)
+        .map((r) => ({ at: r.at, userId: r.user_id, ...JSON.parse(r.detail) }));
+    },
     setWorkMode(principal, conversationId, on) {
       const b = binding(conversationId);
       if (!canAccess(principal, b)) return { http: 404, code: 'not_found' };

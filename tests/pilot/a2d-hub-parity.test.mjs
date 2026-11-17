@@ -126,7 +126,8 @@ test('화면: 허브에서도 PC 설정·계정 탭(대상 PC 고르기), 모든
   assert.ok(SET.includes('id="pcTarget"') && SET.includes('id="acTarget"') && SET.includes("'/v1/admin/hosts/'") && SET.includes("'/v1/admin/local/run'"));
   assert.ok(SET.includes("['hub', '허브 자체(허브에서 만든 새 세션)']"));
   assert.ok(!SET.includes("api('/v1/admin/local/device") && !SET.includes("api('/v1/admin/local/accounts"), '한쪽 전용 주소를 화면이 직접 부르지 않음');
-  for (const op of Object.keys(OPS)) assert.ok(SET.includes(`Run('${op}'`), op);
+  for (const op of Object.keys(OPS).filter((o) => o !== 'workspace.attach')) assert.ok(SET.includes(`Run('${op}'`), op); // WS1-a: 붙이기는 기록을 남기는 전용 주소로
+  assert.ok(SET.includes("'/v1/admin/workspaces/attach'"));
 });
 
 test('공개 중계 없이 쓰는 PC형: 카카오·라인은 오류가 아니라 "사용 안 함", 다른 메신저는 그대로', async (t) => {

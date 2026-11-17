@@ -96,6 +96,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
 <div class="admin" id="admin">
   <nav class="atabs" id="atabs" aria-label="설정 메뉴">
     <button type="button" data-atab="pc">이 PC</button>
+    <button type="button" data-atab="ws">작업 폴더</button>
     <button type="button" data-atab="acct">계정</button>
     <button type="button" data-atab="hub">밖에서도 쓰기</button>
     <button type="button" data-atab="msg">메신저</button>
@@ -140,6 +141,24 @@ header .right button { border:1px solid var(--border); background:var(--surface)
         <input id="cliDir" placeholder="작업 폴더(선택)" autocomplete="off" aria-label="작업 폴더">
         <button class="primary" type="submit">허용 목록에 추가</button>
       </form>
+    </div>
+  </section>
+  <section class="atab" data-atab="ws" hidden aria-label="작업 폴더">
+    <h3>작업 폴더</h3>
+    <div class="row" id="wsTargetRow" hidden><label for="wsTarget">PC·칸</label><select id="wsTarget"></select></div>
+    <div id="wsNote" class="muted" hidden></div>
+    <div id="wsBox" hidden>
+      <div class="muted">AI 직원마다 쓸 폴더를 정해요 — 개인 폴더 하나와 공유 폴더 여러 개(읽기만 / 읽기·쓰기). 폴더를 붙이지 않은 직원은 지금과 똑같이 동작해요. <b>폴더를 나누는 것과 실제로 막는 것은 달라요</b> — 직원마다 아래 "막는 정도"를 확인하세요. 임시 폴더 아래는 등록할 수 없어요(Codex가 임시 폴더는 늘 쓰기를 허용해서 직원끼리 막히지 않음).</div>
+      <h2>폴더</h2>
+      <table class="list"><thead><tr><th>이름</th><th>경로</th><th></th></tr></thead><tbody id="wsFolders"></tbody></table>
+      <form id="wsAdd" class="row">
+        <input id="wsName" placeholder="이름(예: 보험-개인)" maxlength="40" autocomplete="off" aria-label="폴더 이름">
+        <input id="wsPath" placeholder="그 PC의 폴더 전체 경로(예: D:/staff/보험)" maxlength="300" autocomplete="off" aria-label="폴더 경로">
+        <button class="primary" type="submit">등록</button>
+      </form>
+      <h2>AI 직원</h2>
+      <table class="list"><thead><tr><th>직원</th><th>작업 공간</th><th>막는 정도</th><th></th></tr></thead><tbody id="wsStaff"></tbody></table>
+      <div id="wsEdit" hidden></div>
     </div>
   </section>
   <section class="atab" data-atab="acct" hidden aria-label="계정">
@@ -613,6 +632,106 @@ async function loadDevice() {
     td.append(rm); tr.append(td); tb.append(tr);
   }
 }
+// WS1-a 작업 폴더(설계 WORKSPACES 2-2): 그 PC·칸의 폴더를 등록하고 AI 직원에 붙인다. 바꿀 때마다 막는 정도를 보여 주고 사람이 승인.
+let wsTarget = 'local';
+const wsRun = (op, args) => runOn(wsTarget, op, args);
+const WS_ENGINE_TXT = { codex_thread: 'Codex', claude_cli: 'Claude(서버)', agy_cli: 'Antigravity', grok_cli: 'Grok' };
+const WS_ERR = { bad_folder_name: '폴더 이름을 넣으세요', folder_name_taken: '같은 이름의 폴더가 이미 있어요', bad_folder_path: '그 PC의 폴더 전체 경로를 넣으세요(예: D:/staff/보험)',
+  folder_missing: '그 PC에 그 폴더가 없어요', folder_in_temp: '임시 폴더 아래는 쓸 수 없어요 — 다른 위치의 폴더를 고르세요', folder_already_added: '이미 등록한 폴더예요',
+  too_many_folders: '폴더는 30개까지예요', folder_in_use: '이 폴더를 쓰는 직원이 있어요 — 먼저 그 직원에서 떼세요', session_not_allowed: '그 PC 허용 목록에 없는 세션이에요(이 PC 설정 탭에서 먼저 허용)',
+  bad_folder: '폴더를 다시 골라 주세요(같은 폴더를 두 번 고를 수 없어요)', excluded_session: '이 대화에는 작업 공간을 붙일 수 없어요', new_session_auto_folder: '새 세션은 자동으로 만든 폴더가 개인 폴더예요',
+  workspace_engine_unsupported: '이 엔진에는 작업 공간을 붙일 수 없어요', bad_shared: '공유 폴더는 10개까지예요' };
+const wsErr = (b) => WS_ERR[b.error] || HOST_ERR[b.error] || DEV_ERR[b.error] || b.error;
+let wsData = null;
+async function loadWsTargets() {
+  if (authState?.mode !== 'hub') { $('wsTargetRow').hidden = true; return; }
+  const r = await api('/v1/admin/devices'); if (r.status !== 200) return;
+  const list = r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).map((d) => [d.hostId, d.name + (d.online ? '' : ' (연결 끊김)')]);
+  const sel = $('wsTarget'); sel.innerHTML = '';
+  for (const [v, txt] of list) { const o = el('option', txt); o.value = v; sel.append(o); }
+  wsTarget = list.length ? (list.some(([v]) => v === wsTarget) ? wsTarget : list[0][0]) : 'none';
+  if (list.length) sel.value = wsTarget;
+  $('wsTargetRow').hidden = !list.length;
+}
+$('wsTarget').onchange = () => { wsTarget = $('wsTarget').value; loadWorkspaces().catch(() => {}); };
+async function loadWorkspaces() {
+  $('wsEdit').hidden = true;
+  if (wsTarget === 'none') { $('wsBox').hidden = true; $('wsNote').hidden = false; $('wsNote').textContent = '연결된 PC·칸이 없어요.'; return; }
+  const [r, cv] = await Promise.all([wsRun('workspace.get'), api('/v1/conversations')]);
+  $('wsBox').hidden = r.status !== 200; $('wsNote').hidden = r.status === 200;
+  if (r.status !== 200) { $('wsNote').textContent = wsErr(r.body); return; }
+  wsData = r.body;
+  const fb = $('wsFolders'); const frows = [];
+  if (!wsData.folders.length) { const tr = el('tr'); tr.append(el('td', '등록한 폴더가 없어요', 'muted')); frows.push(tr); }
+  for (const f of wsData.folders) {
+    const tr = el('tr'); tr.append(el('td', f.name), el('td', f.path));
+    const td = el('td');
+    if (f.inUse) td.append(el('span', '직원이 씀', 'muted'));
+    else { const b = el('button', '빼기'); b.type = 'button'; b.onclick = async () => { if (!confirm('"' + f.name + '" 폴더를 목록에서 뺄까요? (폴더 안 파일은 그대로예요)')) return; const y = await wsRun('workspace.folder.delete', { id: f.id }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '뺐어요' : wsErr(y.body)); loadWorkspaces(); }; td.append(b); }
+    tr.append(td); frows.push(tr);
+  }
+  fb.replaceChildren(...frows);
+  // 이 PC·칸의 AI 직원(허용 목록 세션) — 새 세션·Claude 채널은 빼고
+  const convs = (cv.status === 200 ? cv.body.conversations : []).filter((c) => WS_ENGINE_TXT[c.engine] && !c.newSession && (wsTarget === 'local' || c.host?.id === wsTarget));
+  const sb = $('wsStaff'); const srows = [];
+  if (!convs.length) { const tr = el('tr'); tr.append(el('td', '작업 공간을 붙일 수 있는 직원이 없어요(Codex·서버 Claude·Antigravity·Grok의 기존 대화만 — 새 세션은 자동 폴더가 개인 폴더)', 'muted')); srows.push(tr); }
+  for (const c of convs) {
+    const w = c.workspace; const lv = wsData.levels[c.engine];
+    const tr = el('tr');
+    tr.append(el('td', (c.staff?.name || c.label) + ' · ' + WS_ENGINE_TXT[c.engine]));
+    tr.append(el('td', w ? [w.personal && '개인 ' + w.personal, ...(w.shared || []).map((s) => '공유 ' + s.name + '(' + (s.write ? '쓰기' : '읽기') + ')')].filter(Boolean).join(', ') : '안 붙임(지금처럼)', w ? '' : 'muted'));
+    tr.append(el('td', w ? '쓰기: ' + lv.writeText.split(' — ')[0] + ' · 읽기: ' + lv.readText.split(' — ')[0] : '—', w ? '' : 'muted'));
+    const td = el('td'); const b = el('button', '폴더 정하기'); b.type = 'button'; b.onclick = () => wsEditor(c); td.append(b); tr.append(td); srows.push(tr);
+  }
+  sb.replaceChildren(...srows);
+}
+function wsEditor(c) {
+  const box = $('wsEdit'); box.hidden = false; box.innerHTML = '';
+  box.append(el('h2', (c.staff?.name || c.label) + ' — 작업 공간'));
+  if (!wsData.folders.length) { box.append(el('div', '먼저 위에서 폴더를 등록하세요.', 'muted')); return; }
+  const mine = c.workspace?.ids || null; // 지금 붙인 폴더(폴더 ID)
+  const row1 = el('div'); row1.className = 'row';
+  const ps = el('select'); ps.setAttribute('aria-label', '개인 폴더'); ps.append(Object.assign(el('option', '개인 폴더 없음'), { value: '' }));
+  for (const f of wsData.folders) ps.append(Object.assign(el('option', '개인: ' + f.name), { value: f.id }));
+  ps.value = mine?.personal || '';
+  row1.append(el('label', '개인 폴더'), ps); box.append(row1);
+  const picks = new Map();
+  for (const f of wsData.folders) {
+    const row = el('div'); row.className = 'row';
+    const s = el('select'); s.setAttribute('aria-label', f.name + ' 공유');
+    for (const [v, t] of [['', '안 씀'], ['r', '공유 — 읽기만'], ['w', '공유 — 읽기·쓰기']]) s.append(Object.assign(el('option', t), { value: v }));
+    const had = (mine?.shared || []).find((x) => x.id === f.id); s.value = had ? (had.write ? 'w' : 'r') : '';
+    picks.set(f.id, s); row.append(el('label', f.name), s, el('span', f.path, 'muted')); box.append(row);
+  }
+  const lv = wsData.levels[c.engine];
+  box.append(el('div', '막는 정도 — 쓰기: ' + lv.writeText + ' / 읽기: ' + lv.readText, 'muted'));
+  const act = el('div'); act.className = 'row';
+  const save = el('button', '저장'); save.type = 'button'; save.className = 'primary';
+  const cancel = el('button', '닫기'); cancel.type = 'button'; cancel.onclick = () => { box.hidden = true; };
+  save.onclick = async () => {
+    const personal = ps.value || null;
+    const shared = [...picks].filter(([id, s]) => s.value && id !== personal).map(([id, s]) => ({ id, write: s.value === 'w' }));
+    const name = (id) => wsData.folders.find((f) => f.id === id)?.name;
+    const writes = [personal && name(personal), ...shared.filter((x) => x.write).map((x) => name(x.id))].filter(Boolean);
+    const msg = (personal || shared.length)
+      ? '"' + (c.staff?.name || c.label) + '" 직원이 이 폴더를 씁니다:\n' + (writes.length ? '· 쓰기: ' + writes.join(', ') + '\n' : '') + (shared.filter((x) => !x.write).length ? '· 읽기만: ' + shared.filter((x) => !x.write).map((x) => name(x.id)).join(', ') + '\n' : '')
+        + '\n이 PC에서 실제로 막히는 정도\n· 쓰기: ' + lv.writeText + '\n· 읽기: ' + lv.readText + '\n\n승인할까요?'
+      : '"' + (c.staff?.name || c.label) + '" 직원의 작업 공간을 뗄까요? (지금처럼 원래 세션 설정으로 돌아가요)';
+    if (!confirm(msg)) return;
+    save.disabled = true;
+    const y = await api('/v1/admin/workspaces/attach', { method: 'POST', body: JSON.stringify({ conversationId: c.conversationId, personal, shared }) });
+    save.disabled = false;
+    setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '작업 공간을 저장했어요' + devNote(y.body) : wsErr(y.body));
+    if (y.status === 200) loadWorkspaces();
+  };
+  act.append(save, cancel); box.append(act);
+}
+$('wsAdd').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await wsRun('workspace.folder.add', { name: $('wsName').value.trim(), path: $('wsPath').value.trim() });
+  if (r.status !== 201) return setStatus('err', wsErr(r.body));
+  $('wsName').value = ''; $('wsPath').value = ''; setStatus('ok', '폴더를 등록했어요 — 아래 직원의 [폴더 정하기]로 붙이세요'); loadWorkspaces();
+};
 const CLS_ERR = { session_not_found: '그 대화를 칸에서 찾지 못했어요(지워졌을 수 있어요)', no_working_directory: '그 대화의 작업 폴더를 알 수 없어 연결하지 못했어요', claude_not_server: '서버 칸에서만 고를 수 있어요' };
 async function loadClaudeSessions() {
   const target = pcTarget; const tb = $('clsList');
@@ -973,6 +1092,7 @@ async function loadAdmin() {
   loadPairings().catch(() => {});
   loadHubLink().catch(() => {});
   loadTargets().catch(() => {}).finally(() => { loadMode().catch(() => {}); loadDevice().catch(() => {}); loadAccounts().catch(() => {}); });
+  loadWsTargets().catch(() => {}).finally(() => loadWorkspaces().catch(() => {})); // WS1-a
   loadCodex().catch(() => {});
   loadSecurity().catch(() => {});
   loadHubEngine().catch(() => {});
