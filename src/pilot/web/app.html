@@ -1379,6 +1379,9 @@ const TSTATE = { queued: '기다리는 중', dispatching: '보내는 중', runni
 const ASTATE = { handoff: '사람에게 넘김', handoff_done: '사람이 직접 처리함', handoff_dropped: '하지 않기로 함', pending: '승인 대기', approved: '승인됨', running: '실행 중', completed: '실행 완료', failed: '실행 실패', unknown: '결과 불명', denied: '거부함', expired: '시간 지남(거부)', turn_ended: '차례 끝(거부)' };
 const AKIND = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' };
 let taskFocus = null; let taskTimer = null;
+// 2026-11-18 실측: 여러 갈래(링크 열기·4초 갱신·버튼 뒤)의 그리기가 겹쳐 쌓이고 매번 버튼을 새로 만들어, 누르는 사이 버튼이 바뀌어 클릭이 사라졌다.
+// → 마지막으로 시작한 그리기만 화면을 바꾸고(taskGen), 내용이 그대로면 다시 그리지 않는다(taskSig).
+let taskGen = 0; let taskSig = '';
 const when = (s) => (s ? new Date(s).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 async function updateTaskBadge(n) {
   if (n === undefined) {
@@ -1387,7 +1390,7 @@ async function updateTaskBadge(n) {
   }
   $('tasksBadge').hidden = !n; $('tasksBadge').textContent = String(n);
 }
-async function openTasks(focus) { taskFocus = focus ?? null; $('tasks').hidden = false; await renderTasks(); }
+async function openTasks(focus) { taskFocus = focus ?? null; taskSig = ''; $('tasks').hidden = false; await renderTasks(); }
 function closeTasks() {
   $('tasks').hidden = true; clearTimeout(taskTimer); taskFocus = null;
   if (location.hash.startsWith('#task=')) history.replaceState(null, '', location.pathname);
@@ -1395,11 +1398,17 @@ function closeTasks() {
 $('tasksBtn').onclick = () => ($('tasks').hidden ? openTasks() : closeTasks());
 $('tasksClose').onclick = closeTasks;
 window.addEventListener('hashchange', () => { const tm = location.hash.match(/^#task=([\w-]+)$/); if (tm) openTasks(tm[1]).catch(() => {}); });
-async function renderTasks() {
+async function renderTasks({ force = false } = {}) {
   clearTimeout(taskTimer);
+  const gen = ++taskGen;
   const [ap, act, all] = await Promise.all([api('/v1/approvals'), api('/v1/tasks?filter=active'), api('/v1/tasks?limit=30')]);
-  const box = $('taskBody'); box.textContent = '';
+  if (gen !== taskGen) return; // 더 나중에 시작한 그리기가 있으면 그쪽에 맡긴다
   const aps = ap.body?.approvals ?? []; const acts = act.body?.tasks ?? [];
+  const schedule = () => { if (!$('tasks').hidden && (aps.length || acts.length)) taskTimer = setTimeout(() => renderTasks().catch(() => {}), 4000); };
+  const sig = JSON.stringify([aps, acts, all.body?.tasks ?? [], taskFocus]);
+  if (!force && sig === taskSig) { updateTaskBadge(aps.length + acts.length).catch(() => {}); schedule(); return; } // 그대로면 버튼·펼친 내용을 건드리지 않음
+  taskSig = sig;
+  const box = $('taskBody'); box.textContent = '';
   box.append(el('h4', '승인 대기·사람이 직접 할 일 ' + aps.length));
   if (!aps.length) box.append(el('p', '기다리는 승인이 없어요.', 'muted small'));
   for (const a of aps) {
@@ -1409,7 +1418,9 @@ async function renderTasks() {
     const ac = el('div', null, 'acts2');
     for (const [label, decision] of a.handoff ? [['직접 처리함', 'done'], ['하지 않음', 'drop']] : [['허용(이번 한 번)', 'allow'], ['거부', 'deny']]) {
       const b = el('button', label, 'linkbtn'); b.type = 'button';
-      b.onclick = async () => { b.disabled = true; await api('/v1/approvals/' + a.approvalId, { method: 'POST', body: JSON.stringify({ decision }) }); await renderTasks(); if (current === a.conversationId) loadCards().catch(() => {}); };
+      b.onclick = async () => { b.disabled = true; const r = await api('/v1/approvals/' + a.approvalId, { method: 'POST', body: JSON.stringify({ decision }) });
+        if (r.status !== 200) { b.disabled = false; b.textContent = label + ' — 다시 눌러 주세요(' + (r.body?.error || r.status) + ')'; return; }
+        await renderTasks({ force: true }); if (current === a.conversationId) loadCards().catch(() => {}); };
       ac.append(b);
     }
     d.append(ac); box.append(d);
@@ -1426,8 +1437,9 @@ async function renderTasks() {
     const r = await api('/v1/tasks/' + taskFocus);
     box.prepend(r.status === 200 ? taskRow(r.body) : el('p', '이 작업을 볼 수 없어요(없거나 권한이 없어요).', 'notice'));
   }
+  if (gen !== taskGen) return;
   updateTaskBadge(aps.length + acts.length).catch(() => {});
-  if (!$('tasks').hidden && (aps.length || acts.length)) taskTimer = setTimeout(() => renderTasks().catch(() => {}), 4000);
+  schedule();
 }
 function taskRow(t) {
   const d = el('div', null, 'task');
@@ -1457,7 +1469,7 @@ function taskRow(t) {
   open.onclick = show; ac.append(open);
   if (t.canStop) {
     const st = el('button', '중지', 'linkbtn'); st.type = 'button';
-    st.onclick = async () => { st.disabled = true; const r = await api('/v1/requests/' + t.requestId + '/stop', { method: 'POST' }); if (r.status >= 400) st.textContent = r.body?.error === 'stop_unsupported' ? '원래 창에서 멈추세요' : '멈출 수 없어요'; await renderTasks(); };
+    st.onclick = async () => { st.disabled = true; const r = await api('/v1/requests/' + t.requestId + '/stop', { method: 'POST' }); if (r.status >= 400) { st.textContent = r.body?.error === 'stop_unsupported' ? '원래 창에서 멈추세요' : '멈출 수 없어요'; return; } await renderTasks({ force: true }); };
     ac.append(st);
   }
   const go = el('button', '대화로', 'linkbtn'); go.type = 'button';
