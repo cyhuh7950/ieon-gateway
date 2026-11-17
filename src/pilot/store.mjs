@@ -73,6 +73,11 @@ const hash = (payload) => createHash('sha256').update(JSON.stringify(payload)).d
 
 export const CONNECT_MODES = Object.freeze(['alternate', 'shared_server']);
 const NEEDS_REVIEW = new Set([STATUS.unknown, STATUS.approvalRequired]);
+// W3: 예약 한 줄을 화면·실행기용 모양으로
+const scheduleView = (r) => ({ scheduleId: r.schedule_id, ownerUserId: r.owner_user_id, conversationId: r.conversation_id, question: r.question, kind: r.kind,
+  spec: JSON.parse(r.spec), tz: r.tz, maxPerDay: r.max_per_day, enabled: r.enabled === 1, pausedReason: r.paused_reason ?? null, lastRunAt: r.last_run_at ?? null,
+  lastRequestId: r.last_request_id ?? null, lastResult: r.last_result ?? null, runsDay: r.runs_day ?? null, runsToday: r.runs_today ?? 0, nextRunAt: r.next_run_at ?? null,
+  createdAt: r.created_at, approvedAt: r.approved_at });
 // RC1: 승인 카드 한 장의 상태 — 결정(status)과 실제 실행 결과(exec_status)를 하나로.
 // pending 승인 대기 · denied 거부 · expired 시간 지남 · turn_ended 차례가 끝남 · approved 승인됨(엔진에 전달 전)
 // · running 실행 중 · completed 완료 · failed 실패 · unknown 결과 불명
@@ -113,6 +118,10 @@ export function openStore(path) {
   db.exec('CREATE TABLE IF NOT EXISTS workspace_views (conversation_id TEXT PRIMARY KEY, view TEXT NOT NULL, updated_at TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS workspace_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, host_id TEXT, detail TEXT NOT NULL)');
   db.prepare('DELETE FROM workspace_log WHERE at < ?').run(new Date(Date.now() - 180 * 86400_000).toISOString());
+  // W3 예약 작업: 주인·대화·질문·언제(종류·값·시간대)·하루 한도·켜짐·멈춘 이유·마지막 실행과 결과·다음 실행
+  db.exec(`CREATE TABLE IF NOT EXISTS schedules (schedule_id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, question TEXT NOT NULL,
+    kind TEXT NOT NULL, spec TEXT NOT NULL, tz TEXT NOT NULL, max_per_day INTEGER NOT NULL, enabled INTEGER NOT NULL, paused_reason TEXT,
+    last_run_at TEXT, last_request_id TEXT, last_result TEXT, runs_day TEXT, runs_today INTEGER NOT NULL DEFAULT 0, next_run_at TEXT, created_at TEXT NOT NULL, approved_at TEXT NOT NULL)`);
   // RC5: 대화마다 "사람이 직접 할 일" 규칙(종류·명령에 든 글자). 맞는 요청은 엔진에 거부로 답하고 사람에게 넘긴다.
   db.exec('CREATE TABLE IF NOT EXISTS handoff_policies (conversation_id TEXT PRIMARY KEY, kinds TEXT NOT NULL, patterns TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL)');
   // SV3-b: 이 질문이 쓴 계정("<PC>:<계정 ID>") — 계정별 사용량·한도
@@ -700,6 +709,41 @@ export function openStore(path) {
     // W2(WORK_AND_VOICE A1·WV1·WV4): 대화별 작업 모드(기본 꺼짐). 지금은 Codex 기존 대화만(W0: app-server 경로 가능, Claude는 보류).
     // 새 세션은 자기 권한 프로필이 따로 있어 대상이 아님. 처리 중이면 바꾸지 않는다.
     workMode(conversationId) { return Boolean(db.prepare('SELECT 1 FROM work_modes WHERE conversation_id = ?').get(conversationId)); },
+    // W3 예약 작업 — 주인 것만 보이고 바뀐다
+    schedules(principal) {
+      return db.prepare('SELECT * FROM schedules WHERE owner_user_id = ? ORDER BY created_at').all(principal.userId).map(scheduleView);
+    },
+    dueSchedules(nowIso) { return db.prepare('SELECT * FROM schedules WHERE enabled = 1 AND paused_reason IS NULL AND next_run_at IS NOT NULL AND next_run_at <= ?').all(nowIso).map(scheduleView); },
+    addSchedule(principal, conversationId, s, { id, nextRunAt, max }) {
+      const b = binding(conversationId);
+      if (!canAccess(principal, b)) return { http: 404, code: 'not_found' };
+      if (db.prepare('SELECT COUNT(*) AS n FROM schedules WHERE owner_user_id = ?').get(principal.userId).n >= max) return { http: 409, code: 'too_many_schedules' };
+      const at = new Date().toISOString();
+      db.prepare(`INSERT INTO schedules (schedule_id, owner_user_id, conversation_id, question, kind, spec, tz, max_per_day, enabled, next_run_at, created_at, approved_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`).run(id, principal.userId, conversationId, s.question, s.kind, JSON.stringify(s.spec), s.tz, s.maxPerDay, nextRunAt, at, at);
+      return { http: 201, schedule: scheduleView(db.prepare('SELECT * FROM schedules WHERE schedule_id = ?').get(id)) };
+    },
+    schedule(principal, id) { const r = db.prepare('SELECT * FROM schedules WHERE schedule_id = ? AND owner_user_id = ?').get(id, principal.userId); return r ? scheduleView(r) : null; },
+    // 켜기(다시 켜기 = 다시 승인: 멈춘 이유를 지우고 승인 시각을 새로)·끄기
+    setScheduleEnabled(principal, id, on, nextRunAt) {
+      const r = db.prepare('SELECT 1 FROM schedules WHERE schedule_id = ? AND owner_user_id = ?').get(id, principal.userId);
+      if (!r) return { http: 404, code: 'not_found' };
+      if (on) db.prepare('UPDATE schedules SET enabled = 1, paused_reason = NULL, approved_at = ?, next_run_at = ? WHERE schedule_id = ?').run(new Date().toISOString(), nextRunAt, id);
+      else db.prepare('UPDATE schedules SET enabled = 0 WHERE schedule_id = ?').run(id);
+      return { http: 200, schedule: scheduleView(db.prepare('SELECT * FROM schedules WHERE schedule_id = ?').get(id)) };
+    },
+    deleteSchedule(principal, id) { return db.prepare('DELETE FROM schedules WHERE schedule_id = ? AND owner_user_id = ?').run(id, principal.userId).changes ? { http: 204 } : { http: 404, code: 'not_found' }; },
+    // 실행기가 회차를 끝낸 뒤: 결과·다음 실행·하루 횟수(그 시간대의 날짜로)·멈춤
+    recordScheduleRun(id, { at, requestId = null, result, nextRunAt, day, counted, pause = null, disable = false }) {
+      const r = db.prepare('SELECT runs_day, runs_today FROM schedules WHERE schedule_id = ?').get(id);
+      if (!r) return;
+      const today = r.runs_day === day ? r.runs_today : 0;
+      db.prepare(`UPDATE schedules SET last_run_at = ?, last_request_id = COALESCE(?, last_request_id), last_result = ?, next_run_at = ?, runs_day = ?, runs_today = ?,
+        paused_reason = COALESCE(?, paused_reason), enabled = CASE WHEN ? THEN 0 ELSE enabled END WHERE schedule_id = ?`)
+        .run(at, requestId, result, nextRunAt, day, today + (counted ? 1 : 0), pause, disable ? 1 : 0, id);
+    },
+    pauseSchedule(id, reason) { db.prepare('UPDATE schedules SET paused_reason = ? WHERE schedule_id = ?').run(reason, id); },
+    requestStatus(requestId) { return db.prepare('SELECT status FROM requests WHERE request_id = ?').get(requestId)?.status ?? null; },
     // WS1-a: 붙인 작업 공간 표시(없으면 null)·기록
     workspaceView(conversationId) { const r = db.prepare('SELECT view FROM workspace_views WHERE conversation_id = ?').get(conversationId); try { return r ? JSON.parse(r.view) : null; } catch { return null; } },
     saveWorkspace(principal, conversationId, view) {
