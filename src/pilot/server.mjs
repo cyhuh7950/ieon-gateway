@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
 import { botAppId, tokenEnvNames } from './bots.mjs';
-import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding } from './settings.mjs';
+import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding, validateInstallKind } from './settings.mjs';
 import { createWebAccess, isExemptPath, validateWebAccess } from './web-access.mjs';
 import { createRelay } from '../relay/relay.mjs';
 import { createWebAuth } from './web-auth.mjs';
@@ -85,7 +85,9 @@ export function createApp(config) {
   const store = openStore(config.dbPath);
   if (access) accessInner = createWebAccess(mergeAccess(store.getSetting('security.webAccess')?.value));
   // W1: 웹 로그인(쿠키). 사용자는 토큰을 다루지 않는다.
-  const auth = createWebAuth({ store, config, access, clientIp: (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?')) });
+  // SV4: 허브의 쓰임 — server(① 서버 설치형: PC 연결 화면 숨김, 엔진 칸은 그대로) | hub(② 허브형). 웹에서 바꾼 값 → 설치 때 값 → 지금 허브는 hub.
+  const installKind = () => (access ? (store.getSetting('install.kind')?.value?.kind ?? config.installKind ?? 'hub') : null);
+  const auth = createWebAuth({ store, config, access, installKind, clientIp: (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?')) });
   for (const b of config.bindings) store.addBinding(b);
   store.ensureDefaultBots();
   // 메신저 프로세스가 보고한 봇 상태(토큰 있음·연결됨·실제 봇 이름). 토큰 값은 받지 않는다. 키 "<메신저>:<봇ID>".
@@ -1071,16 +1073,18 @@ export function createApp(config) {
             newSessions: { web: ns?.value ?? null, updatedAt: ns?.updatedAt ?? null, fileConfigured: Boolean(nsFileRaw),
               effective: nsCfg ? { enabled: nsCfg.enabled, limits: nsCfg.limits, permissions: { default: nsCfg.permissions.default, profiles: Object.keys(nsCfg.permissions.profiles).filter((p) => p !== 'full') },
                 cleanup: nsCfg.cleanup, workspaceRoot: nsCfg.workspaceRoot } : null },
+            installKind: installKind(), // SV4: server(① 서버 설치형, PC 연결 화면 숨김) | hub(② 허브형)
           };
         };
         if (req.method === 'GET' && path === '/v1/admin/settings') return json(res, 200, view());
-        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions)$/);
+        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions|install-kind)$/);
         if (!s) return json(res, 404, { error: 'not_found' });
-        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions' }[s[1]];
+        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions', 'install-kind': 'install.kind' }[s[1]];
         if (req.method === 'DELETE') store.deleteSetting(key); // 파일 값으로 되돌리기
         else if (req.method === 'PUT') {
           const body = await readJson(req);
-          const value = s[1] === 'allowed-users' ? validateAllowedUsers(body) : s[1] === 'kakao' ? validateKakao(body) : validateNewSessionsWeb(body, nsFileRaw ?? {});
+          const value = s[1] === 'allowed-users' ? validateAllowedUsers(body) : s[1] === 'kakao' ? validateKakao(body)
+            : s[1] === 'install-kind' ? validateInstallKind(body) : validateNewSessionsWeb(body, nsFileRaw ?? {});
           store.setSetting(key, value);
         } else return json(res, 404, { error: 'not_found' });
         if (key === 'newSessions') reloadNewSessions();
