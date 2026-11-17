@@ -383,7 +383,31 @@ export function createBridge(opts) {
     return sent;
   }
 
-  return { handle, roomKey, deliverNotices, allowed };
+  // W3: 끝난 예약 질문의 답을 그 대화에 연결된 방에 올린다(그 방에서 받은 적이 있어 보낼 길이 있을 때만). 자동으로 다시 실행하지 않음.
+  let schedAfter = new Date().toISOString();
+  async function deliverScheduled() {
+    const r = await opts.api({ method: 'GET', path: `/v1/schedules/notices?after=${encodeURIComponent(schedAfter)}` }).catch(() => null);
+    if (r?.status !== 200) return 0;
+    let sent = 0;
+    for (const n of r.body.notices) {
+      if (!(n.at > schedAfter)) continue; // 이미 올린 것(서버도 after로 거르지만 한 번 더)
+      schedAfter = n.at;
+      const head = `[${n.label}] 예약 질문(${n.when})`;
+      const text = n.status === 'completed' ? `${head} 답:\n${n.answer ?? '(보관하지 않은 답변)'}`
+        : n.status === 'unknown' ? `${head}: 결과를 확인할 수 없음 — 자동으로 다시 보내지 않고, 이 예약은 다음 회차에 멈춰요(원래 세션 확인 후 이어온 화면 → 설정 → 대화 → 예약 작업에서 다시 켜기)`
+        : n.status === 'cancelled' ? `${head}: 중지됨` : n.status === 'approval_required' ? `${head}: 원래 세션에서 권한 확인이 필요해 멈춤`
+        : `${head}: ${ERR[n.errorCode] ?? `실행 실패: ${n.errorCode}`}`;
+      for (const [k, v] of Object.entries(rooms)) {
+        const send = v === n.conversationId && lastSend.get(k);
+        if (!send) continue;
+        for (const part of splitText(text, MAX_CHUNK[k.split(':')[0]] ?? 1900)) await send(part).catch(() => {});
+        sent += 1;
+      }
+    }
+    return sent;
+  }
+
+  return { handle, roomKey, deliverNotices, deliverScheduled, allowed };
 }
 
 // 이어온 서버 API 호출기. 토큰은 파일에서 읽고 출력하지 않는다.

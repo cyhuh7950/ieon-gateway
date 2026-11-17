@@ -176,6 +176,27 @@ test('보관 예고는 그 세션에 연결된 대화방으로만 보낸다', as
   assert.equal(room.b.length, 1);
 });
 
+test('W3: 끝난 예약 질문의 답을 그 대화에 연결된 방에만 올림(긴 답은 나눠서, 결과 불명은 멈춤 안내)', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'ieon-msg-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const state = { conversations: [conv()] }; const f = fakeApi(state);
+  const notes = [];
+  const api = async (req) => (req.path.startsWith('/v1/schedules/notices') ? { status: 200, body: { notices: notes } } : f.api(req));
+  const bridge = createBridge({ api, allowedUsers: { telegram: ['111'] }, roomsPath: join(dir, 'rooms.json'), pollMs: 1, waitMs: 1000 });
+  const room = { a: [], b: [] };
+  await bridge.handle({ platform: 'telegram', userId: '111', chatId: 'A', text: '/use 1' }, async (s) => { room.a.push(s); });
+  await bridge.handle({ platform: 'telegram', userId: '111', chatId: 'B', text: '/help' }, async (s) => { room.b.push(s); });
+  notes.push({ conversationId: 'c1', label: '시험 표식 확인', when: '매일 09:00', status: 'completed', answer: 'x'.repeat(5000), at: '2099-01-01T00:00:00.000Z' },
+    { conversationId: 'c1', label: '시험 표식 확인', when: '매일 09:00', status: 'unknown', at: '2099-01-01T00:00:01.000Z' });
+  assert.equal(await bridge.deliverScheduled(), 2);
+  const got = room.a.slice(1);
+  assert.ok(got[0].startsWith('[시험 표식 확인] 예약 질문(매일 09:00) 답:'));
+  assert.equal(got.length, 3, '긴 답은 텔레그램 길이로 나눔 + 결과 불명 안내');
+  assert.match(got.at(-1), /결과를 확인할 수 없음 — 자동으로 다시 보내지 않고, 이 예약은 다음 회차에 멈춰요/);
+  assert.equal(room.b.length, 1, '연결 안 된 방에는 안 감');
+  assert.equal(await bridge.deliverScheduled(), 0, '이미 올린 답은 다시 올리지 않음');
+});
+
 test('여러 봇 M0: 옛 rooms.json은 default 봇 연결로 바뀌어 그대로 이어지고, 대화방 키에 봇 ID가 들어간다', async (t) => {
   const { writeFileSync, readFileSync } = await import('node:fs');
   const dir = mkdtempSync(join(tmpdir(), 'ieon-msg-'));

@@ -121,7 +121,8 @@ export function openStore(path) {
   // W3 예약 작업: 주인·대화·질문·언제(종류·값·시간대)·하루 한도·켜짐·멈춘 이유·마지막 실행과 결과·다음 실행
   db.exec(`CREATE TABLE IF NOT EXISTS schedules (schedule_id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, question TEXT NOT NULL,
     kind TEXT NOT NULL, spec TEXT NOT NULL, tz TEXT NOT NULL, max_per_day INTEGER NOT NULL, enabled INTEGER NOT NULL, paused_reason TEXT,
-    last_run_at TEXT, last_request_id TEXT, last_result TEXT, runs_day TEXT, runs_today INTEGER NOT NULL DEFAULT 0, next_run_at TEXT, created_at TEXT NOT NULL, approved_at TEXT NOT NULL)`);
+    last_run_at TEXT, last_request_id TEXT, last_result TEXT, runs_day TEXT, runs_today INTEGER NOT NULL DEFAULT 0, next_run_at TEXT, created_at TEXT NOT NULL, approved_at TEXT NOT NULL,
+    notified_request_id TEXT)`); // notified_request_id: 메신저 방에 답을 알린 마지막 예약 질문
   // RC5: 대화마다 "사람이 직접 할 일" 규칙(종류·명령에 든 글자). 맞는 요청은 엔진에 거부로 답하고 사람에게 넘긴다.
   db.exec('CREATE TABLE IF NOT EXISTS handoff_policies (conversation_id TEXT PRIMARY KEY, kinds TEXT NOT NULL, patterns TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL)');
   // SV3-b: 이 질문이 쓴 계정("<PC>:<계정 ID>") — 계정별 사용량·한도
@@ -743,6 +744,14 @@ export function openStore(path) {
         .run(at, requestId, result, nextRunAt, day, today + (counted ? 1 : 0), pause, disable ? 1 : 0, id);
     },
     pauseSchedule(id, reason) { db.prepare('UPDATE schedules SET paused_reason = ? WHERE schedule_id = ?').run(reason, id); },
+    // W3: 끝났는데 아직 메신저 방에 알리지 않은 예약 질문(답·상태). 가져가면 알린 것으로 적는다.
+    takeScheduleResults() {
+      const rows = db.prepare(`SELECT s.schedule_id, s.conversation_id, s.kind, s.spec, s.tz, s.last_request_id, r.status, r.answer, r.error_code FROM schedules s
+        JOIN requests r ON r.request_id = s.last_request_id
+        WHERE (s.notified_request_id IS NULL OR s.notified_request_id != s.last_request_id) AND r.status IN ('completed', 'failed', 'unknown', 'cancelled', 'approval_required')`).all();
+      for (const r of rows) db.prepare('UPDATE schedules SET notified_request_id = ? WHERE schedule_id = ?').run(r.last_request_id, r.schedule_id);
+      return rows.map((r) => ({ conversationId: r.conversation_id, kind: r.kind, spec: JSON.parse(r.spec), tz: r.tz, requestId: r.last_request_id, status: r.status, answer: r.answer ?? null, errorCode: r.error_code ?? null }));
+    },
     requestStatus(requestId) { return db.prepare('SELECT status FROM requests WHERE request_id = ?').get(requestId)?.status ?? null; },
     // WS1-a: 붙인 작업 공간 표시(없으면 null)·기록
     workspaceView(conversationId) { const r = db.prepare('SELECT view FROM workspace_views WHERE conversation_id = ?').get(conversationId); try { return r ? JSON.parse(r.view) : null; } catch { return null; } },
