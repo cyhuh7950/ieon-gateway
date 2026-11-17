@@ -274,6 +274,12 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <span>작업 폴더</span><div id="nsRoot" class="muted"></div>
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="nsReset">파일 값으로</button></div>
     </form>
+    <h2>동시 질문 수</h2>
+    <div class="muted">PC·엔진 칸 하나가 한꺼번에 맡는 질문(기다림 + 처리 중) 수예요. 넘으면 줄 세우지 않고 "바빠요"로 알려 주고, 자동으로 다시 보내지 않아요. 0이면 한도 없음.</div>
+    <form id="hlForm" class="row">
+      <input id="hlPerHost" type="number" min="0" max="50" aria-label="기기 하나가 한꺼번에 맡는 질문 수">
+      <button class="primary" type="submit">저장</button>
+    </form>
   </section>
   <section class="atab" data-atab="msg" hidden aria-label="역할">
     <h3>역할</h3>
@@ -401,6 +407,7 @@ async function loadSettings(force) {
   $('kkSrc').textContent = srcText(s.kakao.source, s.kakao.updatedAt);
   $('kkUrl').value = s.kakao.value?.relayUrl || ''; $('kkLimit').value = s.kakao.value?.callbackLimitMs ? s.kakao.value.callbackLimitMs / 1000 : '';
   const ns = s.newSessions, e = ns.effective;
+  $('hlPerHost').value = s.hostLimit?.perHost ?? 3; // SV4 동시 질문 수
   $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '(파일 값 사용 중)';
   $('nsOn').checked = Boolean(e?.enabled);
   $('nsMax').value = e?.limits.maxSessions ?? ''; $('nsActive').value = e?.limits.maxActive ?? '';
@@ -427,6 +434,7 @@ $('nsForm').onsubmit = (e) => {
   saveSetting('new-sessions', { enabled: $('nsOn').checked, limits: clean(lim), cleanup: clean({ idleSleepMinutes: numOr($('nsIdle').value), archiveAfterDays: numOr($('nsArch').value), archiveNoticeDays: numOr($('nsNotice').value) }),
     ...($('nsDefault').value ? { permissions: { default: $('nsDefault').value } } : {}) }, '새 세션 설정을 저장했습니다 — 바로 적용됩니다');
 };
+$('hlForm').onsubmit = (e) => { e.preventDefault(); saveSetting('host-limit', { perHost: Number($('hlPerHost').value) }, '동시 질문 수를 저장했어요 — 다음 질문부터 적용돼요'); };
 $('nsReset').onclick = () => saveSetting('new-sessions', null, '새 세션 설정을 파일 값으로 되돌렸습니다');
 // --- 기존 세션 등록(P1-b) ---
 const BD_ERR = { bad_conversation_id: 'ID는 c_로 시작하고 영문·숫자·_- 61자까지', file_managed: 'server.json에 적힌 세션은 파일에서 고칩니다', is_new_session: '새 세션은 여기서 바꿀 수 없음',

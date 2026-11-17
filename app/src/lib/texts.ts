@@ -13,6 +13,7 @@ export const ERR: Record<string, string> = {
   account_not_logged_in: "고른 이어온 계정이 로그인돼 있지 않아 보내지 않았어요. 웹 화면 설정 → 계정에서 로그인하세요.",
   account_missing: "고른 이어온 계정이 없어 보내지 않았어요.",
   conversation_busy: "이 대화에서 처리 중인 질문이 있어 보낼 수 없어요.",
+  host_busy: "그 PC·칸이 다른 질문을 여러 개 처리 중이라 보내지 않았어요 — 잠시 뒤 다시 보내 주세요(자동으로 다시 보내지 않아요)",
   device_unavailable: "PC 연결이 끊겨 보낼 수 없어요. PC가 켜져 있는지 확인하세요.",
   hub_mode: "이 PC는 허브에 연결돼 있어 여기서 보낸 질문은 처리하지 않아요. 허브 주소로 연결하세요.",
   desktop_holds_thread: "Codex 앱에서 이 대화를 열고 있어 보내지 않았어요. 앱에서 닫은 뒤 다시 보내세요.",

@@ -22,6 +22,12 @@ export function validateAllowedUsers(v) {
 }
 
 // 카카오 중계 주소·콜백 제한 시간. 주소는 https(로컬 시험용 http://127.0.0.1·localhost만 예외).
+// SV4: 기기 하나(PC·엔진 칸)가 한꺼번에 맡는 질문 수(1~50, 0 = 한도 없음)
+export function validateHostLimit(v) {
+  const n = Number(v?.perHost);
+  if (!Number.isInteger(n) || n < 0 || n > 50) fail('bad_host_limit');
+  return { perHost: n };
+}
 // SV4: 허브의 쓰임(① 서버 설치형 server | ② 허브형 hub)
 export function validateInstallKind(v) {
   if (!v || !['server', 'hub'].includes(v.kind)) fail('bad_install_kind');

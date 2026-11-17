@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
 import { botAppId, tokenEnvNames } from './bots.mjs';
-import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding, validateInstallKind } from './settings.mjs';
+import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding, validateInstallKind, validateHostLimit } from './settings.mjs';
 import { createWebAccess, isExemptPath, validateWebAccess } from './web-access.mjs';
 import { createRelay } from '../relay/relay.mjs';
 import { createWebAuth } from './web-auth.mjs';
@@ -31,7 +31,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 
 const MAX_QUESTION = 8000;
 // AP-1: 방에서 다시 보내기를 보여 줄 이유(보내지 않은 것이 확실한 것만 — U2 카드의 다시 보내기와 같은 기준 + 끊김·엔진 꺼짐)
-const ROOM_RETRY = new Set(['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit', 'usage_limit', 'device_unavailable', 'session_not_running', 'shared_server_down', 'account_not_logged_in']);
+const ROOM_RETRY = new Set(['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'active_limit', 'host_busy', 'usage_limit', 'device_unavailable', 'session_not_running', 'shared_server_down', 'account_not_logged_in']);
 const DEVICE_FRESH_MS = 30000;
 // 대화 중심 새 화면(설계 UI_CHAT_FIRST U1)이 `/`, 예전 화면은 U8까지 `/classic`(결정 UD4).
 const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
@@ -97,6 +97,9 @@ export function createApp(config) {
   const nsFileRaw = config.newSessionsConfigPath && existsSync(config.newSessionsConfigPath)
     ? JSON.parse(readFileSync(config.newSessionsConfigPath, 'utf8')) : null;
   let nsCfg = null;
+  // SV4 동시 질문 수: 웹에서 바꾼 값 → 설정 파일(maxPerHost) → 기본 3
+  const reloadHostLimit = () => store.configureHostLimit(store.getSetting('limits.perHost')?.value?.perHost ?? config.maxPerHost ?? 3);
+  reloadHostLimit();
   const reloadNewSessions = () => {
     const web = store.getSetting('newSessions')?.value;
     nsCfg = nsFileRaw || web ? loadNewSessionsConfig(mergeNewSessions(nsFileRaw ?? {}, web ?? {})) : null;
@@ -1074,20 +1077,22 @@ export function createApp(config) {
               effective: nsCfg ? { enabled: nsCfg.enabled, limits: nsCfg.limits, permissions: { default: nsCfg.permissions.default, profiles: Object.keys(nsCfg.permissions.profiles).filter((p) => p !== 'full') },
                 cleanup: nsCfg.cleanup, workspaceRoot: nsCfg.workspaceRoot } : null },
             installKind: installKind(), // SV4: server(① 서버 설치형, PC 연결 화면 숨김) | hub(② 허브형)
+            hostLimit: { perHost: store.hostLimit(), source: store.getSetting('limits.perHost') ? 'web' : 'file' }, // SV4 동시 질문 수
           };
         };
         if (req.method === 'GET' && path === '/v1/admin/settings') return json(res, 200, view());
-        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions|install-kind)$/);
+        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions|install-kind|host-limit)$/);
         if (!s) return json(res, 404, { error: 'not_found' });
-        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions', 'install-kind': 'install.kind' }[s[1]];
+        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions', 'install-kind': 'install.kind', 'host-limit': 'limits.perHost' }[s[1]];
         if (req.method === 'DELETE') store.deleteSetting(key); // 파일 값으로 되돌리기
         else if (req.method === 'PUT') {
           const body = await readJson(req);
           const value = s[1] === 'allowed-users' ? validateAllowedUsers(body) : s[1] === 'kakao' ? validateKakao(body)
-            : s[1] === 'install-kind' ? validateInstallKind(body) : validateNewSessionsWeb(body, nsFileRaw ?? {});
+            : s[1] === 'install-kind' ? validateInstallKind(body) : s[1] === 'host-limit' ? validateHostLimit(body) : validateNewSessionsWeb(body, nsFileRaw ?? {});
           store.setSetting(key, value);
         } else return json(res, 404, { error: 'not_found' });
         if (key === 'newSessions') reloadNewSessions();
+        if (key === 'limits.perHost') reloadHostLimit();
         return json(res, 200, view());
       }
 

@@ -11,6 +11,7 @@ const ERR = {
   account_limit_reached: '이 AI 직원이 쓰는 API 계정이 정해 둔 한도에 걸렸어요 — 한도를 바꾸려면 이어온 화면 설정 → 계정(자동으로 다시 보내지 않아요)',
   service_needs_api_key: '이 봇은 주인 말고 다른 사람도 받는 서비스용이라 API 키 계정이 필요해요 — 이어온 화면 설정 → 계정에서 그 PC·칸의 [API 키]를 한 번 넣으면 바로 돼요(주인은 웹에서 그대로 쓸 수 있어요)',
   conversation_busy: '이 세션에서 처리 중인 질문이 있어 보낼 수 없음',
+  host_busy: '그 PC·칸이 다른 질문을 여러 개 처리 중이라 보내지 않았어요 — 잠시 뒤 다시 보내 주세요(자동으로 다시 보내지 않아요)',
   device_unavailable: 'PC 연결이 끊겨 보낼 수 없음',
   hub_mode: '이 PC는 허브에 연결돼 있어 여기서 받은 질문은 처리하지 않음 — 허브에 연결된 봇이나 허브 화면에서 보내기',
   desktop_holds_thread: 'Desktop에서 이 대화를 열고 있어 보내지 않았음 — Desktop에서 대화를 닫고 다시 보내기',

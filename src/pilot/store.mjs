@@ -183,6 +183,8 @@ export function openStore(path) {
   };
   const locked = (b) => Boolean(db.prepare('SELECT 1 FROM locks WHERE session_key = ?').get(sessionKey(b)));
   let nsConfig = null; // configureNewSessions로 받은 새 세션 설정(동시 실행 한도용). 없으면 한도를 걸지 않는다.
+  // SV4 동시 질문 수(설계 SERVER_SESSIONS 2-6): 기기(PC·엔진 칸) 하나가 한꺼번에 맡는 질문(기다림+처리 중) 수. 넘으면 줄 세우지 않고 host_busy로 거절(자동 재전송 없음). 0이면 한도 없음.
+  let perHost = 3;
   const roleView = (r) => r && { roleId: r.role_id, name: r.name, description: r.description, engines: JSON.parse(r.engines),
     profiles: JSON.parse(r.profiles), aiGuide: r.ai_guide, defaultSession: r.default_session };
   const botView = (b) => b && { platform: b.platform, botId: b.bot_id, name: b.name, roleId: b.role_id,
@@ -278,6 +280,10 @@ export function openStore(path) {
         const lockKey = sessionKey(b);
         if (db.prepare('SELECT 1 FROM locks WHERE session_key = ?').get(lockKey)) {
           return { http: 409, code: 'conversation_busy' };
+        }
+        if (perHost) {
+          const n = db.prepare("SELECT COUNT(*) AS n FROM requests WHERE status IN ('queued', 'dispatching', 'running') AND json_extract(snap, '$.hostId') = ?").get(b.hostId).n;
+          if (n >= perHost) return { http: 429, code: 'host_busy', limit: perHost };
         }
         if (ns) {
           // 보관된 새 세션은 꺼내기(restore) 전까지 받지 않는다. 잠든 세션은 질문이 오면 깨운다.
@@ -577,6 +583,8 @@ export function openStore(path) {
     },
 
     configureNewSessions(config) { nsConfig = config; },
+    configureHostLimit(n) { perHost = Number.isInteger(n) && n >= 0 ? n : 3; },
+    hostLimit() { return perHost; },
 
     // 정리(N3): 잠들기(active→sleeping, 대화 유지)·보관(archived, 목록·한도 제외)·보관 예고.
     // 처리 중·확인 필요 잠금이 있는 세션은 건드리지 않는다. 삭제는 여기서 하지 않는다(사람 확인 필요).

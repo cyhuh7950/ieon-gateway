@@ -22,6 +22,7 @@ export const WAITING = new Set(["queued", "dispatching", "running", "approval_re
 // 방에서 보내지 않은 이유(웹 화면 ROOM_BUSY와 같은 뜻)
 export const ROOM_BUSY: Record<string, string> = {
   conversation_busy: "지금 다른 일 중이라 보내지 않았어요",
+  host_busy: "그 PC·칸이 바빠 보내지 않았어요",
   device_unavailable: "PC 연결이 끊겨 보내지 않았어요",
   session_not_running: "Claude 세션이 꺼져 있어 보내지 않았어요",
   shared_server_down: "공유 서버가 꺼져 있어 보내지 않았어요",
