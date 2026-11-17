@@ -33,6 +33,15 @@ export function spawnClaude(args, input, { cwd, timeoutMs = TIMEOUT_MS, signal =
   });
 }
 
+// 권한 설정에서 막힌 작업(신산님 2026-11-18 "고쳐 주세요", WORK_STATUS 0-205): --permission-prompts none이라 막힌 도구는 그 자리에서 거부되고 차례는 끝까지 간다.
+// 예전에는 "권한 확인 대기"로 멈춰 답이 비고 대화가 잠겼다 → 답은 그대로 두고 끝에 무엇이 막혔는지 붙인다(5개까지, 대상은 파일 경로·명령 앞부분).
+export function deniedNote(denials = []) {
+  if (!denials.length) return '';
+  const what = (d) => { const i = d?.tool_input ?? {}; const t = i.file_path ?? i.path ?? i.notebook_path ?? i.url ?? i.command ?? i.pattern ?? '';
+    return `- ${String(d?.tool_name ?? '도구')}${t ? ' ' + String(t).replace(/\s+/g, ' ').slice(0, 120) : ''}`; };
+  return `[이어온] 권한 설정에서 막혀 실행되지 않은 작업 ${denials.length}개:\n${denials.slice(0, 5).map(what).join('\n')}${denials.length > 5 ? `\n- 외 ${denials.length - 5}개` : ''}`;
+}
+
 // SV2 기존 대화(서버 칸에서 사람이 연 Claude 대화를 고른 것)의 도구: 새 세션 기본 프로필(없으면 작업 폴더 안 읽기·쓰기). 명령(Bash)은 열지 않는다.
 const DEFAULT_TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write'];
 
@@ -85,9 +94,10 @@ export function claudeCliAdapter(opts) {
       // A1: 계정 사용 한도로 거절된 경우는 실행 안 됨이 확실 → 잠그지 않고 usage_limit로 알린다.
       if (out.is_error && /usage[ _]?limit|hit your limit/i.test(String(out.result ?? ''))) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: id });
       if (out.is_error || out.subtype !== 'success') throw Object.assign(new Error('claude_error'), { unknownCode: 'claude_error', sessionRef: id });
-      if (out.permission_denials?.length) return { approvalRequired: true, sessionRef: id };
+      const note = deniedNote(out.permission_denials ?? []);
+      const answer = [String(out.result ?? '').trim(), note].filter(Boolean).join('\n\n');
       const u = out.usage ?? {};
-      return { receipt: `claude:${id}`, answer: out.result ?? '', sessionRef: id,
+      return { receipt: `claude:${id}`, answer, sessionRef: id,
         usage: ID.test(id) && (u.input_tokens !== undefined || u.output_tokens !== undefined)
           ? { inputTokens: u.input_tokens ?? 0, outputTokens: u.output_tokens ?? 0 } : null };
     },

@@ -62,11 +62,15 @@ test('만든 세션은 같은 ID로 --resume하고, 연결부가 만들지 않�
   await assert.rejects(adapter.run(job(root, { sessionRef: '11111111-2222-4333-8444-555555555555' })), { code: 'session_not_allowed' });
 });
 
-test('권한 거부가 있었으면 멈춰 확인을 요청하고 세션 ID는 남긴다', async (t) => {
-  const { adapter, root } = setup(t, { claude: fakeClaude({ permission_denials: [{ tool_name: 'Bash' }] }) });
+test('권한 설정에서 막힌 작업은 멈추지 않고 답 끝에 무엇이 막혔는지 붙인다(2026-11-18 — 예전엔 권한 확인 대기로 답이 비고 대화가 잠김), 세션 ID는 남긴다', async (t) => {
+  const { adapter, root } = setup(t, { claude: fakeClaude({ permission_denials: [{ tool_name: 'Edit', tool_input: { file_path: '/data/ro/note.txt' } }, { tool_name: 'Bash', tool_input: { command: 'rm  -rf\n/x' } }] }) });
   const r = await adapter.run(job(root));
-  assert.equal(r.approvalRequired, true);
+  assert.equal(r.approvalRequired, undefined);
   assert.match(r.sessionRef, /^[0-9a-f-]{36}$/);
+  assert.ok(r.answer.endsWith('[이어온] 권한 설정에서 막혀 실행되지 않은 작업 2개:\n- Edit /data/ro/note.txt\n- Bash rm -rf /x'), r.answer);
+  const { deniedNote } = await import('../../src/pilot/adapters/claude-cli.mjs');
+  assert.equal(deniedNote([]), '');
+  assert.ok(deniedNote(Array.from({ length: 7 }, () => ({ tool_name: 'Write' }))).endsWith('- Write\n- 외 2개'));
 });
 
 test('사람이 같은 세션을 열고 있어 다른 ID(복사본)로 실행됐으면 결과 불명으로 넘긴다', async (t) => {
