@@ -11,7 +11,7 @@ import { readWorkspaces, workspaceFor, workspaceLine } from '../workspaces.mjs';
 // WS1-a: 작업 공간을 붙인 세션의 질문 앞에 폴더 한 줄(안내 — 차단은 엔진 샌드박스가 따로). 붙이지 않은 세션·새 세션은 그대로.
 export function withWorkspaceLine(adapter, config) {
   return { ...adapter, run(job, ctx) {
-    const ws = job.newSession ? null : workspaceFor(config, adapter.engine ?? job.engine, job.sessionRef);
+    const ws = workspaceFor(config, adapter.engine ?? job.engine, job.newSession ? `new:${job.newSession.name}` : job.sessionRef); // WS1-b: 새 세션은 이름으로
     return adapter.run(ws ? { ...job, question: workspaceLine(ws) + job.question } : job, ctx);
   } };
 }
@@ -53,11 +53,13 @@ export async function buildAdapters(config) {
   const adapters = {
     codex_thread: codexThreadAdapter({ live, allowlist: config.codex?.allowlist ?? [], modes: config.codex?.modes, shared: config.codex?.shared,
       workingDirectories: wsDirs.workingDirectories, writableExtra: wsDirs.writableExtra, newSessions,
+      newSessionDirs: (name) => workspaceFor(config, 'codex_thread', `new:${name}`)?.write ?? [], // WS1-b: Codex 새 세션의 공유(쓰기) 폴더
       // A2: 이어온 전용 Codex 계정(설정 파일 경로를 아는 연결부가 accountsDir를 채워 준다)
       accountEnv: config.accountsDir ? (threadId) => codexEnvFor(config, config.accountsDir, threadId) : undefined }),
     claude_channel: claudeChannelAdapter({ live, baseUrl: config.claude?.baseUrl, tokenFile: config.claude?.tokenFile }),
     // SV2: 새 세션 + 서버 칸에서 고른 기존 Claude 대화(허용 목록·대화별 작업 폴더)
-    claude_cli: claudeCliAdapter({ live, newSessions, allowlist: config.cliEngines?.claude_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.claude_cli?.workingDirectories }),
+    claude_cli: claudeCliAdapter({ live, newSessions, allowlist: config.cliEngines?.claude_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.claude_cli?.workingDirectories,
+      workspaceOf: (ref) => workspaceFor(config, 'claude_cli', ref) }), // WS1-b
     // E1·E2: 세션 쪽은 그 PC의 허용 목록, 토큰 쪽은 지금 PC 기본 로그인(API 키 변수는 실행 때 지움)
     agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories }),
     grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories }),

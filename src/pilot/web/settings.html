@@ -642,11 +642,14 @@ const WS_ERR = { bad_folder_name: '폴더 이름을 넣으세요', folder_name_t
   bad_folder: '폴더를 다시 골라 주세요(같은 폴더를 두 번 고를 수 없어요)', excluded_session: '이 대화에는 작업 공간을 붙일 수 없어요', new_session_auto_folder: '새 세션은 자동으로 만든 폴더가 개인 폴더예요',
   workspace_engine_unsupported: '이 엔진에는 작업 공간을 붙일 수 없어요', bad_shared: '공유 폴더는 10개까지예요' };
 const wsErr = (b) => WS_ERR[b.error] || HOST_ERR[b.error] || DEV_ERR[b.error] || b.error;
-let wsData = null;
+let wsData = null; let wsHubSelf = null;
+// WS1-b: 막는 정도는 엔진·새 세션 여부·권한(full)에 따라 다름
+const wsLevel = (c) => (c.newSession ? (c.newSession.profile === 'full' ? wsData.fullLevels : wsData.newLevels)?.[c.engine] : null) || wsData.levels[c.engine];
 async function loadWsTargets() {
   if (authState?.mode !== 'hub') { $('wsTargetRow').hidden = true; return; }
   const r = await api('/v1/admin/devices'); if (r.status !== 200) return;
-  const list = r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).map((d) => [d.hostId, d.name + (d.online ? '' : ' (연결 끊김)')]);
+  wsHubSelf = r.body.devices.find((d) => d.hubSelf && !d.revokedAt)?.hostId ?? null;
+  const list = [['hub', '허브 자체(허브에서 만든 새 세션)'], ...r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).map((d) => [d.hostId, d.name + (d.online ? '' : ' (연결 끊김)')])];
   const sel = $('wsTarget'); sel.innerHTML = '';
   for (const [v, txt] of list) { const o = el('option', txt); o.value = v; sel.append(o); }
   wsTarget = list.length ? (list.some(([v]) => v === wsTarget) ? wsTarget : list[0][0]) : 'none';
@@ -672,13 +675,14 @@ async function loadWorkspaces() {
   }
   fb.replaceChildren(...frows);
   // 이 PC·칸의 AI 직원(허용 목록 세션) — 새 세션·Claude 채널은 빼고
-  const convs = (cv.status === 200 ? cv.body.conversations : []).filter((c) => WS_ENGINE_TXT[c.engine] && !c.newSession && (wsTarget === 'local' || c.host?.id === wsTarget));
+  const here = (c) => wsTarget === 'local' || (wsTarget === 'hub' ? Boolean(wsHubSelf) && c.host?.id === wsHubSelf : c.host?.id === wsTarget);
+  const convs = (cv.status === 200 ? cv.body.conversations : []).filter((c) => WS_ENGINE_TXT[c.engine] && (!c.newSession || ['codex_thread', 'claude_cli'].includes(c.engine)) && here(c));
   const sb = $('wsStaff'); const srows = [];
-  if (!convs.length) { const tr = el('tr'); tr.append(el('td', '작업 공간을 붙일 수 있는 직원이 없어요(Codex·서버 Claude·Antigravity·Grok의 기존 대화만 — 새 세션은 자동 폴더가 개인 폴더)', 'muted')); srows.push(tr); }
+  if (!convs.length) { const tr = el('tr'); tr.append(el('td', '작업 공간을 붙일 수 있는 직원이 없어요(Codex·서버 Claude·Antigravity·Grok의 기존 대화, Codex·Claude 새 세션)', 'muted')); srows.push(tr); }
   for (const c of convs) {
-    const w = c.workspace; const lv = wsData.levels[c.engine];
+    const w = c.workspace; const lv = wsLevel(c);
     const tr = el('tr');
-    tr.append(el('td', (c.staff?.name || c.label) + ' · ' + WS_ENGINE_TXT[c.engine]));
+    tr.append(el('td', (c.staff?.name || c.label) + ' · ' + WS_ENGINE_TXT[c.engine] + (c.newSession ? ' 새 세션' : '')));
     tr.append(el('td', w ? [w.personal && '개인 ' + w.personal, ...(w.shared || []).map((s) => '공유 ' + s.name + '(' + (s.write ? '쓰기' : '읽기') + ')')].filter(Boolean).join(', ') : '안 붙임(지금처럼)', w ? '' : 'muted'));
     tr.append(el('td', w ? '쓰기: ' + lv.writeText.split(' — ')[0] + ' · 읽기: ' + lv.readText.split(' — ')[0] : '—', w ? '' : 'muted'));
     const td = el('td'); const b = el('button', '폴더 정하기'); b.type = 'button'; b.onclick = () => wsEditor(c); td.append(b); tr.append(td); srows.push(tr);
@@ -694,7 +698,9 @@ function wsEditor(c) {
   const ps = el('select'); ps.setAttribute('aria-label', '개인 폴더'); ps.append(Object.assign(el('option', '개인 폴더 없음'), { value: '' }));
   for (const f of wsData.folders) ps.append(Object.assign(el('option', '개인: ' + f.name), { value: f.id }));
   ps.value = mine?.personal || '';
-  row1.append(el('label', '개인 폴더'), ps); box.append(row1);
+  // WS1-b: 새 세션의 개인 폴더는 이어온이 만든 작업 폴더(바꾸지 않음) — 공유 폴더만 고름
+  if (c.newSession) { ps.value = ''; row1.append(el('label', '개인 폴더'), el('span', '이 새 세션의 작업 폴더(자동) — 공유 폴더만 붙일 수 있어요', 'muted')); } else row1.append(el('label', '개인 폴더'), ps);
+  box.append(row1);
   const picks = new Map();
   for (const f of wsData.folders) {
     const row = el('div'); row.className = 'row';
@@ -703,7 +709,7 @@ function wsEditor(c) {
     const had = (mine?.shared || []).find((x) => x.id === f.id); s.value = had ? (had.write ? 'w' : 'r') : '';
     picks.set(f.id, s); row.append(el('label', f.name), s, el('span', f.path, 'muted')); box.append(row);
   }
-  const lv = wsData.levels[c.engine];
+  const lv = wsLevel(c);
   box.append(el('div', '막는 정도 — 쓰기: ' + lv.writeText + ' / 읽기: ' + lv.readText, 'muted'));
   const act = el('div'); act.className = 'row';
   const save = el('button', '저장'); save.type = 'button'; save.className = 'primary';

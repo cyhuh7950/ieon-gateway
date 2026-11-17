@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { EngineError, StoppedError } from '../contracts.mjs';
 import { checkNewSession } from '../new-sessions.mjs';
 import { claudeAuthEnv } from '../claude-login.mjs';
+import { claudeDirArgs } from '../workspaces.mjs';
 
 const TIMEOUT_MS = 300000;
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -69,8 +70,12 @@ export function claudeCliAdapter(opts) {
     async run({ sessionRef, question, newSession }, { signal = null } = {}) {
       const { id, pending, cwd, tools: list } = newSession ? forNew(sessionRef, newSession) : forExisting(sessionRef);
       const tools = list.join(',');
+      // WS1-b: 붙인 작업 공간(개인·공유 폴더) — 지금 있는 폴더만 --add-dir, 공유(읽기만)는 고치기 거부
+      const ws = opts.workspaceOf?.(newSession ? `new:${newSession.name}` : sessionRef) ?? null;
+      const live = (l) => (l ?? []).filter((d) => existsSync(d));
+      const dirArgs = ws ? claudeDirArgs({ personal: ws.personal && existsSync(ws.personal) ? ws.personal : null, write: live(ws.write), read: live(ws.read) }) : [];
       const args = ['-p', '--output-format', 'json', '--restricted', '--strict-mcp-config', '--permission-prompts', 'none',
-        '--tools', tools, '--allowedTools', tools, ...(pending ? ['--session-id', id] : ['--resume', id])];
+        '--tools', tools, '--allowedTools', tools, ...dirArgs, ...(pending ? ['--session-id', id] : ['--resume', id])];
       const { code, stdout, stopped } = await run(args, question, { cwd, signal });
       if (stopped) throw Object.assign(new StoppedError(), { sessionRef: id }); // 사람이 멈춤 — 세션 ID는 남겨 같은 세션으로 이어 감
       let out;

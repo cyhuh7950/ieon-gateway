@@ -762,19 +762,26 @@ export function createApp(config) {
           const b = await readJson(req);
           const conv = store.conversations(principal).find((c) => c.conversationId === String(b.conversationId ?? ''));
           if (!conv) return json(res, 404, { error: 'not_found' });
-          if (conv.newSession) return json(res, 400, { error: 'new_session_auto_folder' }); // 새 세션은 자동 폴더가 곧 개인 폴더
-          if (!WS_ENGINES.includes(conv.engine)) return json(res, 400, { error: 'workspace_engine_unsupported' });
+          // WS1-b: 새 세션도 붙임 — 공유 폴더만(개인 폴더는 자동으로 만든 작업 폴더), 그 기기에는 "new:<세션 이름>"으로
+          if (conv.newSession && b.personal) return json(res, 400, { error: 'new_session_auto_folder' });
+          if (!WS_ENGINES.includes(conv.engine) || (conv.newSession && !['codex_thread', 'claude_cli'].includes(conv.engine))) return json(res, 400, { error: 'workspace_engine_unsupported' });
           if (String(conv.sessionRef).toLowerCase() === EXCLUDED_THREAD) return json(res, 400, { error: 'excluded_session' });
-          const args = { engine: conv.engine, sessionRef: conv.sessionRef, personal: b.personal ?? null, shared: Array.isArray(b.shared) ? b.shared : [] };
+          const ref = conv.newSession ? `new:${conv.newSession.name}` : conv.sessionRef;
+          const args = { engine: conv.engine, sessionRef: ref, personal: conv.newSession ? null : b.personal ?? null, shared: Array.isArray(b.shared) ? b.shared : [] };
           let r;
           if (access) {
-            if (conv.hostId === selfHostId() || !knownHosts().includes(conv.hostId)) return json(res, 400, { error: 'workspace_engine_unsupported' });
-            if (!online(conv.hostId)) return json(res, 503, { error: 'device_offline' });
-            r = await adminQueue.send(conv.hostId, 'workspace.attach', args);
+            if (conv.hostId === selfHostId()) { if (!conv.newSession) return json(res, 400, { error: 'workspace_engine_unsupported' }); r = await hubAdmin.run('workspace.attach', args); } // 허브 자체 새 세션
+            else {
+              if (!knownHosts().includes(conv.hostId)) return json(res, 400, { error: 'workspace_engine_unsupported' });
+              if (!online(conv.hostId)) return json(res, 503, { error: 'device_offline' });
+              r = await adminQueue.send(conv.hostId, 'workspace.attach', args);
+            }
           } else r = await deviceAdmin.run('workspace.attach', args);
           if (r.status !== 200) return json(res, r.status, r.body);
-          const a = (r.body.attached ?? []).find((x) => x.engine === conv.engine && String(x.sessionRef).toLowerCase() === String(conv.sessionRef).toLowerCase());
-          store.saveWorkspace(principal, conv.conversationId, a ? { ...a.summary, level: a.level, ids: { personal: a.personal, shared: a.shared } } : null);
+          const a = (r.body.attached ?? []).find((x) => x.engine === conv.engine && String(x.sessionRef).toLowerCase() === String(ref).toLowerCase());
+          // full 권한 새 세션은 명령 도구가 있어 정리만(그 기기가 계산한 표)
+          const level = a && conv.newSession?.profile === 'full' ? r.body.fullLevels?.[conv.engine] ?? a.level : a?.level;
+          store.saveWorkspace(principal, conv.conversationId, a ? { ...a.summary, level, ids: { personal: a.personal, shared: a.shared } } : null);
           process.stderr.write(JSON.stringify({ ch: 'server', event: 'workspace_attach', host: conv.hostId, attached: Boolean(a) }) + '\n');
           return json(res, 200, { ...r.body, conversationId: conv.conversationId });
         }
