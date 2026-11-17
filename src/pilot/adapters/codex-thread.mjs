@@ -146,9 +146,25 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
 
 // W1: 공유 서버가 보내는 승인 요청을 이어온 승인 카드로. 작업 모드가 아니면(approve 없음) 바로 거부 — 답하지 않아 차례가 멈추지 않게(W0 F5).
 const APPROVAL_KIND = { 'item/commandExecution/requestApproval': 'command', 'item/fileChange/requestApproval': 'file', 'item/permissions/requestApproval': 'permissions' };
+// 파일 수정 승인에 어느 파일인지(2026-11-18 실측: app-server 승인 요청에는 경로가 없어 카드가 "파일 수정"뿐 → 같은 차례의 fileChange 항목 경로를 붙임).
+// roots(작업 폴더·공유 쓰기 폴더)를 알면 그 밖의 파일에 "작업 폴더 밖"을 표시한다. 3개까지 보이고 나머지는 개수만.
+const normPath = (p) => String(p).replaceAll('\\', '/').replace(/\/+$/, '');
+const inRoot = (p, root) => { const a = normPath(p).toLowerCase(); const b = normPath(root).toLowerCase(); return a === b || a.startsWith(b + '/'); };
+export function fileChangeSummary(paths = [], roots = []) {
+  const list = [...new Set(paths.filter((p) => typeof p === 'string' && p))];
+  if (!list.length) return null;
+  const mark = (p) => (roots.length && !roots.some((r) => r && inRoot(p, r)) ? `${normPath(p)} (작업 폴더 밖)` : normPath(p));
+  const outside = roots.length ? list.filter((p) => !roots.some((r) => r && inRoot(p, r))).length : 0;
+  const head = `파일 수정 ${list.length}개${outside ? ` — 작업 폴더 밖 ${outside}개` : ''}: `;
+  return (head + list.slice(0, 3).map(mark).join(', ') + (list.length > 3 ? ` 외 ${list.length - 3}개` : '')).slice(0, 300);
+}
 export const approvalSummary = (method, params = {}) => {
   if (method === 'item/commandExecution/requestApproval') return String(params.command ?? '').slice(0, 300);
-  if (method === 'item/fileChange/requestApproval') return String(params.reason ?? (params.grantRoot ? '작업 폴더 밖 쓰기 요청' : '파일 수정')).slice(0, 300);
+  if (method === 'item/fileChange/requestApproval') {
+    const files = fileChangeSummary(params.changes ?? [], params.roots ?? []);
+    const base = params.reason ?? (params.grantRoot ? `작업 폴더 밖 쓰기 요청: ${normPath(params.grantRoot)}` : null);
+    return String([base, files].filter(Boolean).join(' · ') || '파일 수정(어느 파일인지 엔진이 알려 주지 않음)').slice(0, 300);
+  }
   return String(params.reason ?? '권한 요청').slice(0, 300);
 };
 
@@ -274,12 +290,19 @@ export async function appServerTurn(transport, { threadId, question, cwd, extraR
   };
   const pending = new Map(); let nextId = 1; let turnId = null; let answer = ''; let userMessages = 0; let turnError = null; let worked = false;
   const usage = {}; let finish; const done = new Promise((r) => { finish = r; });
+  const files = new Map(); // fileChange 항목 ID → 고치려는 파일 경로(승인 카드에 보이기)
+  const roots = [cwd, ...(extraRoots ?? [])].filter(Boolean);
   const call = (method, params) => { const id = nextId++; transport.send({ jsonrpc: '2.0', id, method, params }); return new Promise((resolve, reject) => pending.set(id, { resolve, reject })); };
   transport.onMessage((msg) => {
     if (msg.id !== undefined && !msg.method && pending.has(msg.id)) { const p = pending.get(msg.id); pending.delete(msg.id); return msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result); }
-    if (msg.id !== undefined && msg.method) { answerServerRequest(msg, threadId, approve, track).then((r) => transport.send(r)).catch(() => {}); return; }
+    if (msg.id !== undefined && msg.method) {
+      const req = msg.method === 'item/fileChange/requestApproval' ? { ...msg, params: { ...msg.params, changes: files.get(msg.params?.itemId) ?? [], roots } } : msg;
+      answerServerRequest(req, threadId, approve, track).then((r) => transport.send(r)).catch(() => {}); return;
+    }
     const params = msg.params;
     if (!params || params.threadId !== threadId || (turnId && params.turnId && params.turnId !== turnId)) return;
+    if (['item/started', 'item/completed'].includes(msg.method) && params.item?.type === 'fileChange') files.set(params.item.id, (params.item.changes ?? []).map((c) => c?.path));
+    if (msg.method === 'item/fileChange/patchUpdated' && params.itemId) files.set(params.itemId, (params.changes ?? []).map((c) => c?.path));
     if (msg.method === 'item/started' && params.item?.type === 'userMessage') userMessages += 1;
     if (msg.method === 'item/started' && ['commandExecution', 'fileChange'].includes(params.item?.type)) worked = true;
     if (msg.method === 'item/completed') {
