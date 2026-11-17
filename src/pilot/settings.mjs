@@ -43,7 +43,7 @@ export function validateBinding(id, v, knownHosts) {
   if (!/^c_[A-Za-z0-9_-]{1,60}$/.test(id)) fail('bad_conversation_id');
   if (!v || typeof v !== 'object') fail('bad_binding');
   const engine = v.engine;
-  if (!['codex_thread', 'claude_channel', 'agy_cli', 'grok_cli'].includes(engine)) fail('bad_engine');
+  if (!['codex_thread', 'claude_channel', 'agy_cli', 'grok_cli', 'claude_cli'].includes(engine)) fail('bad_engine');
   const label = String(v.label ?? '').trim();
   if (!label || label.length > 60) fail('bad_label');
   const hostId = String(v.hostId ?? '');
@@ -51,6 +51,7 @@ export function validateBinding(id, v, knownHosts) {
   const sessionRef = String(v.sessionRef ?? (engine === 'claude_channel' ? 'ieon' : '')).trim();
   if (engine === 'codex_thread' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionRef)) fail('bad_session_ref');
   if (engine === 'claude_channel' && !/^[A-Za-z0-9_-]{1,40}$/.test(sessionRef)) fail('bad_session_ref');
+  if (engine === 'claude_cli' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionRef)) fail('bad_session_ref');
   if (engine === 'agy_cli' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionRef)) fail('bad_session_ref');
   if (engine === 'grok_cli' && !/^[\w-]{6,80}$/.test(sessionRef)) fail('bad_session_ref');
   if (sessionRef.toLowerCase() === EXCLUDED_THREAD) fail('excluded_session');

@@ -104,7 +104,7 @@ export function upsertCodexThread(path, { threadId, mode = 'alternate', workingD
 }
 
 // E1·E2: Antigravity·Grok 세션을 허용 목록에(그 PC에서만 실행). 작업 폴더는 그 CLI를 실행할 폴더(선택).
-const CLI_ID = { agy_cli: UUID, grok_cli: /^[\w-]{6,80}$/ };
+const CLI_ID = { agy_cli: UUID, grok_cli: /^[\w-]{6,80}$/, claude_cli: UUID }; // claude_cli: SV2 서버 칸의 기존 Claude 대화
 export function upsertCliSession(path, { engine, sessionId, workingDirectory = null }) {
   if (!CLI_ID[engine]) fail('bad_engine');
   const id = String(sessionId ?? '').trim();

@@ -126,6 +126,11 @@ header .right button { border:1px solid var(--border); background:var(--surface)
         <input id="devDir" placeholder="작업 폴더(선택, 예: C:/work/proj)" autocomplete="off" aria-label="작업 폴더">
         <button class="primary" type="submit">허용 목록에 추가</button>
       </form>
+      <div id="clsBox" hidden>
+        <h2>서버 Claude 대화</h2>
+        <div class="muted">이 칸에서 사람이 연 Claude 대화예요. [연결]을 누르면 바로 이어온 대화 목록에 생기고, 질문은 같은 대화로 이어져요(사람이 칸에서 그 폴더의 Claude를 열어 두면 보내지 않고 알려요). 사용량은 서버 Claude 로그인(설정 → 계정)으로 나가요.</div>
+        <table class="list"><thead><tr><th>제목</th><th>작업 폴더</th><th>최근</th><th></th></tr></thead><tbody id="clsList"></tbody></table>
+      </div>
       <h2>Antigravity·Grok 허용 목록</h2>
       <div class="muted">그 PC에서 이어 쓸 Antigravity 대화·Grok 세션 ID. 질문은 읽기 전용으로 가고, 사용량은 그 PC의 각 앱 로그인 계정으로 나가요. Grok은 구독 계정이 있어야 실제로 답해요.</div>
       <table class="list"><thead><tr><th>엔진</th><th>세션 ID</th><th>작업 폴더</th><th></th></tr></thead><tbody id="cliList"></tbody></table>
@@ -578,12 +583,15 @@ async function loadDevice() {
   const cl = $('cliList'); cl.innerHTML = '';
   if (!(d.cliSessions ?? []).length) { const tr = el('tr'); tr.append(el('td', '허용된 Antigravity·Grok 세션 없음', 'muted')); cl.append(tr); }
   for (const x of d.cliSessions ?? []) {
-    const tr = el('tr'); [({ agy_cli: 'Antigravity', grok_cli: 'Grok' })[x.engine] || x.engine, x.sessionId, x.workingDirectory || '—'].forEach((v) => tr.append(el('td', v)));
+    const tr = el('tr'); [({ agy_cli: 'Antigravity', grok_cli: 'Grok', claude_cli: 'Claude(서버)' })[x.engine] || x.engine, x.sessionId, x.workingDirectory || '—'].forEach((v) => tr.append(el('td', v)));
     const td = el('td'); const rm = el('button', '빼기'); rm.type = 'button';
     rm.onclick = async () => { if (!confirm('이 세션을 허용 목록에서 뺄까요?')) return; const y = await devRun('device.cli.delete', { engine: x.engine, sessionId: x.sessionId });
       setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '뺐습니다' + devNote(y.body) : (DEV_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadDevice(); };
     td.append(rm); tr.append(td); cl.append(tr);
   }
+  // SV2: 서버 칸이면 그 칸의 Claude 대화 고르기
+  $('clsBox').hidden = !(d.claudeServer && pcTarget !== 'local');
+  if (!$('clsBox').hidden) loadClaudeSessions();
   const tb = $('devThreads'); tb.innerHTML = '';
   if (!d.codexThreads.length) { const tr = el('tr'); tr.append(el('td', '허용된 Codex 대화 없음', 'muted')); tb.append(tr); }
   for (const x of d.codexThreads) {
@@ -595,6 +603,34 @@ async function loadDevice() {
       setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '뺐습니다' + devNote(y.body) : (DEV_ERR[y.body.error] || y.body.error)); loadDevice(); };
     td.append(rm); tr.append(td); tb.append(tr);
   }
+}
+const CLS_ERR = { session_not_found: '그 대화를 칸에서 찾지 못했어요(지워졌을 수 있어요)', no_working_directory: '그 대화의 작업 폴더를 알 수 없어 연결하지 못했어요', claude_not_server: '서버 칸에서만 고를 수 있어요' };
+async function loadClaudeSessions() {
+  const target = pcTarget; const tb = $('clsList');
+  const r = await devRun('claude.sessions');
+  if (target !== pcTarget) return;
+  if (r.status !== 200) { const tr = el('tr'); tr.append(el('td', CLS_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error, 'muted')); tb.replaceChildren(tr); return; }
+  const rows = [];
+  if (!r.body.sessions.length) { const tr = el('tr'); tr.append(el('td', '이 칸에 Claude 대화가 아직 없어요(서버에서 ieun.sh engine claude <칸>으로 연 대화가 여기 나와요)', 'muted')); rows.push(tr); }
+  for (const x of r.body.sessions) {
+    const tr = el('tr');
+    const when = new Date(x.updatedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    [(x.title || '제목 없음') + (x.busy ? ' (사람이 사용 중)' : ''), x.cwd || '—', when].forEach((v) => tr.append(el('td', v)));
+    const td = el('td');
+    if (x.connected) td.append(el('span', '연결됨', 'muted'));
+    else {
+      const b = el('button', '연결'); b.type = 'button'; b.className = 'primary';
+      b.onclick = async () => {
+        b.disabled = true;
+        const y = await devRun('claude.connect', { sessionId: x.sessionId });
+        setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '대화 목록에 연결했어요 — 대화 화면에서 바로 질문하면 같은 대화로 이어져요' : (CLS_ERR[y.body.error] || HOST_ERR[y.body.error] || DEV_ERR[y.body.error] || y.body.error));
+        loadDevice();
+      };
+      td.append(b);
+    }
+    tr.append(td); rows.push(tr);
+  }
+  tb.replaceChildren(...rows);
 }
 $('devLive').onchange = async () => {
   const on = $('devLive').checked;
