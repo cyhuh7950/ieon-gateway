@@ -99,12 +99,13 @@ export function workspaceLine(ws) {
   return parts.length ? `[작업 공간] ${parts.join(' · ')}\n\n` : '';
 }
 
-// 차단 수준(설계 3절 표 + WS0 실측). 사람이 알아볼 말로: 차단 = 엔진·OS가 막음, 정리만 = 안내만.
+// 차단 수준(설계 3절 표 + WS0 실측 + 2026-11-18 작업 모드 실측). 사람이 알아볼 말로: 허용 필요 = 사람이 카드에서 허용해야만 써짐, 정리만 = 안내만.
+// 작업 모드(approvalPolicy untrusted)는 파일을 고칠 때마다 카드로 묻고, 사람이 허용하면 작업 폴더 밖도 써진다(실측: outside 파일 생김) — 그래서 "차단"이라 하지 않는다.
 export function blockLevel(engine, { boundary = false } = {}) {
   if (engine === 'codex_thread') {
     return boundary
       ? { write: 'limited', writeText: '엔진 칸 컨테이너가 경계 — 칸 밖은 못 쓰고, 칸 안 폴더끼리는 정리만(파일 수정은 승인 카드로 물음)', read: 'organize', readText: '정리만 — 칸 안 다른 폴더도 읽을 수 있어요' }
-      : { write: 'blocked', writeText: '차단(Codex 샌드박스) — 작업 모드에서 개인·공유(쓰기) 폴더 안만 쓰고, 그 밖은 막힘', read: 'organize', readText: '정리만 — 이 직원은 다른 폴더도 읽을 수 있어요' };
+      : { write: 'approval', writeText: '허용할 때만 — 작업 모드에서 파일을 고칠 때마다 카드로 물어요. 작업 폴더 밖이면 카드에 "작업 폴더 밖"이 붙고, 허용하면 써져요', read: 'organize', readText: '정리만 — 이 직원은 다른 폴더도 읽을 수 있어요' };
   }
   if (engine === 'agy_cli') return { write: 'none', writeText: '쓰지 않음(Antigravity 읽기 전용 실행)', read: 'organize', readText: '정리만 — 이어온은 안내만 해요' };
   return { write: 'organize', writeText: '정리만 — 그 세션 설정 그대로, 이어온은 폴더를 안내만 해요', read: 'organize', readText: '정리만 — 이어온은 안내만 해요' };

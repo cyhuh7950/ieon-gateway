@@ -2,9 +2,16 @@
 // 카드가 "파일 수정"뿐이었다 → 같은 차례의 fileChange 항목(item/started·patchUpdated)에서 경로를 가져와 붙이고, 작업 폴더·공유(쓰기) 폴더 밖이면 표시. 모델 0.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { appServerTurn, approvalSummary, fileChangeSummary } from '../../src/pilot/adapters/codex-thread.mjs';
 
 const T = '01a18790-0000-7000-8000-000000000001';
+
+test('작업 패널: 겹친 그리기는 마지막 것만, 내용이 그대로면 다시 그리지 않음(누르는 사이 버튼이 바뀌어 클릭이 사라지던 문제), 승인 실패는 버튼에 표시', () => {
+  const app = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+  assert.ok(app.includes('if (gen !== taskGen) return;') && app.includes('sig === taskSig') && app.includes("' — 다시 눌러 주세요('"));
+});
 
 test('요약: 경로(3개까지)·작업 폴더 밖 표시, 경로를 모르면 그렇다고 말함', () => {
   assert.equal(fileChangeSummary(['D:\\w\\a.txt'], ['D:/w']), '파일 수정 1개: D:/w/a.txt');

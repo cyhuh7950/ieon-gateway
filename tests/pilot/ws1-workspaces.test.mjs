@@ -71,7 +71,7 @@ test('붙이기: 그 기기 허용 목록의 세션만, 업무 대화·없는 �
   // 화면용: 이름·권한·막는 정도
   const v = workspacesView(c);
   assert.deepEqual(v.attached[0].summary, { personal: '개인', shared: [{ name: '공유', write: true }, { name: '자료', write: false }] });
-  assert.equal(v.attached[0].level.write, 'blocked');
+  assert.equal(v.attached[0].level.write, 'approval', '2026-11-18 실측: 사람이 허용하면 작업 폴더 밖도 써짐 — 차단이 아니라 허용 필요');
   assert.equal(v.attached[0].level.read, 'organize', 'Codex는 읽기를 막지 못함(WS0) — 정리만으로 표시');
   assert.equal(v.levels.claude_cli.write, 'organize');
   assert.equal(blockLevel('codex_thread', { boundary: true }).write, 'limited', '엔진 칸은 컨테이너가 경계');
@@ -144,7 +144,7 @@ test('서버: 붙이기는 전용 주소로만(대화 주인·세션 확인 → 
   assert.equal(ok.status, 200);
   assert.equal(JSON.parse(readFileSync(cfg, 'utf8')).workspaces.attach[`codex_thread:${T1}`].personal, f1.body.id, '그 PC 설정에 저장');
   const conv = (await call('/v1/conversations')).body.conversations.find((c) => c.conversationId === 'c1');
-  assert.deepEqual([conv.workspace.personal, conv.workspace.shared, conv.workspace.level.write], ['개인', [{ name: '공유', write: false }], 'blocked']);
+  assert.deepEqual([conv.workspace.personal, conv.workspace.shared, conv.workspace.level.write], ['개인', [{ name: '공유', write: false }], 'approval']);
   assert.ok(!JSON.stringify(conv).includes(fwd(d)), '대화 목록에 폴더 경로 없음');
   const log = (await call('/v1/admin/workspaces/log/c1')).body.log;
   assert.deepEqual([log[0].userId, log[0].personal], ['u_sinsan', '개인']);
