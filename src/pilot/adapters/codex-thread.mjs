@@ -265,7 +265,7 @@ export function matchAllowed(allowed, done) {
   return allowed.find((a) => !a.reported && a.itemId && a.itemId === done.itemId && a.kind === done.kind) ?? null;
 }
 
-export async function appServerTurn(transport, { threadId, question, cwd, approve, approvalResult = null, checkIdle = false, timeoutMs = 30 * 60_000, signal = null }) {
+export async function appServerTurn(transport, { threadId, question, cwd, extraRoots = [], approve, approvalResult = null, checkIdle = false, timeoutMs = 30 * 60_000, signal = null }) {
   const allowed = []; // 이번 차례에 허용한 승인: { approvalId, itemId, kind, reported }
   const track = (a) => {
     allowed.push(a);
@@ -306,7 +306,7 @@ export async function appServerTurn(transport, { threadId, question, cwd, approv
     const boundary = containerBoundary();
     await call('thread/resume', { threadId, excludeTurns: true, cwd, sandbox: boundary ? 'danger-full-access' : 'workspace-write', ...WORK_POLICY });
     const started = await call('turn/start', { threadId, cwd, clientUserMessageId: randomUUID(), ...WORK_POLICY,
-      sandboxPolicy: boundary ? { type: 'dangerFullAccess' } : { type: 'workspaceWrite', writableRoots: [cwd], networkAccess: false },
+      sandboxPolicy: boundary ? { type: 'dangerFullAccess' } : { type: 'workspaceWrite', writableRoots: [cwd, ...(extraRoots ?? [])], networkAccess: false },
       input: [{ type: 'text', text: question, text_elements: [] }] });
     turnId = started.turn?.id ?? null;
     // RC2: 멈춤 신호가 오면 그 차례를 끊는다(turn/interrupt). 엔진이 interrupted로 끝냈다고 알려 와야 중지됨.
@@ -330,6 +330,8 @@ export function stdioAppServer({ env, cwd, spawnImpl = spawn }) {
   child.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line.trim()) continue; try { handler(JSON.parse(line)); } catch { /* 형식이 틀린 줄은 무시 */ } } });
   return { send: (m) => child.stdin.write(JSON.stringify(m) + '\n'), onMessage: (fn) => { handler = fn; }, close: () => child.kill() };
 }
+// WS1-a: 공유(쓰기) 폴더 중 지금 있는 것만 writableRoots에 더한다(없어진 폴더는 빼고 — 작업 폴더 밖으로 넓히지 않음)
+function liveRoots(list) { return (list ?? []).filter((d) => { try { return statSync(d).isDirectory(); } catch { return false; } }); }
 function workDir(dir) {
   if (!dir) throw new EngineError('work_dir_required', 409); // 작업 모드는 작업 폴더가 정해진 대화만(쓰기를 그 안으로)
   try { if (!statSync(dir).isDirectory()) throw new Error(); } catch { throw new EngineError('work_dir_missing', 409); }
@@ -340,7 +342,7 @@ async function runAlternateWork(threadId, question, deps) {
   const outcome = deps.probe(threadId);
   if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
   const transport = (deps.appServer ?? stdioAppServer)({ env: deps.env, cwd });
-  return appServerTurn(transport, { threadId, question, cwd, approve: deps.approve, approvalResult: deps.approvalResult, timeoutMs: deps.workTimeoutMs, signal: deps.signal });
+  return appServerTurn(transport, { threadId, question, cwd, extraRoots: deps.extraRoots, approve: deps.approve, approvalResult: deps.approvalResult, timeoutMs: deps.workTimeoutMs, signal: deps.signal });
 }
 function wsTransport(endpoint, token, WS = globalThis.WebSocket) {
   const ws = new WS(endpoint, { headers: { Authorization: `Bearer ${token}` } });
@@ -375,12 +377,12 @@ export function codexThreadAdapter(opts) {
           const cwd = workDir(opts.workingDirectories?.[threadId]);
           const tr = (opts.wsTransport ?? wsTransport)(opts.shared.endpoint, token);
           await tr.opened;
-          return appServerTurn(tr, { threadId, question, cwd, approve, approvalResult, checkIdle: true, timeoutMs: opts.workTimeoutMs, signal });
+          return appServerTurn(tr, { threadId, question, cwd, extraRoots: liveRoots(opts.writableExtra?.[threadId]), approve, approvalResult, checkIdle: true, timeoutMs: opts.workTimeoutMs, signal });
         }
         // 작업 모드가 아니면 승인 요청이 와도 바로 거부(지금처럼 읽기 전용)
         return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: null, signal });
       }
-      if (workMode) return runAlternateWork(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs, signal });
+      if (workMode) return runAlternateWork(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], extraRoots: liveRoots(opts.writableExtra?.[threadId]), approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs, signal });
       return runAlternate(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], signal });
     },
   };

@@ -147,7 +147,9 @@ export function createBridge(opts) {
     const state = !c.deviceOnline ? 'PC 연결 끊김' : c.heldBy ? '확인 필요' : c.engineReady === false ? '엔진 꺼짐' : c.busy ? '처리 중' : '보낼 수 있음';
     // 어느 PC·작업 모드인지도 보이게(허브는 PC 이름을 알려 줌)
     const where = `${c.host?.name ? ` · PC ${c.host.name}` : ''}${c.workMode ? ' · 작업 모드' : ''}`;
-    return `${i + 1}. ${c.label} — ${engine} · ${state}${where}${ns}${c.account?.label ? `\n   계정: ${c.account.label}` : ''}`;
+    // WS1-a: 작업 공간 한 줄(폴더 이름만, 전체 경로는 웹에서만)
+    const ws = c.workspace ? [c.workspace.personal && `개인 ${c.workspace.personal}`, ...(c.workspace.shared ?? []).map((s) => `공유 ${s.name}(${s.write ? '쓰기' : '읽기'})`)].filter(Boolean).join(', ') : '';
+    return `${i + 1}. ${c.label} — ${engine} · ${state}${where}${ns}${c.account?.label ? `\n   계정: ${c.account.label}` : ''}${ws ? `\n   작업 공간: ${ws}` : ''}`;
   };
 
   async function ask(m, conv, question, send) {

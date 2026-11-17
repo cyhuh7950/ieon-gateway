@@ -7,6 +7,7 @@ import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { childEnv } from './parent-watch.mjs';
 import { codexAccounts, cleanLabel, MAX_ACCOUNTS, PC_DEFAULT } from './accounts.mjs';
+import { addFolder, removeFolder, attachWorkspace } from './workspaces.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const EXCLUDED_THREAD = '01a0dadd-739f-74d2-93c5-9c405cc1019b'; // 업무 대화(AGENTS 안전 규칙)
@@ -126,6 +127,7 @@ export function removeCliSession(path, { engine, sessionId }) {
   const c = read(path); const e = c.cliEngines?.[engine];
   if (!e?.allowlist?.includes(sessionId)) return false;
   e.allowlist = e.allowlist.filter((x) => x !== sessionId); delete e.workingDirectories?.[sessionId];
+  delete c.workspaces?.attach?.[`${engine}:${sessionId}`]; // WS1-a: 허용 목록에서 빠지면 작업 공간도 뗀다
   write(path, c);
   return true;
 }
@@ -136,9 +138,15 @@ export function removeCodexThread(path, threadId) {
   if (!c.codex?.allowlist?.includes(id)) return false;
   c.codex.allowlist = c.codex.allowlist.filter((x) => x !== id);
   delete c.codex.modes?.[id]; delete c.codex.workingDirectories?.[id]; delete c.codex.accountFor?.[id];
+  delete c.workspaces?.attach?.[`codex_thread:${id}`]; // WS1-a
   write(path, c);
   return true;
 }
+
+// WS1-a 작업공간: 폴더 등록·빼기·직원에 붙이기(검사는 workspaces.mjs). 임시 파일에 쓴 뒤 바꿔치기.
+export function addWorkspaceFolder(path, args) { const c = read(path); const id = addFolder(c, args); write(path, c); return id; }
+export function removeWorkspaceFolder(path, id) { const c = read(path); removeFolder(c, String(id ?? '')); write(path, c); }
+export function attachWorkspaceTo(path, args) { const c = read(path); attachWorkspace(c, args); write(path, c); }
 
 // 이 PC 서버가 띄우는 로컬 연결부(설정 manageLocalConnector). 설정이 바뀌면 다시 띄워 새 설정을 읽게 한다.
 export function createLocalConnector({ connectorConfigPath, spawnImpl = spawn, log = () => {} }) {

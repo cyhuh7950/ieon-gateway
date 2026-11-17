@@ -133,6 +133,18 @@
 3. `full`(Bash) 프로필과 Codex 읽기는 "정리만"으로 화면에 표시(표 그대로).
 4. **미측정:** Codex는 CLI `exec`로 쟀다. 작업 모드가 쓰는 SDK·app-server `writableRoots` 경로는 같은 샌드박스지만 따로 재지 않음(WS1-a 구현 후 시험 세션으로 확인). 허브(리눅스) Claude OS 샌드박스, WS0-5(직원별 Windows 사용자)는 하지 않음.
 
+## 3-2. WS1-a 구현(2026-11-18, 신산님 "WS1-a 진행")
+
+- **저장 위치:** 그 기기(PC·엔진 칸)의 연결부 설정 `workspaces` — `folders: [{id, name, path}]`, `attach: {"<엔진>:<세션 ID>": {personal, shared: [{id, write}]}}`. 실제로 막는 것이 그 기기의 연결부라서 허브 DB가 아니라 기기 설정이 기준. 코드 `src/pilot/workspaces.mjs`.
+- **폴더 등록**(기기 명령 `workspace.folder.add`·`workspace.folder.delete`, PC형·허브형 같은 명령): 그 기기에 실제로 있는 절대 경로만, 이름 1~40자, 30개까지. 임시 폴더(%TEMP%·/tmp) 아래·같은 폴더·같은 이름은 거절(3-1 실측 1). 직원이 쓰는 폴더는 빼지 못함(먼저 떼기). 폴더 안 파일은 건드리지 않음.
+- **직원에 붙이기:** 전용 주소 `POST /v1/admin/workspaces/attach {conversationId, personal, shared}`만 — 서버가 대화 주인·엔진을 확인하고 그 기기에 `workspace.attach`를 맡김, 그 기기가 허용 목록·업무 대화·폴더를 다시 검사해 저장. 일반 기기 명령 주소로는 붙이지 못함(`use_workspace_route`, 기록 없이 바뀌지 않게). 대상: Codex·서버 Claude·Antigravity·Grok의 **기존 대화**(허용 목록). 새 세션(자동 폴더가 곧 개인 폴더)·Claude 채널·허브 자신은 아님. 허용 목록에서 빼면 작업 공간도 같이 뗌.
+- **확인 화면:** 설정 → **작업 폴더** 탭(PC형·허브형 같은 화면, 허브는 PC·칸을 고름) → 직원의 [폴더 정하기] → 저장할 때 "이 직원이 이 폴더를 쓰기/읽기만으로 씁니다 + 이 기기에서 실제로 막히는 정도"를 보여 주고 승인.
+- **기록:** 허브(또는 PC형 서버) DB `workspace_log` — 누가·언제·어느 대화·어느 폴더 이름·권한(경로·내용 없음), 180일. 보기 `GET /v1/admin/workspaces/log/<대화>`(주인만).
+- **실행:** Codex — 개인 폴더가 그 세션의 작업 폴더(cwd), 작업 모드 app-server `writableRoots = [개인, 공유(쓰기)…]`(지금 없는 폴더는 빼고 보냄). 읽기만 공유는 writableRoots에 넣지 않음. 다른 엔진은 폴더를 바꾸지 않음(Claude 기존 대화는 그 폴더의 대화라 cwd를 바꾸면 이어지지 않음) — 안내만. 모든 붙인 직원의 질문 앞에 한 줄 `[작업 공간] 개인: … · 공유(쓰기): … · 공유(읽기만): …`(안내일 뿐 차단 아님).
+- **막는 정도 표시**(설정 화면·대화 목록 `workspace.level`): Codex 쓰기 = 차단(Codex 샌드박스, 작업 모드), 엔진 칸 = 컨테이너가 경계(칸 안 폴더끼리는 정리만), Codex 읽기 = 정리만, Claude(서버)·Grok = 정리만, Antigravity = 쓰지 않음(읽기 전용 실행).
+- **메신저 `/status`·`/sessions`:** "작업 공간: 개인 보험, 공유 상속(읽기)"처럼 폴더 이름만(경로는 웹 설정 화면에서만).
+- **시험:** `tests/pilot/ws1-workspaces.test.mjs` 6건(모델 0). **미확인:** 실제 Codex 작업 모드에서 writableRoots 두 개가 막히는지(3-1 실측 4 — 시험 세션·모델 호출 필요), 화면 실제 확인(배포 뒤).
+
 ## 4. 실측 계획(구현 전에 — W0처럼)
 
 | # | 무엇을 | 성공 기준 |

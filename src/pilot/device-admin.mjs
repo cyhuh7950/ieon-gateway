@@ -4,7 +4,9 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount } from './device-settings.mjs';
+import { readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
+  addWorkspaceFolder, removeWorkspaceFolder, attachWorkspaceTo } from './device-settings.mjs';
+import { workspacesView } from './workspaces.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
@@ -20,6 +22,8 @@ export const OPS = {
   'claude.get': 'read', 'claude.login': 'write', 'claude.code': 'write', 'claude.login.cancel': 'write', 'claude.apikey': 'write', 'claude.logout': 'write',
   // SV2 기존 대화: 서버 칸에서 사람이 연 Claude 대화 목록·연결(연결 = 그 칸의 허용 목록에 넣기, 허브가 대화로 등록)
   'claude.sessions': 'read', 'claude.connect': 'write',
+  // WS1-a 작업공간: 그 기기의 폴더 등록·빼기, AI 직원(허용 목록 세션)에 붙이기 — PC형·허브형 같은 명령
+  'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
 };
 // 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 허브 보안·Codex 탭, 허브는 기존 대화 허용 목록이 없음).
@@ -55,6 +59,8 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     return logins.get(id);
   };
   const device = (p) => ({ ...readDevice(p), ...connectorState() });
+  // WS1-a: 엔진 칸(IEON_CONTAINER_BOUNDARY=1)은 컨테이너가 경계라 차단 수준 표시가 다르다
+  const wsView = (p) => workspacesView(JSON.parse(readFileSync(p, 'utf8')), { boundary: process.env.IEON_CONTAINER_BOUNDARY === '1' });
   // 이어온이 만든 Claude 새 세션 ID(이미 대화 목록에 있으므로 고르기 목록에서 뺀다)
   const createdIds = (p) => {
     try {
@@ -135,6 +141,19 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
       case 'device.cli.delete':
         if (!removeCliSession(p, { engine: a.engine, sessionId: a.sessionId })) return { status: 404, body: { error: 'not_found' } };
         return { status: 200, body: { ...device(p), ...(await applyDevice()) } };
+      case 'workspace.get': return { status: 200, body: wsView(p) };
+      case 'workspace.folder.add': {
+        const id = addWorkspaceFolder(p, { name: a.name, path: a.path });
+        log({ event: 'workspace_folder_added' });
+        return { status: 201, body: { id, ...wsView(p) } };
+      }
+      case 'workspace.folder.delete':
+        removeWorkspaceFolder(p, a.id); log({ event: 'workspace_folder_removed' });
+        return { status: 200, body: wsView(p) };
+      case 'workspace.attach':
+        attachWorkspaceTo(p, { engine: String(a.engine ?? ''), sessionRef: a.sessionRef, personal: a.personal ?? null, shared: a.shared ?? [] });
+        log({ event: 'workspace_attached', engine: String(a.engine ?? '') });
+        return { status: 200, body: { ...wsView(p), ...(await applyDevice()) } };
       case 'mode.get': return modeAdmin ? { status: 200, body: modeAdmin.view() } : { status: 404, body: { error: 'not_found' } };
       case 'mode.set': return modeAdmin ? modeAdmin.set(String(a.mode ?? '')) : { status: 404, body: { error: 'not_found' } };
       case 'accounts.get': return { status: 200, body: accounts(p) };

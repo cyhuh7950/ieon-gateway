@@ -20,6 +20,7 @@ import { containerBoundary } from './adapters/codex-thread.mjs';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
 import { cleanLabel } from './accounts.mjs';
 import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
+import { WS_ENGINES } from './workspaces.mjs';
 import { createAdminQueue } from './admin-queue.mjs';
 import { readMode, writeMode, modeEffects } from './mode.mjs';
 import { EventEmitter } from 'node:events';
@@ -733,6 +734,7 @@ export function createApp(config) {
           if (access) return json(res, 404, { error: 'not_found' });
           const b = await readJson(req);
           if (OPS[b.op] === 'write' && !localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (b.op === 'workspace.attach') return json(res, 400, { error: 'use_workspace_route' }); // WS1-a: 기록을 남기는 전용 주소로
           const r = await deviceAdmin.run(String(b.op ?? ''), b.args);
           return json(res, r.status, r.body);
         }
@@ -753,6 +755,34 @@ export function createApp(config) {
           const r = await deviceAdmin.run(op, { ...body, id });
           return json(res, r.status, r.body);
         }
+        // WS1-a 작업공간(설계 WORKSPACES 2-2): AI 직원(대화)에 그 PC의 개인·공유 폴더 붙이기. 서버가 대화 주인·세션을 확인하고 그 PC에 맡긴 뒤,
+        // 성공하면 표시(이름·권한·차단 수준)와 기록(누가·언제·어느 폴더·권한, 180일)을 남긴다. PC 화면은 이 PC에서 연 화면만.
+        if (path === '/v1/admin/workspaces/attach' && req.method === 'POST') {
+          if (!access && !localDirect(req)) return json(res, 403, { error: 'local_only' });
+          const b = await readJson(req);
+          const conv = store.conversations(principal).find((c) => c.conversationId === String(b.conversationId ?? ''));
+          if (!conv) return json(res, 404, { error: 'not_found' });
+          if (conv.newSession) return json(res, 400, { error: 'new_session_auto_folder' }); // 새 세션은 자동 폴더가 곧 개인 폴더
+          if (!WS_ENGINES.includes(conv.engine)) return json(res, 400, { error: 'workspace_engine_unsupported' });
+          if (String(conv.sessionRef).toLowerCase() === EXCLUDED_THREAD) return json(res, 400, { error: 'excluded_session' });
+          const args = { engine: conv.engine, sessionRef: conv.sessionRef, personal: b.personal ?? null, shared: Array.isArray(b.shared) ? b.shared : [] };
+          let r;
+          if (access) {
+            if (conv.hostId === selfHostId() || !knownHosts().includes(conv.hostId)) return json(res, 400, { error: 'workspace_engine_unsupported' });
+            if (!online(conv.hostId)) return json(res, 503, { error: 'device_offline' });
+            r = await adminQueue.send(conv.hostId, 'workspace.attach', args);
+          } else r = await deviceAdmin.run('workspace.attach', args);
+          if (r.status !== 200) return json(res, r.status, r.body);
+          const a = (r.body.attached ?? []).find((x) => x.engine === conv.engine && String(x.sessionRef).toLowerCase() === String(conv.sessionRef).toLowerCase());
+          store.saveWorkspace(principal, conv.conversationId, a ? { ...a.summary, level: a.level, ids: { personal: a.personal, shared: a.shared } } : null);
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'workspace_attach', host: conv.hostId, attached: Boolean(a) }) + '\n');
+          return json(res, 200, { ...r.body, conversationId: conv.conversationId });
+        }
+        const wl = path.match(/^\/v1\/admin\/workspaces\/log\/([\w-]+)$/);
+        if (wl && req.method === 'GET') {
+          const log = store.workspaceLog(principal, wl[1]);
+          return log ? json(res, 200, { log }) : json(res, 404, { error: 'not_found' });
+        }
         // A2-d: 허브 화면에서 PC 설정·계정 바꾸기. 'hub'는 허브 자신(허브 새 세션의 계정). PC는 그 PC가 가져가 실행한 결과를 기다려 돌려준다.
         const hr = path.match(/^\/v1\/admin\/hosts\/([\w-]{1,48})\/run$/);
         if (hr && req.method === 'POST') {
@@ -760,6 +790,7 @@ export function createApp(config) {
           const b = await readJson(req);
           const op = String(b.op ?? '');
           if (!Object.hasOwn(OPS, op)) return json(res, 400, { error: 'bad_op' });
+          if (op === 'workspace.attach') return json(res, 400, { error: 'use_workspace_route' }); // WS1-a
           if (hr[1] === 'hub' || hr[1] === selfHostId()) {
             if (!HUB_SELF_OPS.has(op)) return json(res, 400, { error: 'bad_op' });
             const r = await hubAdmin.run(op, b.args);
@@ -1185,6 +1216,7 @@ export function createApp(config) {
           account: accountOf(c),
           staff: staffView(c), // AP-1: AI 직원 이름·역할·아이콘(이름이 없으면 대화 이름)
           ...(store.workMode(c.conversationId) ? { workMode: true } : {}), // W2
+          ...(store.workspaceView(c.conversationId) ? { workspace: store.workspaceView(c.conversationId) } : {}), // WS1-a 폴더 이름·권한·차단 수준(경로 없음)
           ...(hostNames ? { host: { id: c.hostId, name: hostNames.get(c.hostId) ?? c.hostId } } : {}),
         })) });
       }

@@ -6,6 +6,26 @@ import { claudeCliAdapter } from './claude-cli.mjs';
 import { loadNewSessionsConfig } from '../new-sessions.mjs';
 import { codexEnvFor } from '../accounts.mjs';
 import { cliOnceAdapter } from './cli-once.mjs';
+import { readWorkspaces, workspaceFor, workspaceLine } from '../workspaces.mjs';
+
+// WS1-a: 작업 공간을 붙인 세션의 질문 앞에 폴더 한 줄(안내 — 차단은 엔진 샌드박스가 따로). 붙이지 않은 세션·새 세션은 그대로.
+export function withWorkspaceLine(adapter, config) {
+  return { ...adapter, run(job, ctx) {
+    const ws = job.newSession ? null : workspaceFor(config, adapter.engine ?? job.engine, job.sessionRef);
+    return adapter.run(ws ? { ...job, question: workspaceLine(ws) + job.question } : job, ctx);
+  } };
+}
+// WS1-a: Codex 세션의 개인 폴더 = 그 세션의 작업 폴더(cwd), 공유(쓰기) 폴더 = 작업 모드 writableRoots에 더함
+export function codexWorkspaceDirs(config) {
+  const dirs = { ...(config.codex?.workingDirectories ?? {}) }; const extra = {};
+  for (const key of Object.keys(readWorkspaces(config).attach)) {
+    if (!key.startsWith('codex_thread:')) continue;
+    const id = key.slice('codex_thread:'.length); const ws = workspaceFor(config, 'codex_thread', id);
+    if (ws?.personal) dirs[id] = ws.personal;
+    if (ws?.write.length) extra[id] = ws.write;
+  }
+  return { workingDirectories: dirs, writableExtra: extra };
+}
 
 // 이 연결부가 새 세션용으로 만든 엔진 세션 ID 기록(한 줄에 하나, 추가만 한다).
 export function createdLog(path) {
@@ -29,9 +49,10 @@ export async function buildAdapters(config) {
     ? loadNewSessionsConfig(JSON.parse(readFileSync(config.newSessions.configPath, 'utf8'))) : null;
   const newSessions = nsCfg && config.newSessions.createdPath
     ? { config: nsCfg, created: createdLog(config.newSessions.createdPath) } : undefined;
-  return {
+  const wsDirs = codexWorkspaceDirs(config);
+  const adapters = {
     codex_thread: codexThreadAdapter({ live, allowlist: config.codex?.allowlist ?? [], modes: config.codex?.modes, shared: config.codex?.shared,
-      workingDirectories: config.codex?.workingDirectories, newSessions,
+      workingDirectories: wsDirs.workingDirectories, writableExtra: wsDirs.writableExtra, newSessions,
       // A2: 이어온 전용 Codex 계정(설정 파일 경로를 아는 연결부가 accountsDir를 채워 준다)
       accountEnv: config.accountsDir ? (threadId) => codexEnvFor(config, config.accountsDir, threadId) : undefined }),
     claude_channel: claudeChannelAdapter({ live, baseUrl: config.claude?.baseUrl, tokenFile: config.claude?.tokenFile }),
@@ -41,4 +62,6 @@ export async function buildAdapters(config) {
     agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories }),
     grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories }),
   };
+  for (const k of ['codex_thread', 'claude_cli', 'agy_cli', 'grok_cli']) adapters[k] = withWorkspaceLine(adapters[k], config);
+  return adapters;
 }
