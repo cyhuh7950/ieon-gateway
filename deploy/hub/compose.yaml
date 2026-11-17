@@ -15,8 +15,8 @@ services:
       - ../../hub/data:/data
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    mem_limit: 1g
-    pids_limit: 256
+    mem_limit: ${IEON_MEM:-1g}     # SV4: 크기는 설치 폴더 환경 파일로(권장 사양 — 설명서)
+    pids_limit: ${IEON_PIDS:-256}
     networks: [proxy-network]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:28760/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]

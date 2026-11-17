@@ -147,7 +147,7 @@ test('설치 때 환경 파일의 API 키로 허브 로그인: 아직 로그인 
   const fn = sh.slice(sh.indexOf('api_key_login() {'), sh.indexOf('share_login() {'));
   assert.ok(fn.includes("sed -n 's/^OPENAI_API_KEY=//p'"), '환경 파일의 OPENAI_API_KEY');
   assert.ok(fn.includes('[ -e hub/data/shared-auth/codex/auth.json ] && return 0') && fn.includes('[ -e hub/data/codex/auth.json ] && return 0'), '이미 로그인돼 있으면 바꾸지 않음');
-  assert.ok(fn.includes('printf \'%s\\n\' "$key" | docker exec -i ieun-relay') && fn.includes('login --with-api-key >/dev/null 2>&1'), '키는 표준 입력으로, 출력은 버림');
+  assert.ok(fn.includes('printf \'%s\\n\' "$key" | docker exec -i "$HUB_C"') && fn.includes('login --with-api-key >/dev/null 2>&1'), '키는 표준 입력으로, 출력은 버림');
   assert.ok(!/echo[^\n]*\$key/.test(fn), '키를 화면에 내지 않음');
   assert.ok(sh.includes('share_login() {\n  api_key_login\n'), '칸을 만들 때·share-login 때 먼저 키 로그인 → 그 로그인을 칸들이 같이 씀');
 });

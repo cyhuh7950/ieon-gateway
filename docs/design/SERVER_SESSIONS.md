@@ -195,6 +195,15 @@
 - **시험:** `tests/pilot/sv2-claude-existing.test.mjs` 4건(목록·제외·본문 미노출, 기기 명령 서버 한정·연결·사용 중 표시, 같은 ID 이어 쓰기·거절 조건·결과 불명, 허브 등록·다시 연결). 전체 413건 중 실패 0.
 - **배포·실제 확인(2026-11-17, 모델 2회):** 칸 test1에서 목록(새 세션 제외)·사용 중 판별(Claude 화면을 연 동안 busy, 보낸 질문은 `session_in_use`로 실행 안 됨)·[연결] 등록·이어 묻기(첫 대화에서 기억시킨 말을 답함, 대화 파일은 같은 ID 하나 — `-p --resume`은 같은 세션 ID 유지) PASS.
 
+### 2-14. SV4 구현 기록 (2026-11-17, 신산님 "SV4 진행해", 모델 0, 미배포)
+
+- **설치 한 번(`deploy/server/install.sh`):** 저장소 폴더에서 `sh deploy/server/install.sh`. Docker가 없으면 묻고 공식 스크립트로 설치 → CPU·메모리를 읽어 권장 사양과 비교(작으면 알림) → 질문(Enter=기본): 쓰임(①/②), 포트, 웹을 열 주소(기본 SSH 접속 주소, `all` 가능), 공개 주소, API 키(선택, 가려 입력) → 설치 폴더 환경 파일(권한 600, 이미 적은 값은 묻지 않음) → `hub/data`·`engines`(1001) → 빌드·시작·정상 확인 → 로그인 같이 쓰기(`ieun.sh engine share-login`, 환경 파일 API 키) → 작업용 엔진 칸 `main`(선택) → 웹 주소·할 일 안내.
+- **처음 설정은 컨테이너가(`scripts/hub-init.mjs`, `src/hub/run.mjs`):** `/data/s2/server.json`이 없으면 환경 변수(`IEON_WEB_ALLOW`·`IEON_TRUSTED_PROXIES`·`IEON_INSTALL_KIND`)로 허브 데이터를 만든다 — 내부 토큰(웹·연결부·메신저) 무작위·600·설정엔 해시, 웹 접속 제한(필수), 공개 포트 28770, 새 세션 켜짐, AI 응답 켜짐, 메신저 설정(카카오는 `kakaoRelayUrl` = 자기 자신 — 중계 없이 바로), 내장 카카오 중계 열쇠(없으면 서버가 못 뜸). 이미 있으면 그대로. 실제 이미지 일회용 컨테이너로 확인: 처음 설정 8개 파일 → 서버·연결부·메신저 시작 → 처음 화면 관리자 만들기·쓰임 server.
+- **서버용 compose(`deploy/server/compose.yaml`):** 허브와 같은 이미지·같은 데이터 위치(`hub/data`, 그래서 `ieun.sh` 그대로), 프록시 네트워크 없이 포트 하나(`IEON_PORT`), 크기 `IEON_MEM`(기본 2g)·`IEON_PIDS`, 컨테이너 이름 `IEON_CONTAINER`(기본 ieun-relay), 같은 보안(1001·cap_drop ALL·no-new-privileges). 지금 허브 compose도 크기를 `IEON_MEM`·`IEON_PIDS`로(기본 그대로). `ieun.sh`는 환경 파일의 허브 컨테이너 이름·공개 주소(칸이 붙을 곳)·칸 크기를 읽음.
+- **① 서버 설치형 / ② 허브형:** 설정 `install.kind`(웹에서 바꾼 값 → 설치 때 값 → 지금 허브는 hub). 서버 설치형은 PC 연결 링크·연결 요청을 숨기고 "PC 연결 켜기"(→ 허브형, 데이터 그대로). 엔진 칸 짝짓기(서버에서 `ieun.sh`)는 그대로.
+- **시험:** `tests/pilot/sv4-server-install.test.mjs` 3건(처음 설정·토큰 해시·두 번째 그대로·환경 변수, 만든 설정으로 서버 시작·처음 화면·쓰임 바꾸기, 설치 스크립트·compose·ieun.sh·화면 정적 검사), 기존 2건 갱신. 전체 416건 중 실패 0.
+- **안 한 것·미확인:** 새 서버에서 `install.sh` 전체 실제 실행(Docker 설치·질문·칸 만들기), 동시 질문 수 제한("바빠요" — 지금은 칸마다 질문을 하나씩 처리), 권장 사양 실측, https 앞단 자동 설정.
+
 ## 3. 보존(바꾸지 않는 것)
 
 - PC 쪽 동작 전부(Codex `alternate`·`shared_server`, Claude 채널, 사용 중 거부, 결과 불명 자동 재전송 없음, PC 안전 설정은 PC 화면에서만).

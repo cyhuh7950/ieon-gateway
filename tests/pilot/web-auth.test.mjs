@@ -40,7 +40,7 @@ test('비밀번호 해시: scrypt, 맞는 비밀번호만 통과', () => {
 
 test('PC: 이 PC에서 연 화면은 토큰 없이 자동 로그인(쿠키), 쿠키로 바꾸는 요청은 Origin이 맞아야 한다', async (t) => {
   const s = await server(t);
-  assert.deepEqual((await s.call('/v1/auth/state')).body, { mode: 'pc', setupRequired: true, loggedIn: false, localAuto: true });
+  assert.deepEqual((await s.call('/v1/auth/state')).body, { mode: 'pc', setupRequired: true, loggedIn: false, localAuto: true, installKind: null });
   assert.equal((await s.call('/v1/conversations')).status, 401);
   assert.equal((await s.call('/v1/auth/local', { method: 'POST', origin: 'https://evil.example' })).body.error, 'bad_origin');
   const r = await s.call('/v1/auth/local', { method: 'POST' });
@@ -68,7 +68,7 @@ test('허브: 처음 한 번 관리자 만들기 → 비밀번호 로그인, 5�
   const s = await server(t, { webAccess: { modes: ['ip_allowlist'], ipAllowlist: ['198.51.100.9'], trustedProxies: ['127.0.0.1'] } });
   const xff = '198.51.100.9';
   assert.equal((await s.call('/v1/auth/state', { xff: '203.0.113.7' })).status, 403); // 접속 제한 밖
-  assert.deepEqual((await s.call('/v1/auth/state', { xff })).body, { mode: 'hub', setupRequired: true, loggedIn: false, localAuto: false });
+  assert.deepEqual((await s.call('/v1/auth/state', { xff })).body, { mode: 'hub', setupRequired: true, loggedIn: false, localAuto: false, installKind: 'hub' });
   assert.equal((await s.call('/v1/auth/local', { method: 'POST', xff })).body.error, 'local_only');
   assert.equal((await s.call('/v1/auth/login', { method: 'POST', xff, body: { password: 'x' } })).body.error, 'setup_required');
   assert.equal((await s.call('/v1/auth/setup', { method: 'POST', xff, body: { password: 'short' } })).body.error, 'weak_password');

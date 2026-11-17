@@ -32,7 +32,7 @@ function cookieOf(req) {
   return null;
 }
 
-export function createWebAuth({ store, config, access, clientIp }) {
+export function createWebAuth({ store, config, access, clientIp, installKind = () => null }) {
   const mode = config.webAccess ? 'hub' : 'pc';
   const webUser = (config.users ?? []).find((u) => u.appId === 'app_web')?.userId ?? 'u_sinsan';
   const fails = new Map(); // 주소 → { n, until }
@@ -81,7 +81,7 @@ export function createWebAuth({ store, config, access, clientIp }) {
       const ip = clientIp(req);
       if (req.method === 'GET' && path === '/v1/auth/state') {
         const s = cookieOf(req) && store.webSession(sha(cookieOf(req)));
-        json(res, 200, { mode, setupRequired: !admin(), loggedIn: Boolean(s), localAuto: mode === 'pc' && isLocalDirect(req) });
+        json(res, 200, { mode, setupRequired: !admin(), loggedIn: Boolean(s), localAuto: mode === 'pc' && isLocalDirect(req), installKind: installKind() });
         return true;
       }
       if (req.method !== 'POST') { json(res, 404, { error: 'not_found' }); return true; }

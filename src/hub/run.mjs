@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { childEnv } from '../pilot/parent-watch.mjs';
+import { initFromEnv } from '../../scripts/hub-init.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -44,7 +45,17 @@ export function supervise(cmds, { spawnImpl = spawn, log = (e) => process.stderr
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const data = process.argv[2] ?? '/data';
-  const cmds = hubCommands(data).filter((c) => !c.optional || existsSync(c.args[1]));
+  // SV4: 새 서버에 처음 설치하면 데이터가 비어 있다 — 설치 때 받은 값(.env)으로 처음 설정을 만든다(이미 있으면 그대로)
+  if (!existsSync(posix.join(data, 's2/server.json'))) {
+    try {
+      const made = initFromEnv(data);
+      process.stderr.write(JSON.stringify({ ch: 'hub', event: 'first_setup', files: made.length }) + '\n');
+    } catch (e) {
+      process.stderr.write(JSON.stringify({ ch: 'hub', event: 'first_setup_failed', error: e.message }) + '\n');
+      process.exit(1);
+    }
+  }
+  const cmds =hubCommands(data).filter((c) => !c.optional || existsSync(c.args[1]));
   const s = supervise(cmds);
   for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { s.stop(); setTimeout(() => process.exit(0), 3000); });
   setInterval(() => {}, 1 << 30); // 감독 프로세스는 계속 떠 있는다

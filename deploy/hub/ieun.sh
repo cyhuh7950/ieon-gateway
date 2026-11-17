@@ -9,6 +9,13 @@
 # 초대·토큰 값은 화면에 나오지 않는다(허브 컨테이너 → 칸 데이터 폴더 파일로 바로, 권한 600).
 set -eu
 cd "$(dirname "$0")/../.."
+# SV4: 설치 때 적은 값(이 폴더의 .env) — 허브 컨테이너 이름·허브 공개 주소(칸이 붙을 곳)·칸 크기. 없으면 지금 허브(sinsan-server) 값 그대로.
+envval() { if [ -f .env ]; then sed -n "s/^$1=//p" .env | head -1 | tr -d '"\r'; fi; }
+HUB_C=$(envval IEON_CONTAINER); HUB_C=${HUB_C:-ieun-relay}
+v=$(envval IEON_HUB_URL); if [ -n "$v" ]; then export IEON_HUB_URL="$v"; fi
+v=$(envval ENGINE_MEM); if [ -n "$v" ]; then export ENGINE_MEM="$v"; fi
+v=$(envval ENGINE_PIDS); if [ -n "$v" ]; then export ENGINE_PIDS="$v"; fi
+v=''
 cmd="${1:-}"; sub="${2:-}"; name="${3:-}"
 die() { echo "$*" >&2; exit 1; }
 check_name() { echo "$1" | grep -Eq '^[a-z0-9][a-z0-9-]{0,19}$' || die "이름은 영문 소문자·숫자·- 로 1~20자(예: law, tax-1)"; }
@@ -23,7 +30,7 @@ api_key_login() {
   [ -e hub/data/codex/auth.json ] && return 0
   key=$(sed -n 's/^OPENAI_API_KEY=//p' .env | head -1 | tr -d '"\r')
   [ -n "$key" ] || return 0
-  if printf '%s\n' "$key" | docker exec -i ieun-relay node /app/node_modules/@openai/codex/bin/codex.js login --with-api-key >/dev/null 2>&1; then echo "환경 파일의 API 키로 허브 Codex에 로그인했어요(모든 칸이 같이 써요)."; else echo "환경 파일의 API 키로 로그인하지 못했어요 — 키를 확인하세요." >&2; fi
+  if printf '%s\n' "$key" | docker exec -i "$HUB_C" node /app/node_modules/@openai/codex/bin/codex.js login --with-api-key >/dev/null 2>&1; then echo "환경 파일의 API 키로 허브 Codex에 로그인했어요(모든 칸이 같이 써요)."; else echo "환경 파일의 API 키로 로그인하지 못했어요 — 키를 확인하세요." >&2; fi
   key=''
 }
 
@@ -68,7 +75,7 @@ case "$sub" in
     chmod 700 "engines/$name/data"
     # 허브에서 1회용 초대(10분)를 받아 칸 데이터 폴더에 바로 넣는다(화면에 출력하지 않음)
     umask 077
-    docker exec ieun-relay node src/hub/invite.mjs /data > "engines/$name/data/invite" || { rm -f "engines/$name/data/invite"; die "허브에서 초대를 받지 못했어요(허브가 켜져 있는지 확인)"; }
+    docker exec "$HUB_C" node src/hub/invite.mjs /data > "engines/$name/data/invite" || { rm -f "engines/$name/data/invite"; die "허브에서 초대를 받지 못했어요(허브가 켜져 있는지 확인)"; }
     chown 1001:1001 "engines/$name/data/invite" 2>/dev/null || true
     ENGINE_NAME="$name" ENGINE_LABEL="서버 · $name" docker compose -f deploy/hub/engine.compose.yaml up -d
     echo "칸 '$name'을 띄웠어요. 허브의 Codex 로그인을 같이 써서 따로 로그인하지 않아도 돼요. 잠시 뒤 허브 화면 목록에 '서버 · $name'으로 나와요."

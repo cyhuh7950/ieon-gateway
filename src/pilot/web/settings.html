@@ -292,6 +292,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
   <section class="atab" data-atab="hub" hidden aria-label="기기" id="dvSection">
     <h3>기기</h3>
     <div class="muted">새 PC는 위의 "PC 연결 링크"를 그 PC에서 열면 바로 연결돼요. 또는 그 PC의 이어온 설정 → 밖에서도 쓰기에서 "연결"을 누르면 아래 "연결 요청"에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
+    <div id="pcLinkOff" class="state" hidden>이 서버는 <b>서버 설치형</b>이에요 — 엔진은 이 서버(엔진 칸)에서만 돌고, PC 연결 화면은 숨겨 두었어요. PC도 연결해 함께 쓰려면 <button type="button" id="pcLinkOn">PC 연결 켜기</button> (데이터는 그대로예요)</div>
     <div id="inviteBox" hidden>
       <h2>PC 연결 링크</h2>
       <div class="muted">연결할 PC에서 이 링크를 열면 그 PC의 이어온 설정 화면이 열리고 "연결"만 누르면 끝나요(코드 확인 없음). 10분 동안 한 번만 쓸 수 있어요. PC에 이어온이 설치돼 있어야 해요.</div>
@@ -504,7 +505,7 @@ async function loadDevices() {
 const PAIR_ERR = { mode_pc: '사용 방식이 "이 PC에서만"이라 허브에 연결하지 않아요. 이 PC 탭 → 사용 방식에서 "내 허브에 연결"로 바꾸세요', code_mismatch: '코드가 맞지 않습니다', not_found: '요청이 없거나 시간이 지났습니다', hub_unreachable: '허브에 접속하지 못했습니다(주소·인터넷 확인)',
   bad_server_url: '허브 주소는 https://로 시작해야 합니다', bad_name: '이 PC 이름을 1~40자로 넣으세요', too_many_pending: '허브에 대기 중인 요청이 많습니다. 잠시 뒤 다시 하세요', rate_limited: '잠시 뒤 다시 하세요' };
 async function loadPairings() {
-  $('pairBox').hidden = authState?.mode !== 'hub'; // 연결 요청은 허브 화면에만
+  $('pairBox').hidden = authState?.mode !== 'hub' || authState?.installKind === 'server'; // 연결 요청은 허브 화면에만(서버 설치형은 숨김)
   if ($('pairBox').hidden) return;
   const r = await api('/v1/admin/pairings'); const box = $('pairRows'); box.innerHTML = '';
   const list = r.status === 200 ? r.body.pairings : [];
@@ -1067,6 +1068,12 @@ $('rDelete').onclick = async () => {
 };
 
 // --- U6: 탭·로그인·PC 연결 링크 ---
+$('pcLinkOn').onclick = async () => {
+  if (!confirm('PC 연결을 켤까요? 허브형으로 바뀌어 PC 연결 링크로 PC를 붙일 수 있어요(서버 데이터는 그대로).')) return;
+  const r = await api('/v1/admin/settings/install-kind', { method: 'PUT', body: JSON.stringify({ kind: 'hub' }) });
+  if (r.status !== 200) return setStatus('err', r.body.error);
+  location.reload();
+};
 const OLD_TAB = { bots: 'msg', messenger: 'msg', roles: 'msg', sessions: 'conv', newsess: 'conv', devices: 'hub' };
 function showAtab(name) {
   name = OLD_TAB[name] || name;
@@ -1091,7 +1098,10 @@ function applyMode() {
   document.querySelector('#atabs [data-atab="pc"]').textContent = hub ? 'PC 설정' : '이 PC';
   $('pcTitle').textContent = hub ? 'PC 설정' : '이 PC';
   document.querySelector('#atabs [data-atab="hubsec"]').hidden = !hub;
-  $('inviteBox').hidden = !hub;
+  // SV4: 서버 설치형(①)은 PC 연결 링크·연결 요청을 숨긴다(엔진 칸은 서버에서 ieun.sh로 붙음)
+  const serverOnly = hub && authState?.installKind === 'server';
+  $('inviteBox').hidden = !hub || serverOnly;
+  $('pcLinkOff').hidden = !serverOnly;
   let saved = null; try { saved = localStorage.getItem('ieon_stab'); } catch { saved = null; }
   const h = location.hash.slice(1);
   showAtab(/^[a-z]+$/.test(h) ? h : (saved || (hub ? 'msg' : 'pc')));
