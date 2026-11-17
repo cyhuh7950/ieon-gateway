@@ -2,7 +2,7 @@
 
 이 문서는 **이어온 앱(안드로이드·PC)과 새 웹 기능을 처음부터 끝까지 따라 하며 확인**하기 위한 설명서입니다. 순서대로 하면 되고, 각 단계 끝의 **☐ 확인**에 표시해 두었다가 마지막 [9. 결과 알려 주기](#9-결과-알려-주기)로 알려 주시면 됩니다.
 
-- 작성 2026-11-14, 앱 판 0.1.0(시험판). 지금 기준: 허브 `ieun-gateway.sinsan.kr`, 이 PC는 **허브형**(허브에 연결)으로 동작 중.
+- 작성 2026-11-14, 앱 판 0.1.1(시험판, 2026-11-18 새 빌드 — 작업 화면·요청 중지·재개 확인·사람에게 넘기기 카드·"바빠요" 안내·승인 카드 파일 경로 반영). 0.1.0을 깔아 두었으면 새 파일로 그냥 덮어 설치하면 됩니다(로그인·연결 그대로). 지금 기준: 허브 `ieun-gateway.sinsan.kr`, 이 PC는 **허브형**(허브에 연결)으로 동작 중.
 - 기능 설명만 보려면 [BEGINNER_GUIDE](BEGINNER_GUIDE.md) 9-1~9-4, 개발용 API는 [API_GUIDE](API_GUIDE.md) 7-1.
 - 아직 없는 것: 앱을 **닫아도 오는 휴대폰 알림**(Firebase, AP-4b), 아이폰 앱, 스토어 등록(AP-5) — 시험이 끝난 뒤 진행합니다.
 
@@ -45,8 +45,8 @@
 
 | 파일 | 위치 | 크기 |
 | --- | --- | --- |
-| 안드로이드 앱 | `D:\Project\ieon-gateway\app\dist\release\ieon-android-debug-0.1.0.apk` | 약 5MB |
-| PC 앱 설치 파일 | `D:\Project\ieon-gateway\app\dist\desktop\ieon-setup-0.1.0.exe` | 약 100MB |
+| 안드로이드 앱 | `D:\Project\ieon-gateway\app\dist\release\ieon-android-debug-0.1.1.apk` | 약 4.3MB |
+| PC 앱 설치 파일 | `D:\Project\ieon-gateway\app\dist\desktop\ieon-setup-0.1.1.exe` | 약 100MB |
 
 > 둘 다 **시험판**입니다. 안드로이드는 "디버그 앱", PC는 "서명 없는 설치 파일"이라 설치할 때 경고가 한 번씩 뜹니다(아래에 누를 곳을 적어 두었습니다).
 
@@ -101,7 +101,7 @@
 
 ## 3. PC 앱 설치·연결 (B)
 
-1. 파일 탐색기에서 `D:\Project\ieon-gateway\app\dist\desktop\ieon-setup-0.1.0.exe` 더블클릭.
+1. 파일 탐색기에서 `D:\Project\ieon-gateway\app\dist\desktop\ieon-setup-0.1.1.exe` 더블클릭.
 2. 파란 **"Windows의 PC 보호"** 창이 뜨면 → **추가 정보** → **실행**.
 3. 설치 마법사: 설치 폴더는 그대로(내 사용자 폴더, 관리자 권한 필요 없음) → **설치** → **마침**.
 4. 바탕화면·시작 메뉴의 **이어온 앱** 열기.
