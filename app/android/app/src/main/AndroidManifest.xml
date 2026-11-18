@@ -38,6 +38,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- AP-4b 휴대폰 알림: 안드로이드 13+는 알림 권한을 앱이 밝혀야 허용 창이 뜸 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- V1 음성: 기기의 받아쓰기 창·읽어 주기 엔진을 찾을 수 있게(마이크 권한은 받지 않음 — 받아쓰기 창이 녹음) -->
     <queries>
