@@ -123,6 +123,8 @@ export function createBotRunner(opts) {
           const r = await opts.api({ method: 'POST', path: '/v1/messenger/claim', body: { platform: b.platform, botId: b.botId, userId: String(m.userId),
             name: m.userName ?? m.name ?? null, code: String(m.text).trim(), ...(already ? { allowed: true } : {}) } }).catch(() => null);
           log({ platform: b.platform, botId: b.botId, event: 'claim', ok: r?.status === 200 });
+          // M3: 가입자 연결 숫자였으면 "주인 등록"이 아니라 그 이어온 계정과 연결된 것
+          if (r?.status === 200 && r.body?.linked) { refreshedAt = -Infinity; await refreshAllowed(); return send('이어온 계정과 연결됐어요. 이제 이 대화에서는 내 대화만 보여요. /sessions로 대화를 고르세요.'); }
           if (r?.status === 200 && already) return send('이미 허용된 분이라 따로 등록하지 않았어요. 화면에 완료로 표시돼요.');
           if (r?.status === 200) {
             refreshedAt = -Infinity; await refreshAllowed();

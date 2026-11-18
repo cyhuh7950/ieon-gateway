@@ -89,3 +89,22 @@ test('M3: 메신저 봇이 가져가는 예약 답 알림에 연결된 가입자
   const notes = await fetch(base + '/v1/schedules/notices?after=', { headers: { authorization: 'Bearer msg', 'x-ieon-bot': 'telegram:default' } }).then((r) => r.json());
   assert.deepEqual(notes.notices.map((n) => n.conversationId).sort(), ['c_l'], '연결된 가입자 것만(다른 가입자 것은 안 감)');
 });
+
+test('M3: 봇은 가입자 연결 성공을 "이어온 계정과 연결됐어요"로 답함(주인 등록 문구 아님)', async () => {
+  const { createBotRunner } = await import('../../src/pilot/messenger/runner.mjs');
+  const { mkdtempSync: mk } = await import('node:fs');
+  const dir = mk(join(tmpdir(), 'ieon-m3r-'));
+  let onMessage = null; const sent = [];
+  const api = async (req) => {
+    if (req.path === '/v1/messenger/bots') return { status: 200, body: { bots: [{ platform: 'telegram', botId: 'default', name: '기본 봇', callNames: [], extraUsers: [], enabled: true }] } };
+    if (req.path === '/v1/messenger/config') return { status: 200, body: { allowedUsers: { telegram: ['111'] }, kakao: null, linkedUsers: {} } };
+    if (req.path === '/v1/messenger/claim') return { status: 200, body: { claimed: true, linked: true } };
+    return { status: 200, body: {} };
+  };
+  const runner = createBotRunner({ api, apiFor: () => api, env: { TELEGRAM_BOT_TOKEN: 'x' }, roomsPath: join(dir, 'rooms.json'), log: () => {},
+    runners: { telegram: (o) => { onMessage = o.onMessage; return {}; } } });
+  await runner.sync();
+  await onMessage({ platform: 'telegram', userId: '555', chatId: '555', text: '123456' }, async (s) => { sent.push(s); });
+  assert.match(sent[0], /이어온 계정과 연결됐어요/);
+  rmSync(dir, { recursive: true, force: true });
+});
