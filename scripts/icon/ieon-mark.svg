@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- 이어온 표식(배경 없음): 사람과 AI 사이를 잇는 다리. 양 끝 흰 점 = 사람·AI, 가운데 금빛 점 = 오가는 말 -->
+  <path d="M232 630 A280 280 0 0 1 792 630" fill="none" stroke="#5DCAA5" stroke-width="76" stroke-linecap="round"/>
+  <circle cx="232" cy="642" r="74" fill="#FFFFFF"/>
+  <circle cx="792" cy="642" r="74" fill="#FFFFFF"/>
+  <circle cx="512" cy="350" r="58" fill="#FAC775"/>
+</svg>
