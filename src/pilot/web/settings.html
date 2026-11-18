@@ -303,6 +303,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
   <section class="atab" data-atab="conv" hidden aria-label="예약 작업">
     <h3>예약 작업</h3>
     <div class="muted">정해진 때 AI 직원에게 질문을 보내요(예: 매일 9시 "어제 변경 요약해 줘"). 사람이 없을 때 AI가 호출되므로 만들 때·다시 켤 때 확인을 받아요. 질문만 보내고(작업 모드인 대화는 그때 건너뜀), 하루 횟수 한도가 있고, 결과를 확인할 수 없는 질문이 남으면 그 예약은 멈춰요(다시 켜야 보냄). 답은 그 대화에 쌓여요.</div>
+    <div id="schHub" class="muted" hidden></div>
     <table class="list"><thead><tr><th>대화</th><th>언제</th><th>질문</th><th>상태</th><th></th></tr></thead><tbody id="schList"></tbody></table>
     <form id="schAdd">
       <div class="row"><select id="schConv" aria-label="대화"></select>
@@ -754,7 +755,7 @@ $('wsAdd').onsubmit = async (e) => {
 };
 // W3 예약 작업 — 만들기·다시 켜기는 사람의 승인(확인 창), 질문만·하루 한도·결과 불명이면 멈춤
 const SCH_ERR = { bad_kind: '언제를 고르세요', bad_question: '질문을 넣으세요', bad_time: '시각을 고르세요', bad_minutes: '간격은 15분 이상이에요', bad_at: '보낼 때가 지났거나 비어 있어요',
-  bad_max_per_day: '하루 최대는 1~96이에요', too_many_schedules: '예약은 20개까지예요', not_found: '그 대화를 찾을 수 없어요' };
+  bad_max_per_day: '하루 최대는 1~96이에요', too_many_schedules: '예약은 20개까지예요', not_found: '그 대화를 찾을 수 없어요', hub_mode: '이 PC는 허브에 연결돼 있어요 — 예약은 허브 화면에서 만드세요' };
 const SCH_RES = { sent: '보냄', day_limit: '하루 한도라 건너뜀', work_mode: '작업 모드라 건너뜀', device_unavailable: 'PC 끊김이라 건너뜀', conversation_busy: '처리 중이라 건너뜀', host_busy: '바빠서 건너뜀',
   hub_mode: '허브 연결 중이라 건너뜀', account_limit_reached: '계정 한도라 건너뜀', session_not_running: '세션 꺼짐이라 건너뜀', not_found: '대화 없음' };
 const SCH_PAUSE = { last_unknown: '멈춤 — 지난 질문 결과를 확인해야 해요(확인 후 다시 켜기)', conversation_gone: '멈춤 — 대화가 없어졌어요' };
@@ -763,6 +764,9 @@ async function loadSchedules() {
   const sel = $('schConv'); const keep = sel.value; sel.innerHTML = '';
   for (const c of cv.status === 200 ? cv.body.conversations : []) { const o = el('option', (c.staff?.name || c.label) + (c.host?.name ? ' · ' + c.host.name : '')); o.value = c.conversationId; sel.append(o); }
   if (keep) sel.value = keep;
+  const hub = r.status === 200 && r.body.hubMode;
+  $('schHub').hidden = !hub; $('schAdd').hidden = hub;
+  if (hub) { $('schHub').replaceChildren('이 PC는 허브에 연결돼 있어 질문이 허브로 가요. 예약은 허브 화면 → 설정 → 대화 → 예약 작업에서 만드세요' + (r.body.hubUrl ? ' (' + r.body.hubUrl + ')' : '') + '.'); }
   const tb = $('schList'); const rows = [];
   const list = r.status === 200 ? r.body.schedules : [];
   if (!list.length) { const tr = el('tr'); tr.append(el('td', '예약이 없어요', 'muted')); rows.push(tr); }

@@ -84,6 +84,10 @@ test('② 내 허브: 이 PC 봇(카카오 중계 포함)은 빈 목록, 이 PC 
   const list = (await s.call('/v1/conversations')).body;
   assert.deepEqual([list.hubMode, list.mode], [true, 'hub']);
   assert.deepEqual((await s.call('/v1/conversations/c1/cards')).body.cards.map((c) => c.kind), ['hub_mode']);
+  // W3: 허브에 연결된 PC는 예약도 허브 화면에서 — 여기서는 만들지 않고 안내
+  const sc = await s.call('/v1/schedules', { method: 'POST', body: { conversationId: 'c1', kind: 'interval', minutes: 15, question: 'q' } });
+  assert.deepEqual([sc.status, sc.body.error], [409, 'hub_mode']);
+  assert.equal((await s.call('/v1/schedules')).body.hubMode, true);
 });
 
 test('바꾸기: 이 PC 화면만, 두 값만, 처리 중인 질문이 있으면 바꾸지 않음', async (t) => {
