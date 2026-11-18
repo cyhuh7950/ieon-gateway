@@ -1,12 +1,11 @@
 // W1: 웹 로그인(설계 WEB_FIRST 2절). 사용자는 토큰을 다루지 않는다.
 // - 허브(설정에 webAccess 있음): 처음 한 번 "관리자 만들기"(비밀번호) → 이후 비밀번호 로그인.
 // - PC(webAccess 없음): 이 PC의 127.0.0.1에서 앞단 없이 연 화면은 자동 로그인. 다른 곳(Tailscale 등)에서는 비밀번호.
-// - 쿠키 ieon_sid(HttpOnly·SameSite=Strict·https면 Secure·12시간), 서버에는 해시만. 쿠키로 온 변경 요청은 Origin을 검사한다.
+// - 쿠키 ieon_sid(HttpOnly·SameSite=Strict·https면 Secure·유지 기간은 웹 설정, 기본 30일 — 규칙 점검 10, 전에는 12시간), 서버에는 해시만. 쿠키로 온 변경 요청은 Origin을 검사한다.
 // - 메신저·연결부·외부 앱의 Bearer 토큰 인증은 그대로 둔다(내부 토큰).
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
 const COOKIE = 'ieon_sid';
-const TTL_MS = 12 * 3600_000;
 const LOCK_FAILS = 5;
 const LOCK_MS = 15 * 60_000;
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -40,10 +39,12 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
   const isLocalDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '')
     && !req.headers['x-forwarded-for'];
   const secure = (req) => String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() === 'https';
+  const loginDays = () => { const d = store.getSetting('auth.loginDays')?.value?.days; return Number.isInteger(d) ? d : (config.loginDays ?? 30); };
   const issue = (req, res) => {
     const sid = randomBytes(32).toString('base64url');
-    store.addWebSession(sha(sid), webUser, Date.now() + TTL_MS);
-    res.setHeader('set-cookie', `${COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${TTL_MS / 1000}${secure(req) ? '; Secure' : ''}`);
+    const ttl = loginDays() * 86_400_000;
+    store.addWebSession(sha(sid), webUser, Date.now() + ttl);
+    res.setHeader('set-cookie', `${COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${ttl / 1000}${secure(req) ? '; Secure' : ''}`);
   };
   const clear = (res) => res.setHeader('set-cookie', `${COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
   // 쿠키로 온 변경 요청: 브라우저가 붙이는 Origin의 호스트가 요청 호스트와 같아야 한다(다른 사이트에서 보낸 요청 차단).
@@ -64,7 +65,7 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
   };
   const log = (event, req) => process.stderr.write(JSON.stringify({ ch: 'auth', event, at: new Date().toISOString(), from: clientIp(req) }) + '\n');
 
-  return {
+  return { loginDays,
     mode,
     // 쿠키 세션의 사용자(없으면 null). 변경 요청이면 Origin도 본다.
     principal(req) {

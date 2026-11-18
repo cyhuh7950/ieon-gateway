@@ -102,7 +102,7 @@ case "$cmd" in
   connect)
     [[ -n "$hub" ]] || { echo '허브 주소가 필요합니다. 예: scripts/ieon.sh connect https://ieun-gateway.sinsan.kr' >&2; exit 2; }
     url="$(cd "$ROOT" && node --input-type=module -e "import { validateServerUrl } from './src/pilot/connector.mjs'; try { console.log(validateServerUrl(process.argv[1])) } catch { process.exit(3) }" "$hub")" \
-      || { echo '허브 주소가 올바르지 않습니다(https만, http는 127.0.0.1·localhost만).' >&2; exit 1; }
+      || { echo '허브 주소가 올바르지 않습니다(https:// 또는 http://, 사용자 정보·쿼리 없이).' >&2; exit 1; }
     if { [[ -f "$RUN/server.pid" ]] && pid_alive "$(cat "$RUN/server.pid")"; } || listening 28760; then
       echo '이 PC의 이어온 서버가 켜져 있습니다. stop으로 끈 뒤 connect 하세요(로컬 서버와 허브 연결을 동시에 쓰지 않음).' >&2; exit 1
     fi

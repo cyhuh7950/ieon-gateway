@@ -290,6 +290,9 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <label for="nsArch">보관(일)</label><input type="text" id="nsArch">
       <label for="nsNotice">보관 예고(일 전)</label><input type="text" id="nsNotice">
       <label for="nsDefault">기본 권한</label><select id="nsDefault"></select>
+      <span>full 권한</span><label class="chk"><input type="checkbox" id="nsFull"> 만들 때 full(명령·인터넷)을 고를 수 있게</label>
+      <span>지울 때</span><label class="chk"><input type="checkbox" id="nsDelConfirm"> 세션 이름으로 한 번 더 확인</label>
+      <span></span><label class="chk"><input type="checkbox" id="nsDelWs"> 세션을 지우면 작업 폴더도 지우기</label>
       <span>작업 폴더</span><div id="nsRoot" class="muted"></div>
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="nsReset">파일 값으로</button></div>
     </form>
@@ -297,6 +300,13 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <div class="muted">PC·엔진 칸 하나가 한꺼번에 맡는 질문(기다림 + 처리 중) 수예요. 넘으면 줄 세우지 않고 "바빠요"로 알려 주고, 자동으로 다시 보내지 않아요. 0이면 한도 없음.</div>
     <form id="hlForm" class="row">
       <input id="hlPerHost" type="number" min="0" max="50" aria-label="기기 하나가 한꺼번에 맡는 질문 수">
+      <button class="primary" type="submit">저장</button>
+    </form>
+    <h2>기다리는 시간</h2>
+    <div class="muted">승인 카드: 작업 모드에서 엔진이 허락을 물을 때 이 시간 안에 답이 없으면 거부해요(15분~1440분 = 24시간). 기다리는 동안 그 대화는 붙잡혀 있어요. 로그인 유지: 이 기간이 지나면 다시 로그인해요(1~90일).</div>
+    <form id="ttlForm" class="row">
+      <label for="apTtl">승인 카드(분)</label><input id="apTtl" type="number" min="15" max="1440" style="width:7em">
+      <label for="loginDays">로그인 유지(일)</label><input id="loginDays" type="number" min="1" max="90" style="width:6em">
       <button class="primary" type="submit">저장</button>
     </form>
   </section>
@@ -442,14 +452,17 @@ async function loadSettings(force) {
   $('kkUrl').value = s.kakao.value?.relayUrl || ''; $('kkLimit').value = s.kakao.value?.callbackLimitMs ? s.kakao.value.callbackLimitMs / 1000 : '';
   const ns = s.newSessions, e = ns.effective;
   $('hlPerHost').value = s.hostLimit?.perHost ?? 3; // SV4 동시 질문 수
+  $('apTtl').value = s.approvalTtl?.minutes ?? 15; $('loginDays').value = s.loginDays?.days ?? 30; // 규칙 점검 7·10
   $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '(파일 값 사용 중)';
   $('nsOn').checked = Boolean(e?.enabled);
   $('nsMax').value = e?.limits.maxSessions ?? ''; $('nsActive').value = e?.limits.maxActive ?? '';
   $('nsCodex').value = e?.limits.maxPerEngine?.codex ?? ''; $('nsClaude').value = e?.limits.maxPerEngine?.claude ?? '';
   $('nsIdle').value = e?.cleanup.idleSleepMinutes ?? ''; $('nsArch').value = e?.cleanup.archiveAfterDays ?? ''; $('nsNotice').value = e?.cleanup.archiveNoticeDays ?? '';
   $('nsDefault').innerHTML = '';
-  for (const p of e?.permissions.profiles || ['read_only', 'workspace']) $('nsDefault').append(new Option({ read_only: '읽기 전용', workspace: '작업 폴더 안 읽기·쓰기' }[p] || p, p));
-  $('nsDefault').value = e?.permissions.default === 'full' ? '' : (e?.permissions.default || 'workspace');
+  for (const p of e?.permissions.profiles || ['read_only', 'workspace']) $('nsDefault').append(new Option({ read_only: '읽기 전용', workspace: '작업 폴더 안 읽기·쓰기', full: 'full(명령·인터넷)' }[p] || p, p));
+  $('nsDefault').value = e?.permissions.default || 'workspace';
+  $('nsFull').checked = Boolean(e?.permissions.allowFullFromChat); $('nsDelConfirm').checked = e?.cleanup.deleteRequiresConfirm !== false; $('nsDelWs').checked = Boolean(e?.cleanup.deleteWorkspaceOnClose);
+  nsSafe = { full: $('nsFull').checked, delConfirm: $('nsDelConfirm').checked, delWs: $('nsDelWs').checked };
   $('nsRoot').textContent = e ? e.workspaceRoot + ' (설정 파일에서만)' : '설정 파일 없음 — 켜면 기본 위치를 씁니다';
 }
 async function saveSetting(path, body, ok) {
@@ -461,14 +474,25 @@ $('auForm').onsubmit = (e) => { e.preventDefault(); saveSetting('allowed-users',
 $('auReset').onclick = () => saveSetting('allowed-users', null, '허용 사용자를 파일 값으로 되돌렸습니다');
 $('kkForm').onsubmit = (e) => { e.preventDefault(); const sec = numOr($('kkLimit').value); saveSetting('kakao', { relayUrl: $('kkUrl').value.trim() || null, ...(sec !== undefined ? { callbackLimitMs: Math.round(sec * 1000) } : {}) }, '카카오 설정을 저장했습니다 — 1분 안에 카카오 봇이 다시 연결됩니다'); };
 $('kkReset').onclick = () => saveSetting('kakao', null, '카카오 설정을 파일 값으로 되돌렸습니다');
+let nsSafe = { full: false, delConfirm: true, delWs: false }; // 불러온 값(바뀐 것만 확인 창)
 $('nsForm').onsubmit = (e) => {
   e.preventDefault();
+  // 규칙 점검 6: 안전 설정을 덜 안전한 쪽으로 바꿀 때만 확인 창
+  const warn = [];
+  if ($('nsFull').checked && !nsSafe.full) warn.push('· full 권한: 새 세션이 명령·인터넷을 쓸 수 있어 작업 폴더 밖도 고칠 수 있어요');
+  if (!$('nsDelConfirm').checked && nsSafe.delConfirm) warn.push('· 지울 때 이름 확인 끔: 확인 창만 누르면 바로 지워져요');
+  if ($('nsDelWs').checked && !nsSafe.delWs) warn.push('· 작업 폴더도 지우기: 세션을 지우면 그 폴더의 파일도 되돌릴 수 없게 지워져요');
+  if (warn.length && !confirm('이렇게 바꿀까요?\n\n' + warn.join('\n'))) return;
   const lim = { maxSessions: numOr($('nsMax').value), maxActive: numOr($('nsActive').value), maxPerEngine: { codex: numOr($('nsCodex').value), claude: numOr($('nsClaude').value) } };
   const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && !(typeof v === 'object' && !Object.keys(clean(v)).length)).map(([k, v]) => [k, typeof v === 'object' ? clean(v) : v]));
-  saveSetting('new-sessions', { enabled: $('nsOn').checked, limits: clean(lim), cleanup: clean({ idleSleepMinutes: numOr($('nsIdle').value), archiveAfterDays: numOr($('nsArch').value), archiveNoticeDays: numOr($('nsNotice').value) }),
-    ...($('nsDefault').value ? { permissions: { default: $('nsDefault').value } } : {}) }, '새 세션 설정을 저장했습니다 — 바로 적용됩니다');
+  saveSetting('new-sessions', { enabled: $('nsOn').checked, limits: clean(lim), cleanup: { ...clean({ idleSleepMinutes: numOr($('nsIdle').value), archiveAfterDays: numOr($('nsArch').value), archiveNoticeDays: numOr($('nsNotice').value) }),
+    deleteRequiresConfirm: $('nsDelConfirm').checked, deleteWorkspaceOnClose: $('nsDelWs').checked },
+    permissions: { allowFullFromChat: $('nsFull').checked, ...($('nsDefault').value && ($('nsDefault').value !== 'full' || $('nsFull').checked) ? { default: $('nsDefault').value } : {}) } }, '새 세션 설정을 저장했습니다 — 바로 적용됩니다');
 };
 $('hlForm').onsubmit = (e) => { e.preventDefault(); saveSetting('host-limit', { perHost: Number($('hlPerHost').value) }, '동시 질문 수를 저장했어요 — 다음 질문부터 적용돼요'); };
+$('ttlForm').onsubmit = async (e) => { e.preventDefault();
+  await saveSetting('approval-ttl', { minutes: Number($('apTtl').value) }, '승인 카드 시간을 저장했어요 — 새 카드부터 적용돼요');
+  await saveSetting('login-days', { days: Number($('loginDays').value) }, '저장했어요 — 로그인 유지 기간은 다음 로그인부터 적용돼요'); };
 $('nsReset').onclick = () => saveSetting('new-sessions', null, '새 세션 설정을 파일 값으로 되돌렸습니다');
 // --- 기존 세션 등록(P1-b) ---
 const BD_ERR = { bad_conversation_id: 'ID는 c_로 시작하고 영문·숫자·_- 61자까지', file_managed: 'server.json에 적힌 세션은 파일에서 고칩니다', is_new_session: '새 세션은 여기서 바꿀 수 없음',
@@ -529,9 +553,9 @@ async function loadDevices() {
       if (!d.revokedAt) {
         const rv = el('button', '폐기'); rv.type = 'button'; rv.style.marginLeft = '4px';
         rv.onclick = async () => {
-          const typed = prompt('폐기하면 이 기기는 바로 접속할 수 없고, 처리 중이던 질문은 자동으로 다시 보내지 않고 정리됩니다. 지우려면 기기 이름 "' + d.name + '"을 입력하세요.');
-          if (typed === null) return;
-          const x = await api('/v1/admin/devices/' + d.hostId + '/revoke', { method: 'POST', body: JSON.stringify({ confirm: typed.trim() }) });
+          // 규칙 점검 10: 이름 입력 대신 확인 창 하나
+          if (!confirm('"' + d.name + '" 기기를 폐기할까요? 이 기기는 바로 접속할 수 없고, 처리 중이던 질문은 자동으로 다시 보내지 않고 정리돼요.')) return;
+          const x = await api('/v1/admin/devices/' + d.hostId + '/revoke', { method: 'POST', body: JSON.stringify({ confirm: d.name }) });
           setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? '폐기했습니다' + (x.body.unknown || x.body.notExecuted ? ' (결과 불명 ' + x.body.unknown + '건 · 실행 안 됨 ' + x.body.notExecuted + '건)' : '') : (DV_ERR[x.body.error] || x.body.error));
           await loadDevices();
         };
@@ -545,7 +569,7 @@ async function loadDevices() {
 }
 // W3: 짝맺기. 허브에서는 연결 요청을 승인하고, PC에서는 허브에 연결한다. 토큰은 화면에 나오지 않는다.
 const PAIR_ERR = { mode_pc: '사용 방식이 "이 PC에서만"이라 허브에 연결하지 않아요. 이 PC 탭 → 사용 방식에서 "내 허브에 연결"로 바꾸세요', code_mismatch: '코드가 맞지 않습니다', not_found: '요청이 없거나 시간이 지났습니다', hub_unreachable: '허브에 접속하지 못했습니다(주소·인터넷 확인)',
-  bad_server_url: '허브 주소는 https://로 시작해야 합니다', bad_name: '이 PC 이름을 1~40자로 넣으세요', too_many_pending: '허브에 대기 중인 요청이 많습니다. 잠시 뒤 다시 하세요', rate_limited: '잠시 뒤 다시 하세요' };
+  bad_server_url: '허브 주소는 https:// 또는 http://로 시작해야 합니다', bad_name: '이 PC 이름을 1~40자로 넣으세요', too_many_pending: '허브에 대기 중인 요청이 많습니다. 잠시 뒤 다시 하세요', rate_limited: '잠시 뒤 다시 하세요' };
 async function loadPairings() {
   $('pairBox').hidden = authState?.mode !== 'hub' || authState?.installKind === 'server'; // 연결 요청은 허브 화면에만(서버 설치형은 숨김)
   if ($('pairBox').hidden) return;
@@ -997,7 +1021,8 @@ async function loadHubLink() {
   const r = await api('/v1/admin/local/hub'); $('hubLinkBox').hidden = r.status !== 200; if (r.status !== 200) return;
   const s = r.body; const box = $('hubLinkState'); box.innerHTML = '';
   const line = s.state === 'pairing' ? ['state warn', '허브 웹의 기기 화면에서 이 코드를 승인하세요: ' + s.code]
-    : s.state === 'paired' ? [s.connector === 'running' ? 'state ok' : 'state', '허브 ' + s.hubUrl + ' · ' + s.hostId + ' · ' + (s.connector === 'running' ? '연결됨' : '연결 끊김') + (s.canRun ? '' : ' (이 PC의 연결부 설정이 없어 실행할 수 없음)')]
+    : s.state === 'paired' ? [s.connector === 'running' ? 'state ok' : 'state', '허브 ' + s.hubUrl + ' · ' + s.hostId + ' · ' + (s.connector === 'running' ? '연결됨' : '연결 끊김') + (s.canRun ? '' : ' (이 PC의 연결부 설정이 없어 실행할 수 없음)')
+      + (/^http:\/\/(?!127\.0\.0\.1|localhost|\[::1\])/.test(s.hubUrl || '') ? ' — http 주소라 허브와 이 PC 사이가 암호화되지 않아요(https 도메인을 쓰면 안전해요)' : '')]
     : ['muted', s.error === 'rejected' ? '허브에서 거절했습니다' : s.error === 'expired' ? '시간이 지났습니다. 다시 연결하세요' : '허브에 연결되어 있지 않습니다'];
   box.append(el('div', line[1], line[0]));
   $('hubLinkForm').hidden = s.state === 'paired'; $('hlReconnect').hidden = !(s.state === 'paired' && s.connector !== 'running');
@@ -1286,7 +1311,7 @@ for (const b of document.querySelectorAll('#atabs button')) b.onclick = () => sh
 let join = null;
 const jm = location.hash.match(/^#join=([\w-]{20,100})&hub=([^&]{1,300})$/);
 if (jm) { try { join = { invite: jm[1], hubUrl: decodeURIComponent(jm[2]) }; } catch { join = null; } history.replaceState(null, '', location.pathname + '#hub'); }
-if (join && !/^https:\/\/[^\s/?#@]+$/.test(join.hubUrl)) join = null;
+if (join && !/^https?:\/\/[^\s/?#@]+$/.test(join.hubUrl)) join = null;
 function applyMode() {
   const hub = authState?.mode === 'hub';
   $('modeTag').textContent = hub ? '허브 · ' + location.host : '이 PC';

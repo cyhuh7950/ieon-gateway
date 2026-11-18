@@ -1,7 +1,7 @@
 // P1-a: 메신저 허용 사용자·카카오·새 세션 설정을 서버 DB·웹에서 관리(모델 0).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -55,14 +55,15 @@ test('허용 사용자·카카오: 웹 값이 없으면 file, 저장하면 web, 
   assert.deepEqual(s.allowedUsers, { value: null, source: 'file' });
 });
 
-test('새 세션: 파일 값 위에 웹 값(켜기·한도·정리·기본 권한)을 겹치고 바로 적용, 안전 설정은 웹에서 못 바꾼다', async (t) => {
+test('새 세션: 파일 값 위에 웹 값(켜기·한도·정리·기본 권한)을 겹치고 바로 적용, 작업 폴더·세션별 예외는 웹에서 못 바꾼다', async (t) => {
   const { call, app, dir } = await setup(t, { nsFile: { enabled: false, workspaceRoot: '/ws', limits: { maxSessions: 4, maxActive: 2 } } });
   assert.equal((await call('/v1/sessions', { method: 'POST', body: { engine: 'codex', name: 'aa' } })).body.error, 'new_sessions_disabled');
   for (const [body, err] of [
     [{ permissions: { default: 'full' } }, 'profile_not_allowed'],
     [{ sessionOverrides: {} }, 'field_not_editable'],
     [{ workspaceRoot: 'C:/' }, 'field_not_editable'],
-    [{ cleanup: { deleteWorkspaceOnClose: true } }, 'field_not_editable'],
+    [{ cleanup: { deleteWorkspaceOnClose: 'yes' } }, 'bad_cleanup'],
+    [{ permissions: { allowFullFromChat: 1 } }, 'bad_permissions'],
     [{ limits: { maxActive: 9 } }, 'bad_new_sessions:maxActive_over_maxSessions'],
     [{ permissions: { default: 'nope' } }, 'bad_new_sessions:default_profile'],
   ]) assert.equal((await call('/v1/admin/settings/new-sessions', { method: 'PUT', body })).body.error, err, JSON.stringify(body));
@@ -199,4 +200,15 @@ test('P1-c 기기: 등록 토큰은 한 번만, 재발급하면 이전 토큰 �
   // 폐기된 기기도 재발급하면 다시 쓸 수 있다
   const tok3 = (await call('/v1/admin/devices/h_pc2/reissue', { method: 'POST', body: {} })).body.token;
   assert.equal(await dev(tok3), 204);
+});
+
+test('규칙 점검 6: full 권한 스위치·삭제 확인·작업 폴더 지우기를 웹에서 바꾸면 설정 파일에도 적어 연결부와 맞춤', async (t) => {
+  const { call, dir } = await setup(t, { nsFile: { enabled: true, workspaceRoot: '/ws' } });
+  assert.equal((await call('/v1/admin/settings/new-sessions', { method: 'PUT', body: { permissions: { default: 'full' } } })).body.error, 'profile_not_allowed', 'full 스위치 없이 기본 full은 안 됨');
+  const s = (await call('/v1/admin/settings/new-sessions', { method: 'PUT', body: { permissions: { allowFullFromChat: true, default: 'full' }, cleanup: { deleteRequiresConfirm: false, deleteWorkspaceOnClose: true } } })).body;
+  assert.equal(s.newSessions.effective.permissions.allowFullFromChat, true);
+  assert.ok(s.newSessions.effective.permissions.profiles.includes('full'));
+  assert.deepEqual([s.newSessions.effective.cleanup.deleteRequiresConfirm, s.newSessions.effective.cleanup.deleteWorkspaceOnClose], [false, true]);
+  const file = JSON.parse(readFileSync(join(dir, 'ns.json'), 'utf8'));
+  assert.deepEqual([file.permissions.allowFullFromChat, file.cleanup.deleteRequiresConfirm, file.cleanup.deleteWorkspaceOnClose, file.workspaceRoot], [true, false, true, '/ws']);
 });

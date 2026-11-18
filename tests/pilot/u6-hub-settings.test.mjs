@@ -132,7 +132,7 @@ test('설정 화면: 예전 화면의 관리 항목이 모두 옮겨졌고(누�
   for (const tab of ['pc', 'hub', 'msg', 'conv', 'apps', 'hubsec']) assert.ok(SET.includes(`<button type="button" data-atab="${tab}">`), tab);
   assert.ok(SET.includes("const OLD_TAB = { bots: 'msg', messenger: 'msg', roles: 'msg', sessions: 'conv', newsess: 'conv', devices: 'hub' };"));
   // PC 연결 링크: https 허브만, 읽은 뒤 주소에서 지움, 허브 화면에서는 연결하지 않음
-  assert.ok(SET.includes("if (join && !/^https:\\/\\/[^\\s/?#@]+$/.test(join.hubUrl)) join = null;"));
+  assert.ok(SET.includes("if (join && !/^https?:\\/\\/[^\\s/?#@]+$/.test(join.hubUrl)) join = null;"), '규칙 점검 8: http 허브도');
   assert.ok(SET.includes("history.replaceState(null, '', location.pathname + '#hub'); }"));
   assert.ok(SET.includes("if (join && hub) { $('joinHubOnly').hidden = false; join = null; }"));
   assert.ok(!/innerHTML\s*=\s*[^'"`\s]/.test(SET.replace(/innerHTML = ''/g, '')), '서버 값은 textContent로만');

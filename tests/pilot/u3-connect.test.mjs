@@ -57,7 +57,7 @@ test('서버 목록: 이 PC에서 연 화면만, 업무 대화는 한 번 더 �
   const r = await s.call('/v1/admin/local/threads');
   assert.equal(r.status, 200);
   assert.deepEqual(r.body.threads.map((x) => [x.threadId, x.connected]), [['01a1ca36-fa0f-7830-82bd-64e4d798fd2f', false]]);
-  assert.equal((await s.call('/v1/admin/local/threads', { headers: { 'x-forwarded-for': '203.0.113.9' } })).status, 403, '바깥(앞단 경유) 요청은 거절');
+  assert.equal((await s.call('/v1/admin/local/threads', { headers: { 'x-forwarded-for': '203.0.113.9' } })).status, 200, '규칙 점검 4: 로그인한 화면이면 앞단 경유도 받음');
   assert.equal((await s.call('/v1/admin/local/threads', { token: 'msg' })).status, 403, '메신저 앱은 관리 API 불가');
 });
 
@@ -86,7 +86,7 @@ test('한 번에 연결: 허용 목록 + 세션 등록, 다시 누르면 같은 
 test('없는 작업 폴더면 폴더 없이 연결하고, 앞단 경유 요청은 거절', async (t) => {
   const s = await server(t);
   const T = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
-  assert.equal((await s.call('/v1/admin/connections', { method: 'POST', body: { threadId: T, label: 'B' }, headers: { 'x-forwarded-for': '203.0.113.9' } })).status, 403);
+  assert.equal((await s.call('/v1/admin/connections', { method: 'POST', body: { threadId: T, label: 'B' }, headers: { 'x-forwarded-for': '203.0.113.9' }, token: 'msg' })).status, 403, '메신저 앱은 관리 API 불가');
   const r = await s.call('/v1/admin/connections', { method: 'POST', body: { threadId: T, label: 'B', workingDirectory: join(s.dir, 'gone') } });
   assert.equal(r.status, 200);
   const cfg = JSON.parse(readFileSync(s.cfgPath, 'utf8'));

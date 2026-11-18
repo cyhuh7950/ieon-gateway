@@ -1201,9 +1201,9 @@ $('nsSleep').onclick = async () => {
 };
 $('nsDelete').onclick = async () => {
   const c = conv(); if (!c?.newSession) return;
-  const typed = prompt('삭제하면 이어온 기록이 지워지고 되돌릴 수 없어요(원래 Codex·Claude 기록은 남아요). 지우려면 세션 이름 "' + c.newSession.name + '"을 입력하세요.');
-  if (typed === null) return;
-  const r = await api('/v1/sessions/' + current, { method: 'DELETE', body: JSON.stringify({ confirm: typed.trim() }) });
+  // 규칙 점검 10: 이름 입력 대신 확인 창 하나
+  if (!confirm('"' + c.newSession.name + '" 세션을 삭제할까요? 이어온 기록이 지워지고 되돌릴 수 없어요(원래 Codex·Claude 기록은 남아요).')) return;
+  const r = await api('/v1/sessions/' + current, { method: 'DELETE', body: JSON.stringify({ confirm: c.newSession.name }) });
   toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '"' + c.newSession.name + '"을 삭제했어요' : (NS_ERR[r.body.error] || r.body.error)); load();
 };
 

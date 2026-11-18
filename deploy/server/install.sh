@@ -55,7 +55,7 @@ if ! has IEON_WEB_ALLOW; then
 fi
 if ! has IEON_HUB_URL; then
   SIP=$(hostname -I 2>/dev/null | awk '{print $1}')
-  say "이 서버의 공개 주소: https 도메인이 있으면 넣으세요(카카오·이어온 앱에 필요). 없으면 Enter — 우선 이 주소로 씁니다."
+  say "이 서버의 공개 주소: https 도메인이 있으면 넣으세요(카카오·이어온 앱에 필요). 없으면 Enter — 이 http 주소로도 PC를 연결할 수 있어요(암호화는 안 돼요)."
   ask "공개 주소" "http://${SIP:-127.0.0.1}:${PORT}"; put IEON_HUB_URL "$REPLY"
 fi
 put IEON_MEM "${HUBMEM}g"; put IEON_PIDS 512; put ENGINE_MEM 1g; put ENGINE_PIDS 256
