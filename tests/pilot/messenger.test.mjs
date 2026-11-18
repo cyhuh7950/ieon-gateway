@@ -1,7 +1,7 @@
 // 메신저 공통 처리 검사(모델 0). 이어온 서버 API는 대역으로 바꾼다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createBridge, splitText } from '../../src/pilot/messenger/bridge.mjs';
@@ -195,6 +195,31 @@ test('W3: 끝난 예약 질문의 답을 그 대화에 연결된 방에만 올�
   assert.match(got.at(-1), /결과를 확인할 수 없음 — 자동으로 다시 보내지 않고, 이 예약은 다음 회차에 멈춰요/);
   assert.equal(room.b.length, 1, '연결 안 된 방에는 안 감');
   assert.equal(await bridge.deliverScheduled(), 0, '이미 올린 답은 다시 올리지 않음');
+});
+
+test('보낼 길 저장: 메신저를 다시 켜도 예약 답을 연결된 방에 먼저 보냄(카카오는 제외, 파일에는 방 주소만)', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'ieon-msg-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const roomsPath = join(dir, 'rooms.json');
+  const state = { conversations: [conv()] }; const f = fakeApi(state);
+  const notes = [];
+  const api = async (req) => (req.path.startsWith('/v1/schedules/notices') ? { status: 200, body: { notices: notes } } : f.api(req));
+  const first = createBridge({ api, allowedUsers: { telegram: ['111'] }, roomsPath, pollMs: 1, waitMs: 1000 });
+  await first.handle({ platform: 'telegram', userId: '111', chatId: 'A', threadKey: 7, text: '/use 1' }, async () => {});
+  const saved = JSON.parse(readFileSync(roomsPath, 'utf8'));
+  assert.deepEqual(saved.routes, { 'telegram:default:A:7': { chatId: 'A', threadKey: '7' } });
+  saved.rooms['kakao:default:K'] = 'c1'; saved.routes['kakao:default:K'] = { chatId: 'K' };
+  writeFileSync(roomsPath, JSON.stringify(saved));
+  // 다시 켬: 받은 메시지가 없어도 저장한 곳으로 보냄
+  const pushed = [];
+  const again = createBridge({ api, allowedUsers: { telegram: ['111'] }, roomsPath, pollMs: 1, waitMs: 1000, push: async (addr, text) => { pushed.push([addr, text]); } });
+  notes.push({ conversationId: 'c1', label: '시험 표식 확인', when: '매일 09:00', status: 'completed', answer: '예약 시험 확인', at: '2099-01-01T00:00:00.000Z' });
+  assert.equal(await again.deliverScheduled(), 1);
+  assert.deepEqual(pushed, [[{ chatId: 'A', threadKey: '7' }, '[시험 표식 확인] 예약 질문(매일 09:00) 답:\n예약 시험 확인']], '카카오 방에는 먼저 보내지 않음');
+  // 메신저가 먼저 보내기를 못 하면(canPush false) 건너뜀
+  const off = createBridge({ api, allowedUsers: { telegram: ['111'] }, roomsPath, pollMs: 1, waitMs: 1000, push: async () => { throw new Error('x'); }, canPush: () => false });
+  notes.push({ conversationId: 'c1', label: '시험 표식 확인', when: '매일 09:00', status: 'cancelled', at: '2099-01-01T00:00:01.000Z' });
+  assert.equal(await off.deliverScheduled(), 0);
 });
 
 test('여러 봇 M0: 옛 rooms.json은 default 봇 연결로 바뀌어 그대로 이어지고, 대화방 키에 봇 ID가 들어간다', async (t) => {

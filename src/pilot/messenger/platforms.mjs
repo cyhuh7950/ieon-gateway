@@ -127,6 +127,8 @@ export function runTelegram({ token, onMessage, log, signal, retryMs = 5000 }) {
       }
     }
   })();
+  // 메신저를 다시 켠 뒤에도 저장한 방에 먼저 보내기(예약 답·보관 예고)
+  return { push: (addr, text) => api('sendMessage', { chat_id: addr.chatId, text, ...(addr.threadKey ? { message_thread_id: Number(addr.threadKey) } : {}) }).then((b) => messengerOk('telegram', b)) };
 }
 
 export function runDiscord({ token, onMessage, log, signal }) {
@@ -186,6 +188,7 @@ export function runDiscord({ token, onMessage, log, signal }) {
     ws.onerror = () => {};
   };
   connect();
+  return { push: (addr, text) => rest(`/channels/${addr.chatId}/messages`, { content: text }) };
 }
 
 export function runSlack({ appToken, botToken, onMessage, log, signal, recheckMs = 60000 }) {
@@ -227,4 +230,5 @@ export function runSlack({ appToken, botToken, onMessage, log, signal, recheckMs
     ws.onerror = () => {};
   };
   connect();
+  return { push: (addr, text) => web('chat.postMessage', { channel: addr.chatId, text, ...(addr.threadKey ? { thread_ts: addr.threadKey } : {}) }, botToken).then((b) => messengerOk('slack', b)) };
 }
