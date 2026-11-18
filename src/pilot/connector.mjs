@@ -203,6 +203,8 @@ export async function engineHealth(config) {
     ...codexAccountHealth(config),
     // SV2: 서버(허브·칸)가 같이 쓰는 Claude 로그인의 종류(구독/API). PC는 null(그 PC의 로그인)
     claudeKind: claudeKind(),
+    // 엔진 칸(컨테이너가 경계 — 새 세션이 명령까지 할 수 있는 곳). 허브가 새 세션 기본 위치를 고를 때 씀
+    boundary: process.env.IEON_CONTAINER_BOUNDARY === '1',
   };
 }
 

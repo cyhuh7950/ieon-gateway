@@ -120,9 +120,12 @@ function newSessionPlan(ns, cfg) {
   // 규칙 점검 2(2026-11-18 신산님): 명령은 샌드박스 안에서 허용(workspace = 작업 폴더 안만 쓰기, read_only = 쓰기 없음, 네트워크는 full만).
   // 샌드박스 밖 도구(MCP·동적 도구)만 멈추고, 멈춘 것·막힌 것은 답 끝에 알린다(잠그지 않음).
   const blocked = new Set(['mcp_tool_call', 'dynamic_tool_call']);
+  // 엔진 칸(IEON_CONTAINER_BOUNDARY=1): Codex 샌드박스(bwrap)가 Docker 안에서 돌지 않아 명령이 모두 실패한다(2026-11-18 실측).
+  // 작업 폴더 읽기·쓰기 프로필은 컨테이너를 경계로 쓴다(칸 밖은 못 건드림, 칸 안에는 허브 데이터·비밀값 없음). 읽기 전용은 그대로 둔다.
+  const cell = containerBoundary() && sandbox === 'workspace-write';
   return {
     workspace, blocked,
-    options: { sandboxMode: sandbox, approvalPolicy: 'never', networkAccessEnabled: network,
+    options: { sandboxMode: cell ? 'danger-full-access' : sandbox, approvalPolicy: 'never', networkAccessEnabled: network,
       webSearchMode: network ? 'live' : 'disabled', skipGitRepoCheck: true },
   };
 }

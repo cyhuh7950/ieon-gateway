@@ -128,6 +128,10 @@ export function createApp(config) {
   const notices = []; // 보관 예고. 각 항목에 at(알린 시각)을 붙이고 GET /v1/sessions/notices?after=로 가져간다.
   // 새 세션을 만들 PC: newSessionsHostId가 없으면 첫 번째 연결부(PC).
   const nsHost = config.newSessionsHostId ?? config.devices?.[0]?.hostId;
+  // 새 세션 기본 위치(2026-11-18 신산님 "새 세션 엔진 칸 진행"): 허브에서 만들 곳을 고르지 않으면 켜진 첫 엔진 칸(명령·파일 작업까지).
+  // 엔진 칸이 없거나 모두 꺼져 있으면 지금처럼 허브 자신(글로만 답함).
+  const cellHosts = () => [...health.entries()].filter(([h, v]) => v?.boundary && h !== nsHost && online(h) && knownHosts().includes(h)).map(([h]) => h).sort();
+  const defaultNsHost = () => cellHosts()[0] ?? nsHost;
   const VIA = { app_web: 'web', app_messenger: 'chat' };
   let cleanupTimer = null;
   {
@@ -522,7 +526,8 @@ export function createApp(config) {
               // SV3-b: 대화별 계정 ID(정해진 모양만)
               codexAccountIds: Object.fromEntries(h.codexAccountIds && typeof h.codexAccountIds === 'object' ? Object.entries(h.codexAccountIds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && /^[a-z0-9_]{2,16}$/.test(String(v))).map(([k, v]) => [k.toLowerCase(), String(v)]) : []),
               codexDefaultId: /^[a-z0-9_]{2,16}$/.test(String(h.codexDefaultId ?? '')) ? String(h.codexDefaultId) : null,
-              claudeKind: KIND.has(h.claudeKind) ? h.claudeKind : null }); // SV2
+              claudeKind: KIND.has(h.claudeKind) ? h.claudeKind : null, // SV2
+              boundary: h.boundary === true }); // 엔진 칸(컨테이너가 경계)
           }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }
         // A2-d: 허브가 맡긴 기기 관리 명령. PC(허브 연결 중인 이어온 서버)가 가져가 자기 화면과 같은 코드로 실행하고 결과를 보낸다.
@@ -1073,8 +1078,10 @@ export function createApp(config) {
         if (req.method === 'GET' && path === '/v1/admin/devices') {
           const web = store.listDevices();
           return json(res, 200, { devices: [
-            ...[...fileHosts].map((h) => ({ hostId: h, name: h, source: 'file', online: online(h), ...(h === selfHostId() ? { hubSelf: true } : {}) })),
-            ...web.map((d) => ({ ...d, source: 'web', online: !d.revokedAt && online(d.hostId), ...(d.hostId === selfHostId() ? { hubSelf: true } : {}) })),
+            ...[...fileHosts].map((h) => ({ hostId: h, name: h, source: 'file', online: online(h), ...(h === selfHostId() ? { hubSelf: true } : {}),
+              ...(health.get(h)?.boundary ? { cell: true } : {}), ...(h === defaultNsHost() ? { nsDefault: true } : {}) })),
+            ...web.map((d) => ({ ...d, source: 'web', online: !d.revokedAt && online(d.hostId), ...(d.hostId === selfHostId() ? { hubSelf: true } : {}),
+              ...(health.get(d.hostId)?.boundary ? { cell: true } : {}), ...(d.hostId === defaultNsHost() ? { nsDefault: true } : {}) })),
           ], events: store.deviceEvents() });
         }
         if (req.method === 'POST' && path === '/v1/admin/devices') {
@@ -1303,7 +1310,7 @@ export function createApp(config) {
           const bot = principal.bot && store.bot(principal.bot.platform, principal.bot.botId);
           const role = bot?.roleId ? store.listRoles().find((q) => q.roleId === bot.roleId) ?? null : null;
           // SV2: 만들 곳을 고를 수 있다(허브 목록의 PC·엔진 칸). 없으면 지금처럼 기본(허브 자신 또는 첫 PC).
-          const target = body.hostId === undefined || body.hostId === null || body.hostId === '' ? nsHost : String(body.hostId);
+          const target = body.hostId === undefined || body.hostId === null || body.hostId === '' ? defaultNsHost() : String(body.hostId);
           if (target !== nsHost && !knownHosts().includes(target)) return json(res, 404, { error: 'unknown_host' });
           const r = store.createSession(principal, { engine: body.engine, name: body.name, profile: body.profile,
             hostId: target, via: principal.bot ? 'chat' : (VIA[principal.appId] ?? 'api'), role }, nsCfg);
