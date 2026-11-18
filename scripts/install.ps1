@@ -3,9 +3,10 @@
   pwsh scripts/install.ps1              설치·업데이트: 부품 설치, 설정 준비(토큰은 내부 생성), 로그온 시 자동 시작 등록, 지금 시작, 브라우저 열기
   pwsh scripts/install.ps1 -Uninstall   자동 시작·바로 가기 제거, 이어온 서버 종료(설정·대화 기록은 남김)
   pwsh scripts/install.ps1 -DryRun      바꿀 내용만 보여 주고 아무것도 바꾸지 않음
-실제 실행(AI 호출)은 꺼진 채로 시작한다. 켜기·Codex 대화 허용·허브 연결·봇 토큰은 모두 웹 화면(http://127.0.0.1:28760)에서 한다.
+  pwsh scripts/install.ps1 -AiOff       처음 설치할 때 AI 응답을 꺼 둔 채로 만들기(나중에 웹 화면에서 켬)
+AI 응답은 켠 채로 시작한다(규칙 점검 5). Codex 대화 허용·허브 연결·봇 토큰은 모두 웹 화면(http://127.0.0.1:28760)에서 한다.
 #>
-param([switch]$Uninstall, [switch]$DryRun, [switch]$NoBrowser)
+param([switch]$Uninstall, [switch]$DryRun, [switch]$NoBrowser, [switch]$AiOff)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $Local = Join-Path $Root '.local'
@@ -64,7 +65,7 @@ else {
 
 # 3) 설정 준비(처음이면 만들고, 있으면 필요한 것만 보탬. 토큰은 내부 생성, 값은 출력하지 않음)
 if ($DryRun) { Step '설정 준비(.local): 서버·연결부·메신저 설정, 내부 토큰, 웹 입력용 봇 토큰 파일' }
-else { Step (node (Join-Path $Root 'scripts\ieon-init.mjs') --web-first $Root) }
+else { $initArgs = @('--web-first', $Root); if ($AiOff) { $initArgs += '--ai-off' }; Step (node (Join-Path $Root 'scripts\ieon-init.mjs') @initArgs) }
 
 # 4) 로그온 시 창 없이 서버 시작(서버가 연결부·메신저를 함께 띄운다)
 New-Item -ItemType Directory -Force $Run | Out-Null

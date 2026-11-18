@@ -13,7 +13,8 @@ const DEFAULTS = Object.freeze({
   workspaceRoot: process.platform === 'win32' ? 'D:/ieon-workspaces' : '~/ieon-workspaces',
   // app_bot_*: 웹 봇 관리에서 정의한 모든 추가 봇(MULTI_BOTS 4절)
   creatorApps: ['app_web', 'app_messenger', 'app_bot_*'],
-  limits: { maxSessions: 10, maxActive: 3, maxPerEngine: { codex: 10, claude: 3 } },
+  // 규칙 점검 9(2026-11-18 신산님): 처음 쓸 때 걸리지 않게 넉넉히(전에는 전체 10·동시 3·Claude 3). 웹에서 바꿀 수 있음.
+  limits: { maxSessions: 30, maxActive: 5, maxPerEngine: { codex: 30, claude: 10 } },
   permissions: {
     default: 'workspace',
     allowFullFromChat: false,

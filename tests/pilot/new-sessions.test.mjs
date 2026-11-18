@@ -11,7 +11,7 @@ const req = (name, engine = 'codex', extra = {}) => ({ engine, name, hostId: 'h_
 test('설정: 기본값을 채우고 잘못된 값은 거부한다', () => {
   const c = loadNewSessionsConfig({});
   assert.equal(c.enabled, true); // 기본 켜짐(신산님 2026-11-17)
-  assert.deepEqual(c.limits, { maxSessions: 10, maxActive: 3, maxPerEngine: { codex: 10, claude: 3 } });
+  assert.deepEqual(c.limits, { maxSessions: 30, maxActive: 5, maxPerEngine: { codex: 30, claude: 10 } }); // 규칙 점검 9
   assert.equal(c.permissions.default, 'workspace');
   assert.equal(c.permissions.allowFullFromChat, false);
   assert.deepEqual(Object.keys(c.permissions.profiles), ['read_only', 'workspace', 'full']);
@@ -20,7 +20,7 @@ test('설정: 기본값을 채우고 잘못된 값은 거부한다', () => {
   assert.deepEqual(c.creatorApps, ['app_web', 'app_messenger', 'app_bot_*']);
 
   // 일부만 바꿔도 나머지 기본값은 유지된다.
-  assert.equal(loadNewSessionsConfig({ limits: { maxActive: 2 } }).limits.maxSessions, 10);
+  assert.equal(loadNewSessionsConfig({ limits: { maxActive: 2 } }).limits.maxSessions, 30);
 
   for (const bad of [
     { limits: { maxSessions: 0 } },

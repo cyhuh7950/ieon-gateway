@@ -230,7 +230,8 @@ export function openStore(path) {
   }
 
   // 재시작 시 전송 가능성이 있는 요청은 완료를 증명할 수 없으므로 unknown으로 격리한다.
-  db.prepare("UPDATE requests SET status = 'unknown' WHERE status IN ('dispatching', 'running')").run();
+  // 규칙 점검 3(2026-11-18 신산님): 표시(server_restarted)를 남겨, 연결부가 엔진 차례의 실제 결과를 나중에 보내면 그 결과로 자동 정리한다(공식 결과만, 짐작 없음).
+  db.prepare("UPDATE requests SET status = 'unknown', error_code = COALESCE(error_code, 'server_restarted') WHERE status IN ('dispatching', 'running')").run();
 
   return {
     // server.json의 기존 세션 등록(출처 file). 서버를 켤 때마다 다시 쓴다(파일이 정본).
@@ -384,7 +385,10 @@ export function openStore(path) {
     report(hostId, requestId, outcome, { now } = {}) {
       const row = request(requestId);
       const b = row && binding(row.conversation_id);
-      if (!b || b.hostId !== hostId || ![STATUS.dispatching, STATUS.running].includes(row.status)) return null;
+      // 서버 재시작으로 결과 불명이 된 요청은 그 기기 연결부가 보낸 실제 결과로 정리한다(규칙 점검 3).
+      const late = row?.status === STATUS.unknown && row.error_code === 'server_restarted';
+      if (!b || b.hostId !== hostId || (![STATUS.dispatching, STATUS.running].includes(row.status) && !late)) return null;
+      if (late) row.error_code = null;
       adoptSessionRef(b, outcome.sessionRef, now);
       // RC4: 실제로 답한 세션 ID(새 세션은 이때 정해짐). 형식이 맞는 것만.
       if (typeof outcome.sessionRef === 'string' && /^[\w:-]{6,120}$/.test(outcome.sessionRef)) db.prepare('UPDATE requests SET ran_session_ref = ? WHERE request_id = ?').run(outcome.sessionRef, requestId);
