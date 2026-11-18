@@ -465,7 +465,10 @@ export function createApp(config) {
       if (req.method === 'GET' && path === '/health') return json(res, 200, { ok: true });
       // P4: 접속 제한. 예외 경로(기기 API·카카오·Teams·health)는 각자 토큰·서명으로 인증한다.
       // 앞단 없이 이 PC의 127.0.0.1로 직접 온 요청(SSH 터널 관리)은 통과시킨다.
-      if (access && !isExemptPath(path)) {
+      // 이어온 앱(2026-11-18 신산님 "앱 요청만 빼기"): 앱 연결(10분·한 번만·주소당 1분 10회)과 앱 기기 열쇠로 온 요청은 접속 제한을 거치지 않는다.
+      // 휴대폰 주소는 와이파이·데이터를 오갈 때마다 바뀌어 주소 목록으로는 쓸 수 없음. 앱 열쇠는 기기마다 따로·폐기 가능, 설정(/v1/admin)은 앱에서 못 씀(아래).
+      const appRequest = () => (req.method === 'POST' && path === '/v1/app/pair') || (path.startsWith('/v1/') && Boolean(matchToken(req.headers.authorization, store.activeAppDeviceHashes())));
+      if (access && !isExemptPath(path) && !appRequest()) {
         const peer = req.socket.remoteAddress ?? '';
         const direct = !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer) && !req.headers['x-forwarded-for'];
         if (!direct && !(await access.check(req))) return json(res, 403, { error: 'access_denied' });

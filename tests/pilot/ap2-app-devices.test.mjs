@@ -99,3 +99,25 @@ test('연결 코드 요청 횟수 제한(1분 10번), 화면: 내 프로그램 �
   const S = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
   assert.ok(S.includes('id="adCode"') && S.includes('id="adList"') && S.includes("'/v1/admin/app-devices/code'") && S.includes('10분 동안 한 번만'));
 });
+
+test('허브 접속 제한이 켜져 있어도 앱 연결과 앱 열쇠 요청은 통과(휴대폰 주소가 바뀌어도), 웹·관리·틀린 열쇠는 그대로 막힘', async (t) => {
+  const d = mkdtempSync(join(tmpdir(), 'ieon-ap2x-'));
+  const app = createApp({ dbPath: join(d, 'p.db'), webAccess: { modes: ['ip_allowlist'], ipAllowlist: ['198.51.100.9'], trustedProxies: ['127.0.0.1'] },
+    users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }], devices: [{ tokenSha256: sha('dev'), hostId: 'h_pc' }],
+    bindings: [{ conversationId: 'c1', ownerUserId: 'u_sinsan', appIds: ['app_web'], hostId: 'h_pc', engine: 'codex_thread', sessionRef: T1 }] });
+  const base = `http://127.0.0.1:${await app.listen(0)}`;
+  t.after(async () => { await app.close(); rmSync(d, { recursive: true, force: true }); });
+  const call = (path, { method = 'GET', body, token, ip = '203.0.113.50' } = {}) => fetch(base + path, { method, body: body && JSON.stringify(body),
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip, ...(token ? { authorization: `Bearer ${token}` } : {}) } }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }));
+  // 관리자는 허용된 주소에서 코드를 만든다
+  assert.equal((await call('/v1/admin/app-devices/code', { method: 'POST', body: {}, token: 'web' })).body.error, 'access_denied', '허용 안 된 주소의 웹 열쇠는 막힘');
+  const c = (await call('/v1/admin/app-devices/code', { method: 'POST', body: {}, token: 'web', ip: '198.51.100.9' })).body;
+  // 휴대폰(허용 목록에 없는 주소)에서 연결 → 앱 열쇠로 대화 목록
+  const p = await call('/v1/app/pair', { method: 'POST', body: { code: c.code, name: '폰' } });
+  assert.equal(p.status, 201);
+  assert.equal((await call('/v1/conversations', { token: p.body.token })).status, 200);
+  assert.equal((await call('/v1/conversations', { token: p.body.token, ip: '192.0.2.77' })).status, 200, '주소가 바뀌어도');
+  assert.equal((await call('/v1/admin/app-devices', { token: p.body.token })).body.error, 'app_not_allowed', '설정은 앱에서 못 씀');
+  assert.equal((await call('/v1/conversations', { token: 'f'.repeat(64) })).body.error, 'access_denied', '틀린 열쇠는 접속 제한에 걸림');
+  assert.equal((await call('/settings')).status, 403, '웹 화면은 그대로 막힘');
+});
