@@ -339,6 +339,16 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <span></span><div class="row"><button class="primary" type="submit">역할 저장</button><button type="button" id="rDelete">역할 삭제</button><button type="button" id="rNew">새 역할</button></div>
     </form>
   </section>
+  <section class="atab" data-atab="hub" hidden aria-label="내 비밀번호" id="myPwSection">
+    <h3>내 비밀번호</h3>
+    <div class="muted">이 화면에 로그인하는 비밀번호를 바꿔요(10자 이상). 바꾸면 다른 곳의 로그인은 끊겨요.</div>
+    <form id="myPwForm" class="row">
+      <input id="myPwCur" type="password" placeholder="지금 비밀번호" aria-label="지금 비밀번호" autocomplete="current-password" required>
+      <input id="myPwNew" type="password" placeholder="새 비밀번호" aria-label="새 비밀번호" autocomplete="new-password" required>
+      <input id="myPwNew2" type="password" placeholder="새 비밀번호 다시" aria-label="새 비밀번호 다시" autocomplete="new-password" required>
+      <button class="primary" type="submit">바꾸기</button>
+    </form>
+  </section>
   <section class="atab" data-atab="hub" hidden aria-label="기기" id="dvSection">
     <h3>기기</h3>
     <div class="muted">새 PC는 위의 "PC 연결 링크"를 그 PC에서 열면 바로 연결돼요. 또는 그 PC의 이어온 설정 → 밖에서도 쓰기에서 "연결"을 누르면 아래 "연결 요청"에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
@@ -1335,7 +1345,7 @@ function showAtab(name) {
   const btns = [...document.querySelectorAll('#atabs button')].filter((b) => !b.hidden);
   if (!btns.some((b) => b.dataset.atab === name)) name = btns[0]?.dataset.atab;
   for (const b of document.querySelectorAll('#atabs button')) b.setAttribute('aria-pressed', String(b.dataset.atab === name));
-  for (const s of document.querySelectorAll('section.atab')) s.hidden = s.dataset.atab !== name || (s.id === 'dvSection' && authState?.mode !== 'hub');
+  for (const s of document.querySelectorAll('section.atab')) s.hidden = s.dataset.atab !== name || ((s.id === 'dvSection' || s.id === 'myPwSection') && authState?.mode !== 'hub');
   try { localStorage.setItem('ieon_stab', name); } catch { /* 저장 못 해도 동작 */ }
   if (location.hash.slice(1) !== name) history.replaceState(null, '', location.pathname + '#' + name);
 }
@@ -1396,11 +1406,24 @@ async function loadUsers() {
     if (u.status === 'pending') { act('승인', 'approve', u.email + '을 승인할까요? 이 사람은 자기 PC를 연결해 쓸 수 있어요.'); act('거절', 'reject', u.email + ' 신청을 거절할까요?'); }
     if (u.status === 'approved') act('끊기', 'disable', u.email + '을 끊을까요? 바로 로그아웃되고 쓸 수 없어요.');
     if (u.status === 'disabled' || u.status === 'rejected') act('다시 켜기', 'enable', u.email + '을 다시 쓸 수 있게 할까요?');
+    if (u.status === 'approved') { const b = el('button', '임시 비밀번호'); b.type = 'button'; b.onclick = async () => { if (!confirm(u.email + '의 비밀번호를 임시 비밀번호로 바꿀까요? 그 사람의 로그인은 끊기고, 새 비밀번호는 지금 한 번만 보여요.')) return;
+      const x = await api('/v1/admin/users/' + u.userId + '/reset', { method: 'POST', body: '{}' }); if (x.status !== 200) return setStatus('err', x.body.error);
+      alert(u.email + '의 임시 비밀번호: ' + x.body.tempPassword + '\n\n이 창을 닫으면 다시 볼 수 없어요. 그 사람에게 전해 주고, 로그인한 뒤 설정 → 밖에서도 쓰기 → 내 비밀번호에서 바꾸라고 알려 주세요.'); }; td.append(b); }
+    { const b = el('button', '지우기'); b.type = 'button'; b.onclick = async () => { if (!confirm(u.email + '을 지울까요? 이 사람의 이어온 대화 기록·방·예약·연결한 PC·앱 연결이 모두 지워지고 되돌릴 수 없어요(그 사람 PC의 원래 세션 기록은 남아요).')) return;
+      const x = await api('/v1/admin/users/' + u.userId + '/delete', { method: 'POST', body: '{}' }); setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? u.email + '을 지웠어요' : x.body.error); loadUsers(); }; td.append(b); }
     tr.append(td); return tr;
   });
   if (!rows.length) { const tr = el('tr'); tr.append(el('td', '아직 가입 신청이 없어요', 'muted')); rows.push(tr); }
   $('muRows').replaceChildren(...rows);
 }
+// M2-b 내 비밀번호 바꾸기(관리자·가입자 같음)
+$('myPwForm').onsubmit = async (e) => {
+  e.preventDefault();
+  if ($('myPwNew').value !== $('myPwNew2').value) return setStatus('err', '새 비밀번호 두 칸이 달라요');
+  const r = await authPost('/v1/auth/password', { current: $('myPwCur').value, next: $('myPwNew').value });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '비밀번호를 바꿨어요 — 다른 곳의 로그인은 끊겼어요' : ({ bad_password: '지금 비밀번호가 맞지 않아요', weak_password: '새 비밀번호는 10자 이상이에요' }[r.body.error] || r.body.error));
+  if (r.status === 200) for (const id of ['myPwCur', 'myPwNew', 'myPwNew2']) $(id).value = '';
+};
 $('muOn').onchange = async () => { const on = $('muOn').checked; if (on && !confirm('여러 사람 쓰기를 켤까요? 로그인 화면에 가입 신청이 생기고, 승인한 사람만 쓸 수 있어요.')) { $('muOn').checked = false; return; }
   const r = await api('/v1/admin/settings/multi-user', { method: 'PUT', body: JSON.stringify({ enabled: on }) }); setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? (on ? '가입 신청을 받아요' : '가입 신청을 받지 않아요(승인된 사람은 그대로)') : r.body.error); loadUsers(); };
 // M2: 가입한 사용자의 설정 화면 — 관리자용 탭·칸은 숨기고 자기 PC·작업 폴더·예약·앱 연결만

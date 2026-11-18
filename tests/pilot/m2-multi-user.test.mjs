@@ -89,3 +89,41 @@ test('M2: 사용자는 자기 PC에만 새 세션, PC가 없으면 거절', asyn
   const r = await u('/v1/sessions', { method: 'POST', body: { engine: 'codex', name: 'mine' } });
   assert.ok(['no_device', 'new_sessions_disabled'].includes(r.body.error), JSON.stringify(r.body));
 });
+
+test('M2-b: AI 직원 이름은 사람마다 따로, 임시 비밀번호·내 비밀번호 바꾸기, 가입자 지우기는 그 사람 것만 모두 지움', async (t) => {
+  const { app, browser } = await hub(t);
+  const admin = browser(); const u = browser();
+  await admin('/v1/auth/setup', { method: 'POST', body: { password: 'admin-password-123' } });
+  await admin('/v1/admin/settings/multi-user', { method: 'PUT', body: { enabled: true } });
+  await u('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123' } });
+  const id = (await admin('/v1/admin/users')).body.users[0].userId;
+  await admin(`/v1/admin/users/${id}/approve`, { method: 'POST', body: {} });
+  // 관리자 대화와 가입자 대화가 같은 AI 직원 이름을 쓸 수 있음(같은 사람 안에서는 겹치면 안 됨)
+  app.store.saveBinding('u_sinsan', { conversationId: 'c_adm', label: '관리자 대화', engine: 'codex_thread', hostId: 'h_adm', sessionRef: '01a18790-0000-7000-8000-0000000000b1', appIds: ['app_web'] });
+  app.store.addDevice('h_u', 'U PC', 'x'.repeat(64), id);
+  app.store.saveBinding(id, { conversationId: 'c_u1', label: 'U 대화', engine: 'codex_thread', hostId: 'h_u', sessionRef: '01a18790-0000-7000-8000-0000000000b2', appIds: ['app_web'] });
+  app.store.saveBinding(id, { conversationId: 'c_u2', label: 'U 대화2', engine: 'codex_thread', hostId: 'h_u', sessionRef: '01a18790-0000-7000-8000-0000000000b3', appIds: ['app_web'] });
+  assert.equal(app.store.setStaff({ userId: 'u_sinsan', appId: 'app_web' }, 'c_adm', { name: '코덱스' }).http, 200);
+  assert.equal(app.store.setStaff({ userId: id, appId: 'app_web' }, 'c_u1', { name: '코덱스' }).http, 200, '다른 사람은 같은 이름 가능');
+  assert.equal(app.store.setStaff({ userId: id, appId: 'app_web' }, 'c_u2', { name: '코덱스' }).code, 'staff_name_taken', '같은 사람 안에서는 겹치면 안 됨');
+  // 임시 비밀번호: 그 사람 로그인 끊김 → 새 비밀번호로만 로그인
+  const temp = (await admin(`/v1/admin/users/${id}/reset`, { method: 'POST', body: {} })).body.tempPassword;
+  assert.match(temp, /^[\w-]{12}$/);
+  assert.equal((await u('/v1/conversations')).status, 401, '로그인 끊김');
+  assert.equal((await u('/v1/auth/login', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123' } })).status, 401, '옛 비밀번호 안 됨');
+  assert.equal((await u('/v1/auth/login', { method: 'POST', body: { email: 'u@example.com', password: temp } })).status, 200);
+  // 내 비밀번호 바꾸기
+  assert.equal((await u('/v1/auth/password', { method: 'POST', body: { current: 'wrong-password', next: 'new-password-123' } })).body.error, 'bad_password');
+  assert.equal((await u('/v1/auth/password', { method: 'POST', body: { current: temp, next: 'new-password-123' } })).status, 200);
+  assert.equal((await u('/v1/conversations')).status, 200, '바꾼 화면은 계속 로그인');
+  assert.equal((await browser()('/v1/auth/login', { method: 'POST', body: { email: 'u@example.com', password: 'new-password-123' } })).status, 200);
+  // 지우기: 그 사람 대화·기기·로그인 모두 지움, 관리자 것은 그대로
+  const del = (await admin(`/v1/admin/users/${id}/delete`, { method: 'POST', body: {} })).body;
+  assert.deepEqual([del.deleted, del.conversations], [true, 2]);
+  assert.equal((await u('/v1/conversations')).status, 401);
+  assert.equal(app.store.user(id), null);
+  assert.deepEqual(app.store.listBindings(id), []);
+  assert.equal(app.store.deviceOwner('h_u'), undefined, '그 사람 PC 기록도 지움');
+  assert.equal(app.store.listBindings('u_sinsan').length, 1, '관리자 대화는 그대로');
+  assert.deepEqual((await admin('/v1/admin/users')).body.users, []);
+});

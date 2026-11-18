@@ -12,7 +12,7 @@ import { botAppId, tokenEnvNames } from './bots.mjs';
 import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding, validateInstallKind, validateHostLimit, validateApprovalTtl, validateLoginDays } from './settings.mjs';
 import { createWebAccess, isExemptPath, validateWebAccess } from './web-access.mjs';
 import { createRelay } from '../relay/relay.mjs';
-import { createWebAuth } from './web-auth.mjs';
+import { hashPassword, createWebAuth } from './web-auth.mjs';
 import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs';
 import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
@@ -771,6 +771,19 @@ export function createApp(config) {
       if (path.startsWith('/v1/admin/') && !path.startsWith('/v1/admin/settings')) {
         // --- M2 사용자 목록·승인(관리자만 — 위에서 사용자는 /v1/admin/users를 못 씀). 이메일·상태·기기 수만, 대화 내용은 없음 ---
         if (req.method === 'GET' && path === '/v1/admin/users') return json(res, 200, { users: store.listUsers(), enabled: auth.multiUser() });
+        // M2-b: 임시 비밀번호(메일 없이 "비밀번호 찾기" — 관리자가 한 번 보고 전해 줌, 그 사람 로그인은 끊김)·가입자 지우기
+        { const ur = path.match(/^\/v1\/admin\/users\/(u_[0-9a-f]{16})\/(reset|delete)$/);
+          if (ur && req.method === 'POST') {
+            if (ur[2] === 'reset') {
+              const temp = randomBytes(9).toString('base64url');
+              if (!store.setUserPassword(ur[1], hashPassword(temp))) return json(res, 404, { error: 'not_found' });
+              process.stderr.write(JSON.stringify({ ch: 'server', event: 'user_password_reset' }) + '\n');
+              return json(res, 200, { userId: ur[1], tempPassword: temp });
+            }
+            const r = store.deleteUser(ur[1]);
+            if (r.http === 200) process.stderr.write(JSON.stringify({ ch: 'server', event: 'user_deleted' }) + '\n');
+            return r.http === 200 ? json(res, 200, { deleted: true, conversations: r.conversations, rooms: r.rooms }) : json(res, r.http, { error: r.code });
+          } }
         { const um = path.match(/^\/v1\/admin\/users\/(u_[0-9a-f]{16})\/(approve|reject|disable|enable)$/);
           if (um && req.method === 'POST') {
             const status = { approve: 'approved', reject: 'rejected', disable: 'disabled', enable: 'approved' }[um[2]];
