@@ -1,14 +1,14 @@
 // 이어온 최소 설정 만들기(Linux/WSL용, BEGINNER_GUIDE 1-5의 PowerShell 블록에 대응). 사용: node scripts/ieon-init.mjs <이어온 폴더>
 // - .local/s2에 웹·연결부 시험 토큰(무작위 32바이트, 권한 600)과 server.json·connector.json, .local/new-sessions.json을 만든다.
 // - 서버에는 토큰 원문 대신 sha256 해시만 적는다. 토큰 값은 출력하지 않는다.
-// - 기존 세션 등록 없음(새 세션만 쓴다), 메신저·Claude 채널 설정 없음, live는 꺼 둔다. 이미 server.json이 있으면 거부한다(토큰이 바뀌지 않게).
+// - 기존 세션 등록 없음(새 세션만 쓴다), 메신저·Claude 채널 설정 없음, live(AI 응답)는 켠 채로 만든다(규칙 점검 5, 2026-11-18 신산님 — 끄려면 --ai-off). 이미 server.json이 있으면 거부한다(토큰이 바뀌지 않게).
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readEnvFile, writeEnvValue } from '../src/pilot/secrets-file.mjs';
 
-export function initLocal(rootDir, { workspaceRoot = '~/ieon-workspaces', port = 28760 } = {}) {
+export function initLocal(rootDir, { workspaceRoot = '~/ieon-workspaces', port = 28760, live = true } = {}) {
   const root = resolve(rootDir);
   const posix = root.replaceAll('\\', '/');
   const L = join(root, '.local');
@@ -37,7 +37,7 @@ export function initLocal(rootDir, { workspaceRoot = '~/ieon-workspaces', port =
   });
   json(join(s2, 'connector.json'), {
     serverUrl: `http://127.0.0.1:${port}`, deviceTokenFile: `${posix}/.local/s2/device-token`,
-    receiptPath: `${posix}/.local/s2/receipts.jsonl`, live: false,
+    receiptPath: `${posix}/.local/s2/receipts.jsonl`, live,
     codex: { allowlist: [], modes: {}, workingDirectories: {} },
     newSessions: { configPath: nsPath, createdPath: `${posix}/.local/s2/new-threads.jsonl` },
   });
@@ -48,12 +48,12 @@ export function initLocal(rootDir, { workspaceRoot = '~/ieon-workspaces', port =
 // - 메신저: 메신저 사용자 토큰(.local/messenger/token)과 봇 토큰 파일(bots.env, 비어 있음)·설정을 만들고 서버에 해시만 등록.
 // - 서버 설정: 연결부 설정 경로·연결부와 메신저를 서버가 직접 띄우기·봇 토큰 파일(웹 입력용).
 // 토큰 값은 출력하지 않는다. 바뀐 항목 이름만 돌려준다.
-export function prepareWebFirst(rootDir) {
+export function prepareWebFirst(rootDir, { live = true } = {}) {
   const root = resolve(rootDir);
   const posix = root.replaceAll('\\', '/');
   const L = join(root, '.local');
   const changes = [];
-  if (!existsSync(join(L, 's2', 'server.json'))) changes.push(...initLocal(root).map((f) => 'created:' + f));
+  if (!existsSync(join(L, 's2', 'server.json'))) changes.push(...initLocal(root, { live }).map((f) => 'created:' + f));
   const serverPath = join(L, 's2', 'server.json');
   const server = JSON.parse(readFileSync(serverPath, 'utf8'));
   const M = join(L, 'messenger');
@@ -119,7 +119,7 @@ export function prepareWebFirst(rootDir) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (process.argv[2] === '--web-first') {
-    const changes = prepareWebFirst(process.argv[3] ?? '.');
+    const changes = prepareWebFirst(process.argv[3] ?? '.', { live: !process.argv.includes('--ai-off') });
     console.log(`웹 중심 설정 준비(값은 출력하지 않음): ${changes.join(', ') || '바꿀 것 없음'}`);
     process.exit(0);
   }

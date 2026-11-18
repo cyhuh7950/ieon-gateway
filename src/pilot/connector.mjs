@@ -97,7 +97,7 @@ export function stopWatcher({ baseUrl, headers, requestId, pollMs = 2000, log = 
   return { signal: controller.signal, close() { closed = true; clearTimeout(timer); } };
 }
 
-export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, health, log = () => {}, approvalPollMs, stopPollMs }) {
+export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, health, log = () => {}, approvalPollMs, stopPollMs, reportTries, reportRetryMs }) {
   const headers = { authorization: `Bearer ${deviceToken}`, 'content-type': 'application/json' };
   // 엔진 상태(값만, 인증 정보 없음)를 작업 조회에 실어 보낸다. 서버는 이를 보고 꺼진 엔진으로의 질문을 미리 거절한다.
   const state = health ? await health() : null;
@@ -106,9 +106,15 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
   if (res.status === 429) throw Object.assign(new Error('poll_429'), { retryAfterMs: 1000 * (Number(res.headers.get('retry-after')) || 30) });
   if (res.status !== 200) throw new Error(`poll_${res.status}`);
   const job = await res.json();
-  const report = (outcome) => fetch(`${baseUrl}/v1/device/jobs/${job.requestId}/result`, {
-    method: 'POST', headers, body: JSON.stringify(outcome),
-  });
+  // 규칙 점검 3: 서버가 다시 켜지는 중이면(연결 실패·5xx) 잠시 뒤 다시 보낸다(약 5분까지). 같은 결과를 보내므로 엔진은 다시 돌리지 않는다.
+  const report = async (outcome) => {
+    for (let i = 0; ; i++) {
+      const r = await fetch(`${baseUrl}/v1/device/jobs/${job.requestId}/result`, { method: 'POST', headers, body: JSON.stringify(outcome) }).catch(() => null);
+      if ((r && r.status < 500) || i >= (reportTries ?? 12) - 1) return r;
+      log({ event: 'report_retry', requestId: job.requestId, status: r?.status ?? 0 });
+      await new Promise((ok) => setTimeout(ok, Math.min(30_000, (reportRetryMs ?? 2000) * 2 ** i)));
+    }
+  };
 
   if (receipts.has(job.requestId)) {
     log({ event: 'duplicate_job', requestId: job.requestId });

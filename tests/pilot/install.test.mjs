@@ -28,7 +28,7 @@ test('처음 설치: 설정·내부 토큰을 만들고, 서버가 연결부·�
   assert.equal(s.users.find((u) => u.appId === 'app_messenger').tokenSha256, createHash('sha256').update(msg).digest('hex'));
   assert.equal(json(d, 'messenger/config.json').envFile, s.secretsFile);
   assert.match(readFileSync(join(d, '.local/messenger/bots.env'), 'utf8'), /^# 봇 토큰은 웹 화면/);
-  assert.equal(json(d, 's2/connector.json').live, false);
+  assert.equal(json(d, 's2/connector.json').live, true, '규칙 점검 5: AI 응답은 켠 채로 설치');
   if (process.platform !== 'win32') assert.equal(statSync(join(d, '.local/messenger/bots.env')).mode & 0o077, 0);
   assert.deepEqual(prepareWebFirst(d), []); // 다시 해도 바뀌는 것 없음
 });

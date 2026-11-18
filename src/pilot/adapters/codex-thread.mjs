@@ -11,7 +11,9 @@ import { randomUUID } from 'node:crypto';
 import { EngineError, StoppedError } from '../contracts.mjs';
 
 const EXCLUDED = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
-const BLOCKED_SDK = new Set(['command_execution', 'file_change', 'mcp_tool_call', 'web_search']);
+// 규칙 점검 1(2026-11-18 신산님): 기존 대화는 읽기 전용 샌드박스(쓰기·네트워크 막힘)에서 명령·파일 읽기를 그대로 하게 두고,
+// 샌드박스 밖에서 도는 도구(MCP·동적 도구)만 그 자리에서 멈춘다. 멈추거나 막힌 것은 답 끝에 알리고 정상 완료(전에는 잠김).
+const BLOCKED_SDK = new Set(['mcp_tool_call', 'dynamic_tool_call']);
 const BLOCKED_APP = new Set(['commandExecution', 'fileChange', 'mcpToolCall', 'webSearch', 'dynamicToolCall']);
 // Windows는 lock-probe.ps1, Linux는 /proc/locks 읽기(src/pilot/lock-probe.mjs).
 export const lockProbe = (threadId) => lockOutcome(threadId);
@@ -42,11 +44,21 @@ async function runAlternate(threadId, question, deps) {
   });
   const turn = await streamTurn(thread, question, { cwd: deps.workingDirectory, blocked: BLOCKED_SDK, stop: deps.signal });
   if (turn.stopped) throw new StoppedError();
-  if (turn.blocked) return { approvalRequired: true };
   if (limitHit(turn)) throw new EngineError('usage_limit', 429);
-  if (turn.failed || (turn.returned ?? thread.id) !== threadId) throw new Error('turn_failed_or_thread_mismatch');
-  return { receipt: `codex:${threadId}`, answer: turn.answer };
+  if ((turn.failed && !turn.blocked) || (turn.returned ?? thread.id) !== threadId) throw new Error('turn_failed_or_thread_mismatch');
+  return { receipt: `codex:${threadId}`, answer: withNote(turn.answer, blockedNote(turn)) };
 }
+
+// 답 끝에 붙이는 알림: 그 자리에서 멈춘 도구, 샌드박스에서 막혀 실패한 파일 수정
+const TOOL_WORD = { mcp_tool_call: 'MCP 도구', dynamic_tool_call: '외부 도구', commandExecution: '명령', fileChange: '파일 수정', mcpToolCall: 'MCP 도구', webSearch: '웹 검색', dynamicToolCall: '외부 도구' };
+export function blockedNote(turn) {
+  const lines = [];
+  if (turn.blocked) lines.push(`- ${TOOL_WORD[turn.blocked] ?? turn.blocked}${turn.blockedWhat ? ' ' + turn.blockedWhat : ''} — 이 대화에서 쓸 수 없어 그 자리에서 멈춤(답이 덜 끝났을 수 있어요)`);
+  for (const p of (turn.deniedFiles ?? []).slice(0, 5)) lines.push(`- 파일 수정 ${p} — 권한 설정에서 막힘`);
+  if ((turn.deniedFiles ?? []).length > 5) lines.push(`- 외 ${turn.deniedFiles.length - 5}개`);
+  return lines.length ? `[이어온] 실행되지 않은 작업:\n${lines.join('\n')}` : '';
+}
+const withNote = (answer, note) => [String(answer ?? '').trim(), note].filter(Boolean).join('\n\n');
 
 // SDK turn 하나를 끝까지 읽는다. blocked에 든 item이 시작되면 그 자리에서 멈춘다.
 // cwd를 주면 codex 프로세스가 시작되는 동안만 현재 폴더를 바꾼다(resume은 --cd가 os error 2로 실패한다).
@@ -70,6 +82,8 @@ async function streamTurn(thread, question, { cwd, blocked: blockedTypes, stop }
   let answer = '';
   let returned = null;
   let blocked = null;
+  let blockedWhat = null;
+  const deniedFiles = [];
   let failed = false;
   let failMessage = null; // 실패 이유(한도 판별용, 기록하지 않음)
   let worked = false; // 사용자 메시지 말고 모델이 만든 항목이 하나라도 있었는지
@@ -78,7 +92,10 @@ async function streamTurn(thread, question, { cwd, blocked: blockedTypes, stop }
   for await (const event of all) {
     if (event.type === 'thread.started') returned = event.thread_id;
     if (event.type === 'item.started' || event.type === 'item.completed') {
-      if (blockedTypes.has(event.item.type)) { blocked = event.item.type; controller.abort(); break; }
+      if (blockedTypes.has(event.item.type)) { blocked = event.item.type; blockedWhat = event.item.tool ?? event.item.name ?? null; controller.abort(); break; }
+      if (event.type === 'item.completed' && event.item.type === 'file_change' && event.item.status === 'failed') {
+        for (const c of event.item.changes ?? []) if (c?.path && !deniedFiles.includes(c.path)) deniedFiles.push(String(c.path).replaceAll('\\', '/'));
+      }
       if (event.type === 'item.completed' && event.item.type === 'agent_message') answer = event.item.text;
       if (!['user_message', 'error'].includes(event.item.type)) worked = true;
     }
@@ -90,7 +107,7 @@ async function streamTurn(thread, question, { cwd, blocked: blockedTypes, stop }
   } finally {
     stop?.removeEventListener?.('abort', onStop);
   }
-  return { answer, returned, blocked, failed, failMessage, worked, stopped: stopped && !blocked };
+  return { answer, returned, blocked, blockedWhat, deniedFiles, failed, failMessage, worked, stopped: stopped && !blocked };
 }
 
 // 새 세션(설계 NEW_SESSIONS N1). 서버가 보낸 프로필·작업 폴더를 연결부 설정으로 다시 검사한다.
@@ -100,10 +117,9 @@ function newSessionPlan(ns, cfg) {
   try { checked = checkNewSession(cfg, ns); } catch (e) { throw new EngineError(e.code, e.http); }
   const { profile, workspace } = checked;
   const { sandbox, network } = profile.codex;
+  // 규칙 점검 2(2026-11-18 신산님): 명령은 샌드박스 안에서 허용(workspace = 작업 폴더 안만 쓰기, read_only = 쓰기 없음, 네트워크는 full만).
+  // 샌드박스 밖 도구(MCP·동적 도구)만 멈추고, 멈춘 것·막힌 것은 답 끝에 알린다(잠그지 않음).
   const blocked = new Set(['mcp_tool_call', 'dynamic_tool_call']);
-  if (sandbox === 'read-only') blocked.add('file_change');
-  // 명령 실행·웹 검색은 네트워크까지 연 프로필(full)에서만 허용한다. workspace는 파일 변경까지만.
-  if (!network) { blocked.add('command_execution'); blocked.add('web_search'); }
   return {
     workspace, blocked,
     options: { sandboxMode: sandbox, approvalPolicy: 'never', networkAccessEnabled: network,
@@ -137,12 +153,11 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
   if (pending && threadId) created.add(threadId, newSession.name);
   if (turn.stopped) throw Object.assign(new StoppedError(), { sessionRef: threadId });
   // 멈추거나 실패해도 이미 만들어진 대화 ID는 서버에 남겨 같은 세션으로 이어 가게 한다.
-  if (turn.blocked) return { approvalRequired: true, sessionRef: threadId };
   if (limitHit(turn)) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: threadId });
-  if (turn.failed || !threadId || (turn.returned ?? thread.id) !== threadId) {
+  if ((turn.failed && !turn.blocked) || !threadId || (turn.returned ?? thread.id) !== threadId) {
     throw Object.assign(new Error('turn_failed_or_thread_mismatch'), { sessionRef: threadId });
   }
-  return { receipt: `codex:${threadId}`, answer: turn.answer, sessionRef: threadId };
+  return { receipt: `codex:${threadId}`, answer: withNote(turn.answer, blockedNote(turn)), sessionRef: threadId };
 }
 
 // W1: 공유 서버가 보내는 승인 요청을 이어온 승인 카드로. 작업 모드가 아니면(approve 없음) 바로 거부 — 답하지 않아 차례가 멈추지 않게(W0 F5).
@@ -189,6 +204,7 @@ async function runShared(threadId, question, { endpoint, token, approve = null, 
   let turnId = null;
   let answer = '';
   let blocked = false;
+  let blockedItem = null; // 끊은 항목(답 끝 알림용)
   let userMessages = 0;
   let turnError = null; // turn/completed의 실패 이유(한도 판별용)
   const usage = {};
@@ -212,6 +228,8 @@ async function runShared(threadId, question, { endpoint, token, approve = null, 
     if (msg.method === 'item/started' || msg.method === 'item/completed') {
       if (BLOCKED_APP.has(params.item?.type) && !blocked) {
         blocked = true;
+        const it = params.item;
+        blockedItem = { type: it.type, what: it.type === 'commandExecution' ? String(it.command ?? '').slice(0, 120) : it.type === 'fileChange' ? (it.changes ?? []).map((c) => c?.path).filter(Boolean).slice(0, 3).join(', ') : (it.tool ?? null) };
         call('turn/interrupt', { threadId, turnId }).catch(() => {});
       }
       if (msg.method === 'item/completed' && params.item?.type === 'agentMessage') answer = params.item.text ?? answer;
@@ -241,7 +259,11 @@ async function runShared(threadId, question, { endpoint, token, approve = null, 
     if (signal?.aborted) interrupt(); else signal?.addEventListener('abort', interrupt, { once: true });
     const status2 = await Promise.race([done, new Promise((r) => setTimeout(() => r('timeout'), 180000))]).finally(() => signal?.removeEventListener?.('abort', interrupt));
     if (status2 === 'interrupted' && signal?.aborted && !blocked) throw new StoppedError();
-    if (blocked) return { approvalRequired: true };
+    // 규칙 점검 1: 질문 모드에서 엔진이 도구를 쓰려 하면 그 차례를 끊고, 잠그지 않고 답 끝에 알린다(시작됐을 수 있음).
+    if (blocked) {
+      const note = `[이어온] 질문 모드라 실행하려던 작업을 끊었어요:\n- ${TOOL_WORD[blockedItem?.type] ?? '도구'}${blockedItem?.what ? ' ' + blockedItem.what : ''} — 끊기 전에 시작됐을 수 있어요(원래 세션에서 확인). 실행이 필요하면 작업 모드로 보내세요.`;
+      return { receipt: `codex:${threadId}:${turnId}`, answer: withNote(answer, note), usage: Object.keys(usage).length ? usage : null };
+    }
     if (status2 === 'failed' && !answer && isUsageLimit(JSON.stringify(turnError))) throw new EngineError('usage_limit', 429);
     if (status2 !== 'completed') throw new Error(`turn_${status2}`);
     // 2026-10-30 실측: 이어온 turn 중 TUI 입력이 합류해 답이 사람 입력에 대한 답("확인")으로 바뀌었다.

@@ -37,7 +37,7 @@
 - **Codex — 세션별 연결 모드(설정에서 선택):**
   - `alternate`(기본): 질문마다 SDK `resumeThread`로 같은 thread를 재개하고 반납한다. 보낼 때 대상 대화가 Desktop에서 열려 있으면 잠금 충돌이므로 busy로 거부한다(앱 자체는 켜져 있어도 됨).
   - `shared_server`: 공식 `codex app-server --listen ws://127.0.0.1:…`(capability-token 인증)에 사람은 TUI `--remote`로, 이어온은 프로토콜 `turn/start`로 붙는다. thread가 idle이 아니면 합류(steer)하지 않고 거부한다. 이 모드의 thread는 Desktop에서 열지 않는다.
-- Remote Control·Desktop 내부 protocol 모방·인증 재사용·GUI 조작은 하지 않는다(HOLD).
+- Remote Control·Desktop 내부 protocol 모방, Desktop·Remote Control 내부 인증 흉내, GUI 조작은 하지 않는다(HOLD — 2026-10-29 AI 검토에서 나온 문장, 2026-11-18 신산님이 낱말을 고침: 이어온 로그인을 모든 PC·칸이 함께 쓰는 것은 아래 로그인 규칙대로 허용).
 
 ## 안전 규칙
 

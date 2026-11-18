@@ -56,3 +56,20 @@ test('unknown은 공식 조회 결과로만 정리된다', async (t) => {
   assert.equal(store.getRequest(owner, r.requestId).status, 'completed');
   assert.equal(store.submit(owner, 'c_codex', 'k2', { question: 'next' }).http, 202);
 });
+
+test('규칙 점검 3: 서버 재시작으로 결과 불명이 된 요청은 그 기기 연결부가 보낸 실제 결과로 자동 정리(다른 기기·다른 요청은 안 됨)', (t) => {
+  const env = tempStore(t);
+  const r1 = env.store.submit(owner, 'c_codex', 'k1', { question: 'hi' });
+  assert.equal(env.store.claim('h_sinsan').requestId, r1.requestId);
+  const store = env.reopen();
+  assert.deepEqual([store.getRequest(owner, r1.requestId).status, store.getRequest(owner, r1.requestId).errorCode], ['unknown', 'server_restarted']);
+  assert.equal(store.report('h_other', r1.requestId, { status: 'completed', answer: 'x' }), null, '다른 기기는 정리 못 함');
+  const done = store.report('h_sinsan', r1.requestId, { status: 'completed', receipt: 'codex:t', answer: '늦은 답' });
+  assert.deepEqual([done.status, done.answer, done.errorCode], ['completed', '늦은 답', null]);
+  assert.equal(store.submit(owner, 'c_codex', 'k2', { question: 'next' }).http, 202, '정리되면 다음 질문을 받음');
+  // 다른 이유의 결과 불명(엔진이 결과를 모름)은 연결부 보고로 바뀌지 않음 — 공식 조회로만
+  const r3 = store.submit(owner, 'c_claude', 'k3', { question: 'q' });
+  store.claim('h_sinsan');
+  store.report('h_sinsan', r3.requestId, { status: 'unknown', errorCode: 'result_unknown' });
+  assert.equal(store.report('h_sinsan', r3.requestId, { status: 'completed', answer: 'y' }), null);
+});

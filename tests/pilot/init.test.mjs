@@ -31,11 +31,11 @@ test('토큰·설정을 만들고 서버에는 토큰 해시만 적는다', (t) 
   if (process.platform !== 'win32') assert.equal(statSync(join(d, '.local/s2/user-token')).mode & 0o077, 0); // 소유자만 읽기
 });
 
-test('만든 설정이 실제 서버·연결부 코드가 받아들이는 형식이다(live 꺼짐, 기존 세션 없음, 메신저 설정 없음)', (t) => {
+test('만든 설정이 실제 서버·연결부 코드가 받아들이는 형식이다(live 켜짐 — 규칙 점검 5, 기존 세션 없음, 메신저 설정 없음)', (t) => {
   const d = tmp(t);
   initLocal(d);
   const connector = JSON.parse(read(d, 's2/connector.json'));
-  assert.equal(connector.live, false);
+  assert.equal(connector.live, true);
   const ns = loadNewSessionsConfig(JSON.parse(read(d, 'new-sessions.json')));
   assert.equal(ns.enabled, true);
   openStore(join(d, 'pilot.db')).close(); // 열리는지만 확인하고 바로 닫는다(Windows는 열린 파일을 지울 수 없다)

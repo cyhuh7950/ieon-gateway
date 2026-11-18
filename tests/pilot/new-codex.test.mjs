@@ -97,12 +97,15 @@ test('프로필별 옵션: read_only는 읽기 전용, full은 설정 파일 ove
   assert.equal(sdk.calls[1].options.webSearchMode, 'live');
 });
 
-test('workspace 프로필은 파일 변경을 허용하고 명령 실행은 멈춰 확인을 요청한다', async (t) => {
-  const ok = setup(t, { sdk: fakeSdk({ items: [{ type: 'file_change', changes: [] }, { type: 'agent_message', text: '고침' }] }) });
+test('규칙 점검 2: workspace 프로필은 명령도 샌드박스 안에서 실행하고, 샌드박스 밖 도구만 멈춰 답 끝에 알린다(잠그지 않음)', async (t) => {
+  const ok = setup(t, { sdk: fakeSdk({ items: [{ type: 'file_change', changes: [] }, { type: 'command_execution', command: 'npm test' }, { type: 'agent_message', text: '고침' }] }) });
   assert.equal((await ok.adapter.run(job(ok.root))).answer, '고침');
-  const stop = setup(t, { sdk: fakeSdk({ items: [{ type: 'command_execution', command: 'npm test' }] }) });
+  const denied = setup(t, { sdk: fakeSdk({ items: [{ type: 'file_change', status: 'failed', changes: [{ path: 'C:\\other\\a.txt' }] }, { type: 'agent_message', text: '못 고침' }] }) });
+  assert.equal((await denied.adapter.run(job(denied.root))).answer, '못 고침\n\n[이어온] 실행되지 않은 작업:\n- 파일 수정 C:/other/a.txt — 권한 설정에서 막힘');
+  const stop = setup(t, { sdk: fakeSdk({ items: [{ type: 'agent_message', text: '찾아볼게요' }, { type: 'mcp_tool_call', tool: 'search' }] }) });
   const r = await stop.adapter.run(job(stop.root));
-  assert.equal(r.approvalRequired, true);
+  assert.equal(r.approvalRequired, undefined);
+  assert.match(r.answer, /^찾아볼게요\n\n\[이어온\] 실행되지 않은 작업:\n- MCP 도구 search — 이 대화에서 쓸 수 없어 그 자리에서 멈춤/);
   assert.equal(r.sessionRef, NEW_ID); // 멈춰도 만들어진 대화 ID는 남긴다.
 });
 
