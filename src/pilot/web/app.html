@@ -562,6 +562,7 @@ async function startApp() {
   if (device && (location.hash === '#setup' || (!convs.length && !done))) openSetup();
   // RC3: 메신저의 "작업 보기" 링크(#task=<요청 ID>) — 로그인 뒤 그 작업을 펼쳐 보여 준다(권한은 서버가 확인)
   const tm = location.hash.match(/^#task=([\w-]+)$/); if (tm) openTasks(tm[1]).catch(() => {});
+  const cm = location.hash.match(/^#conv=([\w-]+)$/); if (cm) { history.replaceState(null, '', location.pathname); if (convs.some((c) => c.conversationId === cm[1])) select(cm[1]).catch(() => {}); } // 웹 알림을 눌러 열었을 때
   updateTaskBadge().catch(() => {}); setInterval(() => { if (!document.hidden) updateTaskBadge().catch(() => {}); }, 20000);
 }
 
@@ -1031,14 +1032,39 @@ function renderNotify() {
   const b = $('notifyBtn'); b.hidden = !canNotify; b.setAttribute('aria-pressed', String(notifyOnNow));
   b.firstElementChild.textContent = notifyOnNow ? '🔔' : '🔕'; b.lastChild.textContent = notifyOnNow ? '알림 켜짐' : '알림';
 }
+// 웹 알림(탭을 닫아도): 알림을 켜면 서비스 워커로 이 브라우저를 서버에 등록한다. 안 되는 브라우저면 탭이 열려 있을 때만(아래 새 소식).
+const canWebPush = 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
+let webPushOn = false;
+const b64uToBytes = (s) => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+async function webPushOnOff(on) {
+  if (!canWebPush) return false;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!on) { if (sub) { await api('/v1/webpush/subscription', { method: 'DELETE', body: JSON.stringify({ endpoint: sub.endpoint }) }); await sub.unsubscribe(); } return false; }
+    const k = await api('/v1/webpush/key'); if (k.status !== 200) return false;
+    const want = b64uToBytes(k.body.publicKey);
+    const same = sub && sub.options?.applicationServerKey && new Uint8Array(sub.options.applicationServerKey).every((x, i) => x === want[i]);
+    if (sub && !same) { await sub.unsubscribe(); sub = null; } // 서버 키가 바뀌었으면 다시 구독
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
+    const r = await api('/v1/webpush/subscription', { method: 'PUT', body: JSON.stringify(sub.toJSON()) });
+    return r.status === 200;
+  } catch { return false; }
+}
 $('notifyBtn').onclick = async () => {
   if (notifyOnNow) notifyOnNow = false;
   else notifyOnNow = (Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission) === 'granted';
   if (!notifyOnNow && Notification.permission === 'denied') toast('warn', '브라우저에서 이 사이트의 알림이 막혀 있어요. 주소창 왼쪽 자물쇠에서 알림을 허용하세요.');
   try { localStorage.setItem('ieon.notify.v1', notifyOnNow ? '1' : '0'); } catch { /* 저장 안 됨 */ }
+  webPushOn = await webPushOnOff(notifyOnNow);
+  if (notifyOnNow) toast('ok', webPushOn ? '알림을 켰어요 — 탭을 닫아도 와요' : '알림을 켰어요 — 이 탭이 열려 있을 때 와요');
   renderNotify();
 };
 renderNotify();
+if (notifyOnNow) webPushOnOff(true).then((ok) => { webPushOn = ok; }); // 다시 열 때 구독을 서버와 맞춤
+// 알림을 누르면(서비스 워커) 그 대화를 연다 — 이미 열린 탭이면 메시지로, 아니면 #conv= 주소로
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (m) => { if (m.data?.ieon === 'open' && m.data.conversationId) select(m.data.conversationId).catch(() => {}); });
 // 이름 뒤 "이/가"(받침 있는 한글이면 "이")
 function iga(name) { const c = name.charCodeAt(name.length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? name + '이' : name + '가'; }
 function noteFor(type, d) {
@@ -1058,7 +1084,7 @@ function startEvents() {
   events = new EventSource('/v1/events'); // 같은 출처라 로그인 쿠키로 열린다. 끊기면 브라우저가 다시 붙는다.
   const on = (type) => (m) => {
     let d; try { d = JSON.parse(m.data); } catch { return; }
-    if (!notifyOnNow || Notification.permission !== 'granted' || (document.visibilityState === 'visible' && document.hasFocus())) return;
+    if (!notifyOnNow || webPushOn || Notification.permission !== 'granted' || (document.visibilityState === 'visible' && document.hasFocus())) return; // 웹 알림이 켜져 있으면 서비스 워커가 띄움(겹치지 않게)
     const n = noteFor(type, d); if (!n || notifiedTags.has(n.tag)) return;
     notifiedTags.add(n.tag);
     const x = new Notification('이어온', { body: n.body, tag: n.tag, icon: '/icon-192.png' });

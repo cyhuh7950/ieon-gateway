@@ -17,7 +17,7 @@ import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs
 import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
 import { containerBoundary } from './adapters/codex-thread.mjs';
-import { createPusher, pushNote, validateServiceAccount, validateGoogleServices } from './push.mjs';
+import { createPusher, pushNote, validateServiceAccount, validateGoogleServices, createWebPusher, makeVapidKeys, validateWebSub } from './push.mjs';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
 import { cleanLabel } from './accounts.mjs';
 import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
@@ -43,6 +43,7 @@ const WEB_PRIVACY = fileURLToPath(new URL('./web/privacy.html', import.meta.url)
 const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 // U7: 휴대폰 "홈 화면에 추가"·PC 앱 창용(PWA). 화면 코드는 그대로, 설치 정보와 아이콘만 준다. 오프라인 캐시(서비스 워커)는 두지 않는다
 // (대화는 늘 서버 상태가 기준이라 옛 화면을 보여 주면 오해가 생김).
+const WEB_SW = fileURLToPath(new URL('./web/sw.js', import.meta.url)); // 웹 알림 전용 서비스 워커
 const WEB_PNG = { '/icon-192.png': fileURLToPath(new URL('./web/icon-192.png', import.meta.url)), '/icon-512.png': fileURLToPath(new URL('./web/icon-512.png', import.meta.url)) };
 const MANIFEST = JSON.stringify({ name: '이어온', short_name: '이어온', description: '내 Codex·Claude Code 작업 세션과 이어서 대화', lang: 'ko',
   start_url: '/', scope: '/', display: 'standalone', background_color: '#0f766e', theme_color: '#0f766e',
@@ -229,6 +230,20 @@ export function createApp(config) {
   const notify = (conversationId, e) => { if (conversationId) events.emit('e', { conversationId, at: new Date().toISOString(), ...e }); };
   // AP-4b 휴대폰 알림: 웹 설정에 서비스 계정 키가 있으면 같은 새 소식으로 그 대화 주인의 앱 기기에 원문 없는 알림을 보낸다.
   const pusher = config.pusher ?? createPusher({ log: (x) => process.stderr.write(JSON.stringify({ ch: 'server', ...x }) + '\n') });
+  // 웹 알림(탭을 닫아도): 키는 처음 쓸 때 허브가 스스로 만든다
+  const webPusher = config.webPusher ?? createWebPusher({ log: (x) => process.stderr.write(JSON.stringify({ ch: 'server', ...x }) + '\n') });
+  const vapid = () => { let v = store.getSetting('push.vapid')?.value; if (!v) { v = makeVapidKeys(); store.setSetting('push.vapid', v); } return v; };
+  const vapidSubject = () => { const u = config.publicUrl ?? store.getSetting('web_url')?.value; return /^https:\/\//.test(String(u ?? '')) ? u : 'https://ieon.invalid'; };
+  events.on('e', (e) => {
+    const owner = store.pushTargets(e.conversationId).owner;
+    const subs = owner ? store.webSubs(owner) : [];
+    if (!subs.length) return;
+    const c = store.conversations({ userId: owner, appId: 'app_web' }).find((x) => x.conversationId === e.conversationId);
+    const note = pushNote(e, c ? (c.staff?.set && c.staff?.name) || labelOf(c) : 'AI 직원');
+    if (!note) return;
+    const v = vapid();
+    for (const s of subs) webPusher.send(v, s, { ...note, conversationId: e.conversationId }, vapidSubject()).then((r) => { if (r === 'gone') store.removeWebSub(s.endpoint); }).catch(() => {});
+  });
   events.on('e', (e) => {
     const sa = store.getSetting('push.fcm')?.value;
     if (!sa) return;
@@ -497,6 +512,7 @@ export function createApp(config) {
         res.writeHead(200, { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': 'max-age=3600' });
         return res.end(MANIFEST);
       }
+      if (req.method === 'GET' && path === '/sw.js') { res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' }); return res.end(readFileSync(WEB_SW)); }
       if (req.method === 'GET' && WEB_PNG[path]) {
         res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=86400' });
         return res.end(readFileSync(WEB_PNG[path]));
@@ -690,6 +706,14 @@ export function createApp(config) {
         return json(res, 200, { revoked: true });
       }
       // AP-2: 새 소식 바로 받기(SSE). 내 대화의 요청·승인 상태가 바뀌면 번호·상태만 보낸다. 25초마다 살아 있음 표시.
+      // 웹 알림: 공개 키 받기·구독 알리기·끊기(웹 로그인만)
+      if (path === '/v1/webpush/key' || path === '/v1/webpush/subscription') {
+        if (principal.appId !== 'app_web' || appDevice) return json(res, 403, { error: 'web_only' });
+        if (req.method === 'GET' && path === '/v1/webpush/key') return json(res, 200, { publicKey: vapid().publicKey });
+        if (path === '/v1/webpush/subscription' && req.method === 'PUT') { const s = validateWebSub(await readJson(req)); store.addWebSub(principal.userId, s); return json(res, 200, { subscribed: true }); }
+        if (path === '/v1/webpush/subscription' && req.method === 'DELETE') { const b = await readJson(req); if (typeof b.endpoint === 'string') store.removeWebSub(b.endpoint); return json(res, 200, { subscribed: false }); }
+        return json(res, 404, { error: 'not_found' });
+      }
       if (req.method === 'GET' && path === '/v1/events') {
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
         // x-accel-buffering: 허브 앞단(NPM·nginx)이 새 소식을 모아 두지 않고 바로 넘기게(AP-4a 알림)

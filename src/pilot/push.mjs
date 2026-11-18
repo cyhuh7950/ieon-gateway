@@ -79,3 +79,69 @@ export function createPusher({ fetchImpl = fetch, now = () => Date.now(), log = 
   }
   return { send };
 }
+
+// ---------------------------------------------------------------------------
+// 웹 알림(Web Push, 탭을 닫아도). 표준 RFC 8291(aes128gcm 암호화)·RFC 8292(VAPID). node 기본 crypto만 — 새 부품 없음.
+// 키는 허브가 처음 쓸 때 스스로 만든다(사용자 입력 없음). 알림 글은 휴대폰 알림과 같다(원문 없음).
+import { createECDH, createHmac, createCipheriv, randomBytes as rnd, createPrivateKey, sign as edSign } from 'node:crypto';
+
+const hmac = (key, data) => createHmac('sha256', key).update(data).digest();
+
+// VAPID 키 만들기: 공개 키(65바이트 압축 안 한 점, base64url)와 개인 키(32바이트, base64url)
+export function makeVapidKeys() {
+  const e = createECDH('prime256v1'); e.generateKeys();
+  return { publicKey: e.getPublicKey().toString('base64url'), privateKey: e.getPrivateKey().toString('base64url') };
+}
+function vapidPrivateKeyObject(v) {
+  const pub = Buffer.from(v.publicKey, 'base64url');
+  return createPrivateKey({ key: { kty: 'EC', crv: 'P-256', d: v.privateKey, x: pub.subarray(1, 33).toString('base64url'), y: pub.subarray(33, 65).toString('base64url') }, format: 'jwk' });
+}
+// 알림 서버 인증(VAPID JWT, ES256 — 서명은 r||s 64바이트)
+export function vapidAuth(endpoint, v, subject, now = Date.now()) {
+  const aud = new URL(endpoint).origin;
+  const head = b64u(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
+  const body = b64u(JSON.stringify({ aud, exp: Math.floor(now / 1000) + 12 * 3600, sub: subject }));
+  const sig = edSign('sha256', Buffer.from(`${head}.${body}`), { key: vapidPrivateKeyObject(v), dsaEncoding: 'ieee-p1363' }).toString('base64url');
+  return `vapid t=${head}.${body}.${sig}, k=${v.publicKey}`;
+}
+// 브라우저 구독 키(p256dh·auth)로 내용 암호화(aes128gcm, 레코드 하나)
+export function encryptWebPush(plaintext, sub, { salt = rnd(16), ecdh = null } = {}) {
+  const ua = Buffer.from(sub.keys.p256dh, 'base64url');
+  const auth = Buffer.from(sub.keys.auth, 'base64url');
+  const as = ecdh ?? (() => { const e = createECDH('prime256v1'); e.generateKeys(); return e; })();
+  const asPub = as.getPublicKey();
+  const shared = as.computeSecret(ua);
+  const ikm = hmac(hmac(auth, shared), Buffer.concat([Buffer.from('WebPush: info\0'), ua, asPub, Buffer.from([1])]));
+  const prk = hmac(salt, ikm);
+  const cek = hmac(prk, Buffer.concat([Buffer.from('Content-Encoding: aes128gcm\0'), Buffer.from([1])])).subarray(0, 16);
+  const nonce = hmac(prk, Buffer.concat([Buffer.from('Content-Encoding: nonce\0'), Buffer.from([1])])).subarray(0, 12);
+  const c = createCipheriv('aes-128-gcm', cek, nonce);
+  const enc = Buffer.concat([c.update(Buffer.concat([Buffer.from(plaintext), Buffer.from([2])])), c.final(), c.getAuthTag()]);
+  const header = Buffer.alloc(21); salt.copy(header, 0); header.writeUInt32BE(4096, 16); header[20] = asPub.length;
+  return Buffer.concat([header, asPub, enc]);
+}
+// 구독 검사(브라우저가 준 값 — 주소는 https만)
+export function validateWebSub(v) {
+  const ok = v && typeof v.endpoint === 'string' && /^https:\/\/[^\s]{10,1000}$/.test(v.endpoint)
+    && /^[\w-]{80,100}$/.test(String(v.keys?.p256dh ?? '')) && /^[\w-]{16,30}$/.test(String(v.keys?.auth ?? ''));
+  if (!ok) fail('bad_subscription');
+  return { endpoint: v.endpoint, keys: { p256dh: v.keys.p256dh, auth: v.keys.auth } };
+}
+// 보내기: 'sent' | 'gone'(그 구독은 더 안 씀 — 지우기) | 'failed'
+export function createWebPusher({ fetchImpl = fetch, log = () => {} } = {}) {
+  async function send(v, sub, note, subject) {
+    try {
+      const body = encryptWebPush(JSON.stringify({ title: note.title ?? '이어온', body: note.body, conversationId: note.conversationId ?? '', tag: note.tag ?? '' }), sub);
+      const r = await fetchImpl(sub.endpoint, { method: 'POST', signal: AbortSignal.timeout(10_000), body,
+        headers: { authorization: vapidAuth(sub.endpoint, v, subject), 'content-encoding': 'aes128gcm', 'content-type': 'application/octet-stream', ttl: '3600', urgency: 'high' } });
+      if (r.ok) return 'sent';
+      if (r.status === 404 || r.status === 410) return 'gone';
+      log({ event: 'webpush_failed', status: r.status });
+      return 'failed';
+    } catch (e) {
+      log({ event: 'webpush_failed', error: String(e.message).slice(0, 40) });
+      return 'failed';
+    }
+  }
+  return { send };
+}

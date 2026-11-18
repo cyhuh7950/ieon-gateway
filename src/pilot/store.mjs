@@ -111,6 +111,8 @@ export function openStore(path) {
   }
   // AP-4b: 앱 기기의 휴대폰 알림 주소(FCM 토큰). 비밀값은 아니지만 화면·로그에 내보내지 않는다.
   if (!db.prepare('PRAGMA table_info(app_devices)').all().some((c) => c.name === 'push_token')) db.exec('ALTER TABLE app_devices ADD COLUMN push_token TEXT');
+  // 웹 알림 구독(브라우저마다). 주소·키는 화면·로그에 내보내지 않는다.
+  db.exec('CREATE TABLE IF NOT EXISTS web_push_subs (endpoint TEXT PRIMARY KEY, user_id TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL)');
   // RC3: 작업 화면에 보일 접수 시각·마지막 상태 변경 시각(전부터 있던 요청은 비어 있음)
   if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'created_at')) {
     db.exec('ALTER TABLE requests ADD COLUMN created_at TEXT');
@@ -845,6 +847,9 @@ export function openStore(path) {
       db.prepare('UPDATE app_devices SET push_token = NULL WHERE push_token = ? AND device_id != ?').run(token, deviceId);
       db.prepare('UPDATE app_devices SET push_token = ? WHERE device_id = ? AND revoked_at IS NULL').run(token, deviceId);
     },
+    addWebSub(userId, s) { db.prepare('INSERT INTO web_push_subs (endpoint, user_id, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth').run(s.endpoint, userId, s.keys.p256dh, s.keys.auth, new Date().toISOString()); },
+    removeWebSub(endpoint) { db.prepare('DELETE FROM web_push_subs WHERE endpoint = ?').run(endpoint); },
+    webSubs(userId) { return db.prepare('SELECT endpoint, p256dh, auth FROM web_push_subs WHERE user_id = ?').all(userId).map((r) => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } })); },
     clearPushToken(token) { db.prepare('UPDATE app_devices SET push_token = NULL WHERE push_token = ?').run(token); },
     // 그 대화 주인의 알림 받을 앱 기기들
     pushTargets(conversationId) {
