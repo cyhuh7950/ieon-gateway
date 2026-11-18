@@ -63,3 +63,29 @@ test('M3: 브리지는 메시지를 처리하는 동안의 서버 요청에 보�
   const convCalls = seen.filter(([p]) => p === '/v1/conversations').map(([, s]) => s).sort();
   assert.deepEqual(convCalls, ['111', '222']);
 });
+
+test('M3: 메신저 봇이 가져가는 예약 답 알림에 연결된 가입자의 대화 것도 들어감(연결 안 된 가입자 것은 안 들어감)', async (t) => {
+  const d = mkdtempSync(join(tmpdir(), 'ieon-m3c-'));
+  const app = createApp({ dbPath: join(d, 'p.db'), schedulesOff: true, users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }, { tokenSha256: sha('msg'), userId: 'u_sinsan', appId: 'app_messenger' }],
+    devices: [{ tokenSha256: sha('dev'), hostId: 'h_u' }], bindings: [] });
+  const base = `http://127.0.0.1:${await app.listen(0)}`;
+  t.after(async () => { await app.close(); rmSync(d, { recursive: true, force: true }); });
+  app.store.saveBot({ platform: 'telegram', botId: 'default', name: '기본 봇', roleId: null, callNames: [], extraUsers: [], enabled: true });
+  const mk = (email) => { app.store.addUser('u_' + sha(email).slice(0, 16), email, 'x'); const id = 'u_' + sha(email).slice(0, 16); app.store.setUserStatus(id, 'approved'); return id; };
+  const linked = mk('l@example.com'); const other = mk('o@example.com');
+  app.store.linkMessenger('telegram', '555', linked);
+  app.store.saveBinding(linked, { conversationId: 'c_l', label: '연결된 사람 대화', engine: 'codex_thread', hostId: 'h_u', sessionRef: '01a18790-0000-7000-8000-0000000000d1', appIds: ['app_web'] });
+  app.store.saveBinding(other, { conversationId: 'c_o', label: '다른 사람 대화', engine: 'codex_thread', hostId: 'h_u', sessionRef: '01a18790-0000-7000-8000-0000000000d2', appIds: ['app_web'] });
+  // 두 대화에 끝난 예약 질문 하나씩
+  for (const [conv, owner] of [['c_l', linked], ['c_o', other]]) {
+    const at = new Date(Date.now() + 60_000).toISOString();
+    const s = app.store.addSchedule({ userId: owner, appId: 'app_web' }, conv, { kind: 'once', question: 'q', tz: 'Asia/Seoul', spec: { at }, maxPerDay: 1 }, { id: 'sch_' + conv.slice(2).padEnd(12, '0'), nextRunAt: at, max: 20 });
+    assert.equal(s.http, 201);
+  }
+  await fetch(base + '/v1/device/jobs', { headers: { authorization: 'Bearer dev' } });
+  app.runSchedules(new Date(Date.now() + 120_000));
+  for (let i = 0; i < 2; i++) { const job = await fetch(base + '/v1/device/jobs', { headers: { authorization: 'Bearer dev' } }).then((r) => (r.status === 200 ? r.json() : null)); if (job) await fetch(base + `/v1/device/jobs/${job.requestId}/result`, { method: 'POST', headers: { authorization: 'Bearer dev', 'content-type': 'application/json' }, body: JSON.stringify({ status: 'completed', answer: 'a' }) }); }
+  app.runSchedules(new Date(Date.now() + 180_000));
+  const notes = await fetch(base + '/v1/schedules/notices?after=', { headers: { authorization: 'Bearer msg', 'x-ieon-bot': 'telegram:default' } }).then((r) => r.json());
+  assert.deepEqual(notes.notices.map((n) => n.conversationId).sort(), ['c_l'], '연결된 가입자 것만(다른 가입자 것은 안 감)');
+});

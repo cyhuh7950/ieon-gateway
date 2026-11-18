@@ -1190,6 +1190,7 @@ export function openStore(path) {
     messengerLinks(userId) { return db.prepare('SELECT platform, sender_id, name, created_at FROM messenger_links WHERE user_id = ? ORDER BY created_at').all(userId).map((r) => ({ platform: r.platform, senderId: r.sender_id, name: r.name, createdAt: r.created_at })); },
     // 승인된 가입자에 연결된 메신저 계정만(끊기거나 승인 전이면 없는 것으로)
     linkedUser(platform, senderId) { return db.prepare("SELECT l.user_id FROM messenger_links l JOIN users u ON u.user_id = l.user_id WHERE l.platform = ? AND l.sender_id = ? AND u.status = 'approved'").get(platform, senderId)?.user_id ?? null; },
+    linkedUserIds() { return db.prepare("SELECT DISTINCT l.user_id FROM messenger_links l JOIN users u ON u.user_id = l.user_id WHERE u.status = 'approved'").all().map((r) => r.user_id); },
     linkedSenders() { const out = {}; for (const r of db.prepare("SELECT l.platform, l.sender_id FROM messenger_links l JOIN users u ON u.user_id = l.user_id WHERE u.status = 'approved'").all()) (out[r.platform] ??= []).push(r.sender_id); return out; },
     setUserPassword(userId, pwHash) {
       const n = db.prepare('UPDATE users SET pw_hash = ? WHERE user_id = ?').run(pwHash, userId).changes;

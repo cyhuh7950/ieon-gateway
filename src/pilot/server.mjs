@@ -694,6 +694,8 @@ export function createApp(config) {
         const lu = plat !== 'kakao' && store.linkedUser(plat, String(req.headers['x-ieon-sender']).slice(0, 128));
         if (lu) { principal.userId = lu; principal.appId = 'app_web'; principal.viaMessenger = true; }
       }
+      // M3: 메신저 봇이 알림(예약 답·보관 예고)을 가져갈 때는 메신저에 연결된 가입자들의 대화 것도 함께 — 봇은 그 대화에 묶인 방에만 보냄
+      const noticeConvs = (p) => { const list = store.conversations(p); if (user.appId === 'app_messenger' && !p.viaMessenger) for (const uid of store.linkedUserIds()) list.push(...store.conversations({ userId: uid, appId: 'app_web' })); return list; };
       // M2: 가입한 사용자는 승인된 뒤에만, 관리 경로는 자기 것(앱 기기·짝맺기·자기 기기·작업 폴더)만. 나머지 허브 설정은 관리자만.
       const isAdmin = isAdminP(principal);
       if (!isAdmin) {
@@ -1483,7 +1485,7 @@ export function createApp(config) {
         if (req.method === 'GET' && path === '/v1/sessions/limits') return json(res, 200, store.sessionLimits(nsCfg, nsHost));
         if (req.method === 'GET' && path === '/v1/sessions/notices') {
           const after = url.searchParams.get('after') ?? '';
-          const mine = new Set(store.conversations(principal).map((c) => c.conversationId));
+          const mine = new Set(noticeConvs(principal).map((c) => c.conversationId));
           return json(res, 200, { notices: notices.filter((n) => n.at > after && mine.has(n.conversationId)) });
         }
         const a = path.match(/^\/v1\/sessions\/([\w-]+)\/(sleep|restore)$/);
@@ -1626,7 +1628,7 @@ export function createApp(config) {
         // 메신저 봇이 가져가 그 대화에 연결된 방에 답을 올림(볼 수 있는 대화만)
         if (req.method === 'GET' && path === '/v1/schedules/notices') {
           const after = new URL(req.url, 'http://x').searchParams.get('after') ?? '';
-          const mine = new Map(store.conversations(principal).map((c) => [c.conversationId, labelOf(c)]));
+          const mine = new Map(noticeConvs(principal).map((c) => [c.conversationId, labelOf(c)]));
           return json(res, 200, { notices: schedNotices.filter((n) => n.at > after && mine.has(n.conversationId)).map((n) => ({ ...n, label: mine.get(n.conversationId) })) });
         }
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
