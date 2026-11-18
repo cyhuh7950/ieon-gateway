@@ -380,6 +380,9 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <div id="appRows"></div>
     <form id="appAdd" class="row"><input id="appName" placeholder="프로그램 이름 (예: 내 자동화)" maxlength="40" autocomplete="off" aria-label="프로그램 이름"><button class="primary" type="submit">키 발급</button></form>
     <div id="appKey" class="state warn" hidden role="alert"><b>새 API 키(한 번만 보입니다)</b><div><code id="appKeyText"></code> <button type="button" id="appKeyCopy">복사</button> <button type="button" id="appKeyHide">닫기</button></div></div>
+    <h3>앱 받기</h3>
+    <div class="muted">이어온 앱은 이 서버에서 받아요(스토어 없이). 휴대폰 브라우저 주소창에 <b id="appShort"></b> 를 치면 안드로이드 앱이 바로 받아져요. 처음 설치할 때 휴대폰이 "출처를 알 수 없는 앱" 허용을 한 번 물어요.</div>
+    <div class="row" id="appDl"><span class="muted">올려 둔 앱 파일이 없어요</span></div>
     <h3>이어온 앱 연결</h3>
     <div class="muted">휴대폰·PC의 이어온 앱을 이 서버에 연결해요. 코드를 만들어 앱에 서버 주소와 함께 넣으면 끝 — 코드는 10분 동안 한 번만 쓸 수 있어요. 앱에서는 대화·방·카드·승인을 쓰고, 설정은 이 웹 화면에서만 바꿔요.</div>
     <div class="row"><button class="primary" type="button" id="adCode">연결 코드 만들기</button></div>
@@ -1091,6 +1094,16 @@ async function loadAppDevices() {
     td.append(b); tr.append(td); tb.append(tr);
   }
 }
+// AP-5 앱 받기: 이 서버에 올려 둔 앱 판 정보
+async function loadAppDl() {
+  $('appShort').textContent = location.host + '/app';
+  const r = await api('/v1/app/version'); const m = r.status === 200 ? r.body : {}; const box = $('appDl'); const items = [];
+  const mb = (n) => (n / 1048576).toFixed(1) + 'MB';
+  if (m.android) { const a = el('a', '안드로이드 앱 ' + m.android.version + ' (' + mb(m.android.size) + ')'); a.href = '/download/' + encodeURIComponent(m.android.file); a.className = 'btn'; items.push(a); }
+  if (m.desktop) { const a = el('a', 'PC 앱 ' + m.desktop.version + ' (' + mb(m.desktop.size) + ')'); a.href = '/download/' + encodeURIComponent(m.desktop.file); a.className = 'btn'; items.push(a); }
+  if (items.length) box.replaceChildren(...items);
+}
+loadAppDl().catch(() => {});
 $('adCode').onclick = async () => {
   const r = await api('/v1/admin/app-devices/code', { method: 'POST', body: '{}' });
   if (r.status !== 201) return setStatus('err', r.body.error === 'too_many_codes' ? '아직 쓰지 않은 코드가 많아요. 10분 뒤 다시 만드세요.' : r.body.error);

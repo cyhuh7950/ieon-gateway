@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+// AP-5 정식 서명: 이 PC의 .local/app-signing/keystore.properties(git 제외, scripts/make-signing-key.mjs가 만듦). 없으면 정식 빌드는 서명 없이 끝남.
+def signingProps = new Properties()
+def signingFile = rootProject.file('../../.local/app-signing/keystore.properties')
+if (signingFile.exists()) { signingFile.withInputStream { signingProps.load(it) } }
+
 android {
     namespace = "kr.sinsan.ieon"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +12,8 @@ android {
         applicationId "kr.sinsan.ieon"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "0.1.5"
+        versionCode 7
+        versionName "0.1.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +21,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (signingProps.storeFile) {
+                storeFile file(signingProps.storeFile)
+                storePassword signingProps.storePassword
+                keyAlias signingProps.keyAlias
+                keyPassword signingProps.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (signingProps.storeFile) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
