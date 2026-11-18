@@ -6,6 +6,7 @@ import { subscribe, type ServerEvent } from "../lib/sse";
 import { clearConn, loadConn, saveConn } from "../lib/storage";
 import { noteFor, notifyOn, setNotifyOn } from "../lib/notify";
 import { startPush } from "../lib/push";
+import { checkUpdate } from "../lib/update";
 import { staffName } from "../lib/rooms";
 import { ChatScreen } from "../components/Chat";
 import { codeOf } from "../components/common";
@@ -62,6 +63,9 @@ export default function Home() {
     }, { onState: (s) => { api.pushState(s).catch(() => {}); } }).then((f) => { stop = f; });
     return () => stop();
   }, [api]);
+  // AP-5 새 판 알림: 연결한 서버에 더 새 판이 있으면 첫 화면 위에 "받기"
+  const [update, setUpdate] = useState<{ version: string; url: string } | null>(null);
+  useEffect(() => { if (conn) checkUpdate(conn.server).then(setUpdate); }, [conn]);
   const toggleNotify = useCallback(async () => {
     if (notify) { setNotify(false); setNotifyOn(false); return; }
     const perm = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
@@ -97,7 +101,7 @@ export default function Home() {
     case "roomForm": return <RoomForm api={api} room={view.room} convs={view.convs} onLost={onLost}
       onBack={() => setView(view.room ? { kind: "room", roomId: view.room.roomId } : { kind: "list" })}
       onSaved={(r) => setView({ kind: "room", roomId: r.roomId })} onDeleted={toList} />;
-    default: return <ListScreen api={api} server={conn.server} onOpen={(conv) => setView({ kind: "chat", conv })} onRoom={(r) => setView({ kind: "room", roomId: r.roomId })}
-      onNewRoom={() => setView({ kind: "roomForm", room: null, convs: null })} onTasks={() => setView({ kind: "tasks" })} onEvent={onEvent} onForget={forget} onLost={onLost} notify={canNotify ? { on: notify, toggle: toggleNotify } : null} />;
+    default: return <>{update && <a className="update-bar" href={update.url}>새 판 {update.version}이 있어요 — 받기</a>}<ListScreen api={api} server={conn.server} onOpen={(conv) => setView({ kind: "chat", conv })} onRoom={(r) => setView({ kind: "room", roomId: r.roomId })}
+      onNewRoom={() => setView({ kind: "roomForm", room: null, convs: null })} onTasks={() => setView({ kind: "tasks" })} onEvent={onEvent} onForget={forget} onLost={onLost} notify={canNotify ? { on: notify, toggle: toggleNotify } : null} /></>;
   }
 }

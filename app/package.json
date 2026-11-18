@@ -1,7 +1,7 @@
 {
   "name": "ieon-app",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "이어온 앱(휴대폰·PC) — 이어온 서버의 AI 직원과 대화",
   "main": "electron/main.cjs",
   "scripts": {
@@ -12,7 +12,8 @@
     "desktop": "npm run build && electron electron/main.cjs",
     "package:desktop": "npm run build && electron-builder --win nsis",
     "mobile:android": "npm run build && cap sync android",
-    "package:android": "npm run mobile:android && pwsh -NoProfile -File scripts/package-android-debug.ps1"
+    "package:android": "npm run mobile:android && pwsh -NoProfile -File scripts/package-android-debug.ps1",
+    "package:android:release": "npm run mobile:android && pwsh -NoProfile -File scripts/package-android-release.ps1"
   },
   "build": {
     "appId": "kr.sinsan.ieon",

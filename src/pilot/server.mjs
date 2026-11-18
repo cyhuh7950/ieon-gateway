@@ -3,7 +3,7 @@
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
 import { createServer } from 'node:http';
 import { hostname } from 'node:os';
-import { existsSync, readFileSync, rmSync, chmodSync, writeFileSync, utimesSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, chmodSync, writeFileSync, utimesSync, statSync, createReadStream } from 'node:fs';
 import { createHash, timingSafeEqual, randomBytes, randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
@@ -213,6 +213,9 @@ export function createApp(config) {
   const codexLogin = access ? (config.codexLogin ?? createCodexLogin({ log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') })) : null;
   // U4: 처음 설정의 "준비 확인" — 이 PC의 Codex 로그인 여부만(공식 `codex login status`, 계정 정보는 돌려주지 않음).
   const localCodexStatus = access ? null : (config.localCodexStatus ?? (() => createCodexLogin().status()));
+  // AP-5: 나눠 줄 앱 파일 폴더(허브 /data/apps, PC .local/apps)와 판 정보(meta.json — scripts/publish-apps.mjs가 만듦)
+  const appsDir = config.appsDir ?? join(dirname(config.dbPath), '..', 'apps');
+  const appsMeta = () => { try { return JSON.parse(readFileSync(join(appsDir, 'meta.json'), 'utf8')); } catch { return null; } };
   const localDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') && !req.headers['x-forwarded-for'];
   // 규칙 점검 4(2026-11-18 신산님): PC 설정 바꾸기는 로그인한 웹 화면이면 어디서나(휴대폰·Tailscale 포함). 전에는 이 PC에서 연 화면만(local_only).
   const webUser = (p) => p?.appId === 'app_web';
@@ -491,6 +494,19 @@ export function createApp(config) {
         }
       }
       if (req.method === 'GET' && path === '/health') return json(res, 200, { ok: true });
+      // AP-5 앱 나눠 주기(구글 플레이 대신 이 허브에서): 판 정보·파일 받기. 앱 파일에는 비밀값이 없고 허브 없이는 못 쓰므로 접속 제한 없이 연다.
+      if (req.method === 'GET' && (path === '/v1/app/version' || path === '/app' || path.startsWith('/download/'))) {
+        const meta = appsMeta();
+        if (path === '/v1/app/version') return json(res, 200, meta ?? {});
+        if (path === '/app') { const f = meta?.android?.file; if (!f) return json(res, 404, { error: 'no_app' }); res.writeHead(302, { location: '/download/' + encodeURIComponent(f) }); return res.end(); }
+        const name = decodeURIComponent(path.slice('/download/'.length));
+        const item = [meta?.android, meta?.desktop].find((x) => x?.file === name);
+        const file = item && join(appsDir, item.file);
+        if (!file || !/^[\w.-]{1,80}$/.test(name) || !existsSync(file)) return json(res, 404, { error: 'not_found' });
+        res.writeHead(200, { 'content-type': name.endsWith('.apk') ? 'application/vnd.android.package-archive' : 'application/octet-stream',
+          'content-length': statSync(file).size, 'content-disposition': `attachment; filename="${name}"`, 'cache-control': 'no-cache' });
+        return createReadStream(file).pipe(res);
+      }
       // P4: 접속 제한. 예외 경로(기기 API·카카오·Teams·health)는 각자 토큰·서명으로 인증한다.
       // 앞단 없이 이 PC의 127.0.0.1로 직접 온 요청(SSH 터널 관리)은 통과시킨다.
       // 이어온 앱(2026-11-18 신산님 "앱 요청만 빼기"): 앱 연결(10분·한 번만·주소당 1분 10회)과 앱 기기 열쇠로 온 요청은 접속 제한을 거치지 않는다.
