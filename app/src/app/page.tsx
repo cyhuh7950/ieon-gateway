@@ -5,6 +5,7 @@ import { client, type Conn, type Conversation, type Room } from "../lib/api";
 import { subscribe, type ServerEvent } from "../lib/sse";
 import { clearConn, loadConn, saveConn } from "../lib/storage";
 import { noteFor, notifyOn, setNotifyOn } from "../lib/notify";
+import { startPush } from "../lib/push";
 import { staffName } from "../lib/rooms";
 import { ChatScreen } from "../components/Chat";
 import { codeOf } from "../components/common";
@@ -50,6 +51,17 @@ export default function Home() {
       x.onclick = () => { (globalThis as any).ieonDesktop?.focus?.(); window.focus(); const c = names.current.get(n.conversationId); if (c) setView({ kind: "chat", conv: c }); x.close(); };
     });
   }, [api, canNotify, onEvent]);
+  // AP-4b 휴대폰 알림: 연결되면 알림 허용을 묻고 알림 주소를 서버에 알림. 알림을 누르면 그 대화로.
+  useEffect(() => {
+    if (!api) return;
+    let stop = () => {};
+    startPush((t) => api.pushToken(t), async (id) => {
+      let c = names.current.get(id);
+      if (!c) { try { (await api.conversations()).conversations.forEach((x) => names.current.set(x.conversationId, x)); c = names.current.get(id); } catch { /* 목록 그대로 */ } }
+      if (c) setView({ kind: "chat", conv: c });
+    }).then((f) => { stop = f; });
+    return () => stop();
+  }, [api]);
   const toggleNotify = useCallback(async () => {
     if (notify) { setNotify(false); setNotifyOn(false); return; }
     const perm = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
