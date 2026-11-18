@@ -144,6 +144,15 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
       }
       if (path === '/v1/auth/password') {
         const s = cookieOf(req) && store.webSession(sha(cookieOf(req)));
+        // M2-b: 가입한 사람은 자기 비밀번호를 바꾼다(그 사람의 다른 로그인은 끊김)
+        const w = s ? who(s.userId) : null;
+        if (w?.role === 'user') {
+          const u = store.userByEmail(w.email);
+          if (!u || u.status !== 'approved') { json(res, 401, { error: 'unauthorized' }); return true; }
+          if (!verifyPassword(body.current, u.pwHash)) { fail(ip); json(res, 401, { error: 'bad_password' }); return true; }
+          if (!validPassword(body.next)) { json(res, 400, { error: 'weak_password' }); return true; }
+          store.setUserPassword(u.userId, hashPassword(body.next)); issue(req, res, u.userId); log('password_changed_user', req); json(res, 200, { loggedIn: true }); return true;
+        }
         const a = admin();
         if (!s || !a || s.userId !== webUser) { json(res, 401, { error: 'unauthorized' }); return true; } // 관리자 비밀번호 바꾸기는 관리자만
         if (!verifyPassword(body.current, a.hash)) { fail(ip); json(res, 401, { error: 'bad_password' }); return true; }

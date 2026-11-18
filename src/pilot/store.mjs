@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS locks (
   session_key TEXT PRIMARY KEY, holder_request_id TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS staff (
   conversation_id TEXT PRIMARY KEY, name TEXT NOT NULL, role_id TEXT, icon TEXT, guide_pending INTEGER NOT NULL DEFAULT 0);
-CREATE UNIQUE INDEX IF NOT EXISTS staff_name ON staff (lower(name));
+CREATE INDEX IF NOT EXISTS staff_name_any ON staff (lower(name));
 CREATE TABLE IF NOT EXISTS rooms (
   room_id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, name TEXT NOT NULL, lead_conversation_id TEXT NOT NULL,
   guide TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -113,6 +113,7 @@ export function openStore(path) {
   if (!db.prepare('PRAGMA table_info(app_devices)').all().some((c) => c.name === 'push_token')) db.exec('ALTER TABLE app_devices ADD COLUMN push_token TEXT');
   // 웹 알림 구독(브라우저마다). 주소·키는 화면·로그에 내보내지 않는다.
   // M2 여러 사람: 가입한 사용자(관리자는 여기 없음 — 허브 비밀번호 auth.admin). 상태 pending·approved·rejected·disabled
+  db.exec('DROP INDEX IF EXISTS staff_name'); // M2-b: AI 직원 이름은 같은 사람 안에서만 겹치지 않게(코드에서 확인)
   db.exec('CREATE TABLE IF NOT EXISTS users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, pw_hash TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, decided_at TEXT)');
   // M2: PC 기기의 주인(연결을 승인한 사람). 예전 기기(빈칸)는 관리자 것
   if (!db.prepare('PRAGMA table_info(devices)').all().some((c) => c.name === 'owner_user_id')) db.exec('ALTER TABLE devices ADD COLUMN owner_user_id TEXT');
@@ -587,7 +588,8 @@ export function openStore(path) {
       if (role && profile !== undefined && !role.profiles.includes(profile)) return { http: 403, code: 'profile_not_allowed_for_role', allowed: role.profiles };
       const p = resolveProfile(config, profile ?? role?.profiles[0]);
       if (!p.profile) return p;
-      const conversationId = `n_${name}`;
+      // M2-b: 가입한 사람(users 표)은 ID에 사람 표식을 붙여 다른 사람의 같은 이름과 겹치지 않게(관리자는 전처럼 n_<이름>)
+      const conversationId = db.prepare('SELECT 1 FROM users WHERE user_id = ?').get(principal.userId) ? `n_${name}_${principal.userId.slice(2, 8)}` : `n_${name}`;
       return tx(() => {
         if (binding(conversationId) || db.prepare('SELECT 1 FROM new_sessions WHERE host_id = ? AND name = ?').get(hostId, name)) {
           return { http: 409, code: 'name_taken' };
@@ -958,7 +960,7 @@ export function openStore(path) {
       if (roleId && !db.prepare('SELECT 1 FROM roles WHERE role_id = ?').get(roleId)) return { http: 400, code: 'unknown_role' };
       const ic = icon ? String(icon).trim() : null;
       if (ic && [...ic].length > 2) return { http: 400, code: 'bad_icon' };
-      const taken = db.prepare('SELECT conversation_id FROM staff WHERE lower(name) = lower(?)').get(n);
+      const taken = db.prepare('SELECT s.conversation_id FROM staff s JOIN bindings b ON b.conversation_id = s.conversation_id WHERE lower(s.name) = lower(?) AND b.owner_user_id = ?').get(n, b.ownerUserId); // M2-b: 같은 사람 안에서만
       if (taken && taken.conversation_id !== conversationId) return { http: 409, code: 'staff_name_taken' };
       const prev = db.prepare('SELECT role_id FROM staff WHERE conversation_id = ?').get(conversationId);
       const pending = roleId && prev?.role_id !== roleId ? 1 : 0; // 역할이 바뀌면 다음 질문 한 번에 역할 안내
@@ -1179,6 +1181,30 @@ export function openStore(path) {
     listUsers() {
       return db.prepare("SELECT u.user_id, u.email, u.status, u.created_at, u.decided_at, (SELECT COUNT(*) FROM devices d WHERE d.owner_user_id = u.user_id AND d.revoked_at IS NULL) AS devices FROM users u ORDER BY u.created_at DESC").all()
         .map((r) => ({ userId: r.user_id, email: r.email, status: r.status, createdAt: r.created_at, decidedAt: r.decided_at, devices: r.devices }));
+    },
+    setUserPassword(userId, pwHash) {
+      const n = db.prepare('UPDATE users SET pw_hash = ? WHERE user_id = ?').run(pwHash, userId).changes;
+      if (n) db.prepare('DELETE FROM web_sessions WHERE user_id = ?').run(userId); // 바꾸면 그 사람 로그인은 모두 끊김
+      return n === 1;
+    },
+    // M2-b 가입자 지우기: 그 사람의 대화(이어온 기록)·방·예약·기기·앱 연결·알림·로그인을 모두 지운다. 원래 엔진 세션 기록(그 사람 PC)은 그대로.
+    deleteUser(userId) {
+      if (!db.prepare('SELECT 1 FROM users WHERE user_id = ?').get(userId)) return { http: 404, code: 'not_found' };
+      return tx(() => {
+        const convs = db.prepare('SELECT conversation_id FROM bindings WHERE owner_user_id = ?').all(userId).map((r) => r.conversation_id);
+        for (const c of convs) {
+          for (const t of ['approvals', 'requests', 'bot_sessions', 'app_sessions', 'staff', 'room_members', 'work_modes', 'workspace_views', 'handoff_policies', 'schedules', 'new_sessions', 'bindings']) db.prepare(`DELETE FROM ${t} WHERE conversation_id = ?`).run(c);
+        }
+        const rooms = db.prepare('SELECT room_id FROM rooms WHERE owner_user_id = ?').all(userId).map((r) => r.room_id);
+        for (const r of rooms) for (const t of ['room_posts', 'room_members', 'rooms']) db.prepare(`DELETE FROM ${t} WHERE room_id = ?`).run(r);
+        db.prepare('DELETE FROM schedules WHERE owner_user_id = ?').run(userId);
+        const now = new Date().toISOString();
+        for (const d of db.prepare('SELECT host_id FROM devices WHERE owner_user_id = ?').all(userId)) db.prepare('INSERT INTO device_events (at, host_id, action, user_id) VALUES (?, ?, ?, ?)').run(now, d.host_id, 'delete_with_user', userId);
+        db.prepare('DELETE FROM devices WHERE owner_user_id = ?').run(userId);
+        for (const t of ['app_devices', 'app_pair_codes', 'web_push_subs', 'web_sessions']) db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(userId);
+        db.prepare('DELETE FROM users WHERE user_id = ?').run(userId);
+        return { http: 200, conversations: convs.length, rooms: rooms.length };
+      });
     },
     setUserStatus(userId, status) {
       const n = db.prepare('UPDATE users SET status = ?, decided_at = ? WHERE user_id = ?').run(status, new Date().toISOString(), userId).changes;
