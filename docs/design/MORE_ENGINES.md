@@ -1,5 +1,7 @@
 # 엔진 넓히기 — Grok·Gemini 세션도 이어 쓰기
 
+> 2026-11-19 신산님: **Grok 실제 연결 시험은 보류**(grok.com 구독 또는 xAI API 키가 있어야 함). Gemini는 개인 계정이면 Antigravity로 씀.
+
 기준: 2026-11-12. 상태: **승인 2026-11-12(신산님 "추천안 승인").** 6절 추천안이 결정이다. 코드·서버 변경 없음. 개발은 신산님 지시대로 나중에(토큰 충전 뒤) 단계마다 승인 후.
 관련: [DESIGN](DESIGN.md)(기존 세션 연결 원칙), [WORK_AND_VOICE](WORK_AND_VOICE.md)(승인 카드), [MESSENGER_EXPANSION](MESSENGER_EXPANSION.md)(AI 직원 = 세션).
 
