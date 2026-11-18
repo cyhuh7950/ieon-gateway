@@ -77,7 +77,7 @@ test('짝맺기 보호: 거절하면 PC에 거절로 보이고, 허브의 연결
   assert.equal(st.state, 'none');
   assert.equal(st.error, 'rejected');
   // 잘못된 허브 주소
-  assert.equal((await s.call(s.pcUrl, '/v1/admin/local/hub/connect', { method: 'POST', body: { hubUrl: 'http://evil.example', name: 'x' } })).body.error, 'bad_server_url');
+  assert.equal((await s.call(s.pcUrl, '/v1/admin/local/hub/connect', { method: 'POST', body: { hubUrl: 'ftp://evil.example', name: 'x' } })).body.error, 'bad_server_url');
   // 같은 주소에서 1분에 10번까지
   const codes = [];
   for (let i = 0; i < 12; i++) codes.push((await start('192.0.2.50')).status);

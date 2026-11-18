@@ -61,8 +61,8 @@ test('PC 로컬 웹: 실제 실행 스위치와 허용 목록을 바꾸고(연�
   r = await s.call(`/v1/admin/local/device/codex/${T1}`, { method: 'PUT', body: { mode: 'alternate' } });
   assert.equal(r.body.codexThreads[0].threadId, T1);
   assert.equal((await s.call('/v1/admin/local/device/codex/01a0dadd-739f-74d2-93c5-9c405cc1019b', { method: 'PUT', body: {} })).body.error, 'excluded_session');
-  // Tailscale·앞단을 거친 요청(이 PC에서 연 화면이 아님)은 보기만
-  assert.equal((await s.call('/v1/admin/local/device/live', { method: 'PUT', xff: '100.100.1.2', body: { live: false } })).body.error, 'local_only');
+  // 규칙 점검 4: Tailscale·앞단을 거친 요청도 로그인한 웹 화면이면 바꿀 수 있음
+  assert.equal((await s.call('/v1/admin/local/device/live', { method: 'PUT', xff: '100.100.1.2', body: { live: 'yes' } })).body.error, 'bad_live');
   assert.equal((await s.call('/v1/admin/local/device', { xff: '100.100.1.2' })).status, 200);
   r = await s.call(`/v1/admin/local/device/codex/${T1}`, { method: 'DELETE' });
   assert.deepEqual(r.body.codexThreads, []);

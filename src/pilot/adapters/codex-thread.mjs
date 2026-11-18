@@ -316,11 +316,15 @@ export async function appServerTurn(transport, { threadId, question, cwd, extraR
   const files = new Map(); // fileChange 항목 ID → 고치려는 파일 경로(승인 카드에 보이기)
   const roots = [cwd, ...(extraRoots ?? [])].filter(Boolean);
   const call = (method, params) => { const id = nextId++; transport.send({ jsonrpc: '2.0', id, method, params }); return new Promise((resolve, reject) => pending.set(id, { resolve, reject })); };
+  // 규칙 점검 7: 승인 카드를 기다리는 동안은 차례 시간 제한을 멈추고, 답이 오면 다시 잰다(승인 시간을 길게 해도 차례가 먼저 끝나지 않게).
+  let timer = null; let timeUp; const timeout = new Promise((r) => { timeUp = r; }); let waiting = 0; let running = false;
+  const arm = () => { clearTimeout(timer); timer = setTimeout(() => timeUp('timeout'), timeoutMs); };
+  const approveT = approve && (async (x) => { waiting += 1; clearTimeout(timer); try { return await approve(x); } finally { waiting -= 1; if (!waiting && running) arm(); } });
   transport.onMessage((msg) => {
     if (msg.id !== undefined && !msg.method && pending.has(msg.id)) { const p = pending.get(msg.id); pending.delete(msg.id); return msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result); }
     if (msg.id !== undefined && msg.method) {
       const req = msg.method === 'item/fileChange/requestApproval' ? { ...msg, params: { ...msg.params, changes: files.get(msg.params?.itemId) ?? [], roots } } : msg;
-      answerServerRequest(req, threadId, approve, track).then((r) => transport.send(r)).catch(() => {}); return;
+      answerServerRequest(req, threadId, approveT, track).then((r) => transport.send(r)).catch(() => {}); return;
     }
     const params = msg.params;
     if (!params || params.threadId !== threadId || (turnId && params.turnId && params.turnId !== turnId)) return;
@@ -358,8 +362,8 @@ export async function appServerTurn(transport, { threadId, question, cwd, extraR
     // RC2: 멈춤 신호가 오면 그 차례를 끊는다(turn/interrupt). 엔진이 interrupted로 끝냈다고 알려 와야 중지됨.
     const interrupt = () => { if (turnId) call('turn/interrupt', { threadId, turnId }).catch(() => {}); };
     if (signal?.aborted) interrupt(); else signal?.addEventListener('abort', interrupt, { once: true });
-    let timer; // 차례가 끝나면 시간 제한 타이머를 지운다(남으면 30분 동안 쌓임)
-    const status = await Promise.race([done, new Promise((r) => { timer = setTimeout(() => r('timeout'), timeoutMs); })]).finally(() => { clearTimeout(timer); signal?.removeEventListener?.('abort', interrupt); });
+    running = true; if (!waiting) arm(); // 차례가 끝나면 시간 제한 타이머를 지운다(남으면 30분 동안 쌓임)
+    const status = await Promise.race([done, timeout]).finally(() => { running = false; clearTimeout(timer); signal?.removeEventListener?.('abort', interrupt); });
     if (status === 'interrupted' && signal?.aborted) throw new StoppedError();
     if (status === 'failed' && !answer && !worked && isUsageLimit(JSON.stringify(turnError))) throw new EngineError('usage_limit', 429);
     if (status !== 'completed') throw new Error(`turn_${status}`);

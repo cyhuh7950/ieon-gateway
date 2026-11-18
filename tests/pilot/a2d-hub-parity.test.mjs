@@ -101,13 +101,12 @@ test('PC가 꺼져 있거나 응답이 없으면 알리고 다시 보내지 않�
   const pcUrl = `http://127.0.0.1:${await pc.listen(0)}`;
   s.onClose(() => pc.close());
   assert.equal((await fetch(`${pcUrl}/v1/admin/hosts/h_pc/run`, { method: 'POST', headers: { authorization: 'Bearer web' }, body: '{}' })).status, 404);
-  // PC 화면의 공통 명령: 보기는 앞단을 거쳐도, 바꾸기는 이 PC에서 연 화면만
+  // PC 화면의 공통 명령: 보기·바꾸기 모두 로그인한 화면이면 앞단을 거쳐도(규칙 점검 4)
   const run = (op, args, xff) => fetch(`${pcUrl}/v1/admin/local/run`, { method: 'POST', body: JSON.stringify({ op, args }),
     headers: { authorization: 'Bearer web', 'content-type': 'application/json', ...(xff ? { 'x-forwarded-for': xff } : {}) } }).then(async (x) => ({ status: x.status, body: await x.json() }));
   assert.equal((await run('device.get', {}, '100.100.1.2')).status, 200);
   assert.equal((await run('accounts.get', {}, '100.100.1.2')).status, 200, '계정 보기도 앞단 화면에서 됨');
-  assert.equal((await run('device.live', { live: false }, '100.100.1.2')).body.error, 'local_only');
-  assert.equal((await run('device.live', { live: false })).body.live, false);
+  assert.equal((await run('device.live', { live: false }, '100.100.1.2')).body.live, false, '규칙 점검 4: 로그인한 화면이면 앞단을 거쳐도 바꿈');
 });
 
 test('대기열: 그 PC가 가져간 명령의 결과만 받는다', async () => {

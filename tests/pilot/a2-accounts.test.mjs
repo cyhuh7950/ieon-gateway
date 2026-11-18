@@ -114,8 +114,8 @@ test('설정 → 계정 API: 추가·로그인(계정 폴더로)·고르기·지
     headers: { authorization: 'Bearer web', 'content-type': 'application/json', ...(xff ? { 'x-forwarded-for': xff } : {}) } }).then(async (r) => ({ status: r.status, body: await r.json() }));
 
   assert.deepEqual((await call('/v1/admin/local/accounts')).body.accounts, []);
-  assert.equal((await call('/v1/admin/local/accounts', { method: 'POST', body: { label: '회사' }, xff: '100.100.1.2' })).body.error, 'local_only');
-  assert.equal((await call('/v1/admin/local/accounts', { method: 'POST', body: { label: ' ' } })).body.error, 'bad_label');
+  // 규칙 점검 4: 로그인한 웹 화면이면 앞단(Tailscale 등)을 거쳐도 바꿀 수 있음
+  assert.equal((await call('/v1/admin/local/accounts', { method: 'POST', body: { label: ' ' }, xff: '100.100.1.2' })).body.error, 'bad_label');
   let r = await call('/v1/admin/local/accounts', { method: 'POST', body: { label: '회사' } });
   assert.equal(r.status, 201);
   const id = r.body.id; const home = join(d, 'accounts', 'codex', id);

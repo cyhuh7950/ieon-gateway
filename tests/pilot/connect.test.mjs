@@ -14,11 +14,12 @@ const sha = (s) => createHash('sha256').update(s).digest('hex');
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const hasBash = spawnSync('bash', ['--version']).status === 0;
 
-test('허브 주소: 공개 주소는 https만, http는 이 PC만, 사용자 정보·쿼리·조각은 거절', () => {
+test('허브 주소: https·http(규칙 점검 8), 사용자 정보·쿼리·조각은 거절', () => {
   assert.equal(validateServerUrl('https://ieun-gateway.sinsan.kr/'), 'https://ieun-gateway.sinsan.kr');
   assert.equal(validateServerUrl('http://127.0.0.1:28760'), 'http://127.0.0.1:28760');
   assert.equal(validateServerUrl('http://localhost:28760/'), 'http://localhost:28760');
-  for (const bad of ['http://ieun-gateway.sinsan.kr', 'ftp://x', 'https://u:p@h.example', 'https://h.example/?a=1', 'https://h.example/#x', 'nope', '']) {
+  assert.equal(validateServerUrl('http://10.0.0.5:28770/'), 'http://10.0.0.5:28770', '도메인 없는 서버 설치형');
+  for (const bad of ['ftp://x', 'https://u:p@h.example', 'https://h.example/?a=1', 'https://h.example/#x', 'nope', '']) {
     assert.throws(() => validateServerUrl(bad), /bad_server_url/, bad);
   }
 });
@@ -28,7 +29,7 @@ test('명령줄 --server·--token-file은 설정 값을 대신하고, 허브 연
   assert.deepEqual(connectorOptions(cfg, []), { serverUrl: 'http://127.0.0.1:28760', deviceTokenFile: 'a', receiptPath: 'r.jsonl' });
   assert.deepEqual(connectorOptions(cfg, ['--server', 'https://hub.example/', '--token-file', 'b']),
     { serverUrl: 'https://hub.example', deviceTokenFile: 'b', receiptPath: 'hub.jsonl' });
-  assert.throws(() => connectorOptions(cfg, ['--server', 'http://hub.example']), /bad_server_url/);
+  assert.throws(() => connectorOptions(cfg, ['--server', 'ftp://hub.example']), /bad_server_url/);
 });
 
 test('기기 API 요청 횟수 제한: 기기별 한도를 넘으면 429·retry-after, 인증 실패가 많아도 정상 기기는 막히지 않는다', async (t) => {
@@ -51,10 +52,10 @@ test('기기 API 요청 횟수 제한: 기기별 한도를 넘으면 429·retry-
     (e) => e.message === 'poll_429' && e.retryAfterMs >= 1000);
 });
 
-test('ieon.sh connect: 주소가 없으면 2, https가 아니면 1, 기기 토큰이 없으면 이유를 알리고 멈춘다', { skip: !hasBash }, () => {
+test('ieon.sh connect: 주소가 없으면 2, https·http가 아니면 1, 기기 토큰이 없으면 이유를 알리고 멈춘다', { skip: !hasBash }, () => {
   const run = (...a) => spawnSync('bash', [root + 'scripts/ieon.sh', 'connect', ...a], { encoding: 'utf8', cwd: root });
   assert.equal(run().status, 2);
-  const r = run('http://ieun-gateway.sinsan.kr');
+  const r = run('https://u:p@ieun-gateway.sinsan.kr');
   assert.equal(r.status, 1);
   assert.match(r.stderr, /허브 주소가 올바르지 않습니다/);
   assert.equal(spawnSync('bash', [root + 'scripts/ieon.sh', 'start', 'https://x.example'], { encoding: 'utf8' }).status, 2);

@@ -8,12 +8,12 @@ import { accountsDirFor, accountLabel, codexAccountId, codexAccounts, codexHomeO
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeKind } from './claude-login.mjs';
 
-// P3: 허브 주소 검사. 공개 주소는 https만, http는 이 PC(127.0.0.1·localhost)만. 사용자 정보·쿼리·조각은 거절한다.
+// P3: 허브 주소 검사. https·http(규칙 점검 8, 2026-11-18 신산님 — 도메인 없는 서버 설치형도 PC를 붙일 수 있게. http는 암호화가 안 돼 화면에 경고).
+// 사용자 정보·쿼리·조각은 거절한다.
 export function validateServerUrl(raw) {
   let u;
   try { u = new URL(String(raw ?? '')); } catch { throw new Error('bad_server_url'); }
-  const local = ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname);
-  if (!(u.protocol === 'https:' || (u.protocol === 'http:' && local))) throw new Error('bad_server_url');
+  if (!['https:', 'http:'].includes(u.protocol)) throw new Error('bad_server_url');
   if (u.username || u.password || u.search || u.hash) throw new Error('bad_server_url');
   return u.origin + u.pathname.replace(/\/+$/, '');
 }
@@ -48,15 +48,15 @@ export const healthHeader = (state) => JSON.stringify(state).replace(/[\u007f-�
 
 // W1: 엔진이 묻는 승인(명령 실행·파일 수정)을 서버에 올리고 사람이 허용·거부할 때까지 기다린다. 15분이 지나면 서버가 거부로 바꾼다.
 // 이어온은 "이번만 허용"과 "거부"만 쓴다(항상 허용·자동 승인 없음). 서버에 닿지 못하거나 모르는 답이면 거부.
-export function approver({ baseUrl, headers, requestId, pollMs = 2000, maxMs = 16 * 60_000, log = () => {} }) {
+export function approver({ baseUrl, headers, requestId, pollMs = 2000, maxMs = null, log = () => {} }) {
   // RC1: 허용되면 onAllowed(approvalId)를 부른다(어댑터가 그 항목의 실행 결과를 이 승인에 잇기 위해). 돌려주는 값은 전처럼 accept/decline.
   return async ({ kind, summary, cwd, itemId, onAllowed }) => {
     try {
       const r = await fetch(`${baseUrl}/v1/device/approvals`, { method: 'POST', headers, body: JSON.stringify({ requestId, kind, summary, cwd, itemId }) });
       if (r.status !== 201) return 'decline';
-      const { approvalId } = await r.json();
+      const { approvalId, ttlMs } = await r.json();
       log({ event: 'approval_wait', kind });
-      const end = Date.now() + maxMs;
+      const end = Date.now() + (maxMs ?? (Number.isFinite(ttlMs) ? ttlMs + 60_000 : 16 * 60_000)); // 규칙 점검 7: 웹에서 정한 승인 시간 + 1분(시험은 maxMs로 줄임)
       while (Date.now() < end) {
         await new Promise((ok) => setTimeout(ok, pollMs));
         const s = await fetch(`${baseUrl}/v1/device/approvals/${approvalId}`, { headers }).then((x) => (x.status === 200 ? x.json() : null)).catch(() => null);

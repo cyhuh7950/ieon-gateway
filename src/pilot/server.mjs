@@ -3,13 +3,13 @@
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
 import { createServer } from 'node:http';
 import { hostname } from 'node:os';
-import { existsSync, readFileSync, rmSync, chmodSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, chmodSync, writeFileSync, utimesSync } from 'node:fs';
 import { createHash, timingSafeEqual, randomBytes, randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { loadNewSessionsConfig, removeWorkspace } from './new-sessions.mjs';
 import { botAppId, tokenEnvNames } from './bots.mjs';
-import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding, validateInstallKind, validateHostLimit } from './settings.mjs';
+import { validateAllowedUsers, validateKakao, validateNewSessionsWeb, mergeNewSessions, validateBinding, validateInstallKind, validateHostLimit, validateApprovalTtl, validateLoginDays } from './settings.mjs';
 import { createWebAccess, isExemptPath, validateWebAccess } from './web-access.mjs';
 import { createRelay } from '../relay/relay.mjs';
 import { createWebAuth } from './web-auth.mjs';
@@ -108,6 +108,23 @@ export function createApp(config) {
     store.configureNewSessions(nsCfg?.enabled ? nsCfg : null);
   };
   reloadNewSessions();
+  // 규칙 점검 6: 연결부(그 PC)는 자기 설정 파일로 다시 검사한다. 웹에서 바꾼 안전 설정 3개를 같은 파일에도 적고 연결부를 다시 띄워 서로 어긋나지 않게 한다.
+  const syncNsSafety = () => {
+    const p = config.newSessionsConfigPath;
+    if (!p || !existsSync(p) || !nsCfg) return;
+    try {
+      const raw = JSON.parse(readFileSync(p, 'utf8'));
+      const want = { allowFullFromChat: nsCfg.permissions.allowFullFromChat, deleteRequiresConfirm: nsCfg.cleanup.deleteRequiresConfirm, deleteWorkspaceOnClose: nsCfg.cleanup.deleteWorkspaceOnClose };
+      const have = { allowFullFromChat: raw.permissions?.allowFullFromChat ?? false, deleteRequiresConfirm: raw.cleanup?.deleteRequiresConfirm ?? true, deleteWorkspaceOnClose: raw.cleanup?.deleteWorkspaceOnClose ?? false };
+      if (JSON.stringify(want) === JSON.stringify(have)) return;
+      raw.permissions = { ...raw.permissions, allowFullFromChat: want.allowFullFromChat };
+      raw.cleanup = { ...raw.cleanup, deleteRequiresConfirm: want.deleteRequiresConfirm, deleteWorkspaceOnClose: want.deleteWorkspaceOnClose };
+      writeFileSync(p, JSON.stringify(raw, null, 2));
+      if (localConnector?.running()) localConnector.restart().catch(() => {});
+      else if (access && config.connectorConfigPath && existsSync(config.connectorConfigPath)) { const t = new Date(); utimesSync(config.connectorConfigPath, t, t); } // 허브 연결부는 설정 파일이 바뀌면 다시 시작
+      process.stderr.write(JSON.stringify({ ch: 'server', event: 'ns_safety_synced' }) + '\n');
+    } catch { /* 파일을 못 고치면 연결부는 이전 값으로 검사(더 안전한 쪽) */ }
+  };
   const notices = []; // 보관 예고. 각 항목에 at(알린 시각)을 붙이고 GET /v1/sessions/notices?after=로 가져간다.
   // 새 세션을 만들 PC: newSessionsHostId가 없으면 첫 번째 연결부(PC).
   const nsHost = config.newSessionsHostId ?? config.devices?.[0]?.hostId;
@@ -191,6 +208,8 @@ export function createApp(config) {
   // U4: 처음 설정의 "준비 확인" — 이 PC의 Codex 로그인 여부만(공식 `codex login status`, 계정 정보는 돌려주지 않음).
   const localCodexStatus = access ? null : (config.localCodexStatus ?? (() => createCodexLogin().status()));
   const localDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') && !req.headers['x-forwarded-for'];
+  // 규칙 점검 4(2026-11-18 신산님): PC 설정 바꾸기는 로그인한 웹 화면이면 어디서나(휴대폰·Tailscale 포함). 전에는 이 PC에서 연 화면만(local_only).
+  const webUser = (p) => p?.appId === 'app_web';
   // 기기 설정이 바뀌면 그 설정을 읽는 연결부를 다시 띄운다. 이 서버가 띄운 것이 아니면 다시 켜야 한다고 알린다.
   const applyDevice = async () => {
     let restarted = false;
@@ -355,7 +374,8 @@ export function createApp(config) {
     return accountKind(c) !== 'api';
   };
   // U2: 대화별로 사용자가 처리할 카드(중요한 것부터). 값은 상태 요약만 담고 질문·답 원문은 담지 않는다.
-  const approvalTtlMs = config.approvalTtlMs ?? 15 * 60_000; // W1: 15분 안에 답이 없으면 거부
+  // W1: 이 시간 안에 답이 없으면 거부. 규칙 점검 7: 웹 설정(15분~24시간) → 설정 파일 → 15분
+  const approvalTtl = () => { const m = store.getSetting('approvals.ttl')?.value?.minutes; return Number.isInteger(m) ? m * 60_000 : (config.approvalTtlMs ?? 15 * 60_000); };
   let webUrlSeen = null; // RC3: 마지막으로 본 공개 웹 주소(메신저 작업 열기 링크)
   const approvalShowMs = config.approvalShowMs ?? 30 * 60_000; // RC1: 결정된 승인 카드를 대화에 남겨 두는 시간
   const cardsFor = (c, live, principal) => {
@@ -363,13 +383,13 @@ export function createApp(config) {
     // W1: 엔진이 승인을 기다리는 중(허용·거부 카드). 요약·작업 폴더만, 로그에는 남기지 않음
     // RC1: 결정된 뒤에도 같은 카드가 승인됨 → 실행 중 → 완료/실패/결과 불명으로 바뀐다(결정 뒤 30분, 최근 3장까지만).
     const recent = (a) => a.state !== 'pending' && a.decidedAt && Date.now() - Date.parse(a.decidedAt) < approvalShowMs;
-    const all = principal ? store.approvals(principal, c.conversationId, { ttlMs: approvalTtlMs }) ?? [] : [];
+    const all = principal ? store.approvals(principal, c.conversationId, { ttlMs: approvalTtl() }) ?? [] : [];
     // RC5: 사람에게 넘긴 일(handoff)은 사람이 처리 기록을 남길 때까지 계속 보임
     for (const a of [...all.filter((x) => x.state === 'pending' || x.state === 'handoff'), ...all.filter((x) => x.state !== 'handoff' && recent(x)).slice(0, 3)]) {
       // 대기 중이면 기존 그대로 'approval'(허용·거부 버튼), 넘긴 일은 'handoff'(직접 처리함·하지 않음), 결정 뒤는 'approval_result'(버튼 없음 — 예전 화면·설치된 앱은 모르는 종류라 무시)
       cards.push({ kind: a.state === 'pending' ? 'approval' : a.state === 'handoff' ? 'handoff' : 'approval_result', approvalId: a.approvalId, requestId: a.requestId, approvalKind: a.kind, summary: a.summary, cwd: a.cwd,
         n: a.n, state: a.state, agent: a.agent, engine: a.engine, exitCode: a.exitCode,
-        expiresAt: new Date(Date.parse(a.createdAt) + approvalTtlMs).toISOString() });
+        expiresAt: new Date(Date.parse(a.createdAt) + approvalTtl()).toISOString() });
     }
     if (hubModeOn()) cards.push({ kind: 'hub_mode', hubUrl: hubLink?.status().hubUrl ?? null });
     else if (!online(c.hostId)) cards.push({ kind: 'device_offline' });
@@ -525,12 +545,12 @@ export function createApp(config) {
         if (req.method === 'POST' && path === '/v1/device/approvals') {
           const r = store.addApproval(device.hostId, await readJson(req));
           if (r.http === 201) { process.stderr.write(JSON.stringify({ ch: 'server', event: r.handoff ? 'approval_handoff' : 'approval_requested', host: device.hostId }) + '\n'); notify(store.approvalConversation(r.approvalId), { type: 'approval', approvalId: r.approvalId, status: r.handoff ? 'handoff' : 'pending' }); }
-          return r.http === 201 ? json(res, 201, { approvalId: r.approvalId, n: r.n, ttlMs: approvalTtlMs, ...(r.handoff ? { handoff: true } : {}) }) : json(res, r.http, { error: r.code });
+          return r.http === 201 ? json(res, 201, { approvalId: r.approvalId, n: r.n, ttlMs: approvalTtl(), ...(r.handoff ? { handoff: true } : {}) }) : json(res, r.http, { error: r.code });
         }
         const ap = path.match(/^\/v1\/device\/approvals\/(apv_[\w-]+)$/);
         if (req.method === 'GET' && ap) {
           if (store.approvalHost(ap[1]) !== device.hostId) return json(res, 404, { error: 'not_found' });
-          const st = store.approvalStatus(ap[1], { ttlMs: approvalTtlMs }).status;
+          const st = store.approvalStatus(ap[1], { ttlMs: approvalTtl() }).status;
           // RC1: 연결부가 허용을 읽어 간 순간부터 실행 중
           if (st === 'allowed' && store.markApprovalPicked(ap[1])) notify(store.approvalConversation(ap[1]), { type: 'approval', approvalId: ap[1], status: 'running' });
           return json(res, 200, { status: st });
@@ -747,7 +767,7 @@ export function createApp(config) {
           if (req.method === 'GET' && path === '/v1/admin/local/device') {
             return json(res, 200, { ...readDevice(cfgPath), managed: Boolean(localConnector), running: localConnector?.running() ?? null });
           }
-          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (!webUser(principal)) return json(res, 403, { error: 'web_login_only' });
           if (req.method === 'PUT' && path === '/v1/admin/local/device/live') {
             const live = (await readJson(req)).live;
             setLive(cfgPath, live);
@@ -766,11 +786,11 @@ export function createApp(config) {
           return json(res, 404, { error: 'not_found' });
         }
         // A2-d: 기기 관리 명령 한 벌(device-admin.mjs) — PC 화면은 여기로, 허브 화면은 /v1/admin/hosts/<PC>/run으로 같은 명령을 쓴다.
-        // 보기 명령은 앞단을 거친 화면(Tailscale 등)에서도 되고, 바꾸는 명령은 이 PC에서 연 화면만.
+        // 보기·바꾸기 모두 로그인한 웹 화면이면 어디서나(규칙 점검 4).
         if (path === '/v1/admin/local/run' && req.method === 'POST') {
           if (access) return json(res, 404, { error: 'not_found' });
           const b = await readJson(req);
-          if (OPS[b.op] === 'write' && !localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (OPS[b.op] === 'write' && !webUser(principal)) return json(res, 403, { error: 'web_login_only' });
           if (b.op === 'workspace.attach') return json(res, 400, { error: 'use_workspace_route' }); // WS1-a: 기록을 남기는 전용 주소로
           const r = await deviceAdmin.run(String(b.op ?? ''), b.args);
           return json(res, r.status, r.body);
@@ -778,7 +798,7 @@ export function createApp(config) {
         // A2: 설정 → 계정의 예전 주소(같은 명령으로 처리)
         if (path.startsWith('/v1/admin/local/accounts')) {
           if (access) return json(res, 404, { error: 'not_found' });
-          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (!webUser(principal)) return json(res, 403, { error: 'web_login_only' });
           const am = path.match(/^\/v1\/admin\/local\/accounts(?:\/([a-z0-9]{2,16}))?(\/login|\/login\/cancel|\/logout|\/use)?$/);
           if (!am) return json(res, 404, { error: 'not_found' });
           const body = req.method === 'GET' || req.method === 'DELETE' ? {} : await readJson(req);
@@ -795,7 +815,7 @@ export function createApp(config) {
         // WS1-a 작업공간(설계 WORKSPACES 2-2): AI 직원(대화)에 그 PC의 개인·공유 폴더 붙이기. 서버가 대화 주인·세션을 확인하고 그 PC에 맡긴 뒤,
         // 성공하면 표시(이름·권한·차단 수준)와 기록(누가·언제·어느 폴더·권한, 180일)을 남긴다. PC 화면은 이 PC에서 연 화면만.
         if (path === '/v1/admin/workspaces/attach' && req.method === 'POST') {
-          if (!access && !localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (!access && !webUser(principal)) return json(res, 403, { error: 'web_login_only' });
           const b = await readJson(req);
           const conv = store.conversations(principal).find((c) => c.conversationId === String(b.conversationId ?? ''));
           if (!conv) return json(res, 404, { error: 'not_found' });
@@ -865,14 +885,14 @@ export function createApp(config) {
         }
         if (path === '/v1/admin/local/engines' && req.method === 'GET') {
           if (access) return json(res, 404, { error: 'not_found' });
-          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (!webUser(principal)) return json(res, 403, { error: 'web_login_only' });
           const s = await localCodexStatus().catch(() => ({ loggedIn: false, method: null }));
           return json(res, 200, { codex: { loggedIn: s.loggedIn === true, method: s.method ?? null } });
         }
         // U3: 대화 연결 — 이 PC의 최근 Codex 대화 목록(업무 대화 제외)과 한 번에 연결(허용 목록 + 세션 등록). 이 PC에서 연 화면만.
         if (path === '/v1/admin/local/threads' || path === '/v1/admin/connections') {
           if (access) return json(res, 404, { error: 'not_found' });
-          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (!webUser(principal)) return json(res, 403, { error: 'web_login_only' });
           const cfgPath = config.connectorConfigPath;
           const allowed = () => new Set(cfgPath && existsSync(cfgPath) ? readDevice(cfgPath).codexThreads.map((x) => x.threadId.toLowerCase()) : []);
           if (req.method === 'GET' && path === '/v1/admin/local/threads') {
@@ -919,7 +939,7 @@ export function createApp(config) {
           if (access || !modePath) return json(res, 404, { error: 'not_found' });
           if (req.method === 'GET') return json(res, 200, modeAdmin.view());
           if (req.method !== 'PUT') return json(res, 404, { error: 'not_found' });
-          if (!localDirect(req)) return json(res, 403, { error: 'local_only' });
+          if (!webUser(principal)) return json(res, 403, { error: 'web_login_only' });
           const r = modeAdmin.set(String((await readJson(req)).mode ?? ''));
           return json(res, r.status, r.body);
         }
@@ -1149,24 +1169,28 @@ export function createApp(config) {
             allowedUsers: au ? { value: au.value, source: 'web', updatedAt: au.updatedAt } : { value: null, source: 'file' },
             kakao: kk ? { value: kk.value, source: 'web', updatedAt: kk.updatedAt } : { value: null, source: 'file' },
             newSessions: { web: ns?.value ?? null, updatedAt: ns?.updatedAt ?? null, fileConfigured: Boolean(nsFileRaw),
-              effective: nsCfg ? { enabled: nsCfg.enabled, limits: nsCfg.limits, permissions: { default: nsCfg.permissions.default, profiles: Object.keys(nsCfg.permissions.profiles).filter((p) => p !== 'full') },
+              effective: nsCfg ? { enabled: nsCfg.enabled, limits: nsCfg.limits, permissions: { default: nsCfg.permissions.default, allowFullFromChat: nsCfg.permissions.allowFullFromChat,
+                profiles: Object.keys(nsCfg.permissions.profiles).filter((p) => p !== 'full' || nsCfg.permissions.allowFullFromChat) },
                 cleanup: nsCfg.cleanup, workspaceRoot: nsCfg.workspaceRoot } : null },
             installKind: installKind(), // SV4: server(① 서버 설치형, PC 연결 화면 숨김) | hub(② 허브형)
             hostLimit: { perHost: store.hostLimit(), source: store.getSetting('limits.perHost') ? 'web' : 'file' }, // SV4 동시 질문 수
+            approvalTtl: { minutes: Math.round(approvalTtl() / 60_000), source: store.getSetting('approvals.ttl') ? 'web' : 'file' }, // 규칙 점검 7
+            loginDays: { days: auth.loginDays(), source: store.getSetting('auth.loginDays') ? 'web' : 'file' }, // 규칙 점검 10
           };
         };
         if (req.method === 'GET' && path === '/v1/admin/settings') return json(res, 200, view());
-        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions|install-kind|host-limit)$/);
+        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions|install-kind|host-limit|approval-ttl|login-days)$/);
         if (!s) return json(res, 404, { error: 'not_found' });
-        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions', 'install-kind': 'install.kind', 'host-limit': 'limits.perHost' }[s[1]];
+        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions', 'install-kind': 'install.kind', 'host-limit': 'limits.perHost', 'approval-ttl': 'approvals.ttl', 'login-days': 'auth.loginDays' }[s[1]];
         if (req.method === 'DELETE') store.deleteSetting(key); // 파일 값으로 되돌리기
         else if (req.method === 'PUT') {
           const body = await readJson(req);
           const value = s[1] === 'allowed-users' ? validateAllowedUsers(body) : s[1] === 'kakao' ? validateKakao(body)
-            : s[1] === 'install-kind' ? validateInstallKind(body) : s[1] === 'host-limit' ? validateHostLimit(body) : validateNewSessionsWeb(body, nsFileRaw ?? {});
+            : s[1] === 'install-kind' ? validateInstallKind(body) : s[1] === 'host-limit' ? validateHostLimit(body)
+            : s[1] === 'approval-ttl' ? validateApprovalTtl(body) : s[1] === 'login-days' ? validateLoginDays(body) : validateNewSessionsWeb(body, nsFileRaw ?? {});
           store.setSetting(key, value);
         } else return json(res, 404, { error: 'not_found' });
-        if (key === 'newSessions') reloadNewSessions();
+        if (key === 'newSessions') { reloadNewSessions(); syncNsSafety(); }
         if (key === 'limits.perHost') reloadHostLimit();
         return json(res, 200, view());
       }
@@ -1313,7 +1337,7 @@ export function createApp(config) {
       if (apd && req.method === 'POST') {
         // 웹 화면 또는 메신저 봇(브리지가 주인인지 확인한 뒤)만. 외부 프로그램 키는 불가
         if (principal.appId !== 'app_web' && principal.appId !== 'app_messenger' && !principal.bot) return json(res, 403, { error: 'admin_only' });
-        const r = store.decideApproval(principal, apd[1], String((await readJson(req)).decision ?? ''), { ttlMs: approvalTtlMs });
+        const r = store.decideApproval(principal, apd[1], String((await readJson(req)).decision ?? ''), { ttlMs: approvalTtl() });
         if (r.http === 200) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'approval_decided', status: r.status }) + '\n'); notify(store.approvalConversation(apd[1]), { type: 'approval', approvalId: apd[1], status: r.status }); }
         return r.http === 200 ? json(res, 200, { status: r.status }) : json(res, r.http, { error: r.code, ...(r.status ? { status: r.status } : {}) });
       }
@@ -1328,7 +1352,7 @@ export function createApp(config) {
       }
       const apl = path.match(/^\/v1\/conversations\/([\w-]+)\/approvals$/);
       if (apl && req.method === 'GET') {
-        const list = store.approvals(principal, apl[1], { ttlMs: approvalTtlMs });
+        const list = store.approvals(principal, apl[1], { ttlMs: approvalTtl() });
         return list ? json(res, 200, { approvals: list }) : json(res, 404, { error: 'not_found' });
       }
       // --- AP-1 AI 직원·방(웹 화면만 — 메신저·외부 프로그램 키로는 못 바꿈) ---
@@ -1464,15 +1488,15 @@ export function createApp(config) {
       // RC3: 작업 화면 — 작업 목록·작업 하나·승인 대기함(내가 볼 수 있는 대화만)
       if (req.method === 'GET' && path === '/v1/tasks') {
         const q = new URL(req.url, 'http://x').searchParams;
-        return json(res, 200, { tasks: store.tasks(principal, { filter: q.get('filter') === 'active' ? 'active' : 'all', limit: q.get('limit'), ttlMs: approvalTtlMs }) });
+        return json(res, 200, { tasks: store.tasks(principal, { filter: q.get('filter') === 'active' ? 'active' : 'all', limit: q.get('limit'), ttlMs: approvalTtl() }) });
       }
       m = path.match(/^\/v1\/tasks\/([\w-]+)$/);
       if (req.method === 'GET' && m) {
-        const t = store.taskDetail(principal, m[1], { ttlMs: approvalTtlMs });
+        const t = store.taskDetail(principal, m[1], { ttlMs: approvalTtl() });
         if (t?.resume?.known) t.resume.deviceOnline = online(t.resume.now.hostId); // RC4: 지금 그 PC가 붙어 있는지
         return t ? json(res, 200, t) : json(res, 404, { error: 'not_found' });
       }
-      if (req.method === 'GET' && path === '/v1/approvals') return json(res, 200, { approvals: store.pendingApprovals(principal, { ttlMs: approvalTtlMs }) });
+      if (req.method === 'GET' && path === '/v1/approvals') return json(res, 200, { approvals: store.pendingApprovals(principal, { ttlMs: approvalTtl() }) });
       // RC2: 그 요청만 멈추기(웹·앱·메신저 공통). 대기 중 → 바로 취소(200), 실행 중 → 멈추는 중(202, 연결부가 멈춘 뒤 중지됨)
       m = path.match(/^\/v1\/requests\/([\w-]+)\/stop$/);
       if (req.method === 'POST' && m) {

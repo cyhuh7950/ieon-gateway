@@ -92,8 +92,7 @@ test('② 내 허브: 이 PC 봇(카카오 중계 포함)은 빈 목록, 이 PC 
 
 test('바꾸기: 이 PC 화면만, 두 값만, 처리 중인 질문이 있으면 바꾸지 않음', async (t) => {
   const s = await pc(t);
-  assert.equal((await s.call('/v1/admin/local/mode', { method: 'PUT', body: { mode: 'hub' }, xff: '100.100.1.2' })).body.error, 'local_only');
-  assert.equal((await s.call('/v1/admin/local/mode', { method: 'PUT', body: { mode: 'public' } })).body.error, 'bad_mode');
+  assert.equal((await s.call('/v1/admin/local/mode', { method: 'PUT', body: { mode: 'public' }, xff: '100.100.1.2' })).body.error, 'bad_mode', '규칙 점검 4: 앞단을 거쳐도 로그인한 화면이면 받음');
   await fetch(s.base + '/v1/device/jobs', { headers: { authorization: 'Bearer dev' } }); // PC 온라인
   const q = await s.call('/v1/conversations/c1/requests', { method: 'POST', body: { question: 'q' }, headers: { 'idempotency-key': 'k-m1-busy-0001' } });
   assert.equal(q.status, 202);

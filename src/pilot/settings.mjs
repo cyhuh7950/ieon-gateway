@@ -28,6 +28,18 @@ export function validateHostLimit(v) {
   if (!Number.isInteger(n) || n < 0 || n > 50) fail('bad_host_limit');
   return { perHost: n };
 }
+// 규칙 점검 7(2026-11-18 신산님): 승인 카드를 기다리는 시간(분). 15분~24시간.
+export function validateApprovalTtl(v) {
+  const n = Number(v?.minutes);
+  if (!Number.isInteger(n) || n < 15 || n > 1440) fail('bad_approval_ttl');
+  return { minutes: n };
+}
+// 규칙 점검 10: 웹 로그인 유지 기간(일). 1~90일.
+export function validateLoginDays(v) {
+  const n = Number(v?.days);
+  if (!Number.isInteger(n) || n < 1 || n > 90) fail('bad_login_days');
+  return { days: n };
+}
 // SV4: 허브의 쓰임(① 서버 설치형 server | ② 허브형 hub)
 export function validateInstallKind(v) {
   if (!v || !['server', 'hub'].includes(v.kind)) fail('bad_install_kind');
@@ -95,17 +107,23 @@ export function validateNewSessionsWeb(v, fileRaw) {
   if (v.cleanup !== undefined) {
     out.cleanup = {};
     for (const [k, n] of Object.entries(v.cleanup ?? {})) {
-      // 삭제 확인·삭제 시 작업 폴더 지우기는 안전 설정이라 파일에만 둔다.
+      // 규칙 점검 6(2026-11-18 신산님): 삭제 확인·삭제 시 작업 폴더 지우기도 웹에서(화면이 확인 창을 띄움). 전에는 파일에만.
+      if (['deleteRequiresConfirm', 'deleteWorkspaceOnClose'].includes(k)) { if (typeof n !== 'boolean') fail('bad_cleanup'); out.cleanup[k] = n; continue; }
       if (!['idleSleepMinutes', 'archiveAfterDays', 'archiveNoticeDays'].includes(k)) fail('field_not_editable');
       out.cleanup[k] = posInt(n, 'bad_cleanup', 1, 100000);
     }
   }
   if (v.permissions !== undefined) {
-    for (const k of Object.keys(v.permissions ?? {})) if (k !== 'default') fail('field_not_editable');
+    for (const k of Object.keys(v.permissions ?? {})) if (!['default', 'allowFullFromChat'].includes(k)) fail('field_not_editable');
+    out.permissions = {};
+    // 규칙 점검 6: full 권한(명령·인터넷)을 만들 때 고를 수 있게 하는 스위치도 웹에서. 기본 권한을 full로 두려면 이 스위치가 켜져 있어야 함.
+    if (v.permissions.allowFullFromChat !== undefined) { if (typeof v.permissions.allowFullFromChat !== 'boolean') fail('bad_permissions'); out.permissions.allowFullFromChat = v.permissions.allowFullFromChat; }
     if (v.permissions.default !== undefined) {
-      if (v.permissions.default === 'full') fail('profile_not_allowed');
-      out.permissions = { default: String(v.permissions.default) };
+      const fullOk = out.permissions.allowFullFromChat ?? fileRaw?.permissions?.allowFullFromChat ?? false;
+      if (v.permissions.default === 'full' && !fullOk) fail('profile_not_allowed');
+      out.permissions.default = String(v.permissions.default);
     }
+    if (!Object.keys(out.permissions).length) delete out.permissions;
   }
   // 합친 결과가 규칙에 맞는지(예: 동시 한도 ≤ 총 한도, 있는 프로필) 실제 로더로 확인한다.
   try { loadNewSessionsConfig(mergeNewSessions(fileRaw, out)); } catch (e) { fail(String(e.message).replace('new_sessions_config:', 'bad_new_sessions:')); }
@@ -120,6 +138,7 @@ export function mergeNewSessions(fileRaw = {}, web = {}) {
     ...(web.enabled !== undefined ? { enabled: web.enabled } : {}),
     limits: { ...f.limits, ...web.limits, maxPerEngine: { ...f.limits?.maxPerEngine, ...web.limits?.maxPerEngine } },
     cleanup: { ...f.cleanup, ...web.cleanup },
-    permissions: { ...f.permissions, ...(web.permissions?.default ? { default: web.permissions.default } : {}) },
+    permissions: { ...f.permissions, ...(web.permissions?.default ? { default: web.permissions.default } : {}),
+      ...(typeof web.permissions?.allowFullFromChat === 'boolean' ? { allowFullFromChat: web.permissions.allowFullFromChat } : {}) },
   };
 }

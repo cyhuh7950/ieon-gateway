@@ -45,7 +45,7 @@ test('PC: 이 PC에서 연 화면은 토큰 없이 자동 로그인(쿠키), 쿠
   assert.equal((await s.call('/v1/auth/local', { method: 'POST', origin: 'https://evil.example' })).body.error, 'bad_origin');
   const r = await s.call('/v1/auth/local', { method: 'POST' });
   assert.equal(r.status, 200);
-  assert.match(r.set, /ieon_sid=.+; Path=\/; HttpOnly; SameSite=Strict; Max-Age=43200$/); // http라 Secure 없음
+  assert.match(r.set, /ieon_sid=.+; Path=\/; HttpOnly; SameSite=Strict; Max-Age=2592000$/); // http라 Secure 없음
   assert.equal((await s.call('/v1/conversations')).status, 200);
   assert.equal((await s.call('/v1/auth/state')).body.loggedIn, true);
   // 쿠키로 바꾸는 요청: Origin 없음·다른 사이트면 거절, 같은 곳이면 통과

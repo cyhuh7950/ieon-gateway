@@ -26,7 +26,7 @@ test('준비 확인: 이 PC의 Codex 로그인 여부만 돌려주고 계정 정
   const r = await call('/v1/admin/local/engines');
   assert.equal(r.status, 200);
   assert.deepEqual(r.body, { codex: { loggedIn: true, method: 'chatgpt' } });
-  assert.equal((await call('/v1/admin/local/engines', { 'x-forwarded-for': '203.0.113.9' })).status, 403, '이 PC에서 연 화면만');
+  assert.equal((await call('/v1/admin/local/engines', { 'x-forwarded-for': '203.0.113.9' })).status, 200, '규칙 점검 4: 로그인한 화면이면 어디서나');
 });
 
 test('준비 확인: 확인이 실패하면 로그인 안 됨으로(막지 않고 계속할 수 있게)', async (t) => {
