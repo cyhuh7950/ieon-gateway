@@ -59,7 +59,7 @@ export default function Home() {
       let c = names.current.get(id);
       if (!c) { try { (await api.conversations()).conversations.forEach((x) => names.current.set(x.conversationId, x)); c = names.current.get(id); } catch { /* 목록 그대로 */ } }
       if (c) setView({ kind: "chat", conv: c });
-    }).then((f) => { stop = f; });
+    }, { onState: (s) => { api.pushState(s).catch(() => {}); } }).then((f) => { stop = f; });
     return () => stop();
   }, [api]);
   const toggleNotify = useCallback(async () => {

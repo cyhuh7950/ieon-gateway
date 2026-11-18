@@ -667,6 +667,13 @@ export function createApp(config) {
       }
 
       if (appDevice && path.startsWith('/v1/admin/')) return json(res, 403, { error: 'app_not_allowed' }); // 설정은 웹 화면에서만
+      // AP-4b: 앱의 알림 준비 상태(허용·등록·오류 이름만, 80자) — 서버 기록에만
+      if (req.method === 'POST' && path === '/v1/app/push-state') {
+        if (!appDevice) return json(res, 403, { error: 'app_only' });
+        const st = String((await readJson(req)).state ?? '').replace(/[^\w:.\- ]/g, '').slice(0, 80);
+        process.stderr.write(JSON.stringify({ ch: 'server', event: 'app_push_state', state: st }) + '\n');
+        return json(res, 204);
+      }
       // AP-4b: 앱이 휴대폰 알림 주소(FCM 토큰)를 알린다. 빈 값이면 알림 끄기.
       if (req.method === 'PUT' && path === '/v1/app/push-token') {
         if (!appDevice) return json(res, 403, { error: 'app_only' });
