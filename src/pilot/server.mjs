@@ -1427,7 +1427,8 @@ export function createApp(config) {
       // --- W3 예약 작업: 만들기·켜기(= 사람의 승인)·끄기·지우기는 주인의 웹 화면만, 보기는 주인 ---
       if (path === '/v1/schedules' || path.startsWith('/v1/schedules/')) {
         const view = (s) => ({ ...s, when: describeSchedule(s), label: (() => { const c = store.conversations(principal).find((x) => x.conversationId === s.conversationId); return c ? labelOf(c) : null; })() });
-        if (req.method === 'GET' && path === '/v1/schedules') return json(res, 200, { schedules: store.schedules(principal).map(view), max: MAX_SCHEDULES });
+        // 허브에 연결된 PC는 질문이 허브로 가므로 예약도 허브 화면에서 만든다(여기서 만들면 매번 건너뜀)
+        if (req.method === 'GET' && path === '/v1/schedules') return json(res, 200, { schedules: store.schedules(principal).map(view), max: MAX_SCHEDULES, hubMode: hubModeOn(), hubUrl: hubModeOn() ? hubLink?.status().hubUrl ?? null : null });
         // 메신저 봇이 가져가 그 대화에 연결된 방에 답을 올림(볼 수 있는 대화만)
         if (req.method === 'GET' && path === '/v1/schedules/notices') {
           const after = new URL(req.url, 'http://x').searchParams.get('after') ?? '';
@@ -1436,6 +1437,7 @@ export function createApp(config) {
         }
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
         if (req.method === 'POST' && path === '/v1/schedules') {
+          if (hubModeOn()) return json(res, 409, { error: 'hub_mode' });
           const b = await readJson(req);
           let v; try { v = validateSchedule(b); } catch (e) { return json(res, 400, { error: e.message }); }
           const conv = store.conversations(principal).find((c) => c.conversationId === String(b.conversationId ?? ''));
