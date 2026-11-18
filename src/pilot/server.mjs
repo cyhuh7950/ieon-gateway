@@ -1394,6 +1394,7 @@ export function createApp(config) {
             if (!claims.get(`${platform}:${botId}`) || claimView(claims.get(`${platform}:${botId}`)) !== 'waiting') {
               if (linkCodes.size) { const f = lf && lf.until > Date.now() ? lf : { n: 0, until: 0 }; f.n += 1; if (f.n >= 5) { f.until = Date.now() + 15 * 60_000; f.n = 0; } linkFails.set(fk, f); }
               if (lf && lf.until > Date.now()) return json(res, 403, { error: 'claim_locked' });
+              if (linkCodes.size) return json(res, 403, { error: 'wrong_code' }); // 가입자가 숫자를 잘못 넣었으면 알려 줌(주인 등록 숫자도 없을 때)
             } }
           const c = claims.get(`${platform}:${botId}`);
           if (!c || claimView(c) !== 'waiting') return json(res, 404, { error: 'no_claim' });
