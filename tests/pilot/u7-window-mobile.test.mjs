@@ -37,8 +37,11 @@ test('두 화면 모두 홈 화면 추가 정보를 걸고, 오프라인 캐시(
   for (const f of ['src/pilot/web/app.html', 'src/pilot/web/settings.html']) {
     const h = read(f);
     assert.ok(h.includes('<link rel="manifest" href="/manifest.webmanifest">') && h.includes('<meta name="theme-color"') && h.includes('<link rel="apple-touch-icon" href="/icon-192.png">'), f);
-    assert.ok(!h.includes('serviceWorker'), f + ': 옛 화면을 캐시해 보여 주지 않음');
+    assert.ok(!h.includes('caches.') && !/serviceWorker\.register\((?!'\/sw\.js')/.test(h), f + ': 옛 화면을 캐시해 보여 주지 않음');
   }
+  // 웹 알림용 서비스 워커는 알림만 — 요청 가로채기·저장 없음
+  const sw = read('src/pilot/web/sw.js');
+  assert.ok(!sw.includes("addEventListener('fetch'") && !sw.includes('caches.'), 'sw.js는 알림만');
 });
 
 test('휴대폰 폭: 새 화면 버튼 44px, 설정 화면은 표가 페이지를 넓히지 않고 입력칸·탭이 커진다', () => {
