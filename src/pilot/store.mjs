@@ -112,6 +112,10 @@ export function openStore(path) {
   // AP-4b: 앱 기기의 휴대폰 알림 주소(FCM 토큰). 비밀값은 아니지만 화면·로그에 내보내지 않는다.
   if (!db.prepare('PRAGMA table_info(app_devices)').all().some((c) => c.name === 'push_token')) db.exec('ALTER TABLE app_devices ADD COLUMN push_token TEXT');
   // 웹 알림 구독(브라우저마다). 주소·키는 화면·로그에 내보내지 않는다.
+  // M2 여러 사람: 가입한 사용자(관리자는 여기 없음 — 허브 비밀번호 auth.admin). 상태 pending·approved·rejected·disabled
+  db.exec('CREATE TABLE IF NOT EXISTS users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, pw_hash TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, decided_at TEXT)');
+  // M2: PC 기기의 주인(연결을 승인한 사람). 예전 기기(빈칸)는 관리자 것
+  if (!db.prepare('PRAGMA table_info(devices)').all().some((c) => c.name === 'owner_user_id')) db.exec('ALTER TABLE devices ADD COLUMN owner_user_id TEXT');
   db.exec('CREATE TABLE IF NOT EXISTS web_push_subs (endpoint TEXT PRIMARY KEY, user_id TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL)');
   // RC3: 작업 화면에 보일 접수 시각·마지막 상태 변경 시각(전부터 있던 요청은 비어 있음)
   if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'created_at')) {
@@ -247,8 +251,9 @@ export function openStore(path) {
     },
 
     // --- P1-b: 웹에서 등록하는 기존 세션(출처 web). 파일 등록·새 세션은 여기서 바꾸지 않는다. ---
-    listBindings() {
-      return db.prepare('SELECT b.conversation_id FROM bindings b LEFT JOIN new_sessions n ON n.conversation_id = b.conversation_id WHERE n.conversation_id IS NULL ORDER BY b.rowid').all()
+    // M2: ownerUserId를 주면 그 사람 것만(남의 등록은 보이지 않음)
+    listBindings(ownerUserId = null) {
+      return db.prepare('SELECT b.conversation_id FROM bindings b LEFT JOIN new_sessions n ON n.conversation_id = b.conversation_id WHERE n.conversation_id IS NULL AND (? IS NULL OR b.owner_user_id = ?) ORDER BY b.rowid').all(ownerUserId, ownerUserId)
         .map((r) => binding(r.conversation_id))
         .map((b) => ({ conversationId: b.conversationId, label: b.label, engine: b.engine, hostId: b.hostId, sessionRef: b.sessionRef,
           appIds: b.storedAppIds, source: b.source, busy: locked(b) }));
@@ -257,6 +262,7 @@ export function openStore(path) {
       const cur = binding(b.conversationId);
       if (cur && newSession(b.conversationId)) return { http: 409, code: 'is_new_session' };
       if (cur && cur.source !== 'web') return { http: 409, code: 'file_managed' };
+      if (cur && cur.ownerUserId !== ownerUserId) return { http: 409, code: 'id_taken' }; // M2: 남의 등록은 덮어쓰지 않음
       return tx(() => {
         if (cur && locked(cur) && (cur.sessionRef !== b.sessionRef || cur.engine !== b.engine || cur.hostId !== b.hostId)) {
           return { http: 409, code: 'conversation_busy' };
@@ -265,12 +271,12 @@ export function openStore(path) {
           VALUES (?, ?, ?, ?, ?, ?, ?, 'web') ON CONFLICT (conversation_id) DO UPDATE SET app_ids = excluded.app_ids,
           host_id = excluded.host_id, engine = excluded.engine, session_ref = excluded.session_ref, label = excluded.label`)
           .run(b.conversationId, ownerUserId, JSON.stringify(b.appIds), b.hostId, b.engine, b.sessionRef, b.label);
-        return { http: 200, binding: this.listBindings().find((x) => x.conversationId === b.conversationId) };
+        return { http: 200, binding: this.listBindings(ownerUserId).find((x) => x.conversationId === b.conversationId) };
       });
     },
-    deleteBinding(conversationId) {
+    deleteBinding(conversationId, ownerUserId = null) {
       const cur = binding(conversationId);
-      if (!cur || newSession(conversationId)) return { http: 404, code: 'not_found' };
+      if (!cur || newSession(conversationId) || (ownerUserId && cur.ownerUserId !== ownerUserId)) return { http: 404, code: 'not_found' };
       if (cur.source !== 'web') return { http: 409, code: 'file_managed' };
       return tx(() => {
         if (locked(cur)) return { http: 409, code: 'conversation_busy' };
@@ -1161,17 +1167,38 @@ export function openStore(path) {
     },
     deleteWebSession(sidSha256) { db.prepare("DELETE FROM web_sessions WHERE sid_sha256 = ?").run(sidSha256); },
     deleteAllWebSessions() { db.prepare("DELETE FROM web_sessions").run(); },
+    deleteWebSessionsOf(userId) { db.prepare('DELETE FROM web_sessions WHERE user_id = ?').run(userId); },
+    // --- M2 사용자 ---
+    addUser(userId, email, pwHash) {
+      if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) return { http: 409, code: 'email_taken' };
+      db.prepare("INSERT INTO users (user_id, email, pw_hash, status, created_at) VALUES (?, ?, ?, 'pending', ?)").run(userId, email, pwHash, new Date().toISOString());
+      return { http: 201 };
+    },
+    userByEmail(email) { const r = db.prepare('SELECT * FROM users WHERE email = ?').get(email); return r ? { userId: r.user_id, email: r.email, pwHash: r.pw_hash, status: r.status } : null; },
+    user(userId) { const r = db.prepare('SELECT user_id, email, status FROM users WHERE user_id = ?').get(userId); return r ? { userId: r.user_id, email: r.email, status: r.status } : null; },
+    listUsers() {
+      return db.prepare("SELECT u.user_id, u.email, u.status, u.created_at, u.decided_at, (SELECT COUNT(*) FROM devices d WHERE d.owner_user_id = u.user_id AND d.revoked_at IS NULL) AS devices FROM users u ORDER BY u.created_at DESC").all()
+        .map((r) => ({ userId: r.user_id, email: r.email, status: r.status, createdAt: r.created_at, decidedAt: r.decided_at, devices: r.devices }));
+    },
+    setUserStatus(userId, status) {
+      const n = db.prepare('UPDATE users SET status = ?, decided_at = ? WHERE user_id = ?').run(status, new Date().toISOString(), userId).changes;
+      if (n && status !== 'approved') db.prepare('DELETE FROM web_sessions WHERE user_id = ?').run(userId); // 끊으면 바로 로그아웃
+      return n === 1;
+    },
     deleteSetting(key) { return db.prepare('DELETE FROM settings WHERE key = ?').run(key).changes === 1; },
 
     // --- P1-c: 웹에서 등록한 기기(PC 연결부). 토큰은 해시만 저장한다. server.json 기기는 여기 없다. ---
-    listDevices() {
-      return db.prepare('SELECT host_id, name, created_at, revoked_at, last_seen_at FROM devices ORDER BY created_at').all()
-        .map((d) => ({ hostId: d.host_id, name: d.name, createdAt: d.created_at, revokedAt: d.revoked_at, lastSeenAt: d.last_seen_at }));
+    // M2: ownerUserId를 주면 그 사람 기기만. 주인 빈칸(예전 기기)은 관리자(adminUserId) 것으로 본다
+    listDevices(ownerUserId = null, adminUserId = null) {
+      return db.prepare('SELECT host_id, name, created_at, revoked_at, last_seen_at, owner_user_id FROM devices ORDER BY created_at').all()
+        .filter((d) => ownerUserId === null || (d.owner_user_id ?? adminUserId) === ownerUserId)
+        .map((d) => ({ hostId: d.host_id, name: d.name, createdAt: d.created_at, revokedAt: d.revoked_at, lastSeenAt: d.last_seen_at, ownerUserId: d.owner_user_id ?? adminUserId }));
     },
     deviceEvents(limit = 50) {
       return db.prepare('SELECT at, host_id, action, user_id FROM device_events ORDER BY rowid DESC LIMIT ?').all(limit)
         .map((e) => ({ at: e.at, hostId: e.host_id, action: e.action, userId: e.user_id }));
     },
+    deviceOwner(hostId) { const r = db.prepare('SELECT owner_user_id FROM devices WHERE host_id = ?').get(hostId); return r ? (r.owner_user_id ?? null) : undefined; },
     // 인증용: 폐기되지 않은 기기의 토큰 해시
     activeDeviceHashes() {
       return db.prepare('SELECT host_id, token_sha256 FROM devices WHERE revoked_at IS NULL').all().map((d) => ({ hostId: d.host_id, tokenSha256: d.token_sha256 }));
@@ -1180,7 +1207,7 @@ export function openStore(path) {
       if (db.prepare('SELECT 1 FROM devices WHERE host_id = ?').get(hostId)) return { http: 409, code: 'host_taken' };
       const now = new Date().toISOString();
       tx(() => {
-        db.prepare('INSERT INTO devices (host_id, name, token_sha256, created_at) VALUES (?, ?, ?, ?)').run(hostId, name, tokenSha256, now);
+        db.prepare('INSERT INTO devices (host_id, name, token_sha256, created_at, owner_user_id) VALUES (?, ?, ?, ?, ?)').run(hostId, name, tokenSha256, now, userId ?? null);
         db.prepare('INSERT INTO device_events (at, host_id, action, user_id) VALUES (?, ?, ?, ?)').run(now, hostId, 'register', userId);
       });
       return { http: 201 };

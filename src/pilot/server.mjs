@@ -169,6 +169,11 @@ export function createApp(config) {
   };
   // 기기: server.json(파일) + 웹에서 등록한 기기(DB, 폐기되지 않은 것). P1-c
   const fileHosts = new Set((config.devices ?? []).map((d) => d.hostId));
+  // M2 여러 사람: 관리자 = 설정 파일의 웹 사용자(허브 비밀번호). 사용자는 자기 기기만(주인 빈칸 = 관리자 것)
+  const adminUserId = (config.users ?? []).find((u) => u.appId === 'app_web')?.userId ?? 'u_sinsan';
+  // 제한은 가입 신청으로 들어온 사람(users 표)에게만. 설정 파일의 사용자(관리자·메신저·외부 앱·시험용)는 지금처럼
+  const isAdminP = (p) => !store.user(p?.userId);
+  const userHosts = (p) => (isAdminP(p) ? knownHosts() : store.listDevices(p.userId, adminUserId).filter((d) => !d.revokedAt).map((d) => d.hostId));
   const knownHosts = () => [...new Set([...fileHosts, ...store.listDevices().filter((d) => !d.revokedAt).map((d) => d.hostId)])];
   const deviceEntries = () => [...(config.devices ?? []), ...store.activeDeviceHashes()];
   const newDeviceToken = () => { const token = randomBytes(32).toString('hex'); return { token, hash: createHash('sha256').update(token).digest('hex') }; };
@@ -680,6 +685,13 @@ export function createApp(config) {
       }
       if (!user) return json(res, 401, { error: 'unauthorized' });
       const principal = { userId: user.userId, appId: user.appId };
+      // M2: 가입한 사용자는 승인된 뒤에만, 관리 경로는 자기 것(앱 기기·짝맺기·자기 기기·작업 폴더)만. 나머지 허브 설정은 관리자만.
+      const isAdmin = isAdminP(principal);
+      if (!isAdmin) {
+        const u = store.user(principal.userId);
+        if (u.status !== 'approved') return json(res, u.status === 'pending' ? 403 : 401, { error: u.status === 'pending' ? 'pending_approval' : 'unauthorized' });
+        if (path.startsWith('/v1/admin/') && !/^\/v1\/admin\/(app-devices|pairings|devices|hosts\/[\w-]+\/run$|workspaces\/)/.test(path)) return json(res, 403, { error: 'admin_only' });
+      }
       // RC3: 웹 화면이 공개 https 주소로 열렸으면 그 주소를 기억한다(메신저 답의 "작업 열기" 링크용, 설정 없이). 로컬 주소는 쓰지 않는다.
       if (principal.appId === 'app_web') {
         const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
@@ -757,6 +769,15 @@ export function createApp(config) {
       }
       // --- 봇 관리(웹 사용자만) ---
       if (path.startsWith('/v1/admin/') && !path.startsWith('/v1/admin/settings')) {
+        // --- M2 사용자 목록·승인(관리자만 — 위에서 사용자는 /v1/admin/users를 못 씀). 이메일·상태·기기 수만, 대화 내용은 없음 ---
+        if (req.method === 'GET' && path === '/v1/admin/users') return json(res, 200, { users: store.listUsers(), enabled: auth.multiUser() });
+        { const um = path.match(/^\/v1\/admin\/users\/(u_[0-9a-f]{16})\/(approve|reject|disable|enable)$/);
+          if (um && req.method === 'POST') {
+            const status = { approve: 'approved', reject: 'rejected', disable: 'disabled', enable: 'approved' }[um[2]];
+            if (!store.setUserStatus(um[1], status)) return json(res, 404, { error: 'not_found' });
+            process.stderr.write(JSON.stringify({ ch: 'server', event: 'user_' + um[2] }) + '\n');
+            return json(res, 200, { userId: um[1], status });
+          } }
         if (principal.appId !== 'app_web') return json(res, 403, { error: 'admin_only' });
         if (req.method === 'GET' && path === '/v1/admin/roles') return json(res, 200, { roles: store.listRoles() });
         if (req.method === 'GET' && path === '/v1/admin/bots') {
@@ -775,6 +796,7 @@ export function createApp(config) {
         if (req.method === 'POST' && path === '/v1/admin/pairings/invite') {
           if (!pairing) return json(res, 404, { error: 'not_found' });
           const b = await readJson(req);
+          if (!isAdmin && b.replaceHostId && !userHosts(principal).includes(String(b.replaceHostId))) return json(res, 404, { error: 'unknown_host' });
           const r = pairing.invite(principal.userId, b.replaceHostId ? String(b.replaceHostId) : null);
           if (r.error) return json(res, r.http, { error: r.error });
           process.stderr.write(JSON.stringify({ ch: 'server', event: 'pair_invite_created' }) + '\n');
@@ -783,7 +805,9 @@ export function createApp(config) {
         const pr = path.match(/^\/v1\/admin\/pairings\/([\w-]{6,64})\/(approve|reject)$/);
         if (pr && req.method === 'POST') {
           if (!pairing) return json(res, 404, { error: 'not_found' });
-          const r = pr[2] === 'approve' ? await (async () => { const b = await readJson(req); return pairing.approve(pr[1], b.code, principal.userId, b.replaceHostId || null); })() : pairing.reject(pr[1]);
+          const r = pr[2] === 'approve' ? await (async () => { const b = await readJson(req);
+            if (!isAdmin && b.replaceHostId && !userHosts(principal).includes(String(b.replaceHostId))) return { error: 'unknown_host', http: 404 }; // M2: 남의 기기는 교체 못 함
+            return pairing.approve(pr[1], b.code, principal.userId, b.replaceHostId || null); })() : pairing.reject(pr[1]);
           if (r.error) return json(res, r.http, { error: r.error });
           process.stderr.write(JSON.stringify({ ch: 'server', event: `pair_${pr[2]}d`, hostId: r.body?.hostId ?? null }) + '\n');
           return json(res, r.http, r.body);
@@ -932,18 +956,19 @@ export function createApp(config) {
           if (!Object.hasOwn(OPS, op)) return json(res, 400, { error: 'bad_op' });
           if (op === 'workspace.attach') return json(res, 400, { error: 'use_workspace_route' }); // WS1-a
           if (hr[1] === 'hub' || hr[1] === selfHostId()) {
+            if (!isAdmin) return json(res, 404, { error: 'unknown_host' });
             if (!HUB_SELF_OPS.has(op)) return json(res, 400, { error: 'bad_op' });
             const r = await hubAdmin.run(op, b.args);
             return json(res, r.status, r.body);
           }
-          if (!knownHosts().includes(hr[1])) return json(res, 404, { error: 'unknown_host' });
+          if (!userHosts(principal).includes(hr[1])) return json(res, 404, { error: 'unknown_host' }); // M2: 자기 기기만
           if (!online(hr[1])) return json(res, 503, { error: 'device_offline' });
           const r = await adminQueue.send(hr[1], op, b.args && typeof b.args === 'object' ? b.args : {});
           process.stderr.write(JSON.stringify({ ch: 'server', event: 'host_admin', host: hr[1], op, status: r.status }) + '\n');
           // SV2 기존 대화(신산님 2026-11-17): 서버 칸의 Claude 대화를 [연결]하면 칸이 허용 목록에 넣고, 허브가 바로 이어온 대화로 등록한다(한 번에).
           if (op === 'claude.connect' && r.status === 200) {
             const host = hr[1]; const sessionRef = String(r.body.sessionId);
-            const existing = store.listBindings().find((x) => x.engine === 'claude_cli' && x.hostId === host && String(x.sessionRef).toLowerCase() === sessionRef.toLowerCase());
+            const existing = store.listBindings(principal.userId).find((x) => x.engine === 'claude_cli' && x.hostId === host && String(x.sessionRef).toLowerCase() === sessionRef.toLowerCase());
             let conversationId = existing?.conversationId;
             if (!conversationId) {
               const ids = new Set(store.listBindings().map((x) => x.conversationId));
@@ -951,7 +976,7 @@ export function createApp(config) {
               conversationId = base; for (let n = 2; ids.has(conversationId); n += 1) conversationId = base + '_' + n;
               const label = String(b.args?.label ?? '').trim().slice(0, 60) || String(r.body.title ?? '').slice(0, 60) || 'Claude 대화';
               const appIds = (config.users ?? []).some((u) => u.appId === 'app_messenger') ? ['app_web', 'app_messenger'] : ['app_web'];
-              let v; try { v = validateBinding(conversationId, { engine: 'claude_cli', label, hostId: host, sessionRef, appIds }, knownHosts()); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
+              let v; try { v = validateBinding(conversationId, { engine: 'claude_cli', label, hostId: host, sessionRef, appIds }, userHosts(principal)); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
               const s2 = store.saveBinding(principal.userId, v);
               if (s2.http !== 200) return json(res, s2.http, { error: s2.code });
             }
@@ -994,7 +1019,7 @@ export function createApp(config) {
               if (!['working_directory_missing', 'bad_working_directory'].includes(e.message)) return json(res, e.http ?? 400, { error: e.message });
               upsertCodexThread(cfgPath, { threadId, mode: 'alternate', workingDirectory: null });
             }
-            const existing = store.listBindings().find((b) => b.engine === 'codex_thread' && String(b.sessionRef).toLowerCase() === threadId);
+            const existing = store.listBindings(principal.userId).find((b) => b.engine === 'codex_thread' && String(b.sessionRef).toLowerCase() === threadId);
             let conversationId = existing?.conversationId;
             if (!conversationId) {
               const ids = new Set(store.listBindings().map((b) => b.conversationId));
@@ -1147,7 +1172,10 @@ export function createApp(config) {
         }
         // P1-c: 기기 목록·등록·재발급·폐기. 새 토큰은 응답에 한 번만 담고 서버에는 해시만 둔다.
         if (req.method === 'GET' && path === '/v1/admin/devices') {
-          const web = store.listDevices();
+          if (!isAdmin) { // M2: 사용자는 자기 기기만(파일 기기·허브 자신·기록은 관리자용)
+            return json(res, 200, { devices: store.listDevices(principal.userId, adminUserId).map((d) => ({ ...d, source: 'web', online: !d.revokedAt && online(d.hostId) })), events: [] });
+          }
+          const web = store.listDevices(null, adminUserId);
           return json(res, 200, { devices: [
             ...[...fileHosts].map((h) => ({ hostId: h, name: h, source: 'file', online: online(h), ...(h === selfHostId() ? { hubSelf: true } : {}),
               ...(health.get(h)?.boundary ? { cell: true } : {}), ...(h === defaultNsHost() ? { nsDefault: true } : {}) })),
@@ -1168,6 +1196,7 @@ export function createApp(config) {
         const dv = path.match(/^\/v1\/admin\/devices\/([\w-]+)\/(reissue|revoke)$/);
         if (dv && req.method === 'POST') {
           if (fileHosts.has(dv[1])) return json(res, 409, { error: 'file_managed' });
+          if (!isAdmin && !store.listDevices(principal.userId, adminUserId).some((d) => d.hostId === dv[1])) return json(res, 404, { error: 'not_found' }); // M2
           if (dv[2] === 'reissue') {
             const t = newDeviceToken();
             const r = store.reissueDevice(dv[1], t.hash, principal.userId);
@@ -1178,7 +1207,7 @@ export function createApp(config) {
           return r.http === 200 ? json(res, 200, { hostId: dv[1], revoked: true, unknown: r.unknown, notExecuted: r.notExecuted }) : json(res, r.http, { error: r.code });
         }
         // P1-b: 기존 세션 등록(파일 등록은 보기만, 웹 등록은 추가·수정·삭제)
-        if (req.method === 'GET' && path === '/v1/admin/bindings') return json(res, 200, { bindings: store.listBindings(), hosts: knownHosts() });
+        if (req.method === 'GET' && path === '/v1/admin/bindings') return json(res, 200, { bindings: store.listBindings(principal.userId), hosts: userHosts(principal) });
         // SV3-b: 계정별 사용량·한도(설정 → 계정). host를 주면 그 PC·칸의 계정만.
         if (req.method === 'GET' && path === '/v1/admin/account-usage') {
           const host = url.searchParams.get('host');
@@ -1200,11 +1229,11 @@ export function createApp(config) {
         }
         const bd = path.match(/^\/v1\/admin\/bindings\/([\w-]+)$/);
         if (bd && req.method === 'PUT') {
-          const r = store.saveBinding(principal.userId, validateBinding(bd[1], await readJson(req), knownHosts()));
+          const r = store.saveBinding(principal.userId, validateBinding(bd[1], await readJson(req), userHosts(principal)));
           return r.http === 200 ? json(res, 200, r.binding) : json(res, r.http, { error: r.code });
         }
         if (bd && req.method === 'DELETE') {
-          const r = store.deleteBinding(bd[1]);
+          const r = store.deleteBinding(bd[1], principal.userId);
           return r.http === 204 ? json(res, 204) : json(res, r.http, { error: r.code });
         }
         const role = path.match(/^\/v1\/admin\/roles\/([\w-]+)$/);
@@ -1252,6 +1281,7 @@ export function createApp(config) {
                 cleanup: nsCfg.cleanup, workspaceRoot: nsCfg.workspaceRoot } : null },
             installKind: installKind(), // SV4: server(① 서버 설치형, PC 연결 화면 숨김) | hub(② 허브형)
             hostLimit: { perHost: store.hostLimit(), source: store.getSetting('limits.perHost') ? 'web' : 'file' }, // SV4 동시 질문 수
+            multiUser: { enabled: auth.multiUser() }, // M2
             approvalTtl: { minutes: Math.round(approvalTtl() / 60_000), source: store.getSetting('approvals.ttl') ? 'web' : 'file' }, // 규칙 점검 7
             loginDays: { days: auth.loginDays(), source: store.getSetting('auth.loginDays') ? 'web' : 'file' }, // 규칙 점검 10
             // AP-4b 휴대폰 알림: 키는 있다/없다와 프로젝트 이름만(키 원문은 내보내지 않음)
@@ -1260,6 +1290,10 @@ export function createApp(config) {
           };
         };
         if (req.method === 'GET' && path === '/v1/admin/settings') return json(res, 200, view());
+        if (req.method === 'PUT' && path === '/v1/admin/settings/multi-user') { // M2: 여러 사람 쓰기(가입 신청 받기) 켜기·끄기
+          const b = await readJson(req); if (typeof b.enabled !== 'boolean') return json(res, 400, { error: 'bad_multi_user' });
+          store.setSetting('multiUser.enabled', { enabled: b.enabled }); return json(res, 200, view());
+        }
         // AP-4b: 앱을 만들 때 쓰는 앱 설정 파일 받기(비밀값 아님)
         if (req.method === 'GET' && path === '/v1/admin/settings/push-app/file') { const g = store.getSetting('push.googleServices')?.value; return g ? json(res, 200, g) : json(res, 404, { error: 'not_found' }); }
         const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions|install-kind|host-limit|approval-ttl|login-days|push-key|push-app)$/);
@@ -1387,8 +1421,11 @@ export function createApp(config) {
           const bot = principal.bot && store.bot(principal.bot.platform, principal.bot.botId);
           const role = bot?.roleId ? store.listRoles().find((q) => q.roleId === bot.roleId) ?? null : null;
           // SV2: 만들 곳을 고를 수 있다(허브 목록의 PC·엔진 칸). 없으면 지금처럼 기본(허브 자신 또는 첫 PC).
-          const target = body.hostId === undefined || body.hostId === null || body.hostId === '' ? defaultNsHost() : String(body.hostId);
-          if (target !== nsHost && !knownHosts().includes(target)) return json(res, 404, { error: 'unknown_host' });
+          const own = isAdmin ? null : userHosts(principal);
+          // M2(신산님 MU2): 사용자는 자기 PC에만 새 세션 — 고르지 않으면 켜진 첫 자기 PC, 없으면 거절. 허브·엔진 칸은 관리자만
+          const target = body.hostId === undefined || body.hostId === null || body.hostId === '' ? (own ? (own.find((h) => online(h)) ?? own[0] ?? null) : defaultNsHost()) : String(body.hostId);
+          if (!target) return json(res, 400, { error: 'no_device' });
+          if (own ? !own.includes(target) : (target !== nsHost && !knownHosts().includes(target))) return json(res, 404, { error: 'unknown_host' });
           const r = store.createSession(principal, { engine: body.engine, name: body.name, profile: body.profile,
             hostId: target, via: principal.bot ? 'chat' : (VIA[principal.appId] ?? 'api'), role }, nsCfg);
           return r.http === 201 ? json(res, 201, { conversationId: r.conversationId, name: r.name, engine: r.engine, profile: r.profile })

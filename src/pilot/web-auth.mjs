@@ -40,10 +40,16 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
     && !req.headers['x-forwarded-for'];
   const secure = (req) => String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() === 'https';
   const loginDays = () => { const d = store.getSetting('auth.loginDays')?.value?.days; return Number.isInteger(d) ? d : (config.loginDays ?? 30); };
-  const issue = (req, res) => {
+  // M2: 가입한 사용자(관리자 아닌 사람). 여러 사람 쓰기가 꺼져 있으면 가입 신청을 받지 않음(승인된 사람 로그인은 그대로)
+  const multiUser = () => Boolean(store.getSetting('multiUser.enabled')?.value?.enabled);
+  const normEmail = (e) => String(e ?? '').trim().toLowerCase();
+  const validEmail = (e) => /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(e);
+  // 그 세션의 사람: 관리자면 role admin, 가입한 사람이면 role user + 상태
+  const who = (userId) => { if (userId === webUser) return { userId, role: 'admin', status: 'approved' }; const u = store.user(userId); return u ? { userId, role: 'user', status: u.status, email: u.email } : null; };
+  const issue = (req, res, userId = webUser) => {
     const sid = randomBytes(32).toString('base64url');
     const ttl = loginDays() * 86_400_000;
-    store.addWebSession(sha(sid), webUser, Date.now() + ttl);
+    store.addWebSession(sha(sid), userId, Date.now() + ttl);
     res.setHeader('set-cookie', `${COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${ttl / 1000}${secure(req) ? '; Secure' : ''}`);
   };
   const clear = (res) => res.setHeader('set-cookie', `${COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
@@ -65,7 +71,7 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
   };
   const log = (event, req) => process.stderr.write(JSON.stringify({ ch: 'auth', event, at: new Date().toISOString(), from: clientIp(req) }) + '\n');
 
-  return { loginDays,
+  return { loginDays, multiUser, who,
     mode,
     // 쿠키 세션의 사용자(없으면 null). 변경 요청이면 Origin도 본다.
     principal(req) {
@@ -74,7 +80,9 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
       const s = store.webSession(sha(sid));
       if (!s) return null;
       if (!['GET', 'HEAD'].includes(req.method) && !sameOrigin(req)) return { error: 'bad_origin' };
-      return { userId: s.userId, appId: 'app_web' };
+      const w = who(s.userId);
+      if (!w || ['rejected', 'disabled'].includes(w.status)) return null;
+      return { userId: s.userId, appId: 'app_web', role: w.role, status: w.status };
     },
     // /v1/auth/* 처리. 처리했으면 true.
     async handle(req, res, path, { json, readJson }) {
@@ -82,7 +90,9 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
       const ip = clientIp(req);
       if (req.method === 'GET' && path === '/v1/auth/state') {
         const s = cookieOf(req) && store.webSession(sha(cookieOf(req)));
-        json(res, 200, { mode, setupRequired: !admin(), loggedIn: Boolean(s), localAuto: mode === 'pc' && isLocalDirect(req), installKind: installKind() });
+        const w = s ? who(s.userId) : null;
+        json(res, 200, { mode, setupRequired: !admin(), loggedIn: Boolean(w && !['rejected', 'disabled'].includes(w.status)), localAuto: mode === 'pc' && isLocalDirect(req), installKind: installKind(),
+          ...(mode === 'hub' && multiUser() ? { signupOpen: true } : {}), ...(w?.role === 'user' ? { role: 'user', status: w.status, email: w.email } : {}) }); // M2: 가입한 사용자일 때만 역할·상태
         return true;
       }
       if (req.method !== 'POST') { json(res, 404, { error: 'not_found' }); return true; }
@@ -104,9 +114,29 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
         store.setSetting('auth.admin', { hash: hashPassword(body.password), createdAt: new Date().toISOString() });
         issue(req, res); log('setup', req); json(res, 200, { loggedIn: true }); return true;
       }
+      // M2 가입 신청(허브, 여러 사람 쓰기가 켜져 있을 때만): 이메일·비밀번호 → 승인 대기. 로그인은 되지만 승인 전에는 아무 기능도 못 씀
+      if (path === '/v1/auth/signup') {
+        const wait = locked(ip);
+        if (wait) { res.setHeader('retry-after', String(wait)); json(res, 429, { error: 'locked', retryAfter: wait }); return true; }
+        if (mode !== 'hub' || !multiUser()) { json(res, 403, { error: 'signup_closed' }); return true; }
+        const email = normEmail(body.email);
+        if (!validEmail(email)) { json(res, 400, { error: 'bad_email' }); return true; }
+        if (!validPassword(body.password)) { json(res, 400, { error: 'weak_password' }); return true; }
+        const userId = 'u_' + randomBytes(8).toString('hex');
+        const r = store.addUser(userId, email, hashPassword(body.password));
+        if (r.http !== 201) { fail(ip); json(res, r.http, { error: r.code }); return true; }
+        issue(req, res, userId); log('signup', req); json(res, 201, { loggedIn: true, status: 'pending' }); return true;
+      }
       if (path === '/v1/auth/login') {
         const wait = locked(ip);
         if (wait) { res.setHeader('retry-after', String(wait)); json(res, 429, { error: 'locked', retryAfter: wait }); return true; }
+        // M2: 이메일을 넣으면 가입한 사용자 로그인, 비우면 관리자 비밀번호 로그인
+        if (body.email) {
+          const u = store.userByEmail(normEmail(body.email));
+          if (!u || !verifyPassword(body.password, u.pwHash)) { fail(ip); log('login_failed', req); json(res, 401, { error: 'bad_password' }); return true; }
+          if (['rejected', 'disabled'].includes(u.status)) { json(res, 403, { error: 'account_disabled' }); return true; }
+          fails.delete(ip); issue(req, res, u.userId); log('login_user', req); json(res, 200, { loggedIn: true, status: u.status }); return true;
+        }
         const a = admin();
         if (!a) { json(res, 409, { error: 'setup_required' }); return true; }
         if (!verifyPassword(body.password, a.hash)) { fail(ip); log('login_failed', req); json(res, 401, { error: 'bad_password' }); return true; }
@@ -115,11 +145,11 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
       if (path === '/v1/auth/password') {
         const s = cookieOf(req) && store.webSession(sha(cookieOf(req)));
         const a = admin();
-        if (!s || !a) { json(res, 401, { error: 'unauthorized' }); return true; }
+        if (!s || !a || s.userId !== webUser) { json(res, 401, { error: 'unauthorized' }); return true; } // 관리자 비밀번호 바꾸기는 관리자만
         if (!verifyPassword(body.current, a.hash)) { fail(ip); json(res, 401, { error: 'bad_password' }); return true; }
         if (!validPassword(body.next)) { json(res, 400, { error: 'weak_password' }); return true; }
         store.setSetting('auth.admin', { hash: hashPassword(body.next), createdAt: a.createdAt, changedAt: new Date().toISOString() });
-        store.deleteAllWebSessions(); issue(req, res); log('password_changed', req); json(res, 200, { loggedIn: true }); return true;
+        store.deleteWebSessionsOf(webUser); issue(req, res); log('password_changed', req); json(res, 200, { loggedIn: true }); return true; // M2: 관리자 세션만 끊음
       }
       json(res, 404, { error: 'not_found' });
       return true;

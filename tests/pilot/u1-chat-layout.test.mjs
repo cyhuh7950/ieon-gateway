@@ -30,7 +30,7 @@ test('새 화면은 서버 데이터를 HTML로 넣지 않는다(innerHTML 없�
 });
 
 test('새 화면은 이미 있는 API만 부른다', () => {
-  const allowed = new Set(['/v1/auth/state', '/v1/auth/local', '/v1/auth/login', '/v1/auth/setup', '/v1/auth/logout',
+  const allowed = new Set(['/v1/auth/state', '/v1/auth/local', '/v1/auth/login', '/v1/auth/setup', '/v1/auth/logout', '/v1/auth/signup',
     '/v1/conversations', '/v1/conversations/', '/v1/requests/', '/v1/sessions/', '/v1/admin/local/device', '/v1/admin/local/device/live',
     '/v1/admin/denied', '/v1/admin/denied/allow', // U2: 메신저 허용 요청
     '/v1/admin/local/threads', '/v1/admin/connections', // U3
