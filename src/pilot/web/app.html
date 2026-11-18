@@ -484,15 +484,17 @@ let rooms = [], currentRoom = null, roomTimer = null; const roomSeen = new Map()
 async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
   $('newSessBtn').hidden = r.status !== 200; // 새 세션 기능이 꺼져 있으면 버튼을 숨긴다(403)
-  if (r.status === 200) $('nsLimits').textContent = '지금 ' + r.body.sessions + '/' + r.body.maxSessions + '개 · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude + '. 명령 실행·인터넷(full) 권한은 설정 파일에서만 정해요.';
+  if (r.status === 200) $('nsLimits').textContent = '지금 ' + r.body.sessions + '/' + r.body.maxSessions + '개 · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude + '. 명령 실행·인터넷(full) 권한은 설정 → 대화 → 새 세션에서 켜요.';
 }
 // SV2: 허브에서는 새 세션을 만들 곳을 고른다 — 허브 자신(글로만 답해요) 또는 엔진 칸·PC(명령·파일 작업까지). 칸 Claude는 서버 Claude 로그인을 같이 씀.
 async function loadNsHosts() {
   const r = hubMode ? await api('/v1/admin/devices').catch(() => ({ status: 0 })) : { status: 0 };
-  const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf) : [];
+  const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).sort((a, b) => Number(Boolean(b.cell)) - Number(Boolean(a.cell))) : [];
   $('nsHostRow').hidden = !list.length; const sel = $('nsHost'); const keep = sel.value; sel.replaceChildren();
-  for (const [v, t] of [['', '허브(글로만 답해요)'], ...list.map((d) => [d.hostId, (d.name || d.hostId) + (d.online ? '' : ' (꺼짐)')])]) { const o = el('option', t); o.value = v; sel.append(o); }
-  if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  // 기본: 켜진 첫 엔진 칸(명령·파일 작업까지). 엔진 칸이 없으면 허브 자신(글로만 답해요)
+  for (const [v, t] of [['', '허브(글로만 답해요)'], ...list.map((d) => [d.hostId, (d.name || d.hostId) + (d.cell ? ' — 명령·파일 작업까지' : '') + (d.online ? '' : ' (꺼짐)')])]) { const o = el('option', t); o.value = v; sel.append(o); }
+  const def = list.find((d) => d.nsDefault)?.hostId ?? '';
+  sel.value = [...sel.options].some((o) => o.value === keep) && keep ? keep : def;
 }
 $('newSessBtn').onclick = () => { $('newSess').hidden = false; loadLimits(); loadNsHosts().catch(() => {}); $('nsName').focus(); };
 $('nsClose').onclick = () => { $('newSess').hidden = true; };
