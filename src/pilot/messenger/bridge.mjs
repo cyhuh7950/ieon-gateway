@@ -81,10 +81,13 @@ export function createBridge(opts) {
   let roomStore = opts.roomStore;
   if (!roomStore) {
     const loaded = migrateRooms(existsSync(opts.roomsPath) ? JSON.parse(readFileSync(opts.roomsPath, 'utf8')) : {});
-    roomStore = { rooms: loaded.data.rooms, save: () => writeFileSync(opts.roomsPath, JSON.stringify({ _v: 2, rooms: roomStore.rooms }, null, 2)) };
+    const raw = existsSync(opts.roomsPath) ? JSON.parse(readFileSync(opts.roomsPath, 'utf8')) : {};
+    roomStore = { rooms: loaded.data.rooms, routes: raw?._v === 2 && raw.routes ? raw.routes : {}, save: () => writeFileSync(opts.roomsPath, JSON.stringify({ _v: 2, rooms: roomStore.rooms, ...(Object.keys(roomStore.routes ?? {}).length ? { routes: roomStore.routes } : {}) }, null, 2)) };
     if (loaded.changed && existsSync(opts.roomsPath)) roomStore.save();
   }
   const rooms = roomStore.rooms;
+  if (!roomStore.routes) roomStore.routes = {};
+  const routes = roomStore.routes;
   const saveRooms = () => roomStore.save();
   const allowed = opts.isAllowed ?? ((m) => (opts.allowedUsers?.[m.platform] ?? []).map(String).includes(String(m.userId)));
   // W2: 승인(허용·거부)은 주인만 — 봇마다 더한 사람(extraUsers)이 아니라 공통 허용 사용자(사용자 본인)
@@ -138,6 +141,8 @@ export function createBridge(opts) {
     return r.status === 200 ? r.body.conversations : [];
   }
   const lastSend = new Map(); // 대화방 → 마지막으로 쓴 send(보관 예고를 그 방에 보내기 위해)
+  // 이번에 받은 메시지의 send가 없으면(메신저를 다시 켬) 저장한 보낼 곳으로 먼저 보낸다 — 메신저가 지원할 때만(카카오는 받은 메시지에만 답할 수 있음)
+  const senderFor = (k) => lastSend.get(k) ?? (routes[k] && opts.push && (opts.canPush?.() ?? true) && !k.startsWith('kakao:') ? (t) => opts.push(routes[k], t) : null);
   let noticeAfter = new Date().toISOString();
   const byName = (all, name) => all.find((c) => c.newSession?.name === name);
   const nsFail = (r) => NS_ERR[r.body?.error] ?? `할 수 없음: ${r.body?.error}`;
@@ -240,6 +245,8 @@ export function createBridge(opts) {
     }
     if (!allowed(m)) return; // 허용되지 않은 발신자에게는 아무것도 하지 않는다.
     lastSend.set(roomKey(m), send);
+    { const k = roomKey(m); const addr = { chatId: String(m.chatId), ...(m.threadKey ? { threadKey: String(m.threadKey) } : {}) };
+      if (JSON.stringify(routes[k]) !== JSON.stringify(addr)) { routes[k] = addr; saveRooms(); } }
     const all = await sessions();
     // 보관된 새 세션은 목록·번호에서 빼고 /archived로 따로 본다.
     const list = all.filter((c) => c.newSession?.state !== 'archived');
@@ -376,7 +383,7 @@ export function createBridge(opts) {
     for (const n of r.body.notices) {
       noticeAfter = n.at > noticeAfter ? n.at : noticeAfter;
       for (const [k, v] of Object.entries(rooms)) {
-        const send = v === n.conversationId && lastSend.get(k);
+        const send = v === n.conversationId && senderFor(k);
         if (send) { await send(`[${n.name}] ${n.archiveAt.slice(0, 10)}에 보관될 예정 — 계속 쓰려면 질문을 보내세요(보관돼도 /restore로 꺼낼 수 있음)`); sent += 1; }
       }
     }
@@ -398,7 +405,7 @@ export function createBridge(opts) {
         : n.status === 'cancelled' ? `${head}: 중지됨` : n.status === 'approval_required' ? `${head}: 원래 세션에서 권한 확인이 필요해 멈춤`
         : `${head}: ${ERR[n.errorCode] ?? `실행 실패: ${n.errorCode}`}`;
       for (const [k, v] of Object.entries(rooms)) {
-        const send = v === n.conversationId && lastSend.get(k);
+        const send = v === n.conversationId && senderFor(k);
         if (!send) continue;
         for (const part of splitText(text, MAX_CHUNK[k.split(':')[0]] ?? 1900)) await send(part).catch(() => {});
         sent += 1;

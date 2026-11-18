@@ -121,4 +121,13 @@ export function runLine(opts) {
       }
     }
   })();
+  // 메신저를 다시 켠 뒤에도 저장한 1:1 방에 먼저 보내기(보내기 — 공식 계정 요금제의 월 건수에 포함)
+  async function push(addr, text) {
+    const parts = splitText(String(text), LINE_TEXT_MAX);
+    for (let i = 0; i < parts.length; i += PER_CALL) {
+      const r = await lineApi('/v2/bot/message/push', { to: addr.chatId, messages: msgs(parts.slice(i, i + PER_CALL)) }).catch(() => null);
+      if (!r?.ok) { log({ platform: 'line', event: 'push_failed', status: r?.status ?? 0 }); throw new Error(`line_push_${r?.status ?? 0}`); }
+    }
+  }
+  return { push };
 }

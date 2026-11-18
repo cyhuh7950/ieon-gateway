@@ -12,8 +12,10 @@ const RELAY_OFF = new Set(['kakaoRelayUrl_missing', 'relay_missing']);
 const LEGACY = ['telegram', 'discord', 'slack'].map((platform) => ({ platform, botId: DEFAULT_BOT, name: '기본 봇', callNames: [], extraUsers: [], enabled: true }));
 
 export function loadRoomStore(path) {
-  const loaded = migrateRooms(existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {});
-  const store = { rooms: loaded.data.rooms, save: () => writeFileSync(path, JSON.stringify({ _v: 2, rooms: store.rooms }, null, 2)) };
+  const raw = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+  const loaded = migrateRooms(raw);
+  // routes: 방 → 보낼 곳(chatId·threadKey). 메신저를 다시 켜도 예약 답·보관 예고를 그 방에 먼저 보낼 수 있게(토큰·글 내용은 없음)
+  const store = { rooms: loaded.data.rooms, routes: raw?._v === 2 && raw.routes ? raw.routes : {}, save: () => writeFileSync(path, JSON.stringify({ _v: 2, rooms: store.rooms, ...(Object.keys(store.routes).length ? { routes: store.routes } : {}) }, null, 2)) };
   if (loaded.changed && existsSync(path)) store.save();
   return store;
 }
@@ -77,6 +79,7 @@ export function createBotRunner(opts) {
     if (!runner) return 'platform_not_supported';
     const entry = { def: b, controller: new AbortController(), state: 'starting', username: null, canReadAll: null };
     entry.bridge = createBridge({ ...opts.bridgeOpts, api: opts.apiFor(b.platform, b.botId), roomStore, botId: b.botId,
+      push: (addr, text) => entry.push(addr, text), canPush: () => Boolean(entry.push), // 메신저가 먼저 보내기를 지원할 때만(카카오 없음)
       log: (e) => log({ botId: b.botId, ...e }), // 전달 실패·중복 메시지 기록(내용 없이)
       botInfo: () => ({ name: entry.def.name, callNames: entry.def.callNames ?? [], role: entry.def.role ?? null,
         // 같은 메신저의 다른 봇을 부르는 이름(부르는 이름이 없으면 봇 ID). 그 이름으로 부른 글은 이 봇이 받지 않는다.
@@ -107,7 +110,7 @@ export function createBotRunner(opts) {
       if (['open_error', 'closed_fatal'].includes(e.event)) { entry.state = 'error'; entry.detail = /^[\w.:-]{1,40}$/.test(String(e.error ?? '')) ? String(e.error) : 'error'; report(); }
       log({ ...e, botId: b.botId });
     };
-    runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
+    const handle = runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
       onMessage: async (m, send) => {
         if (!entry.bridge.allowed(m)) await refreshAllowed();
         // U5: 화면의 6자리 숫자만 보낸 글은 먼저 주인 등록 숫자인지 확인한다(숫자는 기록하지 않음).
@@ -131,6 +134,7 @@ export function createBotRunner(opts) {
         if (!ok && m.userId) opts.api({ method: 'POST', path: '/v1/messenger/denied', body: { platform: b.platform, botId: b.botId, userId: String(m.userId), name: m.userName ?? m.name ?? null } }).catch(() => {});
         return entry.bridge.handle({ ...m, botId: b.botId }, send);
       } });
+    entry.push = typeof handle?.push === 'function' ? handle.push : null;
     running.set(key, entry);
     return 'starting';
   }
