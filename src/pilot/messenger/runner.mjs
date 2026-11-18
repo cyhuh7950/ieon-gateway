@@ -25,7 +25,8 @@ export function createBotRunner(opts) {
   const roomStore = loadRoomStore(opts.roomsPath);
   const running = new Map(); // "<메신저>:<봇ID>" → { def, controller, bridge, state, username, canReadAll }
   let peers = []; // 마지막으로 받은 봇 정의 전체(다른 봇의 부르는 이름 확인용)
-  let serverCfg = { allowedUsers: null, kakao: null }; // 웹에서 바꾼 메신저 설정(P1). null이면 파일 값
+  let serverCfg = { allowedUsers: null, kakao: null, linkedUsers: {} }; // 웹에서 바꾼 메신저 설정(P1). null이면 파일 값. linkedUsers: M3 가입자에 연결된 메신저 계정
+  const linkedUsers = (platform) => (serverCfg.linkedUsers ?? {})[platform] ?? [];
   const commonUsers = (platform) => (serverCfg.allowedUsers ?? opts.allowedUsers ?? {})[platform] ?? [];
   const settings = () => ({ kakao: serverCfg.kakao });
 
@@ -33,9 +34,9 @@ export function createBotRunner(opts) {
   async function loadServerConfig() {
     try {
       const r = await opts.api({ method: 'GET', path: '/v1/messenger/config' });
-      if (r.status === 200) return { allowedUsers: r.body.allowedUsers ?? null, kakao: r.body.kakao ?? null };
+      if (r.status === 200) return { allowedUsers: r.body.allowedUsers ?? null, kakao: r.body.kakao ?? null, linkedUsers: r.body.linkedUsers ?? {} };
     } catch { return serverCfg; }
-    return { allowedUsers: null, kakao: null };
+    return { allowedUsers: null, kakao: null, linkedUsers: {} };
   }
   const log = opts.log ?? (() => {});
 
@@ -65,7 +66,7 @@ export function createBotRunner(opts) {
           }
         }
         const c = await loadServerConfig();
-        serverCfg = { ...serverCfg, allowedUsers: c.allowedUsers };
+        serverCfg = { ...serverCfg, allowedUsers: c.allowedUsers, linkedUsers: c.linkedUsers ?? {} };
       } catch { /* 서버가 꺼져 있으면 지난 목록으로 판단한다 */ } finally {
         refreshedAt = Date.now();
         refreshing = null;
@@ -87,9 +88,10 @@ export function createBotRunner(opts) {
           .flatMap((p) => (p.callNames?.length ? p.callNames : [p.botId])),
         // 같은 메신저의 다른 우리 봇 사용자 ID(슬랙 멘션 구분용)
         otherBotUserIds: [...running.values()].filter((o) => o !== entry && o.def.platform === b.platform && o.userId).map((o) => o.userId) }),
-      isAllowed: (m) => [...commonUsers(b.platform), ...(entry.def.extraUsers ?? [])].map(String).includes(String(m.userId)),
+      isAllowed: (m) => [...commonUsers(b.platform), ...(entry.def.extraUsers ?? []), ...linkedUsers(b.platform)].map(String).includes(String(m.userId)),
       // W2: 승인은 공통 허용 사용자(사용자 본인)만 — 봇마다 더한 사람은 질문만
-      isOwner: (m) => commonUsers(b.platform).map(String).includes(String(m.userId)) });
+      // M3: 연결된 가입자도 자기 대화의 승인은 함(서버가 그 사람 대화인지 확인)
+      isOwner: (m) => [...commonUsers(b.platform), ...linkedUsers(b.platform)].map(String).includes(String(m.userId)) });
     // 상태가 바뀌면 다음 주기(1분)를 기다리지 않고 바로 보고한다.
     const report = () => opts.api({ method: 'POST', path: '/v1/messenger/bots/status', body: { bots: [{ platform: b.platform, botId: b.botId,
       state: entry.state, missing: [], username: entry.username, canReadAll: entry.canReadAll, detail: entry.detail ?? null }] } }).catch(() => {});

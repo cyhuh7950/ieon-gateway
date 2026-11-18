@@ -339,6 +339,14 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <span></span><div class="row"><button class="primary" type="submit">역할 저장</button><button type="button" id="rDelete">역할 삭제</button><button type="button" id="rNew">새 역할</button></div>
     </form>
   </section>
+  <section class="atab" data-atab="hub" hidden aria-label="메신저 연결" id="myMsgSection">
+    <h3>메신저 연결</h3>
+    <div class="muted">이 허브의 메신저 봇(텔레그램·디스코드·슬랙·라인)으로도 내 대화를 쓸 수 있어요. 숫자를 받아 봇에게 그대로 보내면 내 계정과 연결돼요(10분·한 번). 연결된 메신저 계정에서는 내 대화만 보여요. 카카오는 아직 안 돼요.</div>
+    <div id="myMsgBots" class="muted"></div>
+    <div class="row"><button class="primary" type="button" id="myMsgCode">연결 숫자 받기</button></div>
+    <div id="myMsgCodeBox" class="state warn" hidden role="alert"></div>
+    <table class="list"><thead><tr><th>메신저</th><th>이름</th><th>연결한 때</th><th></th></tr></thead><tbody id="myMsgRows"></tbody></table>
+  </section>
   <section class="atab" data-atab="hub" hidden aria-label="내 비밀번호" id="myPwSection">
     <h3>내 비밀번호</h3>
     <div class="muted">이 화면에 로그인하는 비밀번호를 바꿔요(10자 이상). 바꾸면 다른 곳의 로그인은 끊겨요.</div>
@@ -1345,7 +1353,7 @@ function showAtab(name) {
   const btns = [...document.querySelectorAll('#atabs button')].filter((b) => !b.hidden);
   if (!btns.some((b) => b.dataset.atab === name)) name = btns[0]?.dataset.atab;
   for (const b of document.querySelectorAll('#atabs button')) b.setAttribute('aria-pressed', String(b.dataset.atab === name));
-  for (const s of document.querySelectorAll('section.atab')) s.hidden = s.dataset.atab !== name || ((s.id === 'dvSection' || s.id === 'myPwSection') && authState?.mode !== 'hub');
+  for (const s of document.querySelectorAll('section.atab')) s.hidden = s.dataset.atab !== name || ((s.id === 'dvSection' || s.id === 'myPwSection') && authState?.mode !== 'hub') || (s.id === 'myMsgSection' && authState?.role !== 'user');
   try { localStorage.setItem('ieon_stab', name); } catch { /* 저장 못 해도 동작 */ }
   if (location.hash.slice(1) !== name) history.replaceState(null, '', location.pathname + '#' + name);
 }
@@ -1432,7 +1440,23 @@ function applyUserMode() {
   for (const s of document.querySelectorAll('section.atab[aria-label="세션 등록"], section.atab[aria-label="새 세션"]')) s.remove();
   for (const x of document.querySelectorAll('.adminOnly, #appRows, #appAdd, #appKey')) x.remove();
 }
+// M3 메신저 연결(가입자)
+const MSG_PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', line: '라인' };
+async function loadMyMessenger() {
+  const r = await api('/v1/admin/messenger/link'); if (r.status !== 200) return;
+  $('myMsgBots').textContent = r.body.bots.length ? '같이 쓰는 봇: ' + r.body.bots.map((b) => (MSG_PLAT[b.platform] || b.platform) + ' ' + (b.username || b.name)).join(', ') : '이 허브에 켜진 메신저 봇이 없어요(관리자에게 문의)';
+  const rows = r.body.links.map((l) => { const tr = el('tr'); [MSG_PLAT[l.platform] || l.platform, l.name || l.senderId, (l.createdAt || '').slice(0, 10)].forEach((v) => tr.append(el('td', v)));
+    const td = el('td'); const b = el('button', '끊기'); b.type = 'button'; b.onclick = async () => { if (!confirm('이 메신저 계정 연결을 끊을까요? 그 계정에서는 내 대화가 더 안 보여요.')) return; const x = await api('/v1/admin/messenger/link/' + l.platform + '/' + encodeURIComponent(l.senderId), { method: 'DELETE' }); setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? '연결을 끊었어요' : x.body.error); loadMyMessenger(); }; td.append(b); tr.append(td); return tr; });
+  if (!rows.length) { const tr = el('tr'); tr.append(el('td', '연결한 메신저 계정이 없어요', 'muted')); rows.push(tr); }
+  $('myMsgRows').replaceChildren(...rows);
+}
+$('myMsgCode').onclick = async () => {
+  const r = await api('/v1/admin/messenger/link', { method: 'POST', body: '{}' }); if (r.status !== 200) return setStatus('err', r.body.error);
+  const box = $('myMsgCodeBox'); box.hidden = false; box.replaceChildren(el('b', '봇에게 이 숫자를 보내세요: ' + r.body.code), el('div', (r.body.expiresAt || '').slice(11, 16) + '(UTC)까지, 한 번만 쓸 수 있어요', 'muted'));
+  setTimeout(() => loadMyMessenger().catch(() => {}), 15000);
+};
 async function loadUser() {
+  loadMyMessenger().catch(() => {});
   loadPairings().catch(() => {});
   loadTargets().catch(() => {}).finally(() => { loadDevice().catch(() => {}); });
   loadWsTargets().catch(() => {}).finally(() => loadWorkspaces().catch(() => {}));

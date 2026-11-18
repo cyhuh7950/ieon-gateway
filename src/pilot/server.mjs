@@ -189,6 +189,8 @@ export function createApp(config) {
   // U5(UD3): 메신저 주인 등록 숫자. 봇마다 하나, 6자리·10분·1회용, 틀린 시도 5번이면 잠김. 숫자는 로그에 남기지 않는다.
   const noteOwner = (platform, userId) => { const all = store.getSetting('messenger_owners')?.value ?? {}; const list = new Set((all[platform] ?? []).map(String)); list.add(String(userId)); store.setSetting('messenger_owners', { ...all, [platform]: [...list] }); };
   const claims = new Map(); // "<메신저>:<봇ID>" → { code, expMs, tries, state: waiting|claimed|locked, name }
+  // M3: 가입자의 메신저 연결 숫자(6자리·10분·한 번). 숫자 → { userId, expMs }. 틀린 시도는 메신저 계정마다 5번이면 15분 잠김
+  const linkCodes = new Map(); const linkFails = new Map();
   const CLAIM_MS = config.claimMs ?? 10 * 60_000; // 시험에서만 짧게
   const claimView = (c) => (!c ? 'none' : c.state === 'waiting' && Date.now() > c.expMs ? 'expired' : c.state);
   // W7: PC 완결형 공개 중계 — 주소는 웹 설정(카카오 중계 주소) 또는 메신저 설정 파일, 비밀 경로는 운영자가 둔 중계 비밀 파일.
@@ -685,12 +687,19 @@ export function createApp(config) {
       }
       if (!user) return json(res, 401, { error: 'unauthorized' });
       const principal = { userId: user.userId, appId: user.appId };
+      // M3: 메신저 토큰 요청에 보낸 사람(x-ieon-sender)과 봇(x-ieon-bot)이 있고, 그 메신저 계정이 승인된 가입자에 연결돼 있으면 그 가입자로 처리
+      // (그 사람 대화만, 관리 경로는 M2 규칙). 연결 안 된 사람은 지금처럼(관리자가 허용한 사람 = 관리자 대화).
+      if (user.appId === 'app_messenger' && req.headers['x-ieon-sender'] && req.headers['x-ieon-bot']) {
+        const plat = String(req.headers['x-ieon-bot']).split(':')[0];
+        const lu = plat !== 'kakao' && store.linkedUser(plat, String(req.headers['x-ieon-sender']).slice(0, 128));
+        if (lu) { principal.userId = lu; principal.appId = 'app_web'; principal.viaMessenger = true; }
+      }
       // M2: 가입한 사용자는 승인된 뒤에만, 관리 경로는 자기 것(앱 기기·짝맺기·자기 기기·작업 폴더)만. 나머지 허브 설정은 관리자만.
       const isAdmin = isAdminP(principal);
       if (!isAdmin) {
         const u = store.user(principal.userId);
         if (u.status !== 'approved') return json(res, u.status === 'pending' ? 403 : 401, { error: u.status === 'pending' ? 'pending_approval' : 'unauthorized' });
-        if (path.startsWith('/v1/admin/') && !/^\/v1\/admin\/(app-devices|pairings|devices|hosts\/[\w-]+\/run$|workspaces\/)/.test(path)) return json(res, 403, { error: 'admin_only' });
+        if (path.startsWith('/v1/admin/') && !/^\/v1\/admin\/(app-devices|pairings|devices|hosts\/[\w-]+\/run$|workspaces\/|messenger\/link)/.test(path)) return json(res, 403, { error: 'admin_only' });
       }
       // RC3: 웹 화면이 공개 https 주소로 열렸으면 그 주소를 기억한다(메신저 답의 "작업 열기" 링크용, 설정 없이). 로컬 주소는 쓰지 않는다.
       if (principal.appId === 'app_web') {
@@ -706,7 +715,7 @@ export function createApp(config) {
         const [platform, botId] = String(botHeader).split(':');
         const bot = user.appId === 'app_messenger' && store.bot(platform, botId);
         if (!bot || !bot.enabled) return json(res, 403, { error: 'unknown_bot' });
-        principal.appId = botAppId(platform, botId);
+        if (!principal.viaMessenger) principal.appId = botAppId(platform, botId); // M3: 연결된 가입자는 자기 대화(app_web) 기준
         principal.bot = { platform, botId };
       }
 
@@ -1155,6 +1164,20 @@ export function createApp(config) {
           return json(res, 200, { denied: [...denied.values()].map(({ atMs, ...v }) => v) });
         }
         // U5: 주인 등록 숫자 만들기·상태 보기(관리자 화면)
+        // M3: 가입자(관리자도 가능)의 메신저 연결 — 숫자 받기, 내 연결 목록(같이 쓰는 봇 이름 포함), 끊기
+        if (path === '/v1/admin/messenger/link' && req.method === 'POST') {
+          for (const [k, v] of linkCodes) if (v.userId === principal.userId || v.expMs < Date.now()) linkCodes.delete(k);
+          let code; do { code = String(randomInt(100000, 1000000)); } while (linkCodes.has(code));
+          linkCodes.set(code, { userId: principal.userId, expMs: Date.now() + CLAIM_MS });
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'messenger_link_started' }) + '\n');
+          return json(res, 200, { code, expiresAt: new Date(Date.now() + CLAIM_MS).toISOString() });
+        }
+        if (path === '/v1/admin/messenger/link' && req.method === 'GET') {
+          const bots = store.listBots().filter((b) => b.enabled && b.platform !== 'kakao').map((b) => ({ platform: b.platform, name: b.name, username: botStatus.get(`${b.platform}:${b.botId}`)?.username ?? null }));
+          return json(res, 200, { links: store.messengerLinks(principal.userId), bots });
+        }
+        { const ml = path.match(/^\/v1\/admin\/messenger\/link\/(telegram|discord|slack|line)\/([\w.:@-]{1,128})$/);
+          if (ml && req.method === 'DELETE') return store.unlinkMessenger(principal.userId, ml[1], ml[2]) ? json(res, 200, { unlinked: true }) : json(res, 404, { error: 'not_found' }); }
         if (path === '/v1/admin/messenger/claim') {
           if (req.method === 'POST') {
             const b = await readJson(req);
@@ -1332,7 +1355,7 @@ export function createApp(config) {
         // P1: 웹에서 바꾼 메신저 설정. 값이 null이면 메신저는 자기 config.json 값을 쓴다.
         if (req.method === 'GET' && path === '/v1/messenger/config') {
           return json(res, 200, { allowedUsers: store.getSetting('messenger.allowedUsers')?.value ?? null,
-            kakao: store.getSetting('messenger.kakao')?.value ?? null });
+            kakao: store.getSetting('messenger.kakao')?.value ?? null, linkedUsers: store.linkedSenders() }); // M3: 가입자에 연결된 메신저 계정(봇이 받아 줌)
         }
         if (req.method === 'GET' && path === '/v1/messenger/bots') {
           // M1: ② 내 허브면 이 PC의 봇(카카오 중계 포함)은 켜지 않는다 — 메신저가 1분 안에 모두 끈다(봇 설정은 지우지 않음)
@@ -1357,6 +1380,19 @@ export function createApp(config) {
           const b = await readJson(req);
           const platform = String(b.platform ?? ''); const botId = String(b.botId ?? ''); const userId = String(b.userId ?? '');
           if (!/^[\w.:@-]{1,128}$/.test(userId)) return json(res, 400, { error: 'bad_claim' });
+          // M3: 가입자의 연결 숫자이면 이 메신저 계정을 그 가입자에 연결(카카오 제외). 주인 등록 숫자보다 먼저 본다.
+          { const fk = `${platform}:${userId}`; const lf = linkFails.get(fk);
+            const code = String(b.code ?? '').trim(); const lc = linkCodes.get(code);
+            if (lc && lc.expMs > Date.now() && platform !== 'kakao' && !(lf && lf.until > Date.now())) {
+              linkCodes.delete(code); linkFails.delete(fk);
+              store.linkMessenger(platform, userId, lc.userId, b.name ? String(b.name).slice(0, 60) : null);
+              process.stderr.write(JSON.stringify({ ch: 'server', event: 'messenger_linked', platform }) + '\n');
+              return json(res, 200, { claimed: true, linked: true });
+            }
+            if (!claims.get(`${platform}:${botId}`) || claimView(claims.get(`${platform}:${botId}`)) !== 'waiting') {
+              if (linkCodes.size) { const f = lf && lf.until > Date.now() ? lf : { n: 0, until: 0 }; f.n += 1; if (f.n >= 5) { f.until = Date.now() + 15 * 60_000; f.n = 0; } linkFails.set(fk, f); }
+              if (lf && lf.until > Date.now()) return json(res, 403, { error: 'claim_locked' });
+            } }
           const c = claims.get(`${platform}:${botId}`);
           if (!c || claimView(c) !== 'waiting') return json(res, 404, { error: 'no_claim' });
           const given = Buffer.from(String(b.code ?? '').trim()); const want = Buffer.from(c.code);

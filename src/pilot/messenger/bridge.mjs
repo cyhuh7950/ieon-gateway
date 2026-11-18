@@ -5,6 +5,8 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { DEFAULT_BOT, migrateRooms } from '../bots.mjs';
+import { AsyncLocalStorage } from 'node:async_hooks';
+const senderCtx = new AsyncLocalStorage(); // M3: 지금 처리 중인 메시지의 보낸 사람
 
 const MAX_CHUNK = { telegram: 3800, discord: 1900, slack: 3800, kakao: 950, line: 4800 };
 const ERR = {
@@ -74,6 +76,9 @@ export function splitText(text, max) {
 
 // opts: { api({method, path, body, headers}) → {status, body}, allowedUsers: {telegram:[], …}, roomsPath, pollMs, waitMs }
 export function createBridge(opts) {
+  // M3: 한 메시지를 처리하는 동안(그 안의 비동기 호출까지) 서버 요청에 보낸 사람(x-ieon-sender)을 붙인다 — 서버가 연결된 가입자의 대화만 보여 줌
+  const rawApi = opts.api;
+  opts = { ...opts, api: (req) => { const s = senderCtx.getStore(); return rawApi(s ? { ...req, headers: { ...(req.headers ?? {}), 'x-ieon-sender': s } } : req); } };
   const pollMs = opts.pollMs ?? 2000;
   const waitMs = opts.waitMs ?? 300000;
   // 대화방 연결은 봇마다 따로다. 옛 형식(봇 구분 없음)은 처음 읽을 때 default 봇 것으로 바꿔 저장한다(MULTI_BOTS 3-4).
@@ -222,7 +227,8 @@ export function createBridge(opts) {
   const info = () => opts.botInfo?.() ?? {};
 
   // m: { platform, botId?, userId, chatId, threadKey?, text, isGroup?, called?, forOther? }, send(text) → Promise
-  async function handle(m, send) {
+  function handle(m, send) { return m?.userId !== undefined && m?.userId !== null ? senderCtx.run(String(m.userId), () => handleIn(m, send)) : handleIn(m, send); }
+  async function handleIn(m, send) {
     if (m.forOther) return; // /명령@다른 봇
     if (seenBefore(m)) return log({ platform: m.platform, event: 'duplicate' }); // 같은 원본 메시지가 다시 옴
     const bot = info();
