@@ -55,7 +55,7 @@ if ! has IEON_WEB_ALLOW; then
 fi
 if ! has IEON_HUB_URL; then
   SIP=$(hostname -I 2>/dev/null | awk '{print $1}')
-  say "이 서버의 공개 주소: https 도메인이 있으면 넣으세요(카카오·이어온 앱에 필요). 없으면 Enter — 이 http 주소로도 PC를 연결할 수 있어요(암호화는 안 돼요)."
+  say "이 서버의 주소(엔진 칸·PC가 이 주소로 붙어요): https 도메인이 있으면 넣으세요(카카오·이어온 앱에 필요). 없으면 Enter — 이 서버 안쪽 주소를 써요(밖에서 열 주소는 설치 끝에 알려 드려요)."
   ask "공개 주소" "http://${SIP:-127.0.0.1}:${PORT}"; put IEON_HUB_URL "$REPLY"
 fi
 put IEON_MEM "${HUBMEM}g"; put IEON_PIDS 512; put ENGINE_MEM 1g; put ENGINE_PIDS 256
@@ -87,9 +87,18 @@ if ! $DOCKER ps -a --format '{{.Names}}' | grep -q '^ieun-engine-'; then
 fi
 
 URL=$(get IEON_HUB_URL)
+# SV4 실측(2026-11-19 daon-server): 클라우드 서버는 hostname -I가 사설 주소(10.x)를 주고, 클라우드 방화벽(예: Oracle 보안 목록)이 새 포트를 막는다.
+# 밖에서 열 주소(공인 IP)를 따로 알려 주고, 포트를 여는 곳을 안내한다(이 스크립트는 방화벽을 바꾸지 않음).
+PUB=$(curl -fsS --max-time 4 https://api.ipify.org 2>/dev/null || true)
 say ""
 say "== 설치 끝 =="
-say "웹 화면: $URL"
+say "웹 화면(이 서버 주소): $URL"
+case "$URL" in http://10.*|http://172.*|http://192.168.*)
+  [ -n "$PUB" ] && say "밖에서 열 주소: http://$PUB:$PORT  (위 주소는 서버 안쪽 주소예요)"
+  say "  밖에서 열리지 않으면 클라우드 방화벽에서 TCP $PORT 를 여세요(Oracle: 인스턴스 → 서브넷 → 보안 목록 → 수신 규칙 추가, AWS: 보안 그룹)."
+  say "  도메인(https)을 쓰려면 앞단(Nginx Proxy Manager·Caddy 등)에서 이 서버의 $PORT 포트로 넘기세요 — 카카오·이어온 앱에 필요해요."
+  say "  웹 화면은 처음엔 설치할 때 접속한 곳에서만 열려요(설정 → 허브 보안에서 바꿈)." ;;
+esac
 say "  1. 처음 화면에서 관리자 비밀번호를 만드세요(10자 이상)."
 say "  2. 설정 → 계정에서 Codex·Claude 로그인(구독은 승인 창에서 승인, API 키는 붙여 넣기) — 한 번이면 모든 칸이 같이 써요."
 say "  3. 설정 → 메신저에서 쓸 메신저 봇 토큰을 넣으세요."
