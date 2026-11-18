@@ -113,6 +113,8 @@ export function openStore(path) {
   if (!db.prepare('PRAGMA table_info(app_devices)').all().some((c) => c.name === 'push_token')) db.exec('ALTER TABLE app_devices ADD COLUMN push_token TEXT');
   // 웹 알림 구독(브라우저마다). 주소·키는 화면·로그에 내보내지 않는다.
   // M2 여러 사람: 가입한 사용자(관리자는 여기 없음 — 허브 비밀번호 auth.admin). 상태 pending·approved·rejected·disabled
+  // M3: 메신저 계정(메신저·그 메신저의 사용자 ID) ↔ 가입자. 연결된 사람이 봇에 말하면 그 가입자의 대화만 보인다
+  db.exec('CREATE TABLE IF NOT EXISTS messenger_links (platform TEXT NOT NULL, sender_id TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT, created_at TEXT NOT NULL, PRIMARY KEY (platform, sender_id))');
   db.exec('DROP INDEX IF EXISTS staff_name'); // M2-b: AI 직원 이름은 같은 사람 안에서만 겹치지 않게(코드에서 확인)
   db.exec('CREATE TABLE IF NOT EXISTS users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, pw_hash TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, decided_at TEXT)');
   // M2: PC 기기의 주인(연결을 승인한 사람). 예전 기기(빈칸)는 관리자 것
@@ -1182,6 +1184,13 @@ export function openStore(path) {
       return db.prepare("SELECT u.user_id, u.email, u.status, u.created_at, u.decided_at, (SELECT COUNT(*) FROM devices d WHERE d.owner_user_id = u.user_id AND d.revoked_at IS NULL) AS devices FROM users u ORDER BY u.created_at DESC").all()
         .map((r) => ({ userId: r.user_id, email: r.email, status: r.status, createdAt: r.created_at, decidedAt: r.decided_at, devices: r.devices }));
     },
+    // --- M3 메신저 연결 ---
+    linkMessenger(platform, senderId, userId, name = null) { db.prepare('INSERT INTO messenger_links (platform, sender_id, user_id, name, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (platform, sender_id) DO UPDATE SET user_id = excluded.user_id, name = excluded.name').run(platform, senderId, userId, name, new Date().toISOString()); },
+    unlinkMessenger(userId, platform, senderId) { return db.prepare('DELETE FROM messenger_links WHERE user_id = ? AND platform = ? AND sender_id = ?').run(userId, platform, senderId).changes === 1; },
+    messengerLinks(userId) { return db.prepare('SELECT platform, sender_id, name, created_at FROM messenger_links WHERE user_id = ? ORDER BY created_at').all(userId).map((r) => ({ platform: r.platform, senderId: r.sender_id, name: r.name, createdAt: r.created_at })); },
+    // 승인된 가입자에 연결된 메신저 계정만(끊기거나 승인 전이면 없는 것으로)
+    linkedUser(platform, senderId) { return db.prepare("SELECT l.user_id FROM messenger_links l JOIN users u ON u.user_id = l.user_id WHERE l.platform = ? AND l.sender_id = ? AND u.status = 'approved'").get(platform, senderId)?.user_id ?? null; },
+    linkedSenders() { const out = {}; for (const r of db.prepare("SELECT l.platform, l.sender_id FROM messenger_links l JOIN users u ON u.user_id = l.user_id WHERE u.status = 'approved'").all()) (out[r.platform] ??= []).push(r.sender_id); return out; },
     setUserPassword(userId, pwHash) {
       const n = db.prepare('UPDATE users SET pw_hash = ? WHERE user_id = ?').run(pwHash, userId).changes;
       if (n) db.prepare('DELETE FROM web_sessions WHERE user_id = ?').run(userId); // 바꾸면 그 사람 로그인은 모두 끊김
@@ -1201,7 +1210,7 @@ export function openStore(path) {
         const now = new Date().toISOString();
         for (const d of db.prepare('SELECT host_id FROM devices WHERE owner_user_id = ?').all(userId)) db.prepare('INSERT INTO device_events (at, host_id, action, user_id) VALUES (?, ?, ?, ?)').run(now, d.host_id, 'delete_with_user', userId);
         db.prepare('DELETE FROM devices WHERE owner_user_id = ?').run(userId);
-        for (const t of ['app_devices', 'app_pair_codes', 'web_push_subs', 'web_sessions']) db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(userId);
+        for (const t of ['app_devices', 'app_pair_codes', 'web_push_subs', 'web_sessions', 'messenger_links']) db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(userId);
         db.prepare('DELETE FROM users WHERE user_id = ?').run(userId);
         return { http: 200, conversations: convs.length, rooms: rooms.length };
       });

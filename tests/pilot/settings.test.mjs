@@ -32,7 +32,7 @@ test('허용 사용자·카카오: 웹 값이 없으면 file, 저장하면 web, 
   const { call } = await setup(t);
   let s = (await call('/v1/admin/settings')).body;
   assert.deepEqual(s.allowedUsers, { value: null, source: 'file' });
-  assert.deepEqual((await call('/v1/messenger/config', { token: 'msg' })).body, { allowedUsers: null, kakao: null });
+  assert.deepEqual((await call('/v1/messenger/config', { token: 'msg' })).body, { allowedUsers: null, kakao: null, linkedUsers: {} }); // M3: 가입자에 연결된 메신저 계정
   assert.equal((await call('/v1/admin/settings/allowed-users', { method: 'PUT', body: { telegram: ['111', ' 111 ', '222'] } })).body.allowedUsers.source, 'web');
   assert.deepEqual((await call('/v1/messenger/config', { token: 'msg' })).body.allowedUsers, { telegram: ['111', '222'] });
   // 검사
