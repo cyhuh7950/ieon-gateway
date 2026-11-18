@@ -53,7 +53,10 @@ test('서버: 주인 웹 화면만 만들기·켜기, 때가 되면 주인 이�
   assert.deepEqual([made.body.when, made.body.enabled, made.body.label], ['15분마다', true, 'c1']);
   const id = made.body.scheduleId;
   assert.equal((await call('/v1/schedules', { token: 'other' })).body.schedules.length, 0, '남의 예약은 안 보임');
-  const at = (min) => new Date(Date.now() + min * 60_000);
+  // 시험 시각이 한국 자정을 넘으면 하루 횟수가 새로 세어지므로, 자정까지 200분이 안 남았으면 다음 날 00:10부터 잰다(시험 시각에 따라 실패하던 것 고침)
+  const now0 = Date.now(); const left = 86_400_000 - ((now0 + 9 * 3_600_000) % 86_400_000);
+  const shift = left < 200 * 60_000 ? left + 10 * 60_000 : 0;
+  const at = (min) => new Date(now0 + shift + min * 60_000);
   const get = async () => (await call('/v1/schedules')).body.schedules.find((s) => s.scheduleId === id);
   // 1회차: 보냄(주인 이름, 웹 앱) → 대화에 질문이 쌓임
   app.runSchedules(at(16));

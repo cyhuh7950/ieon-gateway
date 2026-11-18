@@ -17,6 +17,7 @@ import { readEnvFile, writeEnvValue, validSecretValue } from './secrets-file.mjs
 import { createPairing } from './pairing.mjs';
 import { createHubLink } from './hub-link.mjs';
 import { containerBoundary } from './adapters/codex-thread.mjs';
+import { createPusher, pushNote, validateServiceAccount, validateGoogleServices } from './push.mjs';
 import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalConnector } from './device-settings.mjs';
 import { cleanLabel } from './accounts.mjs';
 import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
@@ -226,6 +227,18 @@ export function createApp(config) {
   // AP-2: 새 소식(SSE)용 알림. 질문·답·승인 내용은 싣지 않고 대화·요청 번호와 상태만 — 앱은 그걸 보고 필요한 것을 다시 불러온다.
   const events = new EventEmitter(); events.setMaxListeners(200);
   const notify = (conversationId, e) => { if (conversationId) events.emit('e', { conversationId, at: new Date().toISOString(), ...e }); };
+  // AP-4b 휴대폰 알림: 웹 설정에 서비스 계정 키가 있으면 같은 새 소식으로 그 대화 주인의 앱 기기에 원문 없는 알림을 보낸다.
+  const pusher = config.pusher ?? createPusher({ log: (x) => process.stderr.write(JSON.stringify({ ch: 'server', ...x }) + '\n') });
+  events.on('e', (e) => {
+    const sa = store.getSetting('push.fcm')?.value;
+    if (!sa) return;
+    const { owner, tokens } = store.pushTargets(e.conversationId);
+    if (!tokens.length) return;
+    const c = store.conversations({ userId: owner, appId: 'app_web' }).find((x) => x.conversationId === e.conversationId);
+    const note = pushNote(e, c ? (c.staff?.set && c.staff?.name) || labelOf(c) : 'AI 직원');
+    if (!note) return;
+    for (const t of tokens) pusher.send(sa, t, { ...note, conversationId: e.conversationId }).then((r) => { if (r === 'gone') store.clearPushToken(t); }).catch(() => {});
+  });
   // M1: 사용 방식 보기·바꾸기(PC 화면과 허브 화면이 같이 씀 — IM10). 처리 중·확인 필요 질문이 있으면 바꾸지 않는다.
   const modeAdmin = access || !modePath ? null : {
     view() {
@@ -654,6 +667,14 @@ export function createApp(config) {
       }
 
       if (appDevice && path.startsWith('/v1/admin/')) return json(res, 403, { error: 'app_not_allowed' }); // 설정은 웹 화면에서만
+      // AP-4b: 앱이 휴대폰 알림 주소(FCM 토큰)를 알린다. 빈 값이면 알림 끄기.
+      if (req.method === 'PUT' && path === '/v1/app/push-token') {
+        if (!appDevice) return json(res, 403, { error: 'app_only' });
+        const t = String((await readJson(req)).token ?? '');
+        if (t && !/^[\w:.-]{20,4096}$/.test(t)) return json(res, 400, { error: 'bad_token' });
+        if (t) store.setAppPushToken(appDevice, t); else store.setAppPushToken(appDevice, null);
+        return json(res, 200, { push: Boolean(t), configured: Boolean(store.getSetting('push.fcm')) });
+      }
       // AP-5a: 앱이 스스로 이 기기 연결을 끊는다(스토어의 "데이터·계정 삭제" 요구). 자기 열쇠만 끊을 수 있고, 끊으면 바로 401.
       if (req.method === 'POST' && path === '/v1/app/forget') {
         if (!appDevice) return json(res, 403, { error: 'app_only' });
@@ -1186,18 +1207,24 @@ export function createApp(config) {
             hostLimit: { perHost: store.hostLimit(), source: store.getSetting('limits.perHost') ? 'web' : 'file' }, // SV4 동시 질문 수
             approvalTtl: { minutes: Math.round(approvalTtl() / 60_000), source: store.getSetting('approvals.ttl') ? 'web' : 'file' }, // 규칙 점검 7
             loginDays: { days: auth.loginDays(), source: store.getSetting('auth.loginDays') ? 'web' : 'file' }, // 규칙 점검 10
+            // AP-4b 휴대폰 알림: 키는 있다/없다와 프로젝트 이름만(키 원문은 내보내지 않음)
+            push: { configured: Boolean(store.getSetting('push.fcm')), projectId: store.getSetting('push.fcm')?.value?.projectId ?? null, appFile: Boolean(store.getSetting('push.googleServices')),
+              appFileProject: store.getSetting('push.googleServices')?.value?.project_info?.project_id ?? null },
           };
         };
         if (req.method === 'GET' && path === '/v1/admin/settings') return json(res, 200, view());
-        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions|install-kind|host-limit|approval-ttl|login-days)$/);
+        // AP-4b: 앱을 만들 때 쓰는 앱 설정 파일 받기(비밀값 아님)
+        if (req.method === 'GET' && path === '/v1/admin/settings/push-app/file') { const g = store.getSetting('push.googleServices')?.value; return g ? json(res, 200, g) : json(res, 404, { error: 'not_found' }); }
+        const s = path.match(/^\/v1\/admin\/settings\/(allowed-users|kakao|new-sessions|install-kind|host-limit|approval-ttl|login-days|push-key|push-app)$/);
         if (!s) return json(res, 404, { error: 'not_found' });
-        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions', 'install-kind': 'install.kind', 'host-limit': 'limits.perHost', 'approval-ttl': 'approvals.ttl', 'login-days': 'auth.loginDays' }[s[1]];
+        const key = { 'allowed-users': 'messenger.allowedUsers', kakao: 'messenger.kakao', 'new-sessions': 'newSessions', 'install-kind': 'install.kind', 'host-limit': 'limits.perHost', 'approval-ttl': 'approvals.ttl', 'login-days': 'auth.loginDays', 'push-key': 'push.fcm', 'push-app': 'push.googleServices' }[s[1]];
         if (req.method === 'DELETE') store.deleteSetting(key); // 파일 값으로 되돌리기
         else if (req.method === 'PUT') {
           const body = await readJson(req);
           const value = s[1] === 'allowed-users' ? validateAllowedUsers(body) : s[1] === 'kakao' ? validateKakao(body)
             : s[1] === 'install-kind' ? validateInstallKind(body) : s[1] === 'host-limit' ? validateHostLimit(body)
-            : s[1] === 'approval-ttl' ? validateApprovalTtl(body) : s[1] === 'login-days' ? validateLoginDays(body) : validateNewSessionsWeb(body, nsFileRaw ?? {});
+            : s[1] === 'approval-ttl' ? validateApprovalTtl(body) : s[1] === 'login-days' ? validateLoginDays(body)
+            : s[1] === 'push-key' ? validateServiceAccount(body.serviceAccount) : s[1] === 'push-app' ? validateGoogleServices(body.googleServices) : validateNewSessionsWeb(body, nsFileRaw ?? {});
           store.setSetting(key, value);
         } else return json(res, 404, { error: 'not_found' });
         if (key === 'newSessions') { reloadNewSessions(); syncNsSafety(); }

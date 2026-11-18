@@ -109,6 +109,8 @@ export function openStore(path) {
       if (!cols.has(name)) db.exec(`ALTER TABLE approvals ADD COLUMN ${name} ${type}`);
     }
   }
+  // AP-4b: 앱 기기의 휴대폰 알림 주소(FCM 토큰). 비밀값은 아니지만 화면·로그에 내보내지 않는다.
+  if (!db.prepare('PRAGMA table_info(app_devices)').all().some((c) => c.name === 'push_token')) db.exec('ALTER TABLE app_devices ADD COLUMN push_token TEXT');
   // RC3: 작업 화면에 보일 접수 시각·마지막 상태 변경 시각(전부터 있던 요청은 비어 있음)
   if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'created_at')) {
     db.exec('ALTER TABLE requests ADD COLUMN created_at TEXT');
@@ -838,8 +840,19 @@ export function openStore(path) {
     requestConversation(requestId) { return request(requestId)?.conversation_id ?? null; },
     approvalConversation(approvalId) { return db.prepare('SELECT conversation_id FROM approvals WHERE approval_id = ?').get(approvalId)?.conversation_id ?? null; },
     activeAppDeviceHashes() { return db.prepare('SELECT device_id, user_id, token_sha256 FROM app_devices WHERE revoked_at IS NULL').all().map((d) => ({ deviceId: d.device_id, userId: d.user_id, tokenSha256: d.token_sha256 })); },
+    // AP-4b: 앱이 알림 주소를 알림(같은 주소를 다른 기기가 갖고 있으면 그쪽은 지움 — 같은 휴대폰을 다시 연결한 경우)
+    setAppPushToken(deviceId, token) {
+      db.prepare('UPDATE app_devices SET push_token = NULL WHERE push_token = ? AND device_id != ?').run(token, deviceId);
+      db.prepare('UPDATE app_devices SET push_token = ? WHERE device_id = ? AND revoked_at IS NULL').run(token, deviceId);
+    },
+    clearPushToken(token) { db.prepare('UPDATE app_devices SET push_token = NULL WHERE push_token = ?').run(token); },
+    // 그 대화 주인의 알림 받을 앱 기기들
+    pushTargets(conversationId) {
+      const owner = binding(conversationId)?.ownerUserId;
+      return owner ? { owner, tokens: db.prepare('SELECT push_token FROM app_devices WHERE user_id = ? AND revoked_at IS NULL AND push_token IS NOT NULL').all(owner).map((d) => d.push_token) } : { owner: null, tokens: [] };
+    },
     touchAppDevice(deviceId) { db.prepare('UPDATE app_devices SET last_seen_at = ? WHERE device_id = ?').run(new Date().toISOString(), deviceId); },
-    appDevices(userId) { return db.prepare('SELECT device_id, name, created_at, last_seen_at, revoked_at FROM app_devices WHERE user_id = ? ORDER BY created_at DESC').all(userId).map((d) => ({ deviceId: d.device_id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at })); },
+    appDevices(userId) { return db.prepare('SELECT device_id, name, created_at, last_seen_at, revoked_at, push_token FROM app_devices WHERE user_id = ? ORDER BY created_at DESC').all(userId).map((d) => ({ deviceId: d.device_id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at, revokedAt: d.revoked_at, push: Boolean(d.push_token) })); },
     revokeAppDevice(userId, deviceId) { return db.prepare('UPDATE app_devices SET revoked_at = ? WHERE device_id = ? AND user_id = ? AND revoked_at IS NULL').run(new Date().toISOString(), deviceId, userId).changes === 1; },
 
 // --- W1 승인 카드(WORK_AND_VOICE A1·A3). 15분 안에 답이 없으면 거부, 차례가 끝나면 거부, 허용·거부는 주인만 ---

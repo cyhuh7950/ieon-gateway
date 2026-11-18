@@ -385,6 +385,12 @@ header .right button { border:1px solid var(--border); background:var(--surface)
     <div class="row"><button class="primary" type="button" id="adCode">연결 코드 만들기</button></div>
     <div id="adCodeBox" class="state warn" hidden role="alert"></div>
     <table class="list"><thead><tr><th>앱 기기</th><th>연결한 때</th><th>마지막 사용</th><th></th></tr></thead><tbody id="adList"></tbody></table>
+    <h3>휴대폰 알림</h3>
+    <div class="muted">앱을 닫아도 "○○가 답했어요"가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요.</div>
+    <div id="pushState" class="muted"></div>
+    <div class="row"><label class="field">서비스 계정 키(.json)<input type="file" id="pushKeyFile" accept=".json,application/json"></label></div>
+    <div class="row"><label class="field">앱 설정 파일(google-services.json)<input type="file" id="pushAppFile" accept=".json,application/json"></label></div>
+    <div class="row"><button type="button" id="pushOff">휴대폰 알림 끄기(키 지우기)</button></div>
   </section>
 </div>
 <script>
@@ -431,7 +437,7 @@ function statusText(b) {
   return [cls, label + (extra ? ' · ' + extra : '')];
 }
 // --- 설정(P1): 웹 값이 있으면 웹 값, 없으면 파일 값 ---
-const SET_ERR = { bad_platform: '알 수 없는 메신저', bad_user_id: '사용자 ID는 영문·숫자·.@:-_ 1~64자', bad_relay_url: '중계 주소는 https 주소(아이디·비밀번호·?·# 없이)',
+const SET_ERR = { bad_push_key: '서비스 계정 키 파일이 아니에요(Firebase → 프로젝트 설정 → 서비스 계정 → 새 비공개 키)', bad_google_services: 'google-services.json 파일이 아니에요', wrong_package: '이 앱 설정 파일은 다른 앱용이에요(패키지 이름 kr.sinsan.ieon으로 추가하세요)', bad_platform: '알 수 없는 메신저', bad_user_id: '사용자 ID는 영문·숫자·.@:-_ 1~64자', bad_relay_url: '중계 주소는 https 주소(아이디·비밀번호·?·# 없이)',
   bad_callback_limit: '콜백 제한 시간은 5~120초', field_not_editable: '이 항목은 설정 파일에서만 바꿀 수 있음', profile_not_allowed: 'full 권한은 설정 파일에서만',
   bad_limits: '한도는 1 이상의 숫자', bad_cleanup: '시간은 1 이상의 숫자' };
 const setErr = (e) => SET_ERR[e] || (String(e).startsWith('bad_new_sessions:') ? '새 세션 설정이 규칙에 맞지 않음(' + e.split(':')[1] + ')' : e);
@@ -453,6 +459,8 @@ async function loadSettings(force) {
   const ns = s.newSessions, e = ns.effective;
   $('hlPerHost').value = s.hostLimit?.perHost ?? 3; // SV4 동시 질문 수
   $('apTtl').value = s.approvalTtl?.minutes ?? 15; $('loginDays').value = s.loginDays?.days ?? 30; // 규칙 점검 7·10
+  { const p = s.push || {}; $('pushState').textContent = (p.configured ? '비공개 키: 올림(프로젝트 ' + p.projectId + ')' : '비공개 키: 아직 없음') + ' · ' + (p.appFile ? '앱 설정 파일: 올림(' + p.appFileProject + ')' : '앱 설정 파일: 아직 없음')
+    + (p.configured && p.appFile && p.projectId !== p.appFileProject ? ' — 두 파일의 프로젝트가 달라요' : ''); $('pushOff').hidden = !p.configured; } // AP-4b
   $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '(파일 값 사용 중)';
   $('nsOn').checked = Boolean(e?.enabled);
   $('nsMax').value = e?.limits.maxSessions ?? ''; $('nsActive').value = e?.limits.maxActive ?? '';
@@ -494,6 +502,11 @@ $('ttlForm').onsubmit = async (e) => { e.preventDefault();
   await saveSetting('approval-ttl', { minutes: Number($('apTtl').value) }, '승인 카드 시간을 저장했어요 — 새 카드부터 적용돼요');
   await saveSetting('login-days', { days: Number($('loginDays').value) }, '저장했어요 — 로그인 유지 기간은 다음 로그인부터 적용돼요'); };
 $('nsReset').onclick = () => saveSetting('new-sessions', null, '새 세션 설정을 파일 값으로 되돌렸습니다');
+// AP-4b 휴대폰 알림: 고른 파일을 그대로 올림(화면에 내용을 보이지 않음)
+const readFileText = (input) => new Promise((ok, bad) => { const f = input.files?.[0]; if (!f) return bad(new Error('no_file')); const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => bad(r.error); r.readAsText(f); });
+$('pushKeyFile').onchange = async () => { const t = await readFileText($('pushKeyFile')).catch(() => null); $('pushKeyFile').value = ''; if (t) saveSetting('push-key', { serviceAccount: t }, '비공개 키를 올렸어요 — 휴대폰 알림이 켜졌어요'); };
+$('pushAppFile').onchange = async () => { const t = await readFileText($('pushAppFile')).catch(() => null); $('pushAppFile').value = ''; if (!t) return; let g; try { g = JSON.parse(t); } catch { return setStatus('err', 'JSON 파일이 아니에요'); } saveSetting('push-app', { googleServices: g }, '앱 설정 파일을 올렸어요'); };
+$('pushOff').onclick = () => { if (confirm('휴대폰 알림을 끌까요? 올린 비공개 키를 지워요(다시 올리면 켜짐).')) saveSetting('push-key', null, '휴대폰 알림을 껐어요'); };
 // --- 기존 세션 등록(P1-b) ---
 const BD_ERR = { bad_conversation_id: 'ID는 c_로 시작하고 영문·숫자·_- 61자까지', file_managed: 'server.json에 적힌 세션은 파일에서 고칩니다', is_new_session: '새 세션은 여기서 바꿀 수 없음',
   excluded_session: '업무 대화는 등록할 수 없음', unknown_host: '모르는 PC', bad_session_ref: 'Codex는 대화 ID(UUID), Claude 채널은 영문·숫자 이름', bad_label: '이름을 1~60자로',
