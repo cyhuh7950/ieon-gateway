@@ -157,8 +157,14 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
 }
 
 export async function runConnector({ pollMs = 2000, signal, ...opts }) {
+  let announced = false; // RC4: 켜졌음을 서버에 한 번 알린다(이 프로세스가 처리하던 질문은 없으므로 서버가 '처리 중'을 결과 불명으로 정리)
   while (!signal?.aborted) {
     try {
+      if (!announced) {
+        const r = await fetch(`${opts.baseUrl}/v1/device/restarted`, { method: 'POST', headers: { authorization: `Bearer ${opts.deviceToken}`, 'content-type': 'application/json' }, body: '{}' });
+        if (r.ok || r.status === 404) announced = true; // 404: 예전 서버(이 기능 없음)
+        if (r.ok) { const b = await r.json().catch(() => ({})); if (b.unknown) opts.log?.({ event: 'restarted_unknown', count: b.unknown }); }
+      }
       if (!(await pollOnce(opts))) await new Promise((r) => setTimeout(r, pollMs));
     } catch (error) {
       opts.log?.({ event: 'poll_error', error: String(error.cause?.code ?? error.message).slice(0, 80) });

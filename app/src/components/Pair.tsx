@@ -22,7 +22,7 @@ export function PairScreen({ lost, onDone }: { lost: boolean; onDone: (c: Conn) 
     <main className="pair">
       <div className="logo" aria-hidden>이</div>
       <h1>이어온 연결</h1>
-      <p className="muted">웹 화면 <b>설정 → 내 프로그램 연결 → 이어온 앱 연결</b>에서 <b>연결 코드 만들기</b>를 누르면 나오는 서버 주소와 8자리 코드를 넣으세요.</p>
+      <p className="muted">웹 화면 <b>설정 → 앱과 기기 → 이어온 앱 연결</b>에서 <b>연결 코드 만들기</b>를 누르면 나오는 서버 주소와 8자리 코드를 넣으세요.</p>
       <form onSubmit={submit}>
         <label>서버 주소<input value={server} onChange={(e) => setServer(e.target.value)} placeholder="ieun-gateway.sinsan.kr" inputMode="url" autoCapitalize="none" autoCorrect="off" required /></label>
         <label>연결 코드<input value={code} onChange={(e) => setCode(cleanCode(e.target.value))} placeholder="12345678" inputMode="numeric" maxLength={8} required /></label>

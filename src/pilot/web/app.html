@@ -24,126 +24,126 @@
 * { box-sizing:border-box; }
 [hidden] { display:none !important; }
 html, body { height:100%; }
-body { margin:0; display:flex; flex-direction:column; background:var(--bg); color:var(--text); font:15px/1.55 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Segoe UI",sans-serif; }
+body { margin:0; display:flex; flex-direction:column; background:var(--bg); color:var(--text); font:12px/1.6 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Segoe UI",sans-serif; }
 button, input, textarea { font:inherit; color:inherit; }
 button { cursor:pointer; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 a { color:var(--accent); }
-.muted { color:var(--muted); } .small { font-size:13px; }
-.logo { width:34px; height:34px; border-radius:10px; background:var(--accent); color:var(--on-accent); display:grid; place-items:center; font-weight:700; font-size:17px; flex:none; }
+.muted { color:var(--muted); } .small { font-size:12px; }
+.logo { width:34px; height:34px; border-radius:10px; background:var(--accent); color:var(--on-accent); display:grid; place-items:center; font-weight:700; font-size:16px; flex:none; }
 
 .app { flex:1; min-height:0; display:grid; grid-template-columns:280px 1fr auto; }
 .side { background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
 .side-top { display:flex; align-items:center; gap:10px; padding:16px; }
-.side-top .name { font-weight:700; } .side-top .where { font-size:12px; color:var(--muted); }
+.side-top .name { font-weight:700; } .side-top .where { font-size:11px; color:var(--muted); }
 .addbtn { margin:0 12px 8px; border:1px dashed var(--border); background:none; border-radius:12px; padding:10px; color:var(--accent); font-weight:600; text-align:center; text-decoration:none; display:block; }
 .list { overflow:auto; flex:1; padding:0 8px 8px; }
 .row { width:100%; text-align:left; border:0; background:none; border-radius:12px; padding:10px; display:grid; grid-template-columns:36px 1fr; gap:10px; align-items:center; }
 .row:hover { background:var(--surface-alt); }
 .row[aria-current="true"] { background:var(--accent-soft); }
-.av { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; font-weight:700; color:#fff; font-size:13px; }
+.av { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; font-weight:700; color:#fff; font-size:12px; }
 .av.codex_thread { background:#3b4a63; } .av.claude_channel, .av.claude_cli { background:#9a5634; }
 .row .t { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.row .s { font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.row .s { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .row .s.warn { color:var(--warn); } .row .s.err { color:var(--err); }
-.empty { padding:16px; color:var(--muted); font-size:14px; }
-.grp { padding:10px 12px 2px; font-size:12px; font-weight:600; color:var(--muted); }
-details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:var(--muted); font-size:13px; padding:6px; }
-.arow { display:flex; gap:8px; align-items:center; padding:6px; font-size:14px; } .arow span { flex:1; }
+.empty { padding:16px; color:var(--muted); font-size:12px; }
+.grp { padding:10px 12px 2px; font-size:11px; font-weight:600; color:var(--muted); }
+details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:var(--muted); font-size:12px; padding:6px; }
+.arow { display:flex; gap:8px; align-items:center; padding:6px; font-size:12px; } .arow span { flex:1; }
 .side-bottom { border-top:1px solid var(--border); padding:8px; display:flex; flex-direction:column; gap:2px; }
 .side-bottom a, .side-bottom button { border:0; background:none; text-align:left; padding:9px 10px; border-radius:10px; display:flex; gap:10px; align-items:center; color:inherit; text-decoration:none; }
 .side-bottom a:hover, .side-bottom button:hover { background:var(--surface-alt); }
 
 .chat { display:flex; flex-direction:column; min-width:0; min-height:0; }
 .head { display:flex; align-items:center; gap:10px; padding:12px 18px; border-bottom:1px solid var(--border); background:var(--surface); flex-wrap:wrap; }
-.head h2 { margin:0; font-size:17px; }
-.chip { font-size:12px; padding:3px 9px; border-radius:99px; background:var(--surface-alt); border:1px solid var(--border); color:var(--muted); }
+.head h2 { margin:0; font-size:16px; }
+.chip { font-size:11px; padding:3px 9px; border-radius:99px; background:var(--surface-alt); border:1px solid var(--border); color:var(--muted); }
 .spacer { flex:1; }
-.switch { display:flex; align-items:center; gap:8px; border:1px solid var(--border); background:var(--surface); border-radius:99px; padding:4px 10px 4px 4px; font-size:13px; }
+.switch { display:flex; align-items:center; gap:8px; border:1px solid var(--border); background:var(--surface); border-radius:99px; padding:4px 10px 4px 4px; font-size:12px; }
 .switch .knob { width:34px; height:20px; border-radius:99px; background:var(--border); position:relative; flex:none; }
 .switch .knob::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff; transition:left .15s; }
 .switch[aria-checked="true"] .knob { background:var(--accent); } .switch[aria-checked="true"] .knob::after { left:16px; }
-.iconbtn { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:6px 10px; font-size:13px; }
+.iconbtn { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:6px 10px; font-size:12px; }
 .back { display:none; }
 #panelBtn .ico { display:none; }
-@media (max-width: 760px) { #panelBtn .ico { display:inline; font-size:18px; line-height:1; } }
+@media (max-width: 760px) { #panelBtn .ico { display:inline; font-size:16px; line-height:1; } }
 .msgs { flex:1; overflow:auto; padding:20px 18px; display:flex; flex-direction:column; gap:12px; }
 .bubble { max-width:min(680px,88%); padding:10px 14px; border-radius:14px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .me { align-self:flex-end; background:var(--accent); color:var(--on-accent); border-bottom-right-radius:4px; }
 .ai { align-self:flex-start; background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; }
 .ai.wait { color:var(--muted); }
-.steps { align-self:flex-start; display:flex; gap:6px; flex-wrap:wrap; font-size:12px; }
+.steps { align-self:flex-start; display:flex; gap:6px; flex-wrap:wrap; font-size:11px; }
 .steps span { padding:2px 8px; border-radius:99px; background:var(--surface-alt); border:1px solid var(--border); color:var(--muted); }
 .steps span.done { color:var(--ok); border-color:currentColor; }
 /* U2 카드: 처리할 일을 대화 위쪽에 모은다. 누른 결과는 카드 안에 한 줄 기록으로 남는다. */
 .cards { display:flex; flex-direction:column; gap:8px; padding:12px 18px 0; }
 .cards:empty { display:none; }
-.card2 { border:1px solid currentColor; border-radius:12px; padding:10px 14px; font-size:14px; }
+.card2 { border:1px solid currentColor; border-radius:12px; padding:10px 14px; font-size:12px; }
 .card2.warn { color:var(--warn); background:var(--warn-soft); } .card2.err { color:var(--err); background:var(--err-soft); } .card2.info { color:var(--text); background:var(--surface); border-color:var(--border); }
 .card2 b { display:block; margin-bottom:2px; }
 .card2 .acts { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; }
-.card2 .acts button, .card2 .acts a { border:1px solid currentColor; background:var(--surface); color:inherit; border-radius:10px; padding:5px 12px; font-size:13px; text-decoration:none; }
-.card2 .done { font-size:13px; color:var(--ok); margin-top:6px; }
+.card2 .acts button, .card2 .acts a { border:1px solid currentColor; background:var(--surface); color:inherit; border-radius:10px; padding:5px 12px; font-size:12px; text-decoration:none; }
+.card2 .done { font-size:12px; color:var(--ok); margin-top:6px; }
 .cnt { display:inline-block; min-width:18px; padding:0 6px; margin-left:6px; border-radius:99px; background:var(--warn); color:var(--surface); font-size:11px; font-weight:700; text-align:center; vertical-align:2px; }
-.denied { margin:0 12px 8px; border:1px solid var(--warn); background:var(--warn-soft); color:var(--warn); border-radius:12px; padding:8px 10px; font-size:13px; }
+.denied { margin:0 12px 8px; border:1px solid var(--warn); background:var(--warn-soft); color:var(--warn); border-radius:12px; padding:8px 10px; font-size:12px; }
 .denied .drow { display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap; }
 .denied .drow span { flex:1; min-width:120px; }
-.denied button { border:1px solid currentColor; background:var(--surface); color:inherit; border-radius:8px; padding:3px 9px; font-size:12px; }
+.denied button { border:1px solid currentColor; background:var(--surface); color:inherit; border-radius:8px; padding:3px 9px; font-size:11px; }
 /* U3 대화 연결 창 */
 .scrim { position:fixed; inset:0; background:rgba(10,15,20,.45); display:grid; place-items:center; padding:16px; z-index:25; }
 .modal { width:min(560px,100%); max-height:calc(100vh - 32px); overflow:auto; background:var(--surface); border-radius:18px; padding:22px; box-shadow:var(--shadow); }
-.modal h2 { margin:0 0 4px; font-size:19px; }
+.modal h2 { margin:0 0 4px; font-size:16px; }
 .pick { width:100%; text-align:left; display:grid; grid-template-columns:36px 1fr auto; gap:12px; align-items:center; padding:10px 12px; border:1px solid var(--border); background:var(--surface); border-radius:12px; margin-top:8px; }
 .pick:hover:not(:disabled) { border-color:var(--accent); }
 .pick:disabled { opacity:.6; cursor:default; }
 .pick .t { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.pick .s { font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.pick .r { font-size:12px; color:var(--muted); white-space:nowrap; }
+.pick .s { font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pick .r { font-size:11px; color:var(--muted); white-space:nowrap; }
 .mrow { display:flex; gap:8px; margin-top:16px; justify-content:flex-end; flex-wrap:wrap; }
 .mrow button { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:8px 14px; }
 .mrow button.primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
-.field { display:flex; flex-direction:column; gap:4px; margin-top:10px; font-size:13px; }
+.field { display:flex; flex-direction:column; gap:4px; margin-top:10px; font-size:12px; }
 .field input { border:1px solid var(--border); background:var(--surface-alt); border-radius:10px; padding:9px 11px; }
-.modenote { display:block; margin:6px 10px; padding:8px 10px; border-radius:10px; background:var(--warn-soft); color:var(--warn); font-size:13px; text-decoration:none; }
+.modenote { display:block; margin:6px 10px; padding:8px 10px; border-radius:10px; background:var(--warn-soft); color:var(--warn); font-size:12px; text-decoration:none; }
 .check.pick { width:100%; text-align:left; cursor:pointer; border:1px solid var(--border); background:transparent; font:inherit; }
 .grp.rooms { display:flex; align-items:center; justify-content:space-between; }
 .grp.rooms button { border:0; background:transparent; color:inherit; cursor:pointer; font:inherit; }
-.who { font-size:12px; color:var(--muted); margin:8px 0 2px; }
-.notice { align-self:center; font-size:12px; color:var(--warn); background:var(--warn-soft); border-radius:99px; padding:4px 12px; margin:4px 0; }
-.hand { margin-top:4px; font-size:12px; }
+.who { font-size:11px; color:var(--muted); margin:8px 0 2px; }
+.notice { align-self:center; font-size:11px; color:var(--warn); background:var(--warn-soft); border-radius:99px; padding:4px 12px; margin:4px 0; }
+.hand { margin-top:4px; font-size:11px; }
 .roombar { display:flex; gap:8px; justify-content:flex-end; margin-bottom:6px; }
 /* AP-1 AI 직원 칸·방 창: 한 줄에 이름표 하나, 입력칸은 화면 색에 맞춤(어두운 화면에서 회색 칸이 되지 않게) */
 #pStaff label, #roomDlg label.small { display:grid; grid-template-columns:4.5em 1fr; align-items:center; gap:8px; margin:8px 0 0; }
 #roomDlg label.small:has(textarea) { grid-template-columns:1fr; }
-#pStaff input, #pStaff select, #pWork input[type=text], #roomDlg input:not([type=checkbox]), #roomDlg select, #roomDlg textarea { width:100%; box-sizing:border-box; background:var(--surface-alt); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 8px; font:inherit; font-size:14px; }
+#pStaff input, #pStaff select, #pWork input[type=text], #roomDlg input:not([type=checkbox]), #roomDlg select, #roomDlg textarea { width:100%; box-sizing:border-box; background:var(--surface-alt); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 8px; font:inherit; font-size:12px; }
 #pStaff input#stIcon { width:4em; }
 #rdMembers label { display:flex; gap:6px; align-items:center; margin:4px 0; }
 /* U4 처음 설정 3단계 */
 .setup { position:fixed; inset:0; background:var(--bg); display:grid; place-items:center; padding:16px; z-index:22; overflow:auto; }
 .scard { width:min(560px,100%); background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:26px; box-shadow:var(--shadow); }
-.scard h1 { font-size:21px; margin:12px 0 4px; }
+.scard h1 { font-size:20px; margin:12px 0 4px; }
 .check { display:flex; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--border); border-radius:12px; margin-top:10px; }
-.check .st { margin-left:auto; font-size:13px; white-space:nowrap; }
+.check .st { margin-left:auto; font-size:12px; white-space:nowrap; }
 .check .st.ok { color:var(--ok); } .check .st.warn { color:var(--warn); }
-.sfoot { display:flex; justify-content:space-between; align-items:center; margin-top:18px; font-size:13px; color:var(--muted); }
+.sfoot { display:flex; justify-content:space-between; align-items:center; margin-top:18px; font-size:12px; color:var(--muted); }
 .dots { display:flex; gap:6px; } .dots i { width:7px; height:7px; border-radius:99px; background:var(--border); } .dots i.on { width:20px; background:var(--accent); }
 .bigbtn { width:100%; border:0; border-radius:12px; padding:12px; background:var(--accent); color:var(--on-accent); font-weight:600; margin-top:16px; }
 .linkbtn { border:0; background:none; color:var(--muted); padding:4px 0; text-decoration:underline; }
 /* RC3: 작업 화면(오른쪽 서랍 — 대화 화면을 가리지 않고 겹쳐 보임) */
 .tasks { position:fixed; inset:0 0 0 auto; width:min(400px,100%); z-index:25; background:var(--surface); border-left:1px solid var(--border); box-shadow:var(--shadow); overflow:auto; padding:16px 18px; }
-.tasks h3 { font-size:15px; margin:0 0 8px; display:flex; justify-content:space-between; align-items:center; }
-.tasks h4 { font-size:13px; margin:16px 0 6px; color:var(--muted); }
+.tasks h3 { font-size:14px; margin:0 0 8px; display:flex; justify-content:space-between; align-items:center; }
+.tasks h4 { font-size:12px; margin:16px 0 6px; color:var(--muted); }
 .task { border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin:6px 0; background:var(--surface-alt); }
-.task .t1 { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; font-size:14px; }
-.task .t1 b { font-weight:600; } .task .t1 .st { font-size:12px; padding:1px 8px; border-radius:999px; background:var(--surface); border:1px solid var(--border); }
-.task .t2 { font-size:13px; color:var(--muted); margin-top:4px; overflow-wrap:anywhere; }
+.task .t1 { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; font-size:12px; }
+.task .t1 b { font-weight:600; } .task .t1 .st { font-size:11px; padding:1px 8px; border-radius:999px; background:var(--surface); border:1px solid var(--border); }
+.task .t2 { font-size:12px; color:var(--muted); margin-top:4px; overflow-wrap:anywhere; }
 .task .acts2 { display:flex; gap:12px; margin-top:6px; flex-wrap:wrap; }
-.task .more { margin-top:8px; font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.task .more { margin-top:8px; font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .task .more dt { color:var(--muted); margin-top:6px; } .task .more dd { margin:2px 0 0; }
-.side-bottom .badge { margin-left:auto; font-size:12px; min-width:20px; text-align:center; border-radius:999px; background:var(--accent); color:var(--on-accent); padding:0 6px; }
+.side-bottom .badge { margin-left:auto; font-size:11px; min-width:20px; text-align:center; border-radius:999px; background:var(--accent); color:var(--on-accent); padding:0 6px; }
 /* U5 메신저 연결 */
-.code { font-size:34px; letter-spacing:8px; font-weight:700; text-align:center; padding:14px; border-radius:12px; background:var(--accent-soft); color:var(--accent); margin:14px 0 6px; font-variant-numeric:tabular-nums; }
-ol.guide { padding-left:20px; margin:10px 0 0; font-size:14px; } ol.guide li { margin:5px 0; }
+.code { font-size:24px; letter-spacing:8px; font-weight:700; text-align:center; padding:14px; border-radius:12px; background:var(--accent-soft); color:var(--accent); margin:14px 0 6px; font-variant-numeric:tabular-nums; }
+ol.guide { padding-left:20px; margin:10px 0 0; font-size:12px; } ol.guide li { margin:5px 0; }
 .grid2 { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:12px; }
 .grid2 .pick { grid-template-columns:36px 1fr; }
 .welcome { margin:auto; text-align:center; color:var(--muted); max-width:420px; padding:24px; }
@@ -152,31 +152,31 @@ ol.guide { padding-left:20px; margin:10px 0 0; font-size:14px; } ol.guide li { m
 .compose button { border:0; background:var(--accent); color:var(--on-accent); border-radius:12px; padding:12px 18px; font-weight:600; }
 .compose button:disabled, .compose textarea:disabled { opacity:.55; cursor:not-allowed; }
 button:disabled { opacity:.5; cursor:not-allowed; }
-.compose .mic { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:50%; width:46px; height:46px; padding:0; font-size:19px; }
+.compose .mic { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:50%; width:46px; height:46px; padding:0; font-size:16px; }
 .compose .mic.on { border-color:var(--err); }
 #speakBtn[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
 
 .panel { width:320px; background:var(--surface); border-left:1px solid var(--border); overflow:auto; padding:16px 18px; }
-.panel h3 { font-size:15px; margin:0 0 12px; display:flex; justify-content:space-between; align-items:center; }
+.panel h3 { font-size:14px; margin:0 0 12px; display:flex; justify-content:space-between; align-items:center; }
 .ghost { border:0; background:none; color:var(--muted); padding:4px; }
-.kv { display:grid; grid-template-columns:90px 1fr; gap:8px 10px; font-size:14px; margin:0; }
+.kv { display:grid; grid-template-columns:90px 1fr; gap:8px 10px; font-size:12px; margin:0; }
 .kv dt { color:var(--muted); } .kv dd { margin:0; overflow-wrap:anywhere; }
-.sec { border-top:1px solid var(--border); margin-top:16px; padding-top:14px; font-size:14px; }
-.sec h4 { margin:0 0 8px; font-size:14px; }
+.sec { border-top:1px solid var(--border); margin-top:16px; padding-top:14px; font-size:12px; }
+.sec h4 { margin:0 0 8px; font-size:12px; }
 details.adv summary { cursor:pointer; color:var(--muted); font-weight:600; }
 .sec details.adv + details.adv, #pWork details.adv { margin-top:12px; }
 details.adv[open] summary { margin-bottom:10px; }
-.radio { display:flex; gap:8px; align-items:flex-start; margin:6px 0; font-size:14px; }
-.pbtn { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:6px 12px; font-size:13px; margin:6px 6px 0 0; }
+.radio { display:flex; gap:8px; align-items:flex-start; margin:6px 0; font-size:12px; }
+.pbtn { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:6px 12px; font-size:12px; margin:6px 6px 0 0; }
 .pbtn.danger { color:var(--err); border-color:color-mix(in srgb, var(--err) 45%, var(--border)); }
 .pbtn.danger:hover { background:var(--err-soft); }
 
-.toast { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:30; max-width:min(560px,calc(100% - 32px)); padding:10px 16px; border-radius:12px; box-shadow:var(--shadow); font-size:14px; background:var(--surface); border:1px solid var(--border); }
+.toast { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:30; max-width:min(560px,calc(100% - 32px)); padding:10px 16px; border-radius:12px; box-shadow:var(--shadow); font-size:12px; background:var(--surface); border:1px solid var(--border); }
 .toast.ok { color:var(--ok); } .toast.warn { color:var(--warn); background:var(--warn-soft); } .toast.err { color:var(--err); background:var(--err-soft); }
 
 .login { flex:1; display:grid; place-items:center; padding:16px; }
 .card { width:min(420px,100%); background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; box-shadow:var(--shadow); }
-.card h1 { font-size:21px; margin:14px 0 6px; }
+.card h1 { font-size:20px; margin:14px 0 6px; }
 .card input { width:100%; border:1px solid var(--border); background:var(--surface-alt); border-radius:10px; padding:10px 12px; margin-top:10px; }
 .card .primary { width:100%; border:0; border-radius:12px; padding:12px; background:var(--accent); color:var(--on-accent); font-weight:600; margin-top:16px; }
 
@@ -235,8 +235,7 @@ details.adv[open] summary { margin-bottom:10px; }
   </form>
   <div class="card" id="pendingBox" hidden role="status">
     <div class="logo" aria-hidden="true">이</div>
-    <h1>승인을 기다려요</h1>
-    <p class="muted small">가입 신청을 받았어요. 이 허브 관리자가 승인하면 쓸 수 있어요. 승인된 뒤 다시 들어와 주세요.</p>
+    <h1>승인을 기다려요 <span class="tip" tabindex="0" role="note" aria-label="가입 신청을 받았어요. 이 허브 관리자가 승인하면 쓸 수 있어요. 승인된 뒤 다시 들어와 주세요." data-tip="가입 신청을 받았어요. 이 허브 관리자가 승인하면 쓸 수 있어요. 승인된 뒤 다시 들어와 주세요.">i</span></h1>
     <button type="button" id="pendingOut">로그아웃</button>
   </div>
 </section>
@@ -245,10 +244,9 @@ details.adv[open] summary { margin-bottom:10px; }
 <!-- U8: 새 세션 만들기(예전 화면에서 옮김). 새 세션 기능이 켜져 있을 때만 왼쪽 위에 버튼이 보인다 -->
 <div class="scrim" id="newSess" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nsTitle">
-    <h2 id="nsTitle">새 세션 만들기</h2>
-    <p class="muted small" style="margin:0">이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만들어요. 첫 질문을 보내면 시작해요.</p>
+    <h2 id="nsTitle">새 세션 만들기 <span class="tip" tabindex="0" role="note" aria-label="이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만들어요. 첫 질문을 보내면 시작해요." data-tip="이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만들어요. 첫 질문을 보내면 시작해요.">i</span></h2>
     <form id="nsForm">
-      <label class="field">엔진<select id="nsEngine"><option value="codex">Codex</option><option value="claude">Claude</option><option value="antigravity">Antigravity(그 PC에 설치돼 있을 때)</option><option value="grok">Grok(그 PC에 설치돼 있을 때)</option></select></label>
+      <label class="field">엔진<select id="nsEngine"><option value="codex">Codex</option><option value="claude">Claude</option><option value="antigravity">Antigravity</option><option value="grok">Grok</option></select></label>
       <label class="field" id="nsHostRow" hidden>어디서<select id="nsHost"></select></label>
       <label class="field">이름<input id="nsName" placeholder="영문·숫자·- 2~32자" maxlength="32" autocomplete="off" spellcheck="false" required></label>
       <label class="field">권한<select id="nsProfile"><option value="workspace">작업 폴더 안 읽기·쓰기(기본)</option><option value="read_only">읽기 전용</option></select></label>
@@ -261,8 +259,7 @@ details.adv[open] summary { margin-bottom:10px; }
 <!-- AP-1 방 만들기·고치기: 이름·구성원(AI 직원)·대표·공통 안내 -->
 <div class="scrim" id="roomDlg" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rdTitle">
-    <h2 id="rdTitle">방 만들기</h2>
-    <p class="muted small" style="margin:0">여러 AI 직원을 한 방에 모아요. @이름으로 부른 직원이 답하고, 아무도 안 부르면 대표가 답해요. AI 직원끼리 스스로 부르지 않아요.</p>
+    <h2 id="rdTitle">방 만들기 <span class="tip" tabindex="0" role="note" aria-label="여러 AI 직원을 한 방에 모아요. @이름으로 부른 직원이 답하고, 아무도 안 부르면 대표가 답해요. AI 직원끼리 스스로 부르지 않아요." data-tip="여러 AI 직원을 한 방에 모아요. @이름으로 부른 직원이 답하고, 아무도 안 부르면 대표가 답해요. AI 직원끼리 스스로 부르지 않아요.">i</span></h2>
     <label class="small">방 이름 <input id="rdName" maxlength="30" autocomplete="off"></label>
     <div class="small muted" style="margin-top:8px">구성원</div>
     <div id="rdMembers"></div>
@@ -294,28 +291,23 @@ details.adv[open] summary { margin-bottom:10px; }
   <div class="scard">
     <div class="logo" aria-hidden="true">이</div>
     <div id="s0" hidden>
-      <h1>어떻게 쓰실 건가요?</h1>
-      <p class="muted small" style="margin:0">나중에 설정 → 이 PC → 사용 방식에서 바꿀 수 있어요.</p>
+      <h1>어떻게 쓰실 건가요? <span class="tip" tabindex="0" role="note" aria-label="나중에 설정 → 이 PC → 사용 방식에서 바꿀 수 있어요." data-tip="나중에 설정 → 이 PC → 사용 방식에서 바꿀 수 있어요.">i</span></h1>
       <button type="button" class="check pick" id="s0Pc"><div class="av" style="background:#2f6f5e" aria-hidden="true">PC</div><div><b>이 PC에서만</b><div class="small muted">가장 간단해요. 공개 서버 없이 이 PC 화면과 텔레그램·디스코드·슬랙으로 써요(카카오톡·라인은 공개 중계가 있을 때만)</div></div></button>
       <button type="button" class="check pick" id="s0Hub"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>내 허브에 연결</b><div class="small muted">허브 주소(또는 허브에서 만든 PC 연결 링크)가 있어요. 질문·메신저·설정은 허브 화면에서 해요</div></div></button>
       <div class="check" aria-disabled="true"><div class="av" style="background:#9aa3ad" aria-hidden="true">☁</div><div><b>이어온 공용 서비스</b><div class="small muted">공개 서버 없이 가입해서 쓰는 방식 — 준비 중이에요</div></div><span class="st">준비 중</span></div>
     </div>
     <div id="s1">
-      <h1 id="setupTitle">이어온을 시작해요</h1>
-      <p class="muted small" style="margin:0">쓰던 Codex 대화를 웹과 메신저에서 이어서 써요. 이 PC에서 필요한 것을 확인했어요.</p>
+      <h1 id="setupTitle">이어온을 시작해요 <span class="tip" tabindex="0" role="note" aria-label="쓰던 Codex 대화를 웹과 메신저에서 이어서 써요. 이 PC에서 필요한 것을 확인했어요." data-tip="쓰던 Codex 대화를 웹과 메신저에서 이어서 써요. 이 PC에서 필요한 것을 확인했어요.">i</span></h1>
       <div class="check"><div class="av codex_thread" aria-hidden="true">Cx</div><div><b>Codex</b><div class="small muted" id="sCodexHint">확인 중…</div></div><span class="st" id="sCodex">…</span></div>
       <div class="check"><div class="av claude_channel" aria-hidden="true">Cl</div><div><b>Claude Code</b><div class="small muted">채널 연결은 나중에 할 수 있어요</div></div><span class="st">나중에</span></div>
       <button type="button" class="bigbtn" id="s1Next">계속</button>
     </div>
     <div id="s2" hidden>
-      <h1>이어 쓸 대화를 고르세요</h1>
-      <p class="muted small" style="margin:0">이 PC에서 최근에 쓴 Codex 대화예요. 고른 대화만 이어온이 다뤄요.</p>
+      <h1>이어 쓸 대화를 고르세요 <span class="tip" tabindex="0" role="note" aria-label="이 PC에서 최근에 쓴 Codex 대화예요. 고른 대화만 이어온이 다뤄요." data-tip="이 PC에서 최근에 쓴 Codex 대화예요. 고른 대화만 이어온이 다뤄요.">i</span> <span class="tip" tabindex="0" role="note" aria-label="목록에 없으면 나중에 &quot;＋ 대화 연결 → 고급&quot;에서 대화 ID를 넣을 수 있어요." data-tip="목록에 없으면 나중에 &quot;＋ 대화 연결 → 고급&quot;에서 대화 ID를 넣을 수 있어요.">i</span></h1>
       <div id="sList"></div>
-      <p class="small muted">목록에 없으면 나중에 "＋ 대화 연결 → 고급"에서 대화 ID를 넣을 수 있어요.</p>
     </div>
     <div id="s3" hidden>
-      <h1>준비됐어요</h1>
-      <p class="muted small" style="margin:0">이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요.</p>
+      <h1>준비됐어요 <span class="tip" tabindex="0" role="note" aria-label="이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요." data-tip="이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요.">i</span></h1>
       <div class="check"><div class="av" style="background:#229ED9" aria-hidden="true">✈</div><div><b>메신저로도 쓰기</b><div class="small muted">텔레그램·디스코드·슬랙·카카오톡</div></div><button type="button" class="st linkbtn" id="sMsg">설정하기</button></div>
       <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>밖에서도 쓰기(허브)</b><div class="small muted">PC가 꺼져 있을 때도 새 세션이 답해요</div></div><a class="st" href="/settings#apps">설정하기</a></div>
       <button type="button" class="bigbtn" id="s3Open">대화 열기</button>
@@ -344,8 +336,7 @@ details.adv[open] summary { margin-bottom:10px; }
 <div class="scrim" id="msg" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
     <div id="m1">
-      <h2 id="mTitle">어느 메신저로 쓸까요?</h2>
-      <p class="muted small" style="margin:0">하나만 골라도 돼요. 나머지는 나중에 추가할 수 있어요.</p>
+      <h2 id="mTitle">어느 메신저로 쓸까요? <span class="tip" tabindex="0" role="note" aria-label="하나만 골라도 돼요. 나머지는 나중에 추가할 수 있어요." data-tip="하나만 골라도 돼요. 나머지는 나중에 추가할 수 있어요.">i</span></h2>
       <div class="grid2" id="mPlats"></div>
     </div>
     <div id="m2" hidden>
@@ -424,7 +415,7 @@ details.adv[open] summary { margin-bottom:10px; }
     </dl>
     <div class="sec" id="pWork" hidden>
       <h4>작업 모드 <span class="tip" tabindex="0" role="note" aria-label="켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록)." data-tip="켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록).">i</span></h4>
-      <label class="radio"><input type="checkbox" id="wmOn"> <span>작업 모드 켜기 <span class="muted small">(기본 꺼짐)</span></span></label>
+      <label class="radio"><input type="checkbox" id="wmOn"> <span>작업 모드 켜기</span></label>
       <details class="adv"><summary>사람이 직접 할 일 <span class="tip" tabindex="0" role="note" aria-label="여기에 맞는 일은 AI에게 묻지 않고 &quot;하지 마세요&quot;로 답한 뒤 사람에게 넘겨요(카드에 무엇을·어디서). 직접 처리했으면 &quot;직접 처리함&quot;을 눌러 기록해요." data-tip="여기에 맞는 일은 AI에게 묻지 않고 &quot;하지 마세요&quot;로 답한 뒤 사람에게 넘겨요(카드에 무엇을·어디서). 직접 처리했으면 &quot;직접 처리함&quot;을 눌러 기록해요.">i</span></summary>
       <label class="radio"><input type="checkbox" id="hoCmd"> <span>모든 명령 실행</span></label>
       <label class="radio"><input type="checkbox" id="hoFile"> <span>모든 파일 수정</span></label>
@@ -1078,7 +1069,7 @@ function renderHead() {
   $('stateChip').hidden = false; $('stateChip').textContent = stateOf(c)[1];
   $('workChip').hidden = c.workMode !== true;
   $('panelBtn').hidden = false;
-  $('question').placeholder = matchMedia('(max-width: 760px)').matches ? '메시지' : c.label + '에게 메시지'; // 휴대폰에서는 잘리지 않게 짧게
+  $('question').placeholder = hubMode ? '허브 화면에서 보내세요' : matchMedia('(max-width: 760px)').matches ? '메시지' : c.label + '에게 메시지'; // 휴대폰에서는 짧게, 이 PC가 허브에 연결돼 있으면 보낼 곳을 알려 줌
   renderPanel(c); renderSendable();
 }
 async function review(card, requestId, executed) {
@@ -1267,7 +1258,8 @@ $('panelClose').onclick = () => setPanel(false);
 $('backBtn').onclick = () => { $('app').classList.remove('in-chat'); setPanel(false); };
 function renderPanel(c) {
   // W2: 작업 모드(Codex 기존 대화만)
-  $('pWork').hidden = false; // E3: Antigravity도 $('wmOn').checked = c.workMode === true; $('wmOn').disabled = c.busy || Boolean(pending);
+  $('pWork').hidden = false; // E3: Antigravity도
+  $('wmOn').checked = c.workMode === true; $('wmOn').disabled = c.busy || Boolean(pending);
   if (!$('pWork').hidden) loadHandoff(c.conversationId).catch(() => {}); // RC5
   if (document.activeElement?.closest?.('#pStaff') == null) { $('stName').value = c.staff?.name ?? ''; $('stIcon').value = c.staff?.icon ?? ''; fillRoles(c.staff?.roleId ?? ''); }
   $('msgDel').disabled = c.busy || Boolean(pending); // AP-5a

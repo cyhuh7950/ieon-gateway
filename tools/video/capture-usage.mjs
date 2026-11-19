@@ -1,0 +1,148 @@
+// 사용법 영상(01~05) 실제 화면 캡처: 웹 화면 창(포트 9335) + 휴대폰 크기 PC 앱(포트 9333), 가짜 서버(VIDEO_SET=usage demo-server.mjs)
+// 사용: node tools/video/capture-usage.mjs [web|phone]  (비우면 둘 다, 웹 먼저 — 작업 모드·방이 웹에서 만들어진 뒤 휴대폰)
+// → .local/video/usage-shots/*.png. 확인 창(confirm·prompt)은 화면에 그릴 수 없어 미리 "예"로 답해 둔다(가짜 서버라 실제로 지워지거나 보내지는 것 없음).
+import { mkdirSync } from 'node:fs';
+import { connect } from './cdp.mjs';
+
+const OUT = '.local/video/usage-shots';
+const BASE = 'http://127.0.0.1:28799';
+mkdirSync(OUT, { recursive: true });
+const which = process.argv[2] ?? 'all';
+const H = { authorization: 'Bearer web-video', 'content-type': 'application/json' };
+const workMode = (on) => fetch(`${BASE}/v1/conversations/c_work/work-mode`, { method: 'PUT', headers: H, body: JSON.stringify({ on }) });
+let pairCode = null;
+
+// 글자가 든 요소 누르기(가장 안쪽 것)
+const clickText = (c, sel, text) => c.eval(`(() => { const els = [...document.querySelectorAll(${JSON.stringify(sel)})].filter((e) => e.textContent.includes(${JSON.stringify(text)})); const el = els[els.length - 1]; if (!el) return false; el.click(); return true; })()`);
+const must = async (p, what) => { if (!(await p)) throw new Error('찾지 못함: ' + what); };
+
+async function web() {
+  const w = await connect(9335);
+  await w.size(1440, 900, 4 / 3, false);
+  await w.eval(`location.href = '${BASE}/', 1`); await w.sleep(3000);
+  await w.eval('window.confirm = () => true, 1');
+  const shot = (n) => w.shot(`${OUT}/${n}.png`);
+  const row = (t) => must(clickText(w, '#list .row', t), t);
+
+  // 01 웹 화면에서 질문하기
+  await shot('w01_list');
+  await row('결제 모듈'); await w.sleep(1500);
+  await shot('w01_chat');
+  await w.type('#question', '어제 하던 작업 어디까지 했어?'); await w.sleep(300);
+  await shot('w01_typing');
+  await w.click('#send'); await w.sleep(900);
+  await shot('w01_queued');
+  await w.sleep(6500);
+  await shot('w01_answer');
+  await row('회사 PC'); await w.sleep(1500);
+  await shot('w01_card');
+  await row('결제 모듈'); await w.sleep(1200);
+  await w.click('#panelBtn'); await w.sleep(800);
+  await shot('w01_panel');
+
+  // 02 AI 직원과 방
+  await w.eval(`(() => { const d = document.getElementById('stName').closest('details'); if (d) d.open = true; return 1; })()`); await w.sleep(400);
+  await shot('w02_staff');
+  await w.click('#panelClose'); await w.sleep(300);
+  await must(clickText(w, '#list button', '＋ 방'), '방 만들기'); await w.sleep(600);
+  await w.type('#rdName', '전문 상담');
+  await w.eval(`(() => { for (const n of ['@법률봇', '@세무봇', '@보험봇']) { const l = [...document.querySelectorAll('#rdMembers label')].find((x) => x.textContent.includes(n)); l.querySelector('input').click(); } return 1; })()`);
+  await w.sleep(400);
+  await shot('w02_room_dlg');
+  await w.click('#rdOk'); await w.sleep(1800);
+  await w.type('#question', '@법률봇 @세무봇 상속받은 집, 법적 절차랑 세금 같이 봐 줘'); await w.sleep(300);
+  await shot('w02_mention');
+  await w.click('#send'); await w.sleep(10000);
+  await w.eval('document.getElementById("msgs").scrollTop = 1e6, 1'); await w.sleep(400);
+  await shot('w02_answers');
+  await w.eval(`(() => { let k = 0; window.prompt = () => (k++ % 2 === 0 ? '@보험봇' : ''); return 1; })()`);
+  await must(clickText(w, '#msgs button', '다른 AI 직원에게 넘기기'), '넘기기'); await w.sleep(9000);
+  await w.eval('document.getElementById("msgs").scrollTop = 1e6, 1'); await w.sleep(400);
+  await shot('w02_handoff');
+
+  // 03 허락 카드
+  await row('결제 모듈'); await w.sleep(1500);
+  await w.click('#panelBtn'); await w.sleep(600);
+  await w.eval(`(() => { const c = document.getElementById('wmOn'); c.checked = true; c.dispatchEvent(new Event('change')); return 1; })()`); await w.sleep(900);
+  await shot('w03_workmode');
+  await w.click('#panelClose'); await w.sleep(1500);
+  await w.type('#question', '환불 처리 테스트 돌려서 결과 알려 줘'); await w.sleep(300);
+  await shot('w03_ask');
+  await w.click('#send'); await w.sleep(9000);
+  await shot('w03_card');
+  await must(clickText(w, '#cards button', '허용'), '허용'); await w.sleep(9000);
+  await w.eval('document.getElementById("msgs").scrollTop = 1e6, 1'); await w.sleep(400);
+  await shot('w03_answer');
+
+  // 04 휴대폰 앱 연결 — 웹 설정의 연결 코드
+  await w.eval(`location.href = '${BASE}/settings#apps', 1`); await w.sleep(2500);
+  await w.eval(`document.querySelector('[data-atab=apps]').click(), 1`); await w.sleep(600);
+  await w.eval(`document.getElementById('adCode').scrollIntoView({ block: 'center' }), 1`); await w.sleep(400);
+  await shot('w04_settings');
+  await w.click('#adCode'); await w.sleep(1200);
+  await w.eval(`document.getElementById('adCode').scrollIntoView({ block: 'center' }), 1`); await w.sleep(400);
+  await shot('w04_code');
+  pairCode = (await w.eval(`document.getElementById('adCodeBox').textContent`)).match(/(\d{4}) ?(\d{4})/).slice(1).join('');
+  await w.eval(`location.href = '${BASE}/', 1`); await w.sleep(1500);
+  w.close();
+}
+
+async function phone() {
+  const p = await connect(9333);
+  await p.size(390, 844, 3, false);
+  await p.eval('localStorage.clear(), location.reload(), 1'); await p.sleep(2500);
+  await p.eval('window.confirm = () => true, window.alert = () => {}, 1');
+  const shot = (n) => p.shot(`${OUT}/${n}.png`);
+  if (!pairCode) pairCode = (await (await fetch(`${BASE}/v1/admin/app-devices/code`, { method: 'POST', headers: H, body: '{}' })).json()).code;
+  await workMode(false);
+
+  // 04 휴대폰 앱 연결하기
+  await p.type('.pair input:not([maxlength])', BASE);
+  await p.type('.pair input[inputmode="numeric"]', pairCode); await p.sleep(300);
+  await shot('p04_pair');
+  await p.click('.pair button.primary'); await p.sleep(3000);
+  await p.eval('window.confirm = () => true, window.alert = () => {}, 1');
+  await shot('p04_list');
+  await must(clickText(p, 'button.row', '코덱스'), '코덱스'); await p.sleep(1500);
+  await p.type('textarea', '환불 처리 테스트는 어떻게 됐어?');
+  await p.click('.composer button.primary'); await p.sleep(900);
+  await shot('p04_wait');
+  await p.sleep(6000);
+  await shot('p04_answer');
+  await workMode(true);
+  await p.type('textarea', '테스트 한 번 더 돌려 줘');
+  await p.click('.composer button.primary'); await p.sleep(9000);
+  await shot('p04_card');
+  await must(clickText(p, '.card button', '허용'), '허용'); await p.sleep(8000);
+  await shot('p04_allowed');
+  await workMode(false);
+
+  // 05 음성·알림·지우기
+  await p.eval('localStorage.removeItem("ieon.voice.notice.v1"), 1');
+  await must(p.click('button.mic'), '마이크');
+  await p.sleep(800);
+  await shot('p05_notice');
+  await must(clickText(p, '.dialog button', '확인'), '확인'); await p.sleep(500);
+  await p.eval(`(() => { const b = [...document.querySelectorAll('.vhint button')].find((x) => x.textContent === '닫기'); if (b) b.click(); return 1; })()`); await p.sleep(300);
+  await shot('p05_chat');
+  await p.type('textarea', '결제 모듈 테스트 결과를 짧게 정리해 줘'); await p.sleep(300);
+  await shot('p05_dictated');
+  await p.type('textarea', ''); await p.sleep(200);
+  await p.eval(`(() => { const b = document.querySelector('header.bar button[aria-pressed]'); if (b && b.getAttribute('aria-pressed') !== 'true') b.click(); return 1; })()`); await p.sleep(600);
+  await shot('p05_speaker');
+  await p.eval(`(() => { const b = document.querySelector('header.bar button[aria-pressed="true"]'); if (b) b.click(); return 1; })()`); await p.sleep(300);
+  await p.eval(`(() => { const b = [...document.querySelectorAll('header.bar button')].find((x) => x.textContent === '✎'); b.click(); return 1; })()`); await p.sleep(700);
+  await shot('p05_edit');
+  await p.eval(`(() => { const b = [...document.querySelectorAll('header.bar button')].find((x) => x.textContent === '✎'); b.click(); return 1; })()`); await p.sleep(300);
+  await p.click('header.bar button.ghost'); await p.sleep(1200);
+  await shot('p05_list');
+  // PC 앱 창 크기(알림 장면)
+  await p.size(480, 820, 2, false); await p.sleep(800);
+  await shot('p05_pc');
+  await p.size(390, 844, 3, false);
+  p.close();
+}
+
+if (which !== 'phone') await web();
+if (which !== 'web') await phone();
+console.log('usage shots done');

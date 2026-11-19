@@ -25,7 +25,7 @@
 } }
 * { box-sizing:border-box; }
 [hidden] { display:none !important; }
-body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Segoe UI",sans-serif; }
+body { margin:0; background:var(--bg); color:var(--text); font:12px/1.6 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Segoe UI",sans-serif; }
 ::selection { background:var(--accent-soft); color:var(--text); }
 a { color:var(--accent); text-underline-offset:2px; }
 button, input, select, textarea { font:inherit; color:inherit; }
@@ -44,28 +44,28 @@ input:not([type=checkbox]):not([type=radio]), select, textarea { background:var(
 select { max-width:100%; text-overflow:ellipsis; }
 input[type=checkbox], input[type=radio] { accent-color:var(--accent); width:16px; height:16px; margin:0; flex:none; }
 textarea { width:100%; min-height:72px; line-height:1.5; }
-code, .code { font-family:ui-monospace,"Cascadia Code",Consolas,monospace; font-size:13px; background:var(--surface-alt); border:1px solid var(--border); border-radius:6px; padding:1px 6px; }
+code, .code { font-family:ui-monospace,"Cascadia Code",Consolas,monospace; font-size:12px; background:var(--surface-alt); border:1px solid var(--border); border-radius:6px; padding:1px 6px; }
 .code { display:block; padding:8px 10px; margin:6px 0; }
 /* 머리줄 */
 header { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:6; }
-header h1 { font-size:17px; margin:0; }
+header h1 { font-size:16px; margin:0; }
 header a.back { text-decoration:none; color:var(--accent); font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
 header .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
 /* 본문 */
 .admin { max-width:960px; margin:0 auto; padding:16px; display:grid; gap:16px; }
 .admin section { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 20px; min-width:0; }
-.admin h2 { font-size:17px; margin:0 0 6px; }
-h3 { font-size:15px; margin:20px 0 6px; }
+.admin h2 { font-size:16px; margin:0 0 6px; }
+h3 { font-size:14px; margin:20px 0 6px; }
 .admin section > h2 + h3, .admin section > h2 + .muted + h3 { margin-top:12px; }
 nav.atabs { display:flex; flex-wrap:wrap; gap:6px; position:sticky; top:65px; z-index:5; background:var(--bg); padding:6px 0; }
 nav.atabs button { border-radius:99px; padding:6px 14px; }
 /* 위쪽 묶음 전환(내 설정 | 관리): 붙은 두 칸 */
 nav.agrp { display:inline-flex; border:1px solid var(--border); border-radius:99px; padding:3px; background:var(--surface); justify-self:start; }
 nav.agrp button { border:0; border-radius:99px; min-height:32px; padding:4px 16px; background:none; color:var(--muted); }
-nav.agrp button[aria-pressed="true"] { background:var(--text); color:var(--surface); font-weight:600; }
-details.fold > summary { font-size:15px; color:var(--text); padding:2px 0; }
+nav.agrp button[aria-pressed="true"] { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+details.fold > summary { font-size:14px; color:var(--text); padding:2px 0; }
 details.fold { margin:16px 0; }
-details.fold > summary .sum { font-weight:400; color:var(--muted); font-size:13px; }
+details.fold > summary .sum { font-weight:400; color:var(--muted); font-size:12px; }
 nav.atabs button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
 .subcard { border-top:1px solid var(--border); margin-top:16px; padding-top:4px; }
 details { border:1px solid var(--border); border-radius:10px; padding:8px 12px; margin:12px 0; background:var(--surface); }
@@ -82,7 +82,7 @@ legend { padding:0 4px; font-weight:600; }
 .grid2 input[type=text], .grid2 select, .grid2 textarea { width:100%; }
 .chk { display:inline-flex; gap:8px; align-items:center; margin-right:12px; min-height:32px; }
 .mode { display:flex; gap:8px; align-items:flex-start; padding:6px 0; cursor:pointer; }
-.badge { display:inline-block; background:var(--accent-soft); color:var(--accent); border-radius:99px; padding:1px 8px; margin-right:6px; font-size:12px; }
+.badge { display:inline-block; background:var(--accent-soft); color:var(--accent); border-radius:99px; padding:1px 8px; margin-right:6px; font-size:11px; }
 /* 상태 알림 */
 .state { border-radius:10px; padding:10px 12px; margin:8px 0; border:1px solid transparent; }
 .state.ok { background:var(--ok-soft); color:var(--ok); }
@@ -93,7 +93,7 @@ legend { padding:0 4px; font-weight:600; }
 #status .state { box-shadow:var(--shadow); pointer-events:auto; }
 /* 표 */
 table.list { width:100%; border-collapse:collapse; margin:6px 0; }
-table.list th { text-align:left; font-size:12px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--border); padding:6px 8px; white-space:nowrap; }
+table.list th { text-align:left; font-size:11px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--border); padding:6px 8px; white-space:nowrap; }
 /* 낱말 중간에서 자르지 않는다(한국어는 띄어쓰기에서만, 아주 긴 영문 값만 필요할 때 끊음) — 2026-11-20 "디스코/드" 줄바꿈 고침 */
 table.list td { text-align:left; border-bottom:1px solid var(--border); padding:8px; vertical-align:middle; word-break:keep-all; overflow-wrap:break-word; }
 table.list td:not(:last-child) { min-width:4.5em; }
@@ -103,12 +103,18 @@ table.list tr.pick:hover { background:var(--surface-alt); }
 /* 예전 대화 화면 일부(기록 보기)에 쓰던 칸 */
 .conv { display:block; width:100%; text-align:left; border:1px solid transparent; background:none; border-radius:10px; padding:10px; }
 .conv[aria-current="true"] { background:var(--accent-soft); }
-#log { min-height:200px; font-size:14px; line-height:1.9; }
+#log { min-height:200px; font-size:12px; line-height:1.9; }
 .q { color:var(--accent); font-weight:600; margin-top:12px; }
 .a { white-space:pre-wrap; }
 /* 휴대폰 폭(대화 화면과 같은 760px): 누를 것 44px, 표는 한 줄에 한 카드로 쌓음(옆으로 밀지 않음) */
 @media (max-width:760px) {
-  header { padding:6px 12px; }
+  header { padding:6px 12px; flex-wrap:nowrap; }
+  header h1 { white-space:nowrap; flex:none; } header a.back { white-space:nowrap; flex:none; }
+  #modeTag { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  nav.atabs { -webkit-mask-image:linear-gradient(90deg,#000 85%,transparent); mask-image:linear-gradient(90deg,#000 85%,transparent); padding-right:24px; }
+  nav.agrp button, details > summary { min-height:44px; }
+  details > summary { display:flex; align-items:center; gap:6px; }
+  .tip { width:24px; height:24px; }
   .admin { padding:10px; gap:12px; }
   .admin section { padding:12px 14px; }
   nav.atabs { top:57px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
@@ -123,7 +129,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   table.list thead { display:none; }
   table.list tr { border:1px solid var(--border); border-radius:12px; padding:8px 12px; margin:8px 0; background:var(--surface-alt); }
   table.list td { border:0; padding:3px 0; }
-  table.list td[data-label]:not(:empty)::before { content:attr(data-label); display:block; font-size:12px; color:var(--muted); }
+  table.list td[data-label]:not(:empty)::before { content:attr(data-label); display:block; font-size:11px; color:var(--muted); }
   table.list td:empty { display:none; }
 }
 /* ⓘ 풍선 도움말(DESIGN.md): 설명문은 화면에 쓰지 않고 여기에 */
@@ -165,7 +171,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </div>
     <div id="devBox" hidden>
       <h3>실제 실행·Codex 허용 목록 <span class="tip" tabindex="0" role="note" aria-label="그 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. PC형은 그 PC에서 연 화면에서, 허브형은 허브 화면에서 PC를 골라 바꿉니다(허브가 그 PC에 전달)." data-tip="그 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. PC형은 그 PC에서 연 화면에서, 허브형은 허브 화면에서 PC를 골라 바꿉니다(허브가 그 PC에 전달).">i</span></h3>
-      <div class="row"><label class="chk"><input type="checkbox" id="devLive"> 실제 실행 켜기(AI 호출이 생김)</label><span id="devConn" class="muted"></span></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="devLive"> 실제 실행 켜기</label><span id="devConn" class="muted"></span></div>
       <table class="list"><thead><tr><th>Codex 대화 ID</th><th>연결 방식</th><th>작업 폴더</th><th></th></tr></thead><tbody id="devThreads"></tbody></table>
       <form id="devAdd" class="row">
         <input id="devThread" placeholder="Codex 대화 ID (예: 01a18790-…)" maxlength="36" autocomplete="off" aria-label="Codex 대화 ID">
@@ -436,7 +442,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </div>
     <div id="pairBox" hidden><h3>연결 요청</h3><div id="pairRows"></div></div>
     <table class="list"><thead><tr><th>기기 ID</th><th>이름</th><th>출처</th><th>등록일</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead><tbody id="dvRows"></tbody></table>
-    <h3>최근 기록</h3><div id="dvEvents" class="muted"></div>
+    <details class="fold"><summary>최근 기록</summary><div id="dvEvents" class="muted"></div></details>
   </section>
   <section class="atab" data-atab="hubsec" data-admin data-need="hub" hidden aria-label="허브 보안">
     <h2>허브 보안</h2>
@@ -466,7 +472,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <h3>Codex 로그인(이 허브) <span class="tip" tabindex="0" role="note" aria-label="허브에서 새 Codex 세션을 만들려면 이 허브가 신산님의 ChatGPT 계정으로 Codex에 로그인되어 있어야 합니다. &quot;로그인&quot;을 누르면 주소와 코드가 나오니, 그 주소를 열어 코드를 넣고 승인하세요. ChatGPT 보안 설정에서 &quot;기기 코드 로그인&quot;이 켜져 있어야 합니다." data-tip="허브에서 새 Codex 세션을 만들려면 이 허브가 신산님의 ChatGPT 계정으로 Codex에 로그인되어 있어야 합니다. &quot;로그인&quot;을 누르면 주소와 코드가 나오니, 그 주소를 열어 코드를 넣고 승인하세요. ChatGPT 보안 설정에서 &quot;기기 코드 로그인&quot;이 켜져 있어야 합니다.">i</span></h3>
       <div id="cxState"></div>
       <div class="row"><button type="button" id="cxStart" class="primary">로그인</button><button type="button" id="cxCancel">취소</button></div>
-      <div class="row" id="hubEngineRow" hidden><label class="chk"><input type="checkbox" id="hubLive"> 허브 새 세션 실제 실행 켜기(AI 호출이 생김)</label></div>
+      <div class="row" id="hubEngineRow" hidden><label class="chk"><input type="checkbox" id="hubLive"> 허브 새 세션 실제 실행 켜기</label></div>
     </div>
   </section>
   <section class="atab" data-atab="ext" data-admin hidden aria-label="외부 프로그램">
@@ -528,7 +534,7 @@ const envHint = (platform, id) => {
 const split = (s) => s.split(/[,，]/).map((x) => x.trim()).filter(Boolean);
 function statusText(b) {
   if (!b.enabled) return ['muted', '꺼짐'];
-  const s = b.status; if (!s) return ['st-warn', '메신저 꺼짐(보고 없음)'];
+  const s = b.status; if (!s) return ['st-warn', '꺼짐'];
   const [cls, label] = STATE[s.state] || ['st-warn', s.state];
   const extra = [s.username, s.missing?.length ? '빠진 토큰: ' + s.missing.join(', ') : '',
     b.platform === 'telegram' && s.canReadAll === false ? '그룹 일반 글 수신 꺼짐 — 부르는 이름이 동작하지 않음(BotFather /setprivacy → Disable)' : ''].filter(Boolean).join(' · ');
@@ -539,7 +545,7 @@ const SET_ERR = { bad_push_key: '서비스 계정 키 파일이 아니에요(Fir
   bad_callback_limit: '콜백 제한 시간은 5~120초', field_not_editable: '이 항목은 설정 파일에서만 바꿀 수 있음', profile_not_allowed: 'full 권한은 설정 → 관리 → 대화 등록 → 새 세션의 full 스위치를 켜야 해요',
   bad_limits: '한도는 1 이상의 숫자', bad_cleanup: '시간은 1 이상의 숫자' };
 const setErr = (e) => SET_ERR[e] || (String(e).startsWith('bad_new_sessions:') ? '새 세션 설정이 규칙에 맞지 않음(' + e.split(':')[1] + ')' : e);
-const srcText = (s, at) => s === 'web' ? '(웹에서 저장한 값' + (at ? ' · ' + new Date(at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '') + ')' : '(파일 값 사용 중)';
+const srcText = (s, at) => s === 'web' ? '(웹 값' + (at ? ' · ' + new Date(at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '') + ')' : '파일 값';
 const numOr = (v) => { const s = String(v).trim(); return s === '' ? undefined : Number(s); };
 let settingsLoaded = false;
 async function loadSettings(force) {
@@ -559,7 +565,7 @@ async function loadSettings(force) {
   $('apTtl').value = s.approvalTtl?.minutes ?? 15; $('loginDays').value = s.loginDays?.days ?? 30; // 규칙 점검 7·10
   { const p = s.push || {}; $('pushState').textContent = (p.configured ? '비공개 키: 올림(프로젝트 ' + p.projectId + ')' : '비공개 키: 아직 없음') + ' · ' + (p.appFile ? '앱 설정 파일: 올림(' + p.appFileProject + ')' : '앱 설정 파일: 아직 없음')
     + (p.configured && p.appFile && p.projectId !== p.appFileProject ? ' — 두 파일의 프로젝트가 달라요' : ''); $('pushOff').hidden = false; } // AP-4b
-  $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '(파일 값 사용 중)';
+  $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '파일 값';
   $('nsOn').checked = Boolean(e?.enabled);
   $('nsMax').value = e?.limits.maxSessions ?? ''; $('nsActive').value = e?.limits.maxActive ?? '';
   $('nsCodex').value = e?.limits.maxPerEngine?.codex ?? ''; $('nsClaude').value = e?.limits.maxPerEngine?.claude ?? ''; $('nsAgy').value = e?.limits.maxPerEngine?.antigravity ?? ''; $('nsGrok').value = e?.limits.maxPerEngine?.grok ?? '';
@@ -618,7 +624,7 @@ async function loadBindings() {
   for (const b of bindingsList) {
     const tr = el('tr', null, b.source === 'web' ? 'pick' : ''); tr.tabIndex = 0;
     [b.conversationId, b.label || '—', ({ codex_thread: 'Codex', claude_channel: 'Claude 채널', agy_cli: 'Antigravity', grok_cli: 'Grok' })[b.engine] || b.engine, b.hostId, b.sessionRef,
-      b.appIds.map((a) => ({ app_web: '웹', app_messenger: '메신저 기본 봇' }[a] || a)).join(', '), b.source === 'web' ? '웹' : 'server.json'].forEach((v) => tr.append(el('td', v)));
+      b.appIds.map((a) => ({ app_web: '웹', app_messenger: '메신저 기본 봇' }[a] || a)).join(', '), b.source === 'web' ? '웹' : '설치 파일'].forEach((v) => tr.append(el('td', v)));
     if (b.source === 'web') tr.onclick = tr.onkeydown = (e) => { if (e.type === 'click' || e.key === 'Enter') editBinding(b.conversationId); };
     $('bdRows').append(tr);
   }
@@ -657,7 +663,7 @@ async function loadDevices() {
   for (const d of r.body.devices) {
     const tr = el('tr');
     const state = d.revokedAt ? ['st-err', '폐기됨'] : d.online ? ['st-ok', '연결됨'] : ['muted', '연결 안 됨'];
-    [d.hostId, d.name, d.source === 'web' ? '웹' : 'server.json', when(d.createdAt), when(d.lastSeenAt)].forEach((v) => tr.append(el('td', v)));
+    [d.hostId, d.name, d.source === 'web' ? '웹' : '설치 파일', when(d.createdAt), when(d.lastSeenAt)].forEach((v) => tr.append(el('td', v)));
     tr.append(el('td', state[1], state[0]));
     const act = el('td');
     if (d.source === 'web') {
@@ -1772,7 +1778,7 @@ async function boot() {
   loadAdmin().catch(() => {});
 }
 // 디자인 통일(2026-11-20): 되돌릴 수 없는 일 버튼은 danger 모양, 휴대폰 표 카드에는 칸 이름을 붙인다(DESIGN.md)
-const DANGER_BTN = /^(삭제|지우기|폐기|끊기|거절|빼기)|(지우기[)]|삭제|폐기)$/;
+const DANGER_BTN = /^(삭제|지우기|폐기|끊기|거절|빼기)|(지우기[)]|삭제|폐기|끊기|잊기)$/;
 // 설명은 ⓘ 풍선 도움말로(2026-11-20 신산님) — 화면에 설명문을 쓰지 않는다
 function tip(t) { const x = el('span', 'i', 'tip'); x.tabIndex = 0; x.setAttribute('role', 'note'); x.setAttribute('aria-label', t); x.dataset.tip = t; return x; }
 document.addEventListener('click', (e) => { if (e.target.closest?.('.tip')) e.preventDefault(); });

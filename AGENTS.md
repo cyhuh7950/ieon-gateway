@@ -38,9 +38,9 @@
 
 - **Claude Code — 채널(방식 1):** 실행 중 세션에 MCP 채널로 질문을 넣고 reply 도구로 답을 받는다. 이어온 전용 채널은 `src/pilot/ieon-channel.mjs`이며 연구 미리보기 동안 `--dangerously-load-development-channels`로만 쓴다. 회신은 reply 도구로만 가능하므로 채널 지시에 "도구 금지"를 쓰지 않고 "reply 외 도구 금지"로 쓴다.
 - **Codex — 세션별 연결 모드(설정에서 선택):**
-  - `alternate`(기본): 질문마다 SDK `resumeThread`로 같은 thread를 재개하고 반납한다. 보낼 때 대상 대화가 Desktop에서 열려 있으면 잠금 충돌이므로 busy로 거부한다(앱 자체는 켜져 있어도 됨).
+  - `alternate`(기본): 질문마다 SDK `resumeThread`로 같은 thread를 재개하고 반납한다. 보낼 때 대상 대화가 Desktop에서 열려 있으면 잠금 충돌이므로 busy로 거부한다(앱 자체는 켜져 있어도 됨). (2026-11-20 신산님 확인: 그대로 둔다)
   - `shared_server`: 공식 `codex app-server --listen ws://127.0.0.1:…`(capability-token 인증)에 사람은 TUI `--remote`로, 이어온은 프로토콜 `turn/start`로 붙는다. thread가 idle이 아니면 합류(steer)하지 않고 거부한다. 이 모드의 thread는 Desktop에서 열지 않는다.
-- Remote Control·Desktop 내부 protocol 모방, Desktop·Remote Control 내부 인증 흉내, GUI 조작은 하지 않는다(HOLD — 2026-10-29 AI 검토에서 나온 문장, 2026-11-18 신산님이 낱말을 고침: 이어온 로그인을 모든 PC·칸이 함께 쓰는 것은 아래 로그인 규칙대로 허용).
+- Remote Control·Desktop 내부 protocol 모방, Desktop·Remote Control 내부 인증 흉내, GUI 조작은 하지 않는다(HOLD — 2026-10-29 AI 검토에서 나온 문장, 2026-11-18 신산님이 낱말을 고침, 2026-11-20 신산님 확인: 그대로 둔다: 이어온 로그인을 모든 PC·칸이 함께 쓰는 것은 아래 로그인 규칙대로 허용).
 
 ## 안전 규칙
 
@@ -55,7 +55,7 @@
 ## 기록과 Git
 
 - 새 사실·변경·오류·인터뷰 답변은 WORK_STATUS와 해당 설계·환경 문서에 즉시 기록한다. 실제 미실행·미확인은 PASS로 바꾸지 않는다.
-- 로컬 실행: `pwsh scripts/ieon.ps1 start [-Shared] [-Live] | stop | status | claude | tui`. 실제 엔진 실행(-Live)은 모델 호출 승인 범위에서만 켜고, 끝나면 stop으로 끈다.
+- 로컬 실행: `pwsh scripts/ieon.ps1 start [-Shared] [-Live] | stop | status | claude | tui`. 실제 엔진 실행(-Live·AI 응답)은 운영 중에 켜 둔다. AI 작업자의 시험 질문만 매번 승인받는다(2026-11-20 신산님 확인 — 2026-11-12 "운영할 때는 계속 켜 둬야". 이전 문장 "승인 범위에서만 켜고 끝나면 stop"은 AI가 넣은 것이었음).
 - 저장소: 2026-11-05 버전 0.0.1부터 `cyhuh7950/ieon-gateway`(SSH `git@github-cyhuh7950:cyhuh7950/ieon-gateway.git`)에서 수정·관리한다. 이전 개발 저장소 `sinsan-develop/ieon-gateway`는 폐쇄 대상이며 push하지 않는다(이력은 옮기지 않고 main 최종본만 단일 커밋으로 이전). release 참조 push는 막아 둔다. main에 직접 커밋하지 않고 목적 branch·검증·PR 절차를 따른다.
 - 작업 branch 절차(PMO 공통 규칙 8절): 최신 `origin/main`에서 작업 주체 접두어 branch를 만든다(Codex는 `codex/<목적>`, Claude Code는 `claude/<목적>`). 격리 작업 폴더에서 commit·push 후 현재 main 커밋을 가리키는 `pr-request/<branch 최신 sha 40자리>/<branch>` 태그를 push하면 PR Broker(`.github/workflows/auto-pr-merge.yml`)가 검사 후 PR 생성·squash 병합한다(사람 검토 없음). 병합 확인 → merged-main 테스트 → 원격·로컬 branch·작업 폴더 정리 후에만 다음 branch를 만든다. 미완료 작업 branch는 하나만 둔다.
 
