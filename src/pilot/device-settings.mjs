@@ -40,6 +40,7 @@ export function readDevice(path) {
     // A2-b: 이어온 전용 Claude 계정(PC), 엔진 기본
     claudeAccounts: claudeAccounts(c),
     claudeDefaultAccount: c.claudeAccounts?.defaultAccount ?? PC_DEFAULT,
+    claudeAccountFor: { ...(c.claudeAccounts?.accountFor ?? {}) },
   };
 }
 
@@ -99,14 +100,26 @@ export function removeClaudeAccount(path, id) {
   if (!claudeAccounts(c).some((a) => a.id === id)) return false;
   c.claudeAccounts.accounts = claudeAccounts(c).filter((a) => a.id !== id);
   if (c.claudeAccounts.defaultAccount === id) delete c.claudeAccounts.defaultAccount;
+  for (const [s, a] of Object.entries(c.claudeAccounts.accountFor ?? {})) if (a === id) delete c.claudeAccounts.accountFor[s];
   write(path, c);
   return true;
 }
-export function useClaudeAccount(path, { accountId }) {
+// sessionId가 있으면 그 Claude 대화만(이어온 새 세션·허용 목록의 대화), 'inherit'는 대화별 선택을 지워 기본을 따르게 한다.
+export function useClaudeAccount(path, { sessionId = null, accountId, knownSession = () => true }) {
   const c = read(path);
-  if (accountId !== PC_DEFAULT && !claudeAccounts(c).some((a) => a.id === accountId)) fail('bad_account');
+  const ok = accountId === PC_DEFAULT || claudeAccounts(c).some((a) => a.id === accountId);
   c.claudeAccounts ??= {};
-  if (accountId === PC_DEFAULT) delete c.claudeAccounts.defaultAccount; else c.claudeAccounts.defaultAccount = accountId;
+  if (!sessionId) {
+    if (!ok) fail('bad_account');
+    if (accountId === PC_DEFAULT) delete c.claudeAccounts.defaultAccount; else c.claudeAccounts.defaultAccount = accountId;
+  } else {
+    const id = String(sessionId).trim().toLowerCase();
+    if (!UUID.test(id) || id === EXCLUDED_THREAD) fail('bad_session_id');
+    if (!knownSession(id)) fail('session_not_allowed');
+    c.claudeAccounts.accountFor ??= {};
+    if (accountId === 'inherit') delete c.claudeAccounts.accountFor[id];
+    else { if (!ok) fail('bad_account'); c.claudeAccounts.accountFor[id] = accountId; }
+  }
   write(path, c);
 }
 

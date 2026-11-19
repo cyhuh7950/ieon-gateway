@@ -32,14 +32,15 @@ export function claudeAccountKind(home) {
   return null;
 }
 
-// 지금은 엔진 기본 하나(새 세션·이 PC의 Claude). 없는 계정이 남아 있으면 PC 기본으로 보지 않고 그대로 돌려줘 보내기 전에 막는다.
-export const claudeAccountId = (c) => c.claudeAccounts?.defaultAccount ?? PC_DEFAULT;
+// 대화(세션)별로 고른 것 → 엔진 기본 → PC 기본. 처음 질문 전의 새 세션(ID 없음)과 채널 창은 엔진 기본.
+// 없는 계정이 남아 있으면 PC 기본으로 보지 않고 그대로 돌려줘 보내기 전에 막는다.
+export const claudeAccountId = (c, ref = null) => (ref ? c.claudeAccounts?.accountFor?.[String(ref).toLowerCase()] : undefined) ?? c.claudeAccounts?.defaultAccount ?? PC_DEFAULT;
 export const claudeAccountLabel = (c, id) => (id === PC_DEFAULT ? null : claudeAccounts(c).find((a) => a.id === id)?.label ?? null);
 
 // Claude 실행 환경. PC 기본이면 null(지금처럼). 계정이 없거나 로그인 전이면 보내기 전에 거절.
 // 구독: 그 계정 폴더를 CLAUDE_CONFIG_DIR로(API 키 변수는 지워 종량제로 새지 않게). API 키: 키만 넘기고 폴더는 원래 것.
-export function claudeEnvFor(c, dir, { env = process.env } = {}) {
-  const id = claudeAccountId(c);
+export function claudeEnvFor(c, dir, { env = process.env, ref = null } = {}) {
+  const id = claudeAccountId(c, ref);
   if (id === PC_DEFAULT) return null;
   if (!claudeAccounts(c).some((a) => a.id === id)) fail('account_missing', 409);
   const home = claudeHomeOf(dir, id);
@@ -47,6 +48,18 @@ export function claudeEnvFor(c, dir, { env = process.env } = {}) {
   if (kind === 'api') return { ...without(env), ANTHROPIC_API_KEY: readFileSync(join(home, 'api-key'), 'utf8').trim() };
   if (kind === 'subscription') return { ...without(env), CLAUDE_CONFIG_DIR: home };
   fail('account_not_logged_in', 409);
+}
+
+// 연결부 상태 보고(EA10 — 어느 계정으로 나가는지 화면·메신저에 보이게): 이름표·종류만, PC 기본은 뺀다.
+export function claudeAccountHealth(c, dir) {
+  const kindOf = (id) => (id === PC_DEFAULT || !dir ? null : claudeAccountKind(claudeHomeOf(dir, id)));
+  const per = {}; const kinds = {};
+  for (const [ref, id] of Object.entries(c.claudeAccounts?.accountFor ?? {}).slice(0, 100)) {
+    const label = claudeAccountLabel(c, id);
+    if (label) { per[ref] = label; const k = kindOf(id); if (k) kinds[ref] = k; }
+  }
+  const def = claudeAccountId(c);
+  return { claudeAccounts: per, claudeAccountKinds: kinds, claudeDefault: claudeAccountLabel(c, def), claudeDefaultKind: kindOf(def) };
 }
 
 // 계정 폴더 만들기: 세션 기록 연결(대상이 없으면 원래 Claude 폴더 쪽에 빈 폴더를 만든다 — Claude도 처음 쓸 때 만든다).

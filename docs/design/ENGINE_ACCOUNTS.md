@@ -155,7 +155,8 @@
 - **세션(원칙 1):** 계정 폴더 `.local/accounts/claude/<id>`에 `projects`를 그 PC의 원래 Claude 폴더(`~/.claude/projects`)로 junction — 계정을 바꿔도 같은 세션 기록. API 키 계정은 원래 폴더 그대로(키만 넘김). 지울 때는 공식 `claude auth logout` 뒤 연결만 끊고 폴더 삭제.
 - **쓰이는 곳:** Claude 새 세션(`claude -p`, 어댑터가 실행마다 환경을 받음 — 구독: `CLAUDE_CONFIG_DIR`, API 키 변수 지움 / API: `ANTHROPIC_API_KEY`만), Claude 채널 창(`ieon.ps1 claude`가 기본 계정으로 창을 엶 — 새로 여는 창부터). 고른 계정이 없거나 로그인 전이면 **Claude를 부르기 전에** `account_missing`/`account_not_logged_in`(409).
 - **화면:** 설정 → 계정 → Claude 계정(PC, 허브에서는 PC를 고름): 계정 목록(로그인·승인 창 열기·코드 칸·API 키·로그아웃·지우기), 계정 추가, 기본 계정. 명령 `claude.accounts.add|login|code|cancel|apikey|logout|delete|use`(PC형·허브형 같은 명령).
-- **아직 안 한 것:** 대화별 Claude 계정(지금은 엔진 기본 하나), 대화 상단·메신저 답의 Claude 계정 이름 표시, 호환 주소(A2-c).
+- **마무리(2026-11-19, 신산님 "1번 진행하자"):** 대화별 Claude 계정 `claudeAccounts.accountFor[세션 ID]`(대화별 → 기본 → PC 기본) — 고를 수 있는 대화는 이 PC의 Claude 새 세션(기록에 있고 실제 Claude 세션 파일이 있는 것)과 허용 목록의 Claude 대화, 처음 질문 전 새 세션·채널 창은 기본. 연결부 상태 보고에 `claudeAccounts`(대화별 이름표)·`claudeAccountKinds`·`claudeDefault`·`claudeDefaultKind`(이름표·종류만, 키 없음) → 서버가 대화 목록 `account`에 "이어온 계정 <이름표>"(구독/API), 채널 대화는 "새로 여는 창은 이어온 계정 <이름표>"를 덧붙임. 같이 고침: 허브에서 PC·칸에 만든 새 세션이 "허브의 Claude/Codex 로그인"으로 잘못 보이던 것 → 허브 자신의 새 세션만 그렇게, PC·칸은 그곳의 계정.
+- **아직 안 한 것:** 호환 주소(A2-c).
 - **실측(2026-11-19):** 실제 로그인 PASS(허브에서 PC 계정 추가 → 승인 창·코드 → team 구독으로 로그인, PC 기본 pro는 그대로, WORK_STATUS 0-257), 그 계정으로 새 Claude 세션 질문 1번 PASS(계정 폴더로 실행·세션 기록은 원래 폴더, 0-258).
 - **미확인:** 그 계정으로 PC 기본 로그인에서 만든 기존 Claude 세션 이어 쓰기, 이어온 계정 폴더로 연 채널 창의 처음 화면(신뢰·채널 승인 질문이 다시 나올 수 있음).
 

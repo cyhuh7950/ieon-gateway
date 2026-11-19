@@ -1058,6 +1058,22 @@ function renderClaudePc(pc) {
   sel.onchange = async () => { const y = await acRun('claude.accounts.use', { accountId: sel.value });
     setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? 'Claude 기본 계정을 바꿨어요 — Claude 새 세션과 Claude 채널 창(새로 여는 창부터)에 쓰여요' + devNote(y.body) : (AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadClaude(); };
   row.append(el('span', '기본으로 쓸 Claude 계정'), sel); box.append(row);
+  // 대화별 Claude 계정(Codex의 대화별 계정과 같음): 이 PC의 Claude 새 세션·허용 목록 대화
+  if ((pc.sessions ?? []).length) {
+    box.append(el('div', '대화마다 다른 계정을 쓰려면 아래에서 고르세요(처음 질문 전의 새 세션과 Claude 채널 창은 기본 계정).'));
+    const st = el('table'); st.className = 'list'; const sh = el('thead'); const hr = el('tr'); hr.append(el('th', 'Claude 대화'), el('th', '쓸 계정')); sh.append(hr); const sb = el('tbody'); st.append(sh, sb);
+    const choices = [['inherit', '기본 계정 따름'], ['pc_default', 'PC 기본 로그인(그 PC의 Claude Code 계정)'], ...pc.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.kind ? '' : ' (로그인 안 됨)')])];
+    for (const s of pc.sessions) {
+      const tr = el('tr'); tr.append(el('td', s.name || s.sessionId));
+      const td = el('td'); const ss = el('select'); ss.setAttribute('aria-label', (s.name || s.sessionId) + ' 쓸 Claude 계정');
+      for (const [v, tx] of choices) { const o = el('option', tx); o.value = v; ss.append(o); }
+      ss.value = pc.accountFor?.[s.sessionId] ?? 'inherit';
+      ss.onchange = async () => { const y = await acRun('claude.accounts.use', { sessionId: s.sessionId, accountId: ss.value });
+        setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '그 대화의 Claude 계정을 바꿨어요' + devNote(y.body) : (AC_ERR[y.body.error] || CL_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadClaude(); };
+      td.append(ss); tr.append(td); sb.append(tr);
+    }
+    box.append(st);
+  }
   clearTimeout(clPoll); if (waiting) clPoll = setTimeout(() => loadClaude().catch(() => {}), 3000);
 }
 async function loadClaude() {
