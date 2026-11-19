@@ -11,6 +11,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { EngineError, StoppedError } from '../contracts.mjs';
 import { probeLockAt } from '../lock-probe.mjs';
+import { acpTurn } from './acp.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const exe = (p) => (process.platform === 'win32' ? `${p}.exe` : p);
@@ -24,6 +25,7 @@ export const CLI_ENGINES = Object.freeze({
     args: (id, q) => ['-p', q, '--output-format', 'json', '--mode', 'plan', '--sandbox', '--print-timeout', '280s', '--conversation', id],
     // E0: 대화마다 presence 잠금(처리 중이면 잡힘). Antigravity는 동시 실행을 막지 않으므로 이어온이 확인한다.
     lockDir: () => join(homedir(), '.gemini', 'antigravity-cli', 'presence'),
+    acpArgs: ['acp'], // E3: 작업 모드(ACP session/resume + 허락 요청 → 승인 카드)
     keyVars: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'AGY_ADC_AUTH'],
     parse: (j) => ({ sessionId: j?.conversation_id, ok: j?.status === 'SUCCESS', answer: j?.response, status: j?.status, usage: j?.usage }),
     validId: (id) => UUID.test(id),
@@ -61,6 +63,7 @@ const isLimit = (s) => /usage[ _]?limit|quota|rate[ _]?limit|resource[ _]?exhaus
 const isNotFound = (s) => /not\s*found|no\s+(such\s+)?(conversation|session)|unknown\s+(conversation|session)|does not exist/i.test(String(s ?? ''));
 
 // opts: { live, engine('agy_cli'|'grok_cli'), allowlist: [세션 ID], workingDirectories?: {id: dir}, bin?, run?, probe?, accountEnv?(id) }
+// E3: 작업 모드는 ACP 연결로(에이전트의 허락 요청 → 이어온 승인 카드). ACP를 쓸 수 있는 엔진만(spec.acpArgs) — 지금 Antigravity.
 export function cliOnceAdapter(opts) {
   const spec = CLI_ENGINES[opts.engine];
   if (!spec) throw new Error(`unknown_cli_engine:${opts.engine}`);
@@ -68,7 +71,7 @@ export function cliOnceAdapter(opts) {
   const probe = opts.probe ?? ((id, dir) => probeLockAt(id, dir).outcome);
   return {
     engine: opts.engine,
-    async run({ sessionRef: id, question }, { signal = null } = {}) {
+    async run({ sessionRef: id, question, workMode = false }, { signal = null, approve = null } = {}) {
       if (!spec.validId(String(id)) || !(opts.allowlist ?? []).includes(id)) throw new EngineError('session_not_allowed', 403);
       if (!opts.live) throw new EngineError('live_disabled', 503);
       const bin = opts.bin ?? spec.bin();
@@ -83,6 +86,11 @@ export function cliOnceAdapter(opts) {
       const env = { ...process.env };
       for (const k of spec.keyVars) delete env[k];
       Object.assign(env, opts.accountEnv?.(id) ?? {});
+      if (workMode) {
+        if (!spec.acpArgs) throw new EngineError('work_mode_not_supported', 400);
+        const r = await (opts.acp ?? acpTurn)({ bin, args: spec.acpArgs, env, cwd: opts.workingDirectories?.[id] ?? process.cwd(), sessionId: id, question, workMode: true, approve, signal, spawnImpl: opts.spawnImpl });
+        return { receipt: `${opts.engine}:${id}`, answer: r.answer, usage: null };
+      }
       const { code, stdout, stderr, stopped } = await run(bin, spec.args(id, question), { cwd: opts.workingDirectories?.[id] ?? undefined, env, signal });
       if (stopped) throw new StoppedError(); // 사람이 멈춤 — 프로세스가 닫힌 것까지 확인함
       const j = lastJson(stdout);

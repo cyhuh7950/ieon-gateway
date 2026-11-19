@@ -59,7 +59,7 @@
 | E0 | 실측(시험용 세션만, 설치·모델 호출 별도 승인): Windows 설치, `-r <id>` 이어 쓰기가 같은 세션 파일에 이어지는지, 사람이 TUI에서 열어 둔 채 보내면 어떻게 되는지(사용 중 판별), 읽기 전용 옵션, 구독 로그인 상태 확인 방법, Grok ACP `session/load` 지원, Antigravity 세션 이어 쓰기 | 엔진별 가능/불가 기록 |
 | E1 | Grok 어댑터(방식 A), 대화 연결 목록·카드·준비 확인, 설명서 | 대역 시험(같은 세션만·불러오기 실패 거부·결과 불명·API 키 제거) + 시험 세션 실측(승인) |
 | E2 | Gemini 계열 어댑터(3절 결정에 따라 Antigravity 또는 CLI) | 같은 기준 |
-| E3 | ACP 상주 연결(방식 B) — 승인 카드와 함께 | WORK_AND_VOICE W2와 함께 |
+| E3 | ACP 상주 연결(방식 B) — 승인 카드와 함께 | **구현(2026-11-19, Antigravity 작업 모드)** — 아래 E3 기록 |
 | E4 | Grok·Gemini 새 세션 만들기(선택) | NEW_SESSIONS 규칙대로 |
 
 ## 5-1. E1·E2 구현 기록(2026-11-13, 신산님 "이대로 진행")
@@ -90,3 +90,13 @@
 - **조용한 대체:** OpenMausBot식 "불러오기 실패 → 새 세션"이 섞이면 이어온의 핵심 약속(같은 세션)이 깨진다 → 실패 시 거부를 시험으로 고정.
 - **요금:** API 키가 환경에 있으면 구독 대신 종량제로 바뀔 수 있다 → 실행 환경에서 키 제거를 시험으로 고정.
 - **Gemini 정책 변경:** 개인 로그인 차단처럼 정책이 또 바뀔 수 있다 → 엔진별 로그인 방식을 설정에서 보이게 하고 실패 이유를 카드로.
+
+## E3 구현 기록(2026-11-19, 신산님 "9번까지 차례로")
+
+- **실측(모델 0):** `agy acp`(Antigravity 1.5.8) initialize 응답 — `loadSession`, `sessionCapabilities: resume·load·list·close·additionalDirectories`, 인증 방법 4개. Grok은 실제 시험 보류(신산님)라 이번 범위 밖.
+- **방식:** 질문마다 ACP로 붙었다 떨어진다(`src/pilot/adapters/acp.mjs`) — initialize → `session/resume`(지난 내용을 다시 보내지 않음, 없으면 `session/load`) → `session/prompt` → 답 조각(`agent_message_chunk`) 모으기 → 닫기. 계속 붙어 있지 않는 이유: 붙어 있는 동안 Antigravity presence 잠금이 남아 사람이 그 대화를 열 수 없게 된다. 이름은 "상주"였지만 실제로는 "질문마다 ACP".
+- **허락 요청:** `session/request_permission` → 작업 모드면 이어온 승인 카드(도구 종류 edit·delete·move → 파일, execute → 명령, 그 밖 → 권한), 허용이면 `allow_once`(늘 허용 `allow_always`는 고르지 않음), 거부·시간 초과·질문만이면 `reject_once`. 파일·터미널을 이어온이 대신 열어 주지 않는다(`fs`·`terminal` 능력 없음, 요청이 오면 -32601).
+- **질문만:** 지금처럼 `-p … --mode plan --sandbox` 한 번 실행(실측 PASS 경로 그대로). ACP는 작업 모드에만.
+- **안전:** 불러오기 실패 → `session_load_failed`(새 세션으로 대체하지 않음, prompt 안 보냄), 멈춤 → `session/cancel` 뒤 `stopped`, 끊김·시간 초과 → 결과 불명(자동 재전송 없음), API 키 변수는 지금처럼 지움, presence 잠금으로 사용 중 거부.
+- **화면:** 연결 설정의 작업 모드가 Antigravity 기존 대화에도 보임(새 세션·Claude·Grok은 아직 아님).
+- **시험:** `e3-acp` 4건(가짜 ACP 에이전트), `w2-work-mode` 화면 조건. **미확인:** 실제 Antigravity로 작업 모드 승인 왕복(모델 호출 — 시험 질문 승인 필요), Antigravity의 실제 모드 이름(`plan`)·허락 요청 모양.
