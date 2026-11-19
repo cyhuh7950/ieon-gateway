@@ -61,7 +61,7 @@ share_login() {
     ln -s ../shared-auth/codex/auth.json hub/data/codex/auth.json
     chown -h 1001:1001 hub/data/codex/auth.json 2>/dev/null || true
   fi
-  [ -e hub/data/shared-auth/codex/auth.json ] || echo "주의: 허브가 아직 Codex에 로그인돼 있지 않아요 — 허브 화면(설정 → 허브 보안·Codex)에서 한 번 로그인하면 모든 칸이 같이 써요."
+  [ -e hub/data/shared-auth/codex/auth.json ] || echo "주의: 허브가 아직 Codex에 로그인돼 있지 않아요 — 허브 화면(설정 → 관리 → 허브 보안)에서 한 번 로그인하면 모든 칸이 같이 써요."
 }
 
 [ "$cmd" = engine ] || die "사용: sh deploy/hub/ieun.sh engine add|update|remove|list|tui ..."
