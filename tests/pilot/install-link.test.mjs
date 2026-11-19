@@ -41,3 +41,13 @@ test('묶음·화면: 허브 이미지가 설치 묶음을 만들고, 설정에 
   assert.ok(SET.includes('id="instBox"') && SET.includes("'/v1/admin/install-link'"));
   assert.ok(readFileSync(new URL('../../deploy/server/install.sh', import.meta.url), 'utf8').includes("허브 화면의 '서버 설치 명령'"));
 });
+
+test('업데이트(2026-11-19 daon 실측): 설치 스크립트는 터미널이 실제로 열릴 때만 질문을 터미널에서, 다시 설치하면 이미 있는 칸도 새 판으로', () => {
+  const srv = readFileSync(new URL('../../src/pilot/server.mjs', import.meta.url), 'utf8');
+  assert.ok(srv.includes("if (exec </dev/tty) 2>/dev/null; then exec sh deploy/server/install.sh </dev/tty; else exec sh deploy/server/install.sh </dev/null; fi"));
+  const ieun = readFileSync(new URL('../../deploy/hub/ieun.sh', import.meta.url), 'utf8');
+  assert.ok(ieun.includes('  update)') && ieun.includes('up -d --force-recreate'));
+  const sh = readFileSync(new URL('../../deploy/server/install.sh', import.meta.url), 'utf8');
+  assert.ok(sh.includes("sed -n 's/^ieun-engine-//p'") && sh.includes('deploy/hub/ieun.sh engine update'));
+  assert.ok(srv.includes("label: '서버 칸의 Codex 로그인(허브 로그인을 같이 씀)'"), '엔진 칸 대화 계정 문구');
+});

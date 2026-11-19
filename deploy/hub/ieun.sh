@@ -64,7 +64,7 @@ share_login() {
   [ -e hub/data/shared-auth/codex/auth.json ] || echo "주의: 허브가 아직 Codex에 로그인돼 있지 않아요 — 허브 화면(설정 → 허브 보안·Codex)에서 한 번 로그인하면 모든 칸이 같이 써요."
 }
 
-[ "$cmd" = engine ] || die "사용: sh deploy/hub/ieun.sh engine add|remove|list|tui ..."
+[ "$cmd" = engine ] || die "사용: sh deploy/hub/ieun.sh engine add|update|remove|list|tui ..."
 case "$sub" in
   add)
     check_name "$name"
@@ -79,6 +79,14 @@ case "$sub" in
     chown 1001:1001 "engines/$name/data/invite" 2>/dev/null || true
     ENGINE_NAME="$name" ENGINE_LABEL="서버 · $name" docker compose -f deploy/hub/engine.compose.yaml up -d
     echo "칸 '$name'을 띄웠어요. 허브의 Codex 로그인을 같이 써서 따로 로그인하지 않아도 돼요. 잠시 뒤 허브 화면 목록에 '서버 · $name'으로 나와요."
+    ;;
+  update)
+    # 업데이트(2026-11-19 daon 실측): 설치를 다시 실행해도 이미 있는 칸은 예전 판 그대로였다 → 새 판으로 다시 만든다(데이터 폴더·로그인은 그대로)
+    check_name "$name"
+    [ -d "engines/$name/data" ] || die "없는 칸: $name"
+    share_login
+    ENGINE_NAME="$name" ENGINE_LABEL="서버 · $name" docker compose -f deploy/hub/engine.compose.yaml up -d --force-recreate
+    echo "칸 '$name'을 새 판으로 다시 띄웠어요(데이터는 그대로)."
     ;;
   remove)
     check_name "$name"
