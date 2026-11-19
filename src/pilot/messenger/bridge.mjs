@@ -39,7 +39,7 @@ const NS_ERR = {
   bad_name: '이름은 영문·숫자·- 2~32자(앞뒤는 영문·숫자)',
   bad_engine: '엔진은 codex 또는 claude',
   unknown_profile: '없는 권한 프로필',
-  profile_not_allowed: 'full 권한은 메신저에서 고를 수 없음 — PC 설정 파일의 sessionOverrides로만 지정',
+  profile_not_allowed: 'full 권한은 허브 관리자가 이어온 화면 → 설정 → 대화 → 새 세션의 full 스위치를 켰을 때만 고를 수 있음',
   name_taken: '같은 이름의 세션이 이미 있음',
   session_limit: '세션 수 한도를 넘음 — /archived·/close로 정리',
   engine_limit: '이 엔진의 세션 수 한도를 넘음',

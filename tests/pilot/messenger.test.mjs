@@ -126,7 +126,7 @@ test('/new로 새 세션을 만들면 이 대화방에 바로 연결되고 질�
   assert.ok(f.calls.some((c) => c.method === 'POST' && c.path === '/v1/conversations/n_my-proj/requests'));
   assert.equal(said.at(-1), '새 답');
   await say('/new claude boxy full');
-  assert.match(said.at(-1), /full 권한은 메신저에서 고를 수 없음/);
+  assert.match(said.at(-1), /full 권한은 허브 관리자가 .*full 스위치를 켰을 때만/);
   await say('/new gpt x');
   assert.match(said.at(-1), /사용법/);
   await say('/sessions');
