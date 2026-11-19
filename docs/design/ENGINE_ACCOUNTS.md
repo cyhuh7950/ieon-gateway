@@ -183,3 +183,10 @@ A0 Codex PASS 구성을 그대로 제품에 넣었다. Claude 계정·API 키·�
 - 시험 `a1-accounts` 5건, U2 시험의 다시 보내기 목록에 `usage_limit` 추가. 민감도 5종(한도 판별 빼기·일 시작 뒤 실패도 한도로·목록 계정 빼기·메신저 계정 빼기·실패 이유 보고 빼기) 모두 실패 확인 뒤 원복. 전체 274건 중 273 통과·실패 0·건너뜀 1.
 - 적용(2026-11-12, 신산님 "둘 다 적용"): 허브 `277f49f` 배포(메신저 5개 다시 연결), 이 PC 재시작(AI 응답 켜짐 유지). 허브 화면에서 대화 위쪽 "계정 · PC 기본 로그인"(마우스를 올리면 전체), 연결 설정 "사용 계정: PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정 (계정 고르기는 준비 중)", Claude 시험 세션은 "그 PC의 Claude Code 창에 로그인된 계정" 확인. 함께 고침: 설치 끝 안내가 늘 "실제 실행은 꺼짐"이던 것을 실제 AI 응답 상태로.
 - NOT VERIFIED: 실제 Codex 한도 상황에서의 화면·메신저(한도 재현 필요), 실제 라인 토큰 거절 표시.
+
+## 12. A3 Antigravity 계정 실측(2026-11-19, 신산님 "3번까지 진행하자", 모델 0)
+
+- **로그인 폴더:** `agy acp --gemini-dir <폴더>`로 로그인을 나눌 수 있다. 빈 폴더면 `session/new`가 "Authentication required". `-p`(한 번 실행)에는 이 옵션이 없다(도움말에 없음).
+- **API 키:** 환경 변수 `GEMINI_API_KEY`만으로는 안 되고, ACP `authenticate {methodId: "gemini-api-key"}`를 보내야 그 폴더에서 세션이 열린다(가짜 키로도 세션이 만들어짐 — 키 검사는 첫 질문 때). 인증 상태는 그 폴더 `antigravity-cli/cache/acp-auth-state.json`에 남는다 → **PC 기본 폴더(~/.gemini)에서 하면 PC의 Antigravity 로그인 방식이 바뀐다**(하면 안 됨).
+- **세션 위치:** 대화는 로그인 폴더 안 `antigravity-cli/conversations/<ID>.db`(+ brain·implicit·conversation_summaries.db). 즉 **계정 폴더를 따로 두면 그 계정의 대화도 따로** — PC 기본 로그인으로 쓰던 대화를 다른 계정으로 이어 쓰려면 이 파일들을 연결(junction)해야 하는데, 두 폴더가 같은 DB를 함께 쓰게 되어 위험(설계 2절 제약과 같음).
+- **그래서 가능한 범위:** ① 이어온 **새 세션**을 계정 폴더에서 만들고 계속 그 계정으로(ACP로 `session/new`·`session/prompt` — `-p`에는 폴더 옵션이 없으므로 새 세션 실행을 ACP로 바꿔야 함), ② 기존 대화는 지금처럼 PC 기본 로그인. 구독 계정 로그인(`oauth-personal`)은 ACP `authenticate`가 브라우저를 여는지 주소를 주는지 미확인(신산님 로그인 시험 필요).
