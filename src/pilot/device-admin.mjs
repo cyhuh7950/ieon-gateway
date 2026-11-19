@@ -4,7 +4,7 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { addAgyAccount, removeAgyAccount, useAgyAccount, addClaudeAccount, removeClaudeAccount, useClaudeAccount, readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
+import { addGrokAccount, removeGrokAccount, useGrokAccount, addAgyAccount, removeAgyAccount, useAgyAccount, addClaudeAccount, removeClaudeAccount, useClaudeAccount, readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
   addWorkspaceFolder, removeWorkspaceFolder, attachWorkspaceTo } from './device-settings.mjs';
 import { workspacesView } from './workspaces.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome, readCodexCompat, saveCodexCompat, removeCodexCompat, compatHostOf } from './accounts.mjs';
@@ -13,6 +13,7 @@ import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } 
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
 import { AGY_KEY, agyAccountKind, agyCompatHost, agyHomeOf, agyLogoutFiles, createAgyLogin, readAgyCompat, saveAgyApiKey, saveAgyCompat } from './agy-accounts.mjs';
 import { CLI_ENGINES } from './adapters/cli-once.mjs';
+import { GROK_KEY, grokAccountKind, grokHomeOf, grokLogoutFiles, saveGrokApiKey } from './grok-accounts.mjs';
 import { claudeAccountKind, claudeHomeOf, claudeLogout, compatConfirmed, compatHost, createClaudeAccountLogin, createClaudeHome, readCompat, removeClaudeHome, saveClaudeApiKey, saveCompat } from './claude-accounts.mjs';
 import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin, saveClaudeLogin, removeClaudeLogin } from './claude-login.mjs';
 
@@ -37,6 +38,8 @@ export const OPS = {
   'agy.accounts.get': 'read', 'agy.accounts.add': 'write',
   'agy.accounts.apikey': 'write', 'agy.accounts.logout': 'write', 'agy.accounts.delete': 'write', 'agy.accounts.use': 'write',
   'agy.accounts.compat': 'write', // 호환 주소(기업용 모델 게이트웨이 — 주소·키·모델·형식)
+  // G1(신산님 2026-11-20): Grok 이어온 전용 계정 — 새 세션용, API 키(XAI_API_KEY)
+  'grok.accounts.get': 'read', 'grok.accounts.add': 'write', 'grok.accounts.apikey': 'write', 'grok.accounts.logout': 'write', 'grok.accounts.delete': 'write', 'grok.accounts.use': 'write',
   // WS1-a 작업공간: 그 기기의 폴더 등록·빼기, AI 직원(허용 목록 세션)에 붙이기 — PC형·허브형 같은 명령
   'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
@@ -46,7 +49,8 @@ export const OPS = {
 export const HUB_SELF_OPS = new Set(['workspace.get', 'workspace.folder.add', 'workspace.folder.delete', 'accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete', 'accounts.apikey',
   'claude.get', 'claude.login', 'claude.code', 'claude.login.cancel', 'claude.apikey', 'claude.logout',
   // 2026-11-20 신산님 "기능이 있는 것은 있는 거고, 서버에 설치돼 있어야 사용할 수 있는 거": Antigravity 계정 칸은 허브에서도 같은 기능, 설치 여부는 installed로 알림
-  'agy.accounts.get', 'agy.accounts.add', 'agy.accounts.use', 'agy.accounts.logout', 'agy.accounts.delete', 'agy.accounts.apikey', 'agy.accounts.compat']);
+  'agy.accounts.get', 'agy.accounts.add', 'agy.accounts.use', 'agy.accounts.logout', 'agy.accounts.delete', 'agy.accounts.apikey', 'agy.accounts.compat',
+  'grok.accounts.get', 'grok.accounts.add', 'grok.accounts.use', 'grok.accounts.logout', 'grok.accounts.delete', 'grok.accounts.apikey']);
 // API 키 형식(OpenAI 키). 값은 검사만 하고 저장·기록하지 않는다 — Codex가 그 계정의 CODEX_HOME에 직접 저장한다.
 export const API_KEY = /^sk-[A-Za-z0-9_-]{20,300}$/;
 const DEFAULT_ID = 'pc_default';
@@ -130,6 +134,9 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
   // A3: Antigravity 계정(새 세션용)
   const aLogins = new Map();
   const aLoginOf = (p, id) => { if (!aLogins.has(id)) aLogins.set(id, (agyLogin ?? ((home) => createAgyLogin({ bin: CLI_ENGINES.agy_cli.bin(), home, log })))(agyHomeOf(dirOf(p), id))); return aLogins.get(id); };
+  const gKnown = (p, id) => { if (!/^[a-z0-9]{2,16}$/.test(String(id)) || !readDevice(p).grokAccounts.some((x) => x.id === id)) throw Object.assign(new Error('not_found'), { http: 404 }); return id; };
+  const grokView = (p) => { const d = readDevice(p); const dir = dirOf(p);
+    return { accounts: d.grokAccounts.map((x) => ({ ...x, engine: 'grok', kind: grokAccountKind(grokHomeOf(dir, x.id)) })), defaultAccount: d.grokDefaultAccount, installed: existsSync(CLI_ENGINES.grok_cli.bin()) }; };
   const aKnown = (p, id) => { if (!/^[a-z0-9]{2,16}$/.test(String(id)) || !readDevice(p).agyAccounts.some((x) => x.id === id)) throw Object.assign(new Error('not_found'), { http: 404 }); return id; };
   const agyView = (p) => { const d = readDevice(p); const dir = dirOf(p);
     return { accounts: d.agyAccounts.map((x) => { const home = agyHomeOf(dir, x.id); const kind = agyAccountKind(home); const cp = kind === 'compat' ? readAgyCompat(home) : null;
@@ -222,6 +229,27 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         saveClaudeApiKey(claudeHomeOf(dirOf(p), id), String(a.key)); log({ event: 'account_api_key', engine: 'claude', ok: true });
         return { status: 200, body: claudePc(p) };
       }
+      // G1: Grok 계정(새 세션용) — 키는 그 계정 폴더 api-key(600)에만, 화면·로그에 내지 않음
+      case 'grok.accounts.get': return { status: 200, body: grokView(p) };
+      case 'grok.accounts.add': {
+        const id = 'k' + randomBytes(4).toString('hex');
+        addGrokAccount(p, { id, label: a.label }); mkdirSync(grokHomeOf(dirOf(p), id), { recursive: true });
+        log({ event: 'account_added', engine: 'grok' });
+        return { status: 201, body: { id, ...grokView(p) } };
+      }
+      case 'grok.accounts.apikey': {
+        const id = gKnown(p, a.id);
+        if (!GROK_KEY.test(String(a.key ?? ''))) return { status: 400, body: { error: 'bad_api_key' } };
+        saveGrokApiKey(grokHomeOf(dirOf(p), id), String(a.key)); log({ event: 'account_api_key', engine: 'grok', ok: true });
+        return { status: 200, body: grokView(p) };
+      }
+      case 'grok.accounts.logout': { const id = gKnown(p, a.id); grokLogoutFiles(grokHomeOf(dirOf(p), id)); return { status: 200, body: grokView(p) }; }
+      case 'grok.accounts.delete': {
+        const id = gKnown(p, a.id); rmSync(grokHomeOf(dirOf(p), id), { recursive: true, force: true });
+        removeGrokAccount(p, id); log({ event: 'account_removed', engine: 'grok' });
+        return { status: 200, body: { ...grokView(p), ...(await applyDevice()) } };
+      }
+      case 'grok.accounts.use': useGrokAccount(p, { accountId: String(a.accountId ?? '') }); return { status: 200, body: { ...grokView(p), ...(await applyDevice()) } };
       case 'agy.accounts.get': return { status: 200, body: agyView(p) };
       case 'agy.accounts.add': {
         const id = 'g' + randomBytes(4).toString('hex');

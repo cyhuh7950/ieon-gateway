@@ -9,6 +9,7 @@ import { cliOnceAdapter } from './cli-once.mjs';
 import { readWorkspaces, workspaceFor, workspaceLine } from '../workspaces.mjs';
 import { claudeEnvFor } from '../claude-accounts.mjs';
 import { agyRunFor } from '../agy-accounts.mjs';
+import { grokRunFor } from '../grok-accounts.mjs';
 
 // WS1-a: 작업 공간을 붙인 세션의 질문 앞에 폴더 한 줄(안내 — 차단은 엔진 샌드박스가 따로). 붙이지 않은 세션·새 세션은 그대로.
 export function withWorkspaceLine(adapter, config) {
@@ -69,7 +70,8 @@ export async function buildAdapters(config) {
     // E1·E2: 세션 쪽은 그 PC의 허용 목록, 토큰 쪽은 지금 PC 기본 로그인(API 키 변수는 실행 때 지움)
     agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories, newSessions, // E4: 새 세션도
       agyRun: config.accountsDir ? (acc) => agyRunFor(config, config.accountsDir, acc) : undefined }), // A3: 새 세션은 이어온 Antigravity 계정 폴더로
-    grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories }),
+    grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories, newSessions, // G1: 새 세션도
+      newEnv: config.accountsDir ? (acc) => grokRunFor(config, config.accountsDir, acc) : undefined }), // G1: 새 세션은 이어온 Grok 계정 키로
   };
   for (const k of ['codex_thread', 'claude_cli', 'agy_cli', 'grok_cli']) adapters[k] = withWorkspaceLine(adapters[k], config);
   return adapters;

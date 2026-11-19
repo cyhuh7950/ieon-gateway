@@ -249,6 +249,10 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       </form>
       <form id="agKeyForm" class="row" hidden><input id="agKey" type="password" placeholder="Gemini API 키" autocomplete="off" aria-label="Gemini API 키"><button class="primary" type="submit">API 키 넣기</button><button type="button" id="agKeyCancel">취소</button></form>
       </details>
+      <details class="fold"><summary>Grok 계정(새 세션용)</summary>
+      <div id="gkBox" class="muted">불러오는 중…</div>
+      <form id="gkKeyForm" class="row" hidden><input id="gkKey" type="password" placeholder="xAI API 키" autocomplete="off" aria-label="xAI API 키"><button class="primary" type="submit">API 키 넣기</button><button type="button" id="gkKeyCancel">취소</button></form>
+      </details>
       <details class="fold"><summary>사용량·한도 <span class="tip" tabindex="0" role="note" aria-label="계정마다 오늘 질문 수와 이번 달 토큰입니다. 한도는 API 키 계정에만 걸려요(기본은 한도 없음). 넘으면 그 계정으로는 보내지 않고 알려요(자동으로 다시 보내지 않음)." data-tip="계정마다 오늘 질문 수와 이번 달 토큰입니다. 한도는 API 키 계정에만 걸려요(기본은 한도 없음). 넘으면 그 계정으로는 보내지 않고 알려요(자동으로 다시 보내지 않음).">i</span></summary>
       <table class="list"><thead><tr><th>계정</th><th>오늘 질문</th><th>이번 달 토큰</th><th>하루 질문 한도</th><th>한 달 토큰 한도</th><th></th></tr></thead><tbody id="acUsage"></tbody></table>
       </details>
@@ -351,6 +355,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="nsCodex">Codex 한도</label><input type="text" id="nsCodex">
       <label for="nsClaude">Claude 한도</label><input type="text" id="nsClaude">
       <label for="nsAgy">Antigravity 한도</label><input type="text" id="nsAgy">
+      <label for="nsGrok">Grok 한도</label><input type="text" id="nsGrok">
       <label for="nsIdle">잠들기(분)</label><input type="text" id="nsIdle">
       <label for="nsArch">보관(일)</label><input type="text" id="nsArch">
       <label for="nsNotice">보관 예고(일 전)</label><input type="text" id="nsNotice">
@@ -397,7 +402,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="rId">역할 ID</label><input type="text" id="rId" placeholder="영문 소문자·숫자·- (예: review)" maxlength="32">
       <label for="rName">이름</label><input type="text" id="rName" maxlength="30">
       <label for="rDesc">설명</label><input type="text" id="rDesc" maxlength="200">
-      <span>만들 수 있는 엔진</span><div><label class="chk"><input type="checkbox" name="rEng" value="codex" checked> Codex</label><label class="chk"><input type="checkbox" name="rEng" value="claude" checked> Claude</label><label class="chk"><input type="checkbox" name="rEng" value="antigravity"> Antigravity</label></div>
+      <span>만들 수 있는 엔진</span><div><label class="chk"><input type="checkbox" name="rEng" value="codex" checked> Codex</label><label class="chk"><input type="checkbox" name="rEng" value="claude" checked> Claude</label><label class="chk"><input type="checkbox" name="rEng" value="antigravity"> Antigravity</label><label class="chk"><input type="checkbox" name="rEng" value="grok"> Grok</label></div>
       <span>허용 권한</span><div><label class="chk"><input type="checkbox" name="rProf" value="workspace" checked> 작업 폴더 안 읽기·쓰기</label><label class="chk"><input type="checkbox" name="rProf" value="read_only" checked> 읽기 전용</label><span class="muted">(명령 실행·인터넷은 설정 파일에서만)</span></div>
       <label for="rGuide">AI 역할 안내</label><textarea id="rGuide" maxlength="2000" placeholder="이 역할 봇에서 만든 새 세션의 첫 질문 앞에 붙습니다"></textarea>
       <label for="rDefault">기본 세션</label><select id="rDefault"></select>
@@ -557,7 +562,7 @@ async function loadSettings(force) {
   $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '(파일 값 사용 중)';
   $('nsOn').checked = Boolean(e?.enabled);
   $('nsMax').value = e?.limits.maxSessions ?? ''; $('nsActive').value = e?.limits.maxActive ?? '';
-  $('nsCodex').value = e?.limits.maxPerEngine?.codex ?? ''; $('nsClaude').value = e?.limits.maxPerEngine?.claude ?? ''; $('nsAgy').value = e?.limits.maxPerEngine?.antigravity ?? '';
+  $('nsCodex').value = e?.limits.maxPerEngine?.codex ?? ''; $('nsClaude').value = e?.limits.maxPerEngine?.claude ?? ''; $('nsAgy').value = e?.limits.maxPerEngine?.antigravity ?? ''; $('nsGrok').value = e?.limits.maxPerEngine?.grok ?? '';
   $('nsIdle').value = e?.cleanup.idleSleepMinutes ?? ''; $('nsArch').value = e?.cleanup.archiveAfterDays ?? ''; $('nsNotice').value = e?.cleanup.archiveNoticeDays ?? '';
   $('nsDefault').innerHTML = '';
   for (const p of e?.permissions.profiles || ['read_only', 'workspace']) $('nsDefault').append(new Option({ read_only: '읽기 전용', workspace: '작업 폴더 안 읽기·쓰기', full: 'full(명령·인터넷)' }[p] || p, p));
@@ -584,7 +589,7 @@ $('nsForm').onsubmit = (e) => {
   if (!$('nsDelConfirm').checked && nsSafe.delConfirm) warn.push('· 지울 때 이름 확인 끔: 확인 창만 누르면 바로 지워져요');
   if ($('nsDelWs').checked && !nsSafe.delWs) warn.push('· 작업 폴더도 지우기: 세션을 지우면 그 폴더의 파일도 되돌릴 수 없게 지워져요');
   if (warn.length && !confirm('이렇게 바꿀까요?\n\n' + warn.join('\n'))) return;
-  const lim = { maxSessions: numOr($('nsMax').value), maxActive: numOr($('nsActive').value), maxPerEngine: { codex: numOr($('nsCodex').value), claude: numOr($('nsClaude').value), antigravity: numOr($('nsAgy').value) } };
+  const lim = { maxSessions: numOr($('nsMax').value), maxActive: numOr($('nsActive').value), maxPerEngine: { codex: numOr($('nsCodex').value), claude: numOr($('nsClaude').value), antigravity: numOr($('nsAgy').value), grok: numOr($('nsGrok').value) } };
   const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && !(typeof v === 'object' && !Object.keys(clean(v)).length)).map(([k, v]) => [k, typeof v === 'object' ? clean(v) : v]));
   saveSetting('new-sessions', { enabled: $('nsOn').checked, limits: clean(lim), cleanup: { ...clean({ idleSleepMinutes: numOr($('nsIdle').value), archiveAfterDays: numOr($('nsArch').value), archiveNoticeDays: numOr($('nsNotice').value) }),
     deleteRequiresConfirm: $('nsDelConfirm').checked, deleteWorkspaceOnClose: $('nsDelWs').checked },
@@ -1060,6 +1065,7 @@ async function loadAccounts() {
   loadUsage().catch(() => {});
   loadClaude().catch(() => {});
   loadAgy().catch(() => {}); // A3
+  loadGrok().catch(() => {}); // G1
   const opts = [['pc_default', acTarget === 'hub' ? '허브 기본 로그인(관리 → 허브 보안의 로그인)' : 'PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.loggedIn ? '' : ' (로그인 안 됨)')])];
   const fill = (sel, list, val) => { sel.innerHTML = ''; for (const [v, t] of list) { const o = el('option', t); o.value = v; sel.append(o); } sel.value = val; };
   fill($('acDefault'), opts, d.defaultAccount);
@@ -1204,8 +1210,6 @@ async function loadAgy() {
   const r = await acRun('agy.accounts.get'); const box = $('agBox'); box.innerHTML = '';
   if (r.status !== 200) { box.textContent = HOST_ERR[r.body.error] || r.body.error; return; }
   const d = r.body;
-  // 기능은 늘 보이고, 그 컴퓨터에 Antigravity가 없으면 상태로만 알린다(2026-11-20 신산님)
-
   box.append(tip('이어온에서 만드는 Antigravity 새 세션을 어느 계정으로 쓸지 정해요. 이 계정으로 만든 새 세션의 대화는 그 계정 폴더에 저장되어 계속 그 계정으로 이어져요. 그 PC에서 원래 쓰던 Antigravity 대화는 PC 기본 로그인 그대로예요. 로그인은 지금 Gemini API 키만 돼요(사용량만큼 요금). 계정마다 구독으로 로그인하는 길은 아직 찾는 중이에요 — 구독으로 쓰려면 "PC 기본 로그인"을 고르세요.'));
   const t = el('table'); t.className = 'list'; const tb = el('tbody'); t.append(tb); let waiting = false;
   for (const a of [{ id: 'pc_default', label: 'PC 기본 로그인(그 PC의 Antigravity)', builtin: true, login: { state: 'idle' } }, ...d.accounts]) {
@@ -1234,6 +1238,44 @@ async function loadAgy() {
   row.append(el('span', '새 세션에 쓸 Antigravity 계정'), sel); box.append(row);
   clearTimeout(agPoll); if (waiting) agPoll = setTimeout(() => loadAgy().catch(() => {}), 3000);
 }
+// G1(신산님 2026-11-20 "grok을 설치하고 테스트만 하면 사용할 수 있어야"): Grok 계정 — 새 세션용, API 키(xAI)
+let gkFor = null;
+async function loadGrok() {
+  const r = await acRun('grok.accounts.get'); const box = $('gkBox'); box.innerHTML = '';
+  if (r.status !== 200) { box.textContent = HOST_ERR[r.body.error] || r.body.error; return; }
+  const d = r.body;
+  box.append(tip('이어온에서 만드는 Grok 새 세션을 어느 계정으로 쓸지 정해요. 이어온 계정은 xAI API 키로 들어가요(사용량만큼 요금). 그 PC의 Grok CLI에 이미 로그인돼 있으면 "PC 기본 로그인"을 고르세요. 그 PC에서 원래 쓰던 Grok 세션은 PC 기본 로그인 그대로예요.'));
+  const t = el('table'); t.className = 'list'; const tb = el('tbody'); t.append(tb);
+  for (const a of [{ id: 'pc_default', label: 'PC 기본 로그인(그 PC의 Grok)', builtin: true }, ...d.accounts]) {
+    const tr = el('tr'); tr.append(el('td', a.label));
+    tr.append(el('td', a.builtin ? '그 PC의 Grok 로그인' : a.kind ? '로그인됨 · API 키' : '로그인 필요', a.builtin || a.kind ? 'ok' : 'warn'));
+    const td = el('td'); const act = (text, fn, primary) => { const b = el('button', text); b.type = 'button'; if (primary) b.className = 'primary'; b.onclick = fn; td.append(b); };
+    const err = (y) => { if (y.status !== 200) setStatus('err', AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); };
+    if (!a.builtin) {
+      if (!a.kind) act('API 키', () => { gkFor = a.id; $('gkKeyForm').hidden = false; $('gkKey').value = ''; $('gkKey').focus(); }, true);
+      else act('로그아웃', async () => { if (!confirm(a.label + ' Grok 계정에서 로그아웃할까요? 이 계정으로 만든 새 세션은 다시 키를 넣을 때까지 보내지 않아요.')) return; err(await acRun('grok.accounts.logout', { id: a.id })); loadGrok(); });
+      act('지우기', async () => { if (!confirm(a.label + ' Grok 계정을 지울까요? 이 계정으로 만든 새 세션은 이어 쓸 수 없어요. 되돌릴 수 없어요.')) return; const y = await acRun('grok.accounts.delete', { id: a.id }); err(y); if (y.status === 200) setStatus('ok', 'Grok 계정을 지웠어요'); loadGrok(); });
+    }
+    tr.append(td); tb.append(tr);
+  }
+  box.append(t);
+  const add = el('form'); add.className = 'row'; const inp = el('input'); inp.placeholder = 'Grok 계정 이름표 (예: 개인, 회사)'; inp.maxLength = 40; inp.autocomplete = 'off'; inp.setAttribute('aria-label', 'Grok 계정 이름표');
+  const ab = el('button', 'Grok 계정 추가'); ab.className = 'primary'; add.append(inp, ab);
+  add.onsubmit = async (e) => { e.preventDefault(); const y = await acRun('grok.accounts.add', { label: inp.value.trim() }); if (y.status !== 201) return setStatus('err', AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); setStatus('ok', 'Grok 계정을 추가했어요. API 키를 넣으세요.'); loadGrok(); };
+  box.append(add);
+  const row = el('div'); row.className = 'row'; const sel = el('select'); sel.setAttribute('aria-label', '새 세션에 쓸 Grok 계정');
+  for (const [v, tx] of [['pc_default', 'PC 기본 로그인(그 PC의 Grok)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.kind ? '' : ' (로그인 안 됨)')])]) { const o = el('option', tx); o.value = v; sel.append(o); }
+  sel.value = d.defaultAccount;
+  sel.onchange = async () => { const y = await acRun('grok.accounts.use', { accountId: sel.value }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '새 Grok 세션에 쓸 계정을 바꿨어요(이미 만든 새 세션은 만든 계정 그대로)' : (AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadGrok(); };
+  row.append(el('span', '새 세션에 쓸 Grok 계정'), sel); box.append(row);
+}
+document.addEventListener('submit', async (e) => {
+  if (e.target?.id !== 'gkKeyForm') return; e.preventDefault();
+  const key = $('gkKey').value.trim(); $('gkKey').value = '';
+  const r = await acRun('grok.accounts.apikey', { id: gkFor, key }); $('gkKeyForm').hidden = true;
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'xAI API 키를 넣었어요' : ({ bad_api_key: 'xAI API 키 모양이 아니에요' })[r.body.error] || HOST_ERR[r.body.error] || r.body.error); loadGrok();
+});
+document.addEventListener('click', (e) => { if (e.target?.id === 'gkKeyCancel') { $('gkKeyForm').hidden = true; $('gkKey').value = ''; } });
 document.addEventListener('submit', async (e) => {
   if (e.target?.id !== 'agKeyForm') return; e.preventDefault();
   const key = $('agKey').value.trim(); $('agKey').value = '';

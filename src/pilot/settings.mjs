@@ -99,7 +99,7 @@ export function validateNewSessionsWeb(v, fileRaw) {
     if (l.maxPerEngine !== undefined) {
       out.limits.maxPerEngine = {};
       for (const [e, n] of Object.entries(l.maxPerEngine ?? {})) {
-        if (!['codex', 'claude', 'antigravity'].includes(e)) fail('bad_limits'); // E4
+        if (!['codex', 'claude', 'antigravity', 'grok'].includes(e)) fail('bad_limits'); // E4 // G1
         out.limits.maxPerEngine[e] = posInt(n, 'bad_limits', 1, 1000);
       }
     }
