@@ -179,7 +179,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <form id="acKeyForm" class="row" hidden><input id="acKey" type="password" placeholder="OpenAI API 키(sk-…)" autocomplete="off" aria-label="API 키"><button class="primary" type="submit">API 키로 로그인</button><button type="button" id="acKeyCancel">취소</button></form>
       <form id="acCompatForm" hidden>
         <div class="muted">호환 주소: Codex는 그대로 두고 AI 모델만 다른 곳으로 보내요(OpenAI <b>Responses API</b> 호환 주소만 — Chat Completions만 되는 곳은 Codex가 받지 않아요). 이어온 <b>새 세션</b>에서만 쓰여요(쓰던 Codex 대화를 다른 모델로 이어 쓰는 것은 아직 확인되지 않았어요). 키는 다시 보이지 않고, 사용량은 그 서비스 요금으로 나가요.</div>
-        <div class="row"><input id="acCpUrl" placeholder="주소 (예: https://router.example.com/v1)" autocomplete="off" spellcheck="false" aria-label="Codex 호환 주소"><input id="acCpModel" placeholder="모델 이름" autocomplete="off" spellcheck="false" aria-label="Codex 호환 모델 이름"></div>
+        <div class="row"><input id="acCpUrl" placeholder="주소 (예: https://router.example.com/v1 — 보통 /v1까지)" autocomplete="off" spellcheck="false" aria-label="Codex 호환 주소"><input id="acCpModel" placeholder="모델 이름" autocomplete="off" spellcheck="false" aria-label="Codex 호환 모델 이름"></div>
         <div class="row"><input id="acCpKey" type="password" placeholder="키" autocomplete="off" aria-label="Codex 호환 주소 키"><button class="primary" type="submit">호환 주소 저장</button><button type="button" id="acCpCancel">취소</button></div>
       </form>
       <div id="acLogin" class="state warn" hidden></div>
@@ -194,8 +194,8 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <div id="clBox" class="muted">불러오는 중…</div>
       <form id="clKeyForm" class="row" hidden><input id="clKey" type="password" placeholder="Claude API 키(sk-ant-…)" autocomplete="off" aria-label="Claude API 키"><button class="primary" type="submit">API 키 넣기</button><button type="button" id="clKeyCancel">취소</button></form>
       <form id="clCompatForm" hidden>
-        <div class="muted">호환 주소: Claude Code는 그대로 두고 AI 모델만 다른 곳으로 보내요(예: Upstage Solar, 라우터, 회사 게이트웨이, 내 PC의 로컬 모델). 그 서비스가 알려 준 Anthropic 호환 주소·키·모델 이름을 넣으세요. 키는 다시 보이지 않아요. 사용량은 그 서비스 요금으로 나가요.</div>
-        <div class="row"><input id="clCpUrl" placeholder="주소 (예: https://api.upstage.ai/…)" autocomplete="off" spellcheck="false" aria-label="호환 주소"><input id="clCpModel" placeholder="모델 이름 (예: solar-pro4)" autocomplete="off" spellcheck="false" aria-label="모델 이름"></div>
+        <div class="muted">호환 주소: Claude Code는 그대로 두고 AI 모델만 다른 곳으로 보내요(예: Upstage Solar, 라우터, 회사 게이트웨이, 내 PC의 로컬 모델). 그 서비스가 알려 준 Anthropic 호환 주소·키·모델 이름을 넣으세요. 주소 끝에 <b>/v1은 넣지 않아요</b>(Claude Code가 /v1/messages를 붙임 — 2026-11-19 Upstage로 확인). 키는 다시 보이지 않아요. 사용량은 그 서비스 요금으로 나가요.</div>
+        <div class="row"><input id="clCpUrl" placeholder="주소 (예: https://api.upstage.ai/… — 끝에 /v1은 넣지 않아요)" autocomplete="off" spellcheck="false" aria-label="호환 주소"><input id="clCpModel" placeholder="모델 이름 (예: solar-pro4)" autocomplete="off" spellcheck="false" aria-label="모델 이름"></div>
         <div class="row"><input id="clCpKey" type="password" placeholder="키" autocomplete="off" aria-label="호환 주소 키"><select id="clCpAuth" aria-label="키 보내는 방식"><option value="bearer">키 보내는 방식: Authorization Bearer(대부분)</option><option value="x-api-key">키 보내는 방식: x-api-key(Anthropic 방식)</option></select>
         <button class="primary" type="submit">호환 주소 저장</button><button type="button" id="clCpCancel">취소</button></div>
       </form>
@@ -311,6 +311,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <label for="nsActive">동시 처리 한도</label><input type="text" id="nsActive">
       <label for="nsCodex">Codex 한도</label><input type="text" id="nsCodex">
       <label for="nsClaude">Claude 한도</label><input type="text" id="nsClaude">
+      <label for="nsAgy">Antigravity 한도</label><input type="text" id="nsAgy">
       <label for="nsIdle">잠들기(분)</label><input type="text" id="nsIdle">
       <label for="nsArch">보관(일)</label><input type="text" id="nsArch">
       <label for="nsNotice">보관 예고(일 전)</label><input type="text" id="nsNotice">
@@ -357,7 +358,7 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <label for="rId">역할 ID</label><input type="text" id="rId" placeholder="영문 소문자·숫자·- (예: review)" maxlength="32">
       <label for="rName">이름</label><input type="text" id="rName" maxlength="30">
       <label for="rDesc">설명</label><input type="text" id="rDesc" maxlength="200">
-      <span>만들 수 있는 엔진</span><div><label class="chk"><input type="checkbox" name="rEng" value="codex" checked> Codex</label><label class="chk"><input type="checkbox" name="rEng" value="claude" checked> Claude</label></div>
+      <span>만들 수 있는 엔진</span><div><label class="chk"><input type="checkbox" name="rEng" value="codex" checked> Codex</label><label class="chk"><input type="checkbox" name="rEng" value="claude" checked> Claude</label><label class="chk"><input type="checkbox" name="rEng" value="antigravity"> Antigravity</label></div>
       <span>허용 권한</span><div><label class="chk"><input type="checkbox" name="rProf" value="workspace" checked> 작업 폴더 안 읽기·쓰기</label><label class="chk"><input type="checkbox" name="rProf" value="read_only" checked> 읽기 전용</label><span class="muted">(명령 실행·인터넷은 설정 파일에서만)</span></div>
       <label for="rGuide">AI 역할 안내</label><textarea id="rGuide" maxlength="2000" placeholder="이 역할 봇에서 만든 새 세션의 첫 질문 앞에 붙습니다"></textarea>
       <label for="rDefault">기본 세션</label><select id="rDefault"></select>
@@ -498,7 +499,7 @@ function statusText(b) {
 }
 // --- 설정(P1): 웹 값이 있으면 웹 값, 없으면 파일 값 ---
 const SET_ERR = { bad_push_key: '서비스 계정 키 파일이 아니에요(Firebase → 프로젝트 설정 → 서비스 계정 → 새 비공개 키)', bad_google_services: 'google-services.json 파일이 아니에요', wrong_package: '이 앱 설정 파일은 다른 앱용이에요(패키지 이름 kr.sinsan.ieon으로 추가하세요)', bad_platform: '알 수 없는 메신저', bad_user_id: '사용자 ID는 영문·숫자·.@:-_ 1~64자', bad_relay_url: '중계 주소는 https 주소(아이디·비밀번호·?·# 없이)',
-  bad_callback_limit: '콜백 제한 시간은 5~120초', field_not_editable: '이 항목은 설정 파일에서만 바꿀 수 있음', profile_not_allowed: 'full 권한은 설정 파일에서만',
+  bad_callback_limit: '콜백 제한 시간은 5~120초', field_not_editable: '이 항목은 설정 파일에서만 바꿀 수 있음', profile_not_allowed: 'full 권한은 설정 → 대화 → 새 세션의 full 스위치를 켜야 해요',
   bad_limits: '한도는 1 이상의 숫자', bad_cleanup: '시간은 1 이상의 숫자' };
 const setErr = (e) => SET_ERR[e] || (String(e).startsWith('bad_new_sessions:') ? '새 세션 설정이 규칙에 맞지 않음(' + e.split(':')[1] + ')' : e);
 const srcText = (s, at) => s === 'web' ? '(웹에서 저장한 값' + (at ? ' · ' + new Date(at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '') + ')' : '(파일 값 사용 중)';
@@ -524,7 +525,7 @@ async function loadSettings(force) {
   $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '(파일 값 사용 중)';
   $('nsOn').checked = Boolean(e?.enabled);
   $('nsMax').value = e?.limits.maxSessions ?? ''; $('nsActive').value = e?.limits.maxActive ?? '';
-  $('nsCodex').value = e?.limits.maxPerEngine?.codex ?? ''; $('nsClaude').value = e?.limits.maxPerEngine?.claude ?? '';
+  $('nsCodex').value = e?.limits.maxPerEngine?.codex ?? ''; $('nsClaude').value = e?.limits.maxPerEngine?.claude ?? ''; $('nsAgy').value = e?.limits.maxPerEngine?.antigravity ?? '';
   $('nsIdle').value = e?.cleanup.idleSleepMinutes ?? ''; $('nsArch').value = e?.cleanup.archiveAfterDays ?? ''; $('nsNotice').value = e?.cleanup.archiveNoticeDays ?? '';
   $('nsDefault').innerHTML = '';
   for (const p of e?.permissions.profiles || ['read_only', 'workspace']) $('nsDefault').append(new Option({ read_only: '읽기 전용', workspace: '작업 폴더 안 읽기·쓰기', full: 'full(명령·인터넷)' }[p] || p, p));
@@ -551,7 +552,7 @@ $('nsForm').onsubmit = (e) => {
   if (!$('nsDelConfirm').checked && nsSafe.delConfirm) warn.push('· 지울 때 이름 확인 끔: 확인 창만 누르면 바로 지워져요');
   if ($('nsDelWs').checked && !nsSafe.delWs) warn.push('· 작업 폴더도 지우기: 세션을 지우면 그 폴더의 파일도 되돌릴 수 없게 지워져요');
   if (warn.length && !confirm('이렇게 바꿀까요?\n\n' + warn.join('\n'))) return;
-  const lim = { maxSessions: numOr($('nsMax').value), maxActive: numOr($('nsActive').value), maxPerEngine: { codex: numOr($('nsCodex').value), claude: numOr($('nsClaude').value) } };
+  const lim = { maxSessions: numOr($('nsMax').value), maxActive: numOr($('nsActive').value), maxPerEngine: { codex: numOr($('nsCodex').value), claude: numOr($('nsClaude').value), antigravity: numOr($('nsAgy').value) } };
   const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && !(typeof v === 'object' && !Object.keys(clean(v)).length)).map(([k, v]) => [k, typeof v === 'object' ? clean(v) : v]));
   saveSetting('new-sessions', { enabled: $('nsOn').checked, limits: clean(lim), cleanup: { ...clean({ idleSleepMinutes: numOr($('nsIdle').value), archiveAfterDays: numOr($('nsArch').value), archiveNoticeDays: numOr($('nsNotice').value) }),
     deleteRequiresConfirm: $('nsDelConfirm').checked, deleteWorkspaceOnClose: $('nsDelWs').checked },

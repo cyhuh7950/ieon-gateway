@@ -1,6 +1,6 @@
 # 개발 프로그램 연동 설명서 (HTTP API)
 
-- 기준: 2026-11-12(새 화면 U1~U7 반영) · 대상: 직접 만든 프로그램에서 이어온을 통해 Codex·Claude 세션에 질문하려는 개발자
+- 기준: 2026-11-19(새 화면·Antigravity·여러 사람 반영) · 대상: 직접 만든 프로그램에서 이어온을 통해 Codex·Claude·Antigravity 세션에 질문하려는 개발자
 - 먼저 [처음 쓰는 사람을 위한 따라 하기 설명서](BEGINNER_GUIDE.md) 1~4장으로 이어온을 설치하고 웹 화면에서 질문이 되는지 확인한다. 이 문서는 그다음 단계다.
 - 기존 세션에 질문하는 API는 1~7장, 이어온이 새 세션을 만드는 API는 8장 "새 세션 만들기"에 있다.
 
@@ -103,7 +103,7 @@ Authorization: Bearer <토큰>
 | 필드 | 뜻 |
 | --- | --- |
 | `conversationId` | 질문할 때 쓰는 세션 이름 |
-| `engine` | `claude_channel`(Claude) 또는 `codex_thread`(Codex) |
+| `engine` | `codex_thread`(Codex)·`claude_channel`(Claude 채널)·`claude_cli`(Claude 새 세션·서버 대화)·`agy_cli`(Antigravity)·`grok_cli`(Grok) |
 | `deviceOnline` | 연결부가 켜져 있는가. `false`면 질문해도 503 |
 | `busy` | 다른 질문을 처리 중인가. `true`면 질문해도 409 |
 | `engineReady` | 엔진이 준비됐는가(Claude 세션 켜짐, 동시 사용 서버 켜짐). `false`면 503 |
@@ -291,6 +291,8 @@ curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:28760/v1/requests/<re
 | 409 | `conversation_busy` | 이 세션이 다른 질문을 처리 중이거나 "확인 필요" 잠금 | 끝난 뒤 보낸다. 잠금이면 7장 |
 | 409 | `idempotency_conflict` | 같은 키로 다른 질문을 보냄 | 질문마다 새 키를 쓴다 |
 | 409 | `hub_mode` | 이 PC가 허브에 연결돼 있어 PC 서버가 질문을 받지 않음 | 허브 주소로 보내거나, PC 화면 **설정 → 밖에서도 쓰기**에서 허브 연결을 끊는다 |
+| 429 | `member_limit` | 가입자의 하루 질문 한도를 다 씀(본문에 `limit`·`used`) | 한국 시간 0시에 다시 보낸다. 자동으로 다시 보내지 않는다 |
+| 429 | `rate_limited` | 짧은 시간에 요청이 너무 많음 | `retry-after` 헤더의 초만큼 기다린 뒤 보낸다 |
 | 503 | `device_unavailable` | 연결부가 꺼짐 | 그 PC가 켜져 있는지(허브형이면 PC 화면 **설정 → 밖에서도 쓰기**가 연결됨인지) |
 | 503 | `session_not_running` | Claude 세션이 꺼짐 | Claude 채널 세션 시작 |
 | 503 | `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경(웹 **연결 설정 → 고급**) |
@@ -399,11 +401,11 @@ Content-Type: application/json
 
 **새 세션 만들기(설정에서 켠 경우)**
 
-이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만든다. 기능 켜기는 웹 **설정 → 대화 → 새 세션**("새 세션 만들기를 켭니다"). 내 프로그램 토큰으로 만들려면 `new-sessions.json`의 `creatorApps`에 그 앱 ID(예: `app_myapp`)를 넣는다(기본은 웹·메신저만).
+이어온이 새 Codex·Claude·Antigravity 세션과 전용 작업 폴더를 만든다. 기능 켜기는 웹 **설정 → 대화 → 새 세션**("새 세션 만들기를 켭니다"). 내 프로그램 토큰으로 만들려면 `new-sessions.json`의 `creatorApps`에 그 앱 ID(예: `app_myapp`)를 넣는다(기본은 웹·메신저만).
 
 | 요청 | 하는 일 | 성공 응답 |
 | --- | --- | --- |
-| `POST /v1/sessions` 본문 `{ "engine": "codex"\|"claude", "name": "my-proj", "profile": "workspace"\|"read_only" }` | 새 세션 등록 | 201 `{ conversationId, name, engine, profile }` |
+| `POST /v1/sessions` 본문 `{ "engine": "codex"\|"claude"\|"antigravity", "name": "my-proj", "profile": "workspace"\|"read_only" }` | 새 세션 등록(Antigravity는 그 PC에 설치돼 있을 때) | 201 `{ conversationId, name, engine, profile }` |
 | `GET /v1/sessions/limits` | 새 세션 수와 한도 | 200 `{ sessions, maxSessions, perEngine, maxPerEngine, maxActive }` |
 | `POST /v1/sessions/{id}/sleep` | 잠재우기 | 200 `{ conversationId, state: "sleeping" }` |
 | `POST /v1/sessions/{id}/restore` | 보관에서 꺼내기 | 200 `{ conversationId, state: "sleeping" }` |
@@ -412,7 +414,7 @@ Content-Type: application/json
 
 - 만든 뒤 질문은 기존과 같이 `POST /v1/conversations/{conversationId}/requests`. 첫 질문 때 실제 엔진 세션이 생긴다.
 - 세션 목록의 새 세션 항목에는 `newSession: { name, state, profile, sessionId? }`가 붙는다. `state`는 `pending`(첫 질문 전)·`active`·`sleeping`·`archived`, `sessionId`는 사람이 직접 열 때 쓰는 Codex 대화 ID·Claude 세션 ID다.
-- 거절: 403 `new_sessions_disabled`(기능 꺼짐)·`app_not_allowed`·`profile_not_allowed`(full은 설정 파일로만), 400 `bad_name`·`bad_engine`·`unknown_profile`·`confirm_mismatch`, 409 `name_taken`·`session_limit`·`engine_limit`(본문에 `limit`)·`not_active`·`not_archived`·`conversation_busy`.
+- 거절: 403 `new_sessions_disabled`(기능 꺼짐)·`app_not_allowed`·`profile_not_allowed`(full 권한은 관리자가 **설정 → 대화 → 새 세션**의 full 스위치를 켰을 때만 요청으로 받음), 400 `bad_name`·`bad_engine`·`unknown_profile`·`confirm_mismatch`, 409 `name_taken`·`session_limit`·`engine_limit`(본문에 `limit`)·`not_active`·`not_archived`·`conversation_busy`.
 - 새 세션 질문 거절: 409 `session_archived`(먼저 꺼내기), 409 `active_limit`(동시 처리 한도, 잠시 후 다시). 결과 `unknown`의 `session_forked`는 사람이 같은 Claude 세션을 터미널에서 열고 있었다는 뜻이다.
 
 ## 9. 내 프로그램을 만들 때 체크리스트
