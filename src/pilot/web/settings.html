@@ -1165,7 +1165,7 @@ async function loadAgy() {
   const r = await acRun('agy.accounts.get'); const box = $('agBox'); box.innerHTML = '';
   if (r.status !== 200) { box.textContent = HOST_ERR[r.body.error] || r.body.error; return; }
   const d = r.body;
-  box.append(el('div', '이어온에서 만드는 Antigravity 새 세션을 어느 계정으로 쓸지 정해요. 이 계정으로 만든 새 세션의 대화는 그 계정 폴더에 저장되어 계속 그 계정으로 이어져요. 그 PC에서 원래 쓰던 Antigravity 대화는 PC 기본 로그인 그대로예요. 로그인: 구독(그 PC에서 브라우저가 열려요) 또는 Gemini API 키(사용량만큼 요금).'));
+  box.append(el('div', '이어온에서 만드는 Antigravity 새 세션을 어느 계정으로 쓸지 정해요. 이 계정으로 만든 새 세션의 대화는 그 계정 폴더에 저장되어 계속 그 계정으로 이어져요. 그 PC에서 원래 쓰던 Antigravity 대화는 PC 기본 로그인 그대로예요. 로그인은 지금 Gemini API 키만 돼요(사용량만큼 요금). 계정마다 구독으로 로그인하는 길은 아직 찾는 중이에요 — 구독으로 쓰려면 "PC 기본 로그인"을 고르세요.'));
   const t = el('table'); t.className = 'list'; const tb = el('tbody'); t.append(tb); let waiting = false;
   for (const a of [{ id: 'pc_default', label: 'PC 기본 로그인(그 PC의 Antigravity)', builtin: true, login: { state: 'idle' } }, ...d.accounts]) {
     const tr = el('tr'); tr.append(el('td', a.label));
@@ -1174,8 +1174,7 @@ async function loadAgy() {
     const td = el('td'); const act = (text, fn, primary) => { const b = el('button', text); b.type = 'button'; if (primary) b.className = 'primary'; b.onclick = fn; td.append(b); };
     const err = (y) => { if (y.status !== 200) setStatus('err', AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); };
     if (!a.builtin) {
-      if (a.login.state === 'waiting') { waiting = true; if (a.login.url) act('승인 창 열기', () => window.open(a.login.url, 'ieon_agy_login', 'width=520,height=760'), true); act('취소', async () => { err(await acRun('agy.accounts.cancel', { id: a.id })); loadAgy(); }); }
-      else if (!a.kind) { act('로그인(구독)', async () => { err(await acRun('agy.accounts.login', { id: a.id })); loadAgy(); }, true); act('API 키', () => { agFor = a.id; $('agKeyForm').hidden = false; $('agKey').value = ''; $('agKey').focus(); }); }
+      if (!a.kind) act('API 키', () => { agFor = a.id; $('agKeyForm').hidden = false; $('agKey').value = ''; $('agKey').focus(); }, true); // 구독 로그인은 아직 안 됨(2026-11-19 실측)
       else act('로그아웃', async () => { if (!confirm(a.label + ' Antigravity 계정에서 로그아웃할까요? 이 계정으로 만든 새 세션은 다시 로그인할 때까지 보내지 않아요.')) return; err(await acRun('agy.accounts.logout', { id: a.id })); loadAgy(); });
       act('지우기', async () => { if (!confirm(a.label + ' Antigravity 계정을 지울까요? 계정 폴더를 지우므로 이 계정으로 만든 새 세션의 대화도 함께 지워져 이어 쓸 수 없어요. 되돌릴 수 없어요.')) return; const y = await acRun('agy.accounts.delete', { id: a.id }); err(y); if (y.status === 200) setStatus('ok', 'Antigravity 계정을 지웠어요'); loadAgy(); });
     }

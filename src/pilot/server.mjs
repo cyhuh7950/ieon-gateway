@@ -363,7 +363,12 @@ export function createApp(config) {
       return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
     }
     // E1·E2 토큰 쪽: 지금은 그 PC의 앱 로그인(이어온 전용 계정은 A3)
-    if (c.engine === 'agy_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Antigravity 로그인' };
+    if (c.engine === 'agy_cli') { // A3: 이어온 계정으로 만든 새 세션은 그 계정(처음 질문 전이면 새 세션 기본)
+      const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
+      const mine = c.newSession ? (h?.agyAccounts?.[ref] ?? (ref.startsWith('pending:') ? h?.agyDefault : null)) : null;
+      if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine, kind: 'api' };
+      return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Antigravity 로그인' };
+    }
     if (c.engine === 'grok_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Grok 로그인' };
     if (c.connectMode === 'shared_server') return { mode: 'shared_server', label: '공유 서버의 로그인 — 그 PC에서 띄운 Codex 공유 서버' };
     // A2: 연결부가 알려 준 이어온 전용 계정(대화별 → 새 세션은 기본)
@@ -633,6 +638,9 @@ export function createApp(config) {
               claudeAccountKinds: Object.fromEntries(h.claudeAccountKinds && typeof h.claudeAccountKinds === 'object' ? Object.entries(h.claudeAccountKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && CKIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : []),
               claudeDefault: typeof h.claudeDefault === 'string' ? cleanLabel(h.claudeDefault) : null,
               claudeDefaultKind: CKIND.has(h.claudeDefaultKind) ? h.claudeDefaultKind : null, // A2-c: 호환 주소도
+              // A3: Antigravity 새 세션별 이어온 계정 이름표·새 세션 기본
+              agyAccounts: Object.fromEntries(h.agyAccounts && typeof h.agyAccounts === 'object' ? Object.entries(h.agyAccounts).slice(0, 500).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && typeof v === 'string').map(([k, v]) => [k.toLowerCase(), cleanLabel(v)]) : []),
+              agyDefault: typeof h.agyDefault === 'string' ? cleanLabel(h.agyDefault) : null,
               boundary: h.boundary === true }); // 엔진 칸(컨테이너가 경계)
           }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }

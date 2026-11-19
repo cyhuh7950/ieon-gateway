@@ -33,7 +33,8 @@ export const OPS = {
   'claude.accounts.apikey': 'write', 'claude.accounts.logout': 'write', 'claude.accounts.delete': 'write', 'claude.accounts.use': 'write',
   'claude.accounts.compat': 'write', // A2-c: 호환 주소(주소·키·모델)
   // A3(신산님 2026-11-19 "새 세션 범위로 만들기"): Antigravity 이어온 전용 계정 — 새 세션용(계정 폴더에 대화도 저장되므로 기존 대화는 PC 기본 로그인)
-  'agy.accounts.get': 'read', 'agy.accounts.add': 'write', 'agy.accounts.login': 'write', 'agy.accounts.cancel': 'write',
+  // 구독 로그인(login·cancel)은 뺌 — 2026-11-19 실측: ACP authenticate(oauth-personal)는 방식만 정하고 실제 로그인을 하지 않는다. API 키만.
+  'agy.accounts.get': 'read', 'agy.accounts.add': 'write',
   'agy.accounts.apikey': 'write', 'agy.accounts.logout': 'write', 'agy.accounts.delete': 'write', 'agy.accounts.use': 'write',
   // WS1-a 작업공간: 그 기기의 폴더 등록·빼기, AI 직원(허용 목록 세션)에 붙이기 — PC형·허브형 같은 명령
   'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
@@ -225,8 +226,8 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         log({ event: 'account_added', engine: 'antigravity' });
         return { status: 201, body: { id, ...agyView(p) } };
       }
-      case 'agy.accounts.login': aLoginOf(p, aKnown(p, a.id)).start(); return { status: 200, body: agyView(p) };
-      case 'agy.accounts.cancel': aLoginOf(p, aKnown(p, a.id)).cancel(); return { status: 200, body: agyView(p) };
+      // 2026-11-19 실측: ACP authenticate(oauth-personal)는 로그인 방식만 정하고 실제 Google 로그인은 하지 않는다("Auth succeeded" 뒤 "You are not logged into Antigravity").
+      // 계정 폴더마다 구독 로그인하는 공식 길을 찾기 전에는 막는다(잘못 "로그인됨"으로 보이지 않게). API 키만.
       case 'agy.accounts.apikey': {
         const id = aKnown(p, a.id);
         if (!AGY_KEY.test(String(a.key ?? ''))) return { status: 400, body: { error: 'bad_api_key' } };
