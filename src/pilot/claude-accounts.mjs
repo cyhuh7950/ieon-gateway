@@ -13,7 +13,7 @@ export { MAX_ACCOUNTS, PC_DEFAULT };
 export const CLAUDE_LINKED = ['projects'];
 const ID = /^[a-z0-9]{2,16}$/;
 const fail = (code, http = 400) => { throw Object.assign(new Error(code), { http }); };
-const AUTH_VARS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN'];
+const AUTH_VARS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_SMALL_FAST_MODEL'];
 const without = (env) => { const e = { ...env }; for (const k of AUTH_VARS) delete e[k]; return e; };
 
 // 그 PC의 원래 Claude 폴더(세션 기록이 있는 곳). 이어온은 process.env.CLAUDE_CONFIG_DIR을 바꾸지 않는다.
@@ -25,8 +25,33 @@ export function claudeAccounts(c) {
   return list.map((a) => ({ id: a.id, label: cleanLabel(a.label) || a.id }));
 }
 
-// 로그인 종류(파일이 있는지만 — 내용은 읽지 않는다): API 키 파일이 먼저, 없으면 공식 로그인 파일.
+// A2-c(신산님 2026-11-19 "1번 진행하자", 설계 EA8): 호환 주소 — Claude Code는 그대로, AI 모델만 다른 곳(예: Upstage Solar·라우터·회사 게이트웨이·로컬 모델).
+// 그 계정 폴더에 compat.json(주소·모델·키 보내는 방식)과 compat-key(600). 실행할 때 Claude Code 공식 변수(ANTHROPIC_BASE_URL·ANTHROPIC_AUTH_TOKEN 또는 ANTHROPIC_API_KEY·ANTHROPIC_MODEL)로만 넘긴다.
+// 세션의 경계는 CLI — 같은 Claude Code 세션을 다른 모델로 이어 쓰는 것은 "확인된 조합"만(첫 조합: Upstage Solar, 신산님 실사용 2026-11-12). 확인 안 된 주소는 이어온 새 세션에서만.
+export const CONFIRMED_COMPAT_HOSTS = ['api.upstage.ai'];
+const COMPAT_URL = /^(https:\/\/[a-z0-9.-]+(:\d+)?|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?)(\/[\w.\-\/~%]*)?$/i;
+export const COMPAT_MODEL = /^[\w.\-:/@]{1,100}$/;
+export function readCompat(home) { try { const c = JSON.parse(readFileSync(join(home, 'compat.json'), 'utf8')); return c && COMPAT_URL.test(c.baseUrl) ? c : null; } catch { return null; } }
+export const compatHost = (baseUrl) => { try { return new URL(baseUrl).host.toLowerCase(); } catch { return null; } };
+export const compatConfirmed = (baseUrl) => CONFIRMED_COMPAT_HOSTS.includes(compatHost(baseUrl));
+export function saveCompat(home, { baseUrl, key, model, auth = 'bearer' }) {
+  const url = String(baseUrl ?? '').trim().replace(/\/+$/, '');
+  if (!COMPAT_URL.test(url)) fail('bad_base_url');
+  const k = String(key ?? '').trim();
+  if (!/^\S{8,500}$/.test(k)) fail('bad_api_key');
+  const m = String(model ?? '').trim();
+  if (!COMPAT_MODEL.test(m)) fail('bad_model');
+  if (!['bearer', 'x-api-key'].includes(auth)) fail('bad_auth');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(home, 'compat-key'), k + '\n', { mode: 0o600 });
+  writeFileSync(join(home, 'compat.json'), JSON.stringify({ baseUrl: url, model: m, auth }, null, 2) + '\n');
+  rmSync(join(home, 'api-key'), { force: true }); // 한 계정은 한 방식
+}
+export const removeCompat = (home) => { rmSync(join(home, 'compat.json'), { force: true }); rmSync(join(home, 'compat-key'), { force: true }); };
+
+// 로그인 종류(파일이 있는지만 — 공식 로그인 파일 내용은 읽지 않는다): 호환 주소 → API 키 → 공식 로그인.
 export function claudeAccountKind(home) {
+  if (readCompat(home) && existsSync(join(home, 'compat-key'))) return 'compat';
   if (existsSync(join(home, 'api-key'))) return 'api';
   if (existsSync(join(home, '.credentials.json'))) return 'subscription';
   return null;
@@ -39,12 +64,20 @@ export const claudeAccountLabel = (c, id) => (id === PC_DEFAULT ? null : claudeA
 
 // Claude 실행 환경. PC 기본이면 null(지금처럼). 계정이 없거나 로그인 전이면 보내기 전에 거절.
 // 구독: 그 계정 폴더를 CLAUDE_CONFIG_DIR로(API 키 변수는 지워 종량제로 새지 않게). API 키: 키만 넘기고 폴더는 원래 것.
-export function claudeEnvFor(c, dir, { env = process.env, ref = null } = {}) {
+// existing: 사람이 만든 기존 Claude 세션(허용 목록·채널) — 확인 안 된 호환 주소로는 이어 쓰지 않는다.
+export function claudeEnvFor(c, dir, { env = process.env, ref = null, existing = false } = {}) {
   const id = claudeAccountId(c, ref);
   if (id === PC_DEFAULT) return null;
   if (!claudeAccounts(c).some((a) => a.id === id)) fail('account_missing', 409);
   const home = claudeHomeOf(dir, id);
   const kind = claudeAccountKind(home);
+  if (kind === 'compat') {
+    const cp = readCompat(home);
+    if (existing && !compatConfirmed(cp.baseUrl)) fail('combo_unverified', 409);
+    const key = readFileSync(join(home, 'compat-key'), 'utf8').trim();
+    return { ...without(env), ANTHROPIC_BASE_URL: cp.baseUrl, ...(cp.auth === 'x-api-key' ? { ANTHROPIC_API_KEY: key } : { ANTHROPIC_AUTH_TOKEN: key }),
+      ANTHROPIC_MODEL: cp.model, ANTHROPIC_DEFAULT_HAIKU_MODEL: cp.model, ANTHROPIC_SMALL_FAST_MODEL: cp.model };
+  }
   if (kind === 'api') return { ...without(env), ANTHROPIC_API_KEY: readFileSync(join(home, 'api-key'), 'utf8').trim() };
   if (kind === 'subscription') return { ...without(env), CLAUDE_CONFIG_DIR: home };
   fail('account_not_logged_in', 409);
@@ -93,13 +126,13 @@ export function removeClaudeHome(dir, id) {
 }
 
 export function saveClaudeApiKey(home, key) {
-  mkdirSync(home, { recursive: true });
+  mkdirSync(home, { recursive: true }); removeCompat(home);
   writeFileSync(join(home, 'api-key'), String(key).trim() + '\n', { mode: 0o600 });
 }
 
 // 로그아웃: 공식 `claude auth logout`(그 계정 폴더로)을 부르고, 이어온이 둔 API 키 파일을 지운다.
 export function claudeLogout(home, { spawnImpl = spawn, timeoutMs = 20_000 } = {}) {
-  rmSync(join(home, 'api-key'), { force: true });
+  rmSync(join(home, 'api-key'), { force: true }); removeCompat(home);
   if (!existsSync(join(home, '.credentials.json'))) return Promise.resolve(true);
   return new Promise((resolve) => {
     let child;

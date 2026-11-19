@@ -61,7 +61,7 @@ export async function buildAdapters(config) {
     // SV2: 새 세션 + 서버 칸에서 고른 기존 Claude 대화(허용 목록·대화별 작업 폴더)
     claude_cli: claudeCliAdapter({ live, newSessions, allowlist: config.cliEngines?.claude_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.claude_cli?.workingDirectories,
       workspaceOf: (ref) => workspaceFor(config, 'claude_cli', ref), // WS1-b
-      accountEnv: config.accountsDir ? (ref) => claudeEnvFor(config, config.accountsDir, { ref }) : undefined }), // A2-b: PC의 이어온 전용 Claude 계정(없으면 지금처럼)
+      accountEnv: config.accountsDir ? (ref, o = {}) => claudeEnvFor(config, config.accountsDir, { ref, existing: o.existing === true }) : undefined }), // A2-b: PC의 이어온 전용 Claude 계정(없으면 지금처럼)
     // E1·E2: 세션 쪽은 그 PC의 허용 목록, 토큰 쪽은 지금 PC 기본 로그인(API 키 변수는 실행 때 지움)
     agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories }),
     grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories }),

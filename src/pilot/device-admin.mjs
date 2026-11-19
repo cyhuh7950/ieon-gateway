@@ -11,7 +11,7 @@ import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
-import { claudeAccountKind, claudeHomeOf, claudeLogout, createClaudeAccountLogin, createClaudeHome, removeClaudeHome, saveClaudeApiKey } from './claude-accounts.mjs';
+import { claudeAccountKind, claudeHomeOf, claudeLogout, compatConfirmed, compatHost, createClaudeAccountLogin, createClaudeHome, readCompat, removeClaudeHome, saveClaudeApiKey, saveCompat } from './claude-accounts.mjs';
 import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin, saveClaudeLogin, removeClaudeLogin } from './claude-login.mjs';
 
 // 명령 목록(이 밖의 것은 거절). read: 보기만(앞단을 거친 PC 화면 요청도 허용), 나머지는 바꾸기.
@@ -29,6 +29,7 @@ export const OPS = {
   // A2-b(신산님 2026-11-19 "PC마다 여러 개"): PC의 이어온 전용 Claude 계정(공식 claude auth login 또는 API 키), 엔진 기본 고르기. 서버는 SV2의 같이 쓰는 로그인.
   'claude.accounts.add': 'write', 'claude.accounts.login': 'write', 'claude.accounts.code': 'write', 'claude.accounts.cancel': 'write',
   'claude.accounts.apikey': 'write', 'claude.accounts.logout': 'write', 'claude.accounts.delete': 'write', 'claude.accounts.use': 'write',
+  'claude.accounts.compat': 'write', // A2-c: 호환 주소(주소·키·모델)
   // WS1-a 작업공간: 그 기기의 폴더 등록·빼기, AI 직원(허용 목록 세션)에 붙이기 — PC형·허브형 같은 명령
   'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
@@ -118,7 +119,10 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
   };
   const claudePc = (p) => {
     const d = readDevice(p); const dir = dirOf(p);
-    return { accounts: d.claudeAccounts.map((x) => ({ ...x, engine: 'claude', kind: claudeAccountKind(claudeHomeOf(dir, x.id)), login: cLogins.get(x.id)?.view() ?? { state: 'idle' } })), defaultAccount: d.claudeDefaultAccount,
+    // 호환 주소는 주소의 호스트·모델·확인된 조합 여부만(키는 내지 않음)
+    const compatOf = (home) => { const cp = readCompat(home); return cp ? { host: compatHost(cp.baseUrl), model: cp.model, confirmed: compatConfirmed(cp.baseUrl) } : null; };
+    return { accounts: d.claudeAccounts.map((x) => { const home = claudeHomeOf(dir, x.id); const kind = claudeAccountKind(home);
+      return { ...x, engine: 'claude', kind, ...(kind === 'compat' ? { compat: compatOf(home) } : {}), login: cLogins.get(x.id)?.view() ?? { state: 'idle' } }; }), defaultAccount: d.claudeDefaultAccount,
       sessions: claudeSessions(p), accountFor: d.claudeAccountFor };
   };
   async function perform(op, a) {
@@ -200,6 +204,12 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         if (!CLAUDE_API_KEY.test(String(a.key ?? ''))) return { status: 400, body: { error: 'bad_api_key' } };
         saveClaudeApiKey(claudeHomeOf(dirOf(p), id), String(a.key)); log({ event: 'account_api_key', engine: 'claude', ok: true });
         return { status: 200, body: claudePc(p) };
+      }
+      case 'claude.accounts.compat': {
+        const id = cKnown(p, a.id);
+        saveCompat(claudeHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, model: a.model, auth: a.auth ?? 'bearer' });
+        log({ event: 'account_compat', engine: 'claude', ok: true });
+        return { status: 200, body: { ...claudePc(p), ...(await applyDevice()) } };
       }
       case 'claude.accounts.logout': {
         const id = cKnown(p, a.id);
