@@ -18,12 +18,33 @@ export function agyAccounts(c) {
   return list.map((a) => ({ id: a.id, label: cleanLabel(a.label) || a.id }));
 }
 export const agyDefaultAccount = (c) => c.agyAccounts?.defaultAccount ?? PC_DEFAULT;
-// 로그인 종류: api-key 파일 → API, kind 파일(구독 로그인 성공 때 이어온이 적음) → 구독. 로그인 정보 파일 내용은 읽지 않는다.
+// 호환 주소(신산님 2026-11-19 "넣어 보기"): Antigravity의 기업용 모델 게이트웨이(실행 파일 변경 기록: https만 — 같은 PC는 http, 끝의 /v1beta는 무시, Gemini 형식 요청)를
+// 환경 변수 AGY_LLM_GATEWAY_URL·_API_KEY·_MODELS·_WIRE_PROTOCOL로 넘긴다. 그 계정 폴더에 compat.json(주소·모델 목록·형식)과 compat-key(600). 새 세션에서만(계정 폴더에 대화).
+const COMPAT_URL = /^(https:\/\/[a-z0-9.-]+(:\d+)?|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?)(\/[\w.\-\/~%]*)?$/i;
+export const AGY_WIRES = ['gemini', 'responses'];
+export function readAgyCompat(home) { try { const c = JSON.parse(readFileSync(join(home, 'compat.json'), 'utf8')); return c && COMPAT_URL.test(c.baseUrl) && existsSync(join(home, 'compat-key')) ? c : null; } catch { return null; } }
+export function saveAgyCompat(home, { baseUrl, key, models = '', wire = 'gemini' }) {
+  const url = String(baseUrl ?? '').trim().replace(/\/+$/, '');
+  if (!COMPAT_URL.test(url)) fail('bad_base_url');
+  const k = String(key ?? '').trim(); if (!/^\S{8,500}$/.test(k)) fail('bad_api_key');
+  const list = String(models ?? '').split(',').map((m) => m.trim()).filter(Boolean);
+  if (list.length > 20 || list.some((m) => !/^[\w.\-:/@]{1,100}$/.test(m))) fail('bad_model');
+  if (!AGY_WIRES.includes(wire)) fail('bad_wire');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(home, 'compat-key'), k + '\n', { mode: 0o600 });
+  writeFileSync(join(home, 'compat.json'), JSON.stringify({ baseUrl: url, models: list, wire }, null, 2) + '\n');
+  rmSync(join(home, 'api-key'), { force: true }); rmSync(join(home, 'kind'), { force: true }); // 한 계정은 한 방식
+}
+export const agyCompatHost = (u) => { try { return new URL(u).host.toLowerCase(); } catch { return null; } };
+
+// 로그인 종류: 호환 주소 → api-key 파일(API) → kind 파일(구독, 지금은 쓰지 않음). 로그인 정보 파일 내용은 읽지 않는다.
 export function agyAccountKind(home) {
+  if (readAgyCompat(home)) return 'compat';
   if (existsSync(join(home, 'api-key'))) return 'api';
   try { if (readFileSync(join(home, 'kind'), 'utf8').trim() === 'subscription') return 'subscription'; } catch { /* 없음 */ }
   return null;
 }
+// 호환 주소는 게이트웨이 환경 변수로 접속 — ACP 인증 요청은 보내지 않는다(미실측)
 export const agyAuthMethod = (kind) => (kind === 'api' ? 'gemini-api-key' : kind === 'subscription' ? 'oauth-personal' : null);
 
 // 새 세션을 그 계정으로 실행할 준비: { geminiDir, authMethod, env } 또는 PC 기본이면 null. 없는 계정·로그인 전이면 보내기 전에 거절.
@@ -34,8 +55,9 @@ export function agyRunFor(c, dir, accountId, { env = process.env } = {}) {
   const home = agyHomeOf(dir, id);
   const kind = agyAccountKind(home);
   if (!kind) fail('account_not_logged_in', 409);
-  const e = { ...env }; for (const k of ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'AGY_ADC_AUTH']) delete e[k];
+  const e = { ...env }; for (const k of ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'AGY_ADC_AUTH', 'AGY_LLM_GATEWAY_URL', 'AGY_LLM_GATEWAY_API_KEY', 'AGY_LLM_GATEWAY_MODELS', 'AGY_LLM_GATEWAY_WIRE_PROTOCOL', 'AGY_LLM_GATEWAY_HEADERS']) delete e[k];
   if (kind === 'api') e.GEMINI_API_KEY = readFileSync(join(home, 'api-key'), 'utf8').trim();
+  if (kind === 'compat') { const cp = readAgyCompat(home); e.AGY_LLM_GATEWAY_URL = cp.baseUrl; e.AGY_LLM_GATEWAY_API_KEY = readFileSync(join(home, 'compat-key'), 'utf8').trim(); if (cp.models?.length) e.AGY_LLM_GATEWAY_MODELS = cp.models.join(','); e.AGY_LLM_GATEWAY_WIRE_PROTOCOL = cp.wire; }
   return { accountId: id, geminiDir: home, authMethod: agyAuthMethod(kind), env: e };
 }
 
@@ -51,11 +73,11 @@ export function agyAccountHealth(c) {
 }
 
 export function saveAgyApiKey(home, key) {
-  mkdirSync(home, { recursive: true });
+  mkdirSync(home, { recursive: true }); rmSync(join(home, 'compat.json'), { force: true }); rmSync(join(home, 'compat-key'), { force: true });
   writeFileSync(join(home, 'api-key'), String(key).trim() + '\n', { mode: 0o600 });
   rmSync(join(home, 'kind'), { force: true });
 }
-export function agyLogoutFiles(home) { rmSync(join(home, 'api-key'), { force: true }); rmSync(join(home, 'kind'), { force: true }); rmSync(join(home, 'antigravity-cli', 'cache', 'acp-auth-state.json'), { force: true }); }
+export function agyLogoutFiles(home) { rmSync(join(home, 'compat.json'), { force: true }); rmSync(join(home, 'compat-key'), { force: true }); rmSync(join(home, 'api-key'), { force: true }); rmSync(join(home, 'kind'), { force: true }); rmSync(join(home, 'antigravity-cli', 'cache', 'acp-auth-state.json'), { force: true }); }
 
 // 구독 로그인: 그 계정 폴더로 `agy acp`를 띄워 authenticate(oauth-personal)를 보낸다. Antigravity가 그 PC의 브라우저를 열고, 끝나면 응답이 온다.
 // 응답이 오면 kind 파일에 subscription을 적는다. 15분 안에 끝나지 않으면 실패. 화면에 보일 주소가 출력되면 잡아 둔다(미실측).

@@ -11,7 +11,7 @@ import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
-import { AGY_KEY, agyAccountKind, agyHomeOf, agyLogoutFiles, createAgyLogin, saveAgyApiKey } from './agy-accounts.mjs';
+import { AGY_KEY, agyAccountKind, agyCompatHost, agyHomeOf, agyLogoutFiles, createAgyLogin, readAgyCompat, saveAgyApiKey, saveAgyCompat } from './agy-accounts.mjs';
 import { CLI_ENGINES } from './adapters/cli-once.mjs';
 import { claudeAccountKind, claudeHomeOf, claudeLogout, compatConfirmed, compatHost, createClaudeAccountLogin, createClaudeHome, readCompat, removeClaudeHome, saveClaudeApiKey, saveCompat } from './claude-accounts.mjs';
 import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin, saveClaudeLogin, removeClaudeLogin } from './claude-login.mjs';
@@ -36,6 +36,7 @@ export const OPS = {
   // 구독 로그인(login·cancel)은 뺌 — 2026-11-19 실측: ACP authenticate(oauth-personal)는 방식만 정하고 실제 로그인을 하지 않는다. API 키만.
   'agy.accounts.get': 'read', 'agy.accounts.add': 'write',
   'agy.accounts.apikey': 'write', 'agy.accounts.logout': 'write', 'agy.accounts.delete': 'write', 'agy.accounts.use': 'write',
+  'agy.accounts.compat': 'write', // 호환 주소(기업용 모델 게이트웨이 — 주소·키·모델·형식)
   // WS1-a 작업공간: 그 기기의 폴더 등록·빼기, AI 직원(허용 목록 세션)에 붙이기 — PC형·허브형 같은 명령
   'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
@@ -129,7 +130,8 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
   const aLoginOf = (p, id) => { if (!aLogins.has(id)) aLogins.set(id, (agyLogin ?? ((home) => createAgyLogin({ bin: CLI_ENGINES.agy_cli.bin(), home, log })))(agyHomeOf(dirOf(p), id))); return aLogins.get(id); };
   const aKnown = (p, id) => { if (!/^[a-z0-9]{2,16}$/.test(String(id)) || !readDevice(p).agyAccounts.some((x) => x.id === id)) throw Object.assign(new Error('not_found'), { http: 404 }); return id; };
   const agyView = (p) => { const d = readDevice(p); const dir = dirOf(p);
-    return { accounts: d.agyAccounts.map((x) => ({ ...x, engine: 'antigravity', kind: agyAccountKind(agyHomeOf(dir, x.id)), login: aLogins.get(x.id)?.view() ?? { state: 'idle' } })), defaultAccount: d.agyDefaultAccount }; };
+    return { accounts: d.agyAccounts.map((x) => { const home = agyHomeOf(dir, x.id); const kind = agyAccountKind(home); const cp = kind === 'compat' ? readAgyCompat(home) : null;
+      return { ...x, engine: 'antigravity', kind, ...(cp ? { compat: { host: agyCompatHost(cp.baseUrl), models: cp.models, wire: cp.wire } } : {}), login: aLogins.get(x.id)?.view() ?? { state: 'idle' } }; }), defaultAccount: d.agyDefaultAccount }; };
   const claudePc = (p) => {
     const d = readDevice(p); const dir = dirOf(p);
     // 호환 주소는 주소의 호스트·모델·확인된 조합 여부만(키는 내지 않음)
@@ -233,6 +235,12 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         if (!AGY_KEY.test(String(a.key ?? ''))) return { status: 400, body: { error: 'bad_api_key' } };
         saveAgyApiKey(agyHomeOf(dirOf(p), id), String(a.key)); log({ event: 'account_api_key', engine: 'antigravity', ok: true });
         return { status: 200, body: agyView(p) };
+      }
+      case 'agy.accounts.compat': {
+        const id = aKnown(p, a.id);
+        saveAgyCompat(agyHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, models: a.models ?? '', wire: a.wire ?? 'gemini' });
+        log({ event: 'account_compat', engine: 'antigravity', ok: true });
+        return { status: 200, body: { ...agyView(p), ...(await applyDevice()) } };
       }
       case 'agy.accounts.logout': { const id = aKnown(p, a.id); aLoginOf(p, id).cancel(); agyLogoutFiles(agyHomeOf(dirOf(p), id)); return { status: 200, body: agyView(p) }; }
       case 'agy.accounts.delete': {
