@@ -45,11 +45,20 @@ function fakeAgent({ resumeError = null, permission = true, hangPrompt = false }
 test('질문만: 계획 방식으로 바꾸고, 허락 요청은 거부(reject_once), 답 조각을 모음', async () => {
   const f = fakeAgent();
   const r = await acpTurn({ bin: 'agy', sessionId: SID, question: 'q', cwd: '.', spawnImpl: f.spawnImpl });
-  assert.equal(r.answer, '고칠게요. 끝.');
+  assert.equal(r.answer, '고칠게요. 끝.\n\n[이어온] 허락하지 않아 실행되지 않은 작업 1개:\n- Edit src/a.js'); // 질문만이라 거부한 것도 알림
   assert.deepEqual(f.seen.map((m) => m.method).filter(Boolean), ['initialize', 'session/resume', 'session/set_mode', 'session/prompt']);
   assert.equal(f.seen.find((m) => m.method === 'session/resume').params.sessionId, SID, '같은 대화를 이어 붙음(새 세션 아님)');
   assert.ok(!f.seen.some((m) => m.method === 'session/new'));
   assert.deepEqual(f.replies.get('perm-1'), { outcome: { outcome: 'selected', optionId: 'no1' } });
+});
+
+test('거부 뒤: 답 끝에 실행되지 않은 작업을 알림(에이전트가 말없이 끝나도), 통째 답·여러 조각 모양도 받음', async () => {
+  const f = fakeAgent();
+  const r = await acpTurn({ bin: 'agy', sessionId: SID, question: 'q', cwd: '.', workMode: true, spawnImpl: f.spawnImpl, approve: async () => 'decline' });
+  assert.equal(r.answer, '고칠게요. 끝.\n\n[이어온] 허락하지 않아 실행되지 않은 작업 1개:\n- Edit src/a.js');
+  const g = fakeAgent();
+  const ok = await acpTurn({ bin: 'agy', sessionId: SID, question: 'q', cwd: '.', workMode: true, spawnImpl: g.spawnImpl, approve: async () => 'accept' });
+  assert.ok(!ok.answer.includes('[이어온]'), '허용했으면 알림 없음');
 });
 
 test('작업 모드: 허락 요청을 승인 카드로 — 허용이면 allow_once(늘 허용은 고르지 않음), 거부면 reject_once', async () => {

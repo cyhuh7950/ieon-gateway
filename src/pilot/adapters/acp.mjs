@@ -19,6 +19,7 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId, question, wo
     let buf = ''; let nextId = 1; let done = false; let prompted = false; let stopped = false;
     const pending = new Map(); // id → { resolve, reject }
     const text = [];
+    const denied = []; // 거부한 허락 요청(답 끝에 알림 — 거부 뒤 에이전트가 말없이 끝나도 사람이 무슨 일인지 알게)
     const finish = (err, value) => {
       if (done) return; done = true; clearTimeout(timer);
       try { child.stdin.end(); } catch { /* 닫힘 */ }
@@ -47,6 +48,7 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId, question, wo
         }
         const allow1 = pick(['allow_once']);
         log({ event: 'acp_permission', decision });
+        if (decision !== 'accept') denied.push(String(tc.title ?? tc.kind ?? '도구 사용').replace(/\s+/g, ' ').slice(0, 120));
         if (decision === 'accept' && allow1) return reply(m.id, { outcome: { outcome: 'selected', optionId: allow1 } });
         return reply(m.id, reject1 ? { outcome: { outcome: 'selected', optionId: reject1 } } : { outcome: { outcome: 'cancelled' } });
       }
@@ -59,7 +61,8 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId, question, wo
       if (m.id !== undefined) { const p = pending.get(m.id); if (!p) return; pending.delete(m.id); if (m.error) p.bad(m.error); else p.ok(m.result); return; }
       if (m.method === 'session/update' && prompted) {
         const u = m.params?.update;
-        if (u?.sessionUpdate === 'agent_message_chunk' && u.content?.type === 'text') text.push(String(u.content.text ?? ''));
+        // 답 글: 조각(agent_message_chunk) 또는 통째(agent_message), content는 하나 또는 여러 개(2026-11-19 실측에서 거부 뒤 답이 빈칸이라 두 모양 다 받음)
+        if (u && ['agent_message_chunk', 'agent_message'].includes(u.sessionUpdate)) for (const c of [u.content].flat()) if (c?.type === 'text') text.push(String(c.text ?? ''));
       }
     };
     child.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (l) onLine(l); } });
@@ -92,7 +95,8 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId, question, wo
         throw Object.assign(new Error('acp_prompt_error'), { unknownCode: 'acp_prompt_error' });
       });
       if (r?.stopReason === 'cancelled' || stopped) throw new StoppedError();
-      return { answer: text.join('').trim(), stopReason: r?.stopReason ?? null };
+      const note = denied.length ? `[이어온] 허락하지 않아 실행되지 않은 작업 ${denied.length}개:\n${denied.slice(0, 5).map((d) => `- ${d}`).join('\n')}` : '';
+      return { answer: [text.join('').trim(), note].filter(Boolean).join('\n\n'), stopReason: r?.stopReason ?? null };
     })().then((v) => finish(null, v), (e) => finish(e));
   });
 }
