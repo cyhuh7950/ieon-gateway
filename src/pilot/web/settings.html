@@ -93,8 +93,10 @@ legend { padding:0 4px; font-weight:600; }
 #status .state { box-shadow:var(--shadow); pointer-events:auto; }
 /* 표 */
 table.list { width:100%; border-collapse:collapse; margin:6px 0; }
-table.list th { text-align:left; font-size:12px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--border); padding:6px 8px; }
-table.list td { text-align:left; border-bottom:1px solid var(--border); padding:8px; vertical-align:middle; overflow-wrap:anywhere; }
+table.list th { text-align:left; font-size:12px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--border); padding:6px 8px; white-space:nowrap; }
+/* 낱말 중간에서 자르지 않는다(한국어는 띄어쓰기에서만, 아주 긴 영문 값만 필요할 때 끊음) — 2026-11-20 "디스코/드" 줄바꿈 고침 */
+table.list td { text-align:left; border-bottom:1px solid var(--border); padding:8px; vertical-align:middle; word-break:keep-all; overflow-wrap:break-word; }
+table.list td:not(:last-child) { min-width:4.5em; }
 table.list td button { margin:2px 4px 2px 0; min-height:32px; padding:4px 10px; }
 table.list tr.pick { cursor:pointer; }
 table.list tr.pick:hover { background:var(--surface-alt); }
