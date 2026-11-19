@@ -284,6 +284,7 @@ export function createApp(config) {
   };
   const claudeOpts = { ...(config.claudeAuthDir !== undefined ? { claudeDir: config.claudeAuthDir } : {}), ...(config.claudeLogin ? { claudeLogin: config.claudeLogin } : {}) }; // SV2
   const deviceAdmin = access ? null : createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath, applyDevice, accountLogin: config.accountLogin, log: adminLog, modeAdmin, ...claudeOpts,
+    listThreads: () => (config.listCodexThreads ?? listCodexThreads)({ codex: config.codex }), // 허브 화면에서 이 PC의 Codex 대화 고르기
     connectorState: () => ({ managed: Boolean(localConnector), running: localConnector?.running() ?? null, mode: mode() }) }); // M1: 허브 화면에도 그 PC의 사용 방식
   const hubAdmin = access ? createDeviceAdmin({ connectorConfigPath: config.connectorConfigPath ?? join(dirname(config.dbPath), 'connector.json'), accountLogin: config.accountLogin, log: adminLog, ...claudeOpts,
     applyDevice: async () => ({ restarted: true, restartRequired: false }) }) : null; // 허브 연결부는 설정 파일이 바뀌면 스스로 다시 시작
@@ -987,9 +988,27 @@ export function createApp(config) {
           }
           if (!userHosts(principal).includes(hr[1])) return json(res, 404, { error: 'unknown_host' }); // M2: 자기 기기만
           if (!online(hr[1])) return json(res, 503, { error: 'device_offline' });
-          const r = await adminQueue.send(hr[1], op, b.args && typeof b.args === 'object' ? b.args : {});
+          if (op === 'codex.connect' && String(b.args?.threadId ?? '').trim().toLowerCase() === EXCLUDED_THREAD) return json(res, 400, { error: 'excluded_session' }); // 업무 대화는 PC에 보내지도 않음
+          const r = await adminQueue.send(hr[1], op, b.args && typeof b.args === 'object' ? b.args : {}, op === 'codex.threads' ? 55_000 : undefined); // Codex 목록은 10~45초
           process.stderr.write(JSON.stringify({ ch: 'server', event: 'host_admin', host: hr[1], op, status: r.status }) + '\n');
           // SV2 기존 대화(신산님 2026-11-17): 서버 칸의 Claude 대화를 [연결]하면 칸이 허용 목록에 넣고, 허브가 바로 이어온 대화로 등록한다(한 번에).
+          // 가입자 대화 붙이기(2026-11-19): PC의 Codex 대화를 [연결]하면 그 PC가 허용 목록에 넣고, 허브가 그 사람의 대화로 등록한다(한 번에).
+          if (op === 'codex.connect' && r.status === 200) {
+            const host = hr[1]; const sessionRef = String(r.body.threadId).toLowerCase();
+            const existing = store.listBindings(principal.userId).find((x) => x.engine === 'codex_thread' && x.hostId === host && String(x.sessionRef).toLowerCase() === sessionRef);
+            let conversationId = existing?.conversationId;
+            if (!conversationId) {
+              const ids = new Set(store.listBindings().map((x) => x.conversationId));
+              const base = 'c_' + sessionRef.replaceAll('-', '').slice(0, 12);
+              conversationId = base; for (let n = 2; ids.has(conversationId); n += 1) conversationId = base + '_' + n;
+              const label = String(b.args?.label ?? '').trim().slice(0, 60) || '이름 없는 대화';
+              const appIds = (config.users ?? []).some((u) => u.appId === 'app_messenger') ? ['app_web', 'app_messenger'] : ['app_web'];
+              let v; try { v = validateBinding(conversationId, { engine: 'codex_thread', label, hostId: host, sessionRef, appIds }, userHosts(principal)); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
+              const s2 = store.saveBinding(principal.userId, v);
+              if (s2.http !== 200) return json(res, s2.http, { error: s2.code });
+            }
+            return json(res, 200, { ...r.body, conversationId, created: !existing });
+          }
           if (op === 'claude.connect' && r.status === 200) {
             const host = hr[1]; const sessionRef = String(r.body.sessionId);
             const existing = store.listBindings(principal.userId).find((x) => x.engine === 'claude_cli' && x.hostId === host && String(x.sessionRef).toLowerCase() === sessionRef.toLowerCase());

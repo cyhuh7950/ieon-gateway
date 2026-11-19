@@ -10,6 +10,7 @@ import { workspacesView } from './workspaces.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
+import { EXCLUDED_THREAD } from './lock-probe.mjs';
 import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin, saveClaudeLogin, removeClaudeLogin } from './claude-login.mjs';
 
 // 명령 목록(이 밖의 것은 거절). read: 보기만(앞단을 거친 PC 화면 요청도 허용), 나머지는 바꾸기.
@@ -22,6 +23,8 @@ export const OPS = {
   'claude.get': 'read', 'claude.login': 'write', 'claude.code': 'write', 'claude.login.cancel': 'write', 'claude.apikey': 'write', 'claude.logout': 'write',
   // SV2 기존 대화: 서버 칸에서 사람이 연 Claude 대화 목록·연결(연결 = 그 칸의 허용 목록에 넣기, 허브가 대화로 등록)
   'claude.sessions': 'read', 'claude.connect': 'write',
+  // 가입자 대화 붙이기(2026-11-19): 그 PC의 최근 Codex 대화 목록·연결(연결 = 그 PC의 허용 목록에 넣기, 허브가 대화로 등록) — 허브 화면에서 PC를 골라 씀
+  'codex.threads': 'read', 'codex.connect': 'write',
   // WS1-a 작업공간: 그 기기의 폴더 등록·빼기, AI 직원(허용 목록 세션)에 붙이기 — PC형·허브형 같은 명령
   'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
@@ -35,7 +38,7 @@ export const API_KEY = /^sk-[A-Za-z0-9_-]{20,300}$/;
 const DEFAULT_ID = 'pc_default';
 
 export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {},
-  claudeDir = claudeAuthDir(), claudeLogin = null, claudeProjects = claudeProjectsDir(), busyOf = claudeBusy }) {
+  claudeDir = claudeAuthDir(), claudeLogin = null, claudeProjects = claudeProjectsDir(), busyOf = claudeBusy, listThreads = null }) {
   const logins = new Map(); // 계정별 공식 로그인 진행 상태
   let cLogin = null;
   const claudeLoginJob = () => (cLogin ??= claudeLogin ?? createClaudeLogin({ dir: claudeDir, log }));
@@ -125,6 +128,25 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         if (!s.cwd) return { status: 409, body: { error: 'no_working_directory' } };
         upsertCliSession(p, { engine: 'claude_cli', sessionId: s.sessionId, workingDirectory: s.cwd });
         return { status: 200, body: { sessionId: s.sessionId, title: s.title, cwd: s.cwd, ...(await applyDevice()) } };
+      }
+      case 'codex.threads': {
+        if (!listThreads) return { status: 404, body: { error: 'codex_unavailable' } };
+        let threads; try { threads = await listThreads(); } catch { return { status: 502, body: { error: 'codex_unavailable' } }; }
+        const on = new Set(readDevice(p).codexThreads.map((x) => x.threadId.toLowerCase()));
+        // 목록은 응답에만 담고 로그에는 남기지 않는다. 업무 대화는 한 번 더 뺀다.
+        return { status: 200, body: { threads: threads.filter((t) => t.threadId !== EXCLUDED_THREAD).map((t) => ({ ...t, connected: on.has(t.threadId) })) } };
+      }
+      case 'codex.connect': {
+        const threadId = String(a.threadId ?? '').trim().toLowerCase();
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(threadId)) return { status: 400, body: { error: 'bad_session_ref' } };
+        if (threadId === EXCLUDED_THREAD) return { status: 400, body: { error: 'excluded_session' } };
+        // 작업 폴더는 Codex가 알려 준 값을 쓰되, 그 PC에 없는 폴더면 비워 둔다(연결은 막지 않음 — 이 PC 화면의 연결과 같음)
+        const dir = typeof a.workingDirectory === 'string' && a.workingDirectory ? a.workingDirectory : null;
+        try { upsertCodexThread(p, { threadId, mode: 'alternate', workingDirectory: dir }); } catch (e) {
+          if (!['working_directory_missing', 'bad_working_directory'].includes(e.message)) throw e;
+          upsertCodexThread(p, { threadId, mode: 'alternate', workingDirectory: null });
+        }
+        return { status: 200, body: { threadId, ...(await applyDevice()) } };
       }
       case 'device.live':
         setLive(p, a.live);

@@ -7,7 +7,7 @@ export function createAdminQueue({ timeoutMs = 25_000 } = {}) {
   const queues = new Map(); // hostId → [{ id, op, args, taken, finish }]
   const list = (h) => { if (!queues.has(h)) queues.set(h, []); return queues.get(h); };
   return {
-    send(hostId, op, args) {
+    send(hostId, op, args, ms = timeoutMs) { // ms: 오래 걸리는 명령(Codex 대화 목록)만 따로
       return new Promise((resolve) => {
         const q = list(hostId);
         if (q.length >= 10) return resolve({ status: 429, body: { error: 'device_admin_busy' } });
@@ -15,7 +15,7 @@ export function createAdminQueue({ timeoutMs = 25_000 } = {}) {
         const timer = setTimeout(() => {
           const i = q.indexOf(cmd); if (i >= 0) q.splice(i, 1);
           resolve({ status: 504, body: { error: cmd.taken ? 'device_admin_unknown' : 'device_no_response' } });
-        }, timeoutMs);
+        }, ms);
         timer.unref?.();
         cmd.finish = (r) => { clearTimeout(timer); const i = q.indexOf(cmd); if (i >= 0) q.splice(i, 1); resolve(r); };
         q.push(cmd);

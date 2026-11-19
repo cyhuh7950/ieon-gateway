@@ -252,7 +252,8 @@ details.adv[open] summary { margin-bottom:10px; }
 <div class="scrim" id="connect" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="connTitle">
     <h2 id="connTitle">이어 쓸 대화를 고르세요</h2>
-    <p class="muted small" style="margin:0">이 PC에서 최근에 쓴 Codex 대화예요. 고르면 바로 연결돼요.</p>
+    <p class="muted small" style="margin:0" id="connDesc">이 PC에서 최근에 쓴 Codex 대화예요. 고르면 바로 연결돼요.</p>
+    <label class="field" id="connHostRow" hidden>PC<select id="connHost"></select></label>
     <div id="connList"></div>
     <details class="adv" style="margin-top:14px"><summary>고급: 대화 ID 직접 넣기</summary>
       <form id="connManual">
@@ -689,16 +690,31 @@ async function select(id) {
 // --- U3 대화 연결 ---
 const CONN_ERR = { codex_unavailable: '이 PC의 Codex 목록을 불러오지 못했어요. Codex 앱이 설치·로그인돼 있는지 확인하세요.', excluded_session: '이 대화는 이어온에서 다룰 수 없어요.',
   bad_session_ref: '대화 ID 형식이 아니에요(예: 01a18790-63c7-73e3-a60b-6ddb60fd5be8).', choose_host: '연결할 PC를 정할 수 없어요. 설정 → 대화의 세션 등록에서 연결하세요.',
-  local_only: '이 PC에서 연 화면에서만 연결할 수 있어요.', no_connector_config: '이 PC의 연결부 설정이 없어요. 설치를 다시 실행하세요.' };
+  local_only: '이 PC에서 연 화면에서만 연결할 수 있어요.', no_connector_config: '이 PC의 연결부 설정이 없어요. 설치를 다시 실행하세요.',
+  device_offline: '그 PC가 꺼져 있어요. PC에서 이어온을 켠 뒤 다시 시도하세요.', device_no_response: '그 PC가 답하지 않아요. PC의 이어온이 켜져 있는지 확인하세요.',
+  device_admin_unknown: '그 PC가 처리했는지 확인하지 못했어요. 잠시 뒤 목록을 다시 열어 보세요.', unknown_host: '내 PC가 아니에요.', device_admin_busy: '그 PC가 다른 일을 처리 중이에요. 잠시 뒤 다시 시도하세요.' };
 const ago = (iso) => { if (!iso) return ''; const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.round(m / 60) + '시간 전' : Math.round(m / 1440) + '일 전'; };
-function openConnect() {
-  if (!device) { location.href = '/settings#conv'; return; } // 허브 화면: 허브는 PC의 대화 목록을 볼 수 없어 설정 → 대화에서 등록
+// 허브 화면(가입자 포함, 2026-11-19): 내 PC를 고르면 허브가 그 PC에 목록을 물어 온다(PC가 허브로 연결하는 길 그대로). 이 PC 화면은 이 PC 목록.
+let connHostId = null;
+const threadsReq = () => connHostId ? api('/v1/admin/hosts/' + encodeURIComponent(connHostId) + '/run', { method: 'POST', body: JSON.stringify({ op: 'codex.threads' }) }) : api('/v1/admin/local/threads');
+async function openConnect() {
+  if (device) { connHostId = null; $('connHostRow').hidden = true; $('connect').hidden = false; loadThreads(); return; }
+  if (!hubMode) { location.href = '/settings#conv'; return; }
+  const r = await api('/v1/admin/devices').catch(() => ({ status: 0 }));
+  const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf && !d.cell) : [];
+  if (!list.length) { toast('err', '연결된 PC가 없어요. 설정 → 밖에서도 쓰기 → PC 연결 링크로 내 PC를 먼저 연결하세요.'); return; }
+  const sel = $('connHost'); sel.replaceChildren();
+  for (const d of list) { const o = el('option', (d.name || d.hostId) + (d.online ? '' : ' (꺼짐)')); o.value = d.hostId; sel.append(o); }
+  sel.value = (list.find((d) => d.online) ?? list[0]).hostId; connHostId = sel.value;
+  $('connHostRow').hidden = list.length < 2;
+  $('connDesc').textContent = (list.length < 2 ? '"' + (list[0].name || list[0].hostId) + '"' : '고른 PC') + '에서 최근에 쓴 Codex 대화예요. 고르면 바로 연결돼요.';
   $('connect').hidden = false; loadThreads();
 }
+$('connHost').onchange = () => { connHostId = $('connHost').value; loadThreads(); };
 async function loadThreads(box = $('connList'), onPick = (body) => connect(body)) {
   const again = () => loadThreads(box, onPick);
-  box.replaceChildren(el('p', '이 PC의 대화를 찾는 중… (10초쯤 걸려요)', 'muted small'));
-  const r = await api('/v1/admin/local/threads').catch(() => null);
+  box.replaceChildren(el('p', (connHostId ? 'PC' : '이 PC') + '의 대화를 찾는 중… (10초쯤 걸려요)', 'muted small'));
+  const r = await threadsReq().catch(() => null);
   box.replaceChildren();
   if (!r || r.status !== 200) {
     box.append(el('p', CONN_ERR[r?.body?.error] || '대화 목록을 불러오지 못했어요.', 'muted small'));
@@ -715,7 +731,8 @@ async function loadThreads(box = $('connList'), onPick = (body) => connect(body)
   }
 }
 async function connect(body, { open = true } = {}) {
-  const r = await api('/v1/admin/connections', { method: 'POST', body: JSON.stringify(body) });
+  const r = connHostId ? await api('/v1/admin/hosts/' + encodeURIComponent(connHostId) + '/run', { method: 'POST', body: JSON.stringify({ op: 'codex.connect', args: body }) })
+    : await api('/v1/admin/connections', { method: 'POST', body: JSON.stringify(body) });
   if (r.status !== 200) { toast('err', CONN_ERR[r.body.error] || '연결하지 못했어요: ' + r.body.error); return null; }
   $('connect').hidden = true; $('connId').value = ''; $('connName').value = '';
   toast('ok', r.body.created ? '"' + body.label + '" 대화를 연결했어요' : '이미 연결된 대화예요');
