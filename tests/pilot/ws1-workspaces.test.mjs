@@ -159,7 +159,7 @@ test('메신저 /status·설정 화면: 작업 공간은 폴더 이름만, 설�
   const bridge = readFileSync(join(ROOT, 'src/pilot/messenger/bridge.mjs'), 'utf8');
   assert.ok(bridge.includes('작업 공간: ${ws}'));
   const set = readFileSync(join(ROOT, 'src/pilot/web/settings.html'), 'utf8');
-  assert.ok(set.includes('data-atab="ws"') && set.includes("'/v1/admin/workspaces/attach'") && set.includes('승인할까요?'));
+  assert.ok(set.includes('data-atab="work" hidden aria-label="작업 폴더"') && set.includes("'/v1/admin/workspaces/attach'") && set.includes('승인할까요?'));
 });
 
 test('기기 명령: workspace.* 는 PC형·허브형 같은 명령(허브 자신은 폴더 등록·보기만, WS1-b)', async (t) => {

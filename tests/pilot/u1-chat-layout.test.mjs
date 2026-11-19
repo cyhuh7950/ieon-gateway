@@ -52,7 +52,7 @@ test('새 화면은 이미 있는 API만 부른다', () => {
 test('새 화면에서 여는 설정 탭은 실제로 있다', () => {
   const SETTINGS = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
   const hashes = [...new Set([...APP.matchAll(/\/settings#([a-z]+)/g)].map((m) => m[1]))];
-  assert.deepEqual(hashes.sort(), ['acct', 'conv', 'hub', 'hubsec', 'msg', 'pc']); // SV3-b: API 계정 한도 카드 → 계정 탭 // M1: 사용 방식 안내 → 이 PC 탭
+  assert.deepEqual(hashes.sort(), ['acct', 'apps', 'hubsec', 'msg', 'pc', 'reg']); // 2026-11-20 탭 재구성(hub→apps, conv→reg) // SV3-b: API 계정 한도 카드 → 계정 탭 // M1: 사용 방식 안내 → 이 PC 탭
   for (const h of hashes) assert.ok(SETTINGS.includes(`data-atab="${h}"`), h);
   assert.ok(SETTINGS.includes('href="/"'), '설정 화면에서 대화로 돌아갈 수 있다');
 });

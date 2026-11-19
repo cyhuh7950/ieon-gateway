@@ -41,7 +41,7 @@ export const OPS = {
   'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
 };
-// 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 허브 보안·Codex 탭, 허브는 기존 대화 허용 목록이 없음).
+// 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 관리 → 허브 보안 탭, 허브는 기존 대화 허용 목록이 없음).
 // WS1-b: 허브 자체 새 세션에 붙일 폴더(허브 컨테이너 안 폴더) — 폴더 등록·보기만, 붙이기는 서버 전용 주소가 hubAdmin으로
 export const HUB_SELF_OPS = new Set(['workspace.get', 'workspace.folder.add', 'workspace.folder.delete', 'accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete', 'accounts.apikey',
   'claude.get', 'claude.login', 'claude.code', 'claude.login.cancel', 'claude.apikey', 'claude.logout']);

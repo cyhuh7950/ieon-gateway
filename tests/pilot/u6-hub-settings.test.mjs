@@ -128,15 +128,15 @@ test('설정 화면: 예전 화면의 관리 항목이 모두 옮겨졌고(누�
   // A2-d: 기기 설정(AI 응답·허용 목록)은 PC형·허브형 공통 명령(/v1/admin/local/run · /v1/admin/hosts/<PC>/run)으로 옮겼다(서버의 예전 주소는 그대로).
   const viaRun = (a) => a.startsWith('/v1/admin/local/device') && SET.includes("'/v1/admin/local/run'") && SET.includes("devRun('device.");
   assert.deepEqual(OLD_APIS.filter((a) => !apis(SET).has(a) && !viaRun(a)), []);
-  // 탭 6개, 예전 탭 이름으로 들어와도 열림
-  for (const tab of ['pc', 'hub', 'msg', 'conv', 'apps', 'hubsec']) assert.ok(SET.includes(`<button type="button" data-atab="${tab}">`), tab);
-  assert.ok(SET.includes("const OLD_TAB = { bots: 'msg', messenger: 'msg', roles: 'msg', sessions: 'conv', newsess: 'conv', devices: 'hub' };"));
+  // 2026-11-20 탭 재구성: 내 설정 5개 + 관리 4개, 예전 탭 이름으로 들어와도 열림
+  for (const [grp, tab] of [['me', 'pc'], ['me', 'work'], ['me', 'acct'], ['me', 'msg'], ['me', 'apps'], ['admin', 'reg'], ['admin', 'msgadv'], ['admin', 'hubsec'], ['admin', 'ext']]) assert.ok(SET.includes(`<button type="button" data-grp="${grp}" data-atab="${tab}">`), tab);
+  assert.ok(SET.includes("const OLD_TAB = { bots: 'msg', messenger: 'msg', roles: 'msgadv', sessions: 'reg', newsess: 'reg', conv: 'reg', ws: 'work', hub: 'apps', devices: 'apps' };"));
   // PC 연결 링크: https 허브만, 읽은 뒤 주소에서 지움, 허브 화면에서는 연결하지 않음
   assert.ok(SET.includes("if (join && !/^https?:\\/\\/[^\\s/?#@]+$/.test(join.hubUrl)) join = null;"), '규칙 점검 8: http 허브도');
-  assert.ok(SET.includes("history.replaceState(null, '', location.pathname + '#hub'); }"));
+  assert.ok(SET.includes("history.replaceState(null, '', location.pathname + '#apps'); }"));
   assert.ok(SET.includes("if (join && hub) { $('joinHubOnly').hidden = false; join = null; }"));
   assert.ok(!/innerHTML\s*=\s*[^'"`\s]/.test(SET.replace(/innerHTML = ''/g, '')), '서버 값은 textContent로만');
   // 새 화면에서 예전 화면으로 가는 길이 없다
   assert.ok(!APP.includes('/classic'));
-  assert.ok(APP.includes("location.href = '/settings#conv'") && APP.includes('href="/settings#msg"') && APP.includes("k.kind === 'hub_codex_login'"));
+  assert.ok(APP.includes("location.href = '/settings#reg'") && APP.includes('href="/settings#msg"') && APP.includes("k.kind === 'hub_codex_login'"));
 });

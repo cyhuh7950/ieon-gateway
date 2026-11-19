@@ -32,7 +32,7 @@
 
 ### 2-2. 내 프로그램 전용 API 키 받기
 
-웹 화면 왼쪽 아래 **설정**(⚙) → **내 프로그램 연결**에서 프로그램 이름을 넣고 **키 발급**을 누른다. 키는 **그때 한 번만** 보이니 복사해 내 프로그램 설정(환경 변수 등)에 넣는다. 같은 칸에서 이 프로그램이 볼 수 있는 세션을 체크하고 **저장**한다. 필요 없어지면 **폐기**(바로 접속 불가, 다른 프로그램은 영향 없음). 설정 파일은 고치지 않는다.
+웹 화면 왼쪽 아래 **설정**(⚙) → 위쪽 **관리** → **외부 프로그램**(관리자만)에서 프로그램 이름을 넣고 **키 발급**을 누른다. 키는 **그때 한 번만** 보이니 복사해 내 프로그램 설정(환경 변수 등)에 넣는다. 같은 칸에서 이 프로그램이 볼 수 있는 세션을 체크하고 **저장**한다. 필요 없어지면 **폐기**(바로 접속 불가, 다른 프로그램은 영향 없음). 설정 파일은 고치지 않는다.
 
 ### 2-3. 연결 확인
 
@@ -286,14 +286,14 @@ curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:28760/v1/requests/<re
 | 코드 | `error` | 원인 | 고치는 법 |
 | --- | --- | --- | --- |
 | 400 | `bad_request` | `Idempotency-Key` 없음·형식 틀림, 질문 비어 있음, 8,000자 초과 | 요청을 고친다 |
-| 401 | `unauthorized` | 키 없음·틀림·폐기됨 | 웹 **설정 → 내 프로그램 연결**에서 새로 발급 |
+| 401 | `unauthorized` | 키 없음·틀림·폐기됨 | 웹 **설정 → 관리 → 외부 프로그램**에서 새로 발급 |
 | 404 | `not_found` | 없는 세션, 또는 `appIds`에 내 프로그램이 없음 | 2-2 ③ 확인 |
 | 409 | `conversation_busy` | 이 세션이 다른 질문을 처리 중이거나 "확인 필요" 잠금 | 끝난 뒤 보낸다. 잠금이면 7장 |
 | 409 | `idempotency_conflict` | 같은 키로 다른 질문을 보냄 | 질문마다 새 키를 쓴다 |
-| 409 | `hub_mode` | 이 PC가 허브에 연결돼 있어 PC 서버가 질문을 받지 않음 | 허브 주소로 보내거나, PC 화면 **설정 → 밖에서도 쓰기**에서 허브 연결을 끊는다 |
+| 409 | `hub_mode` | 이 PC가 허브에 연결돼 있어 PC 서버가 질문을 받지 않음 | 허브 주소로 보내거나, PC 화면 **설정 → 앱과 기기 → 허브 연결**에서 허브 연결을 끊는다 |
 | 429 | `member_limit` | 가입자의 하루 질문 한도를 다 씀(본문에 `limit`·`used`) | 한국 시간 0시에 다시 보낸다. 자동으로 다시 보내지 않는다 |
 | 429 | `rate_limited` | 짧은 시간에 요청이 너무 많음 | `retry-after` 헤더의 초만큼 기다린 뒤 보낸다 |
-| 503 | `device_unavailable` | 연결부가 꺼짐 | 그 PC가 켜져 있는지(허브형이면 PC 화면 **설정 → 밖에서도 쓰기**가 연결됨인지) |
+| 503 | `device_unavailable` | 연결부가 꺼짐 | 그 PC가 켜져 있는지(허브형이면 PC 화면 **설정 → 앱과 기기 → 허브 연결**이 연결됨인지) |
 | 503 | `session_not_running` | Claude 세션이 꺼짐 | Claude 채널 세션 시작 |
 | 503 | `shared_server_down` | Codex 동시 사용 서버가 꺼짐 | `start -Shared` 또는 번갈아 쓰기로 변경(웹 **연결 설정 → 고급**) |
 | 500 | `internal` | 서버 내부 오류 | `.local\run\server.log` 확인 |
@@ -347,7 +347,7 @@ Content-Type: application/json
 
 이어온 앱(휴대폰·PC, AP-3에서 만듦)이 쓰는 길이다. 일반 외부 프로그램은 2-2의 API 키를 쓰면 된다.
 
-1. **연결 코드(사람이 웹에서):** 설정 → 내 프로그램 연결 → **이어온 앱 연결 → 연결 코드 만들기** → 8자리 코드(10분, 한 번만), 서버 주소가 보인다.
+1. **연결 코드(사람이 웹에서):** 설정 → 앱과 기기 → **이어온 앱 연결 → 연결 코드 만들기** → 8자리 코드(10분, 한 번만), 서버 주소가 보인다.
 2. **앱이 열쇠 받기:** `POST /v1/app/pair` `{ "code": "12345678", "name": "내 폰" }` → `201 { "token": "<64자>", "deviceId": "ad_…" }`. 열쇠는 이때 한 번만 받고 서버엔 해시만 남는다. 틀린·쓴·지난 코드는 `403 bad_code`, 1분에 10번 넘게 시도하면 `429`.
 3. **열쇠로 쓰기:** `Authorization: Bearer <token>` — 웹 화면과 같은 대화(`/v1/conversations`·질문·결과·카드)·방(`/v1/rooms`)·AI 직원·승인(`/v1/approvals/<id>`)을 쓸 수 있다. **설정(`/v1/admin/…`)은 `403 app_not_allowed`** — 웹 화면에서만.
 4. **새 소식 바로 받기:** `GET /v1/events`(같은 열쇠) → `text/event-stream`. 내 대화에서 일이 생기면
@@ -401,7 +401,7 @@ Content-Type: application/json
 
 **새 세션 만들기(설정에서 켠 경우)**
 
-이어온이 새 Codex·Claude·Antigravity 세션과 전용 작업 폴더를 만든다. 기능 켜기는 웹 **설정 → 대화 → 새 세션**("새 세션 만들기를 켭니다"). 내 프로그램 토큰으로 만들려면 `new-sessions.json`의 `creatorApps`에 그 앱 ID(예: `app_myapp`)를 넣는다(기본은 웹·메신저만).
+이어온이 새 Codex·Claude·Antigravity 세션과 전용 작업 폴더를 만든다. 기능 켜기는 웹 **설정 → 관리 → 대화 등록 → 새 세션**("새 세션 만들기를 켭니다"). 내 프로그램 토큰으로 만들려면 `new-sessions.json`의 `creatorApps`에 그 앱 ID(예: `app_myapp`)를 넣는다(기본은 웹·메신저만).
 
 | 요청 | 하는 일 | 성공 응답 |
 | --- | --- | --- |
@@ -414,7 +414,7 @@ Content-Type: application/json
 
 - 만든 뒤 질문은 기존과 같이 `POST /v1/conversations/{conversationId}/requests`. 첫 질문 때 실제 엔진 세션이 생긴다.
 - 세션 목록의 새 세션 항목에는 `newSession: { name, state, profile, sessionId? }`가 붙는다. `state`는 `pending`(첫 질문 전)·`active`·`sleeping`·`archived`, `sessionId`는 사람이 직접 열 때 쓰는 Codex 대화 ID·Claude 세션 ID다.
-- 거절: 403 `new_sessions_disabled`(기능 꺼짐)·`app_not_allowed`·`profile_not_allowed`(full 권한은 관리자가 **설정 → 대화 → 새 세션**의 full 스위치를 켰을 때만 요청으로 받음), 400 `bad_name`·`bad_engine`·`unknown_profile`·`confirm_mismatch`, 409 `name_taken`·`session_limit`·`engine_limit`(본문에 `limit`)·`not_active`·`not_archived`·`conversation_busy`.
+- 거절: 403 `new_sessions_disabled`(기능 꺼짐)·`app_not_allowed`·`profile_not_allowed`(full 권한은 관리자가 **설정 → 관리 → 대화 등록 → 새 세션**의 full 스위치를 켰을 때만 요청으로 받음), 400 `bad_name`·`bad_engine`·`unknown_profile`·`confirm_mismatch`, 409 `name_taken`·`session_limit`·`engine_limit`(본문에 `limit`)·`not_active`·`not_archived`·`conversation_busy`.
 - 새 세션 질문 거절: 409 `session_archived`(먼저 꺼내기), 409 `active_limit`(동시 처리 한도, 잠시 후 다시). 결과 `unknown`의 `session_forked`는 사람이 같은 Claude 세션을 터미널에서 열고 있었다는 뜻이다.
 
 ## 9. 내 프로그램을 만들 때 체크리스트

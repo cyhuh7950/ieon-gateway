@@ -39,7 +39,7 @@ const NS_ERR = {
   bad_name: '이름은 영문·숫자·- 2~32자(앞뒤는 영문·숫자)',
   bad_engine: '엔진은 codex 또는 claude',
   unknown_profile: '없는 권한 프로필',
-  profile_not_allowed: 'full 권한은 허브 관리자가 이어온 화면 → 설정 → 대화 → 새 세션의 full 스위치를 켰을 때만 고를 수 있음',
+  profile_not_allowed: 'full 권한은 허브 관리자가 이어온 화면 → 설정 → 관리 → 대화 등록 → 새 세션의 full 스위치를 켰을 때만 고를 수 있음',
   name_taken: '같은 이름의 세션이 이미 있음',
   session_limit: '세션 수 한도를 넘음 — /archived·/close로 정리',
   engine_limit: '이 엔진의 세션 수 한도를 넘음',
@@ -409,7 +409,7 @@ export function createBridge(opts) {
       schedAfter = n.at;
       const head = `[${n.label}] 예약 질문(${n.when})`;
       const text = n.status === 'completed' ? `${head} 답:\n${n.answer ?? '(보관하지 않은 답변)'}`
-        : n.status === 'unknown' ? `${head}: 결과를 확인할 수 없음 — 자동으로 다시 보내지 않고, 이 예약은 다음 회차에 멈춰요(원래 세션 확인 후 이어온 화면 → 설정 → 대화 → 예약 작업에서 다시 켜기)`
+        : n.status === 'unknown' ? `${head}: 결과를 확인할 수 없음 — 자동으로 다시 보내지 않고, 이 예약은 다음 회차에 멈춰요(원래 세션 확인 후 이어온 화면 → 설정 → 작업 → 예약 작업에서 다시 켜기)`
         : n.status === 'cancelled' ? `${head}: 중지됨` : n.status === 'approval_required' ? `${head}: 원래 세션에서 권한 확인이 필요해 멈춤`
         : `${head}: ${ERR[n.errorCode] ?? `실행 실패: ${n.errorCode}`}`;
       for (const [k, v] of Object.entries(rooms)) {
