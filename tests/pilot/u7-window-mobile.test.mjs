@@ -50,8 +50,9 @@ test('휴대폰 폭: 새 화면 버튼 44px, 설정 화면은 표가 페이지�
   assert.match(mq, /\.row, \.side-bottom a, \.side-bottom button, \.pbtn, \.back, \.switch, \.addbtn, \.acts a, \.acts button, \.modal button, \.linkbtn, #panelBtn \{ min-height:44px; \}/);
   assert.ok(app.includes('@media (display-mode: standalone)'), '홈 화면 앱에서 상태 표시줄에 가리지 않음');
   const set = read('src/pilot/web/settings.html');
-  const smq = set.slice(set.indexOf('/* U7: 휴대폰 폭'));
-  for (const rule of ['.admin { padding:10px; grid-template-columns:minmax(0, 1fr); }', 'table.list { display:block; overflow-x:auto; white-space:nowrap; }', 'nav.atabs button, header .right button, .admin button { min-height:44px; }', '.admin select { min-height:40px; font-size:16px; }']) assert.ok(smq.includes(rule), rule);
+  // 2026-11-20 디자인 통일: 분기점 760px(대화 화면과 같음), 표는 한 줄에 한 카드로 쌓고(옆으로 밀지 않음) 누를 것·입력칸 44px
+  const smq = set.slice(set.indexOf('@media (max-width:760px)'));
+  for (const rule of ['table.list, table.list tbody, table.list tr, table.list td { display:block; width:100%; }', 'table.list thead { display:none; }', 'button, a.btn, nav.atabs button, table.list td button { min-height:44px; }', 'input:not([type=checkbox]):not([type=radio]), select, textarea { min-height:44px; font-size:16px; }']) assert.ok(smq.includes(rule), rule);
 });
 
 test('PC 창: Edge가 있으면 바탕화면 바로 가기를 Edge 앱 창으로, 없으면 예전처럼 브라우저 탭', () => {

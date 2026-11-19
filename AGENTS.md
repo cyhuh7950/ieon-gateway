@@ -14,6 +14,7 @@
 
 - 공통 규칙: D:\Project\PMO\AGENTS.md
 - 요구·설계: docs/design/DESIGN.md
+- 화면 디자인 기준(색·글자·모서리·버튼): DESIGN.md(루트) — 새 화면·화면 수정은 이 토큰과 어두운 모드를 따른다
 - 실행 계획: docs/WORK_PLAN.md
 - 현황·인터뷰·오류·미검증: docs/WORK_STATUS.md
 - 첫 실증 결과(종합 판정·미확인 목록): docs/validation/FIRST_CONTINUITY_RESULT.md

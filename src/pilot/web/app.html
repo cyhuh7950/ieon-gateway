@@ -42,7 +42,7 @@ a { color:var(--accent); }
 .row:hover { background:var(--surface-alt); }
 .row[aria-current="true"] { background:var(--accent-soft); }
 .av { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; font-weight:700; color:#fff; font-size:13px; }
-.av.codex_thread { background:#3b4a63; } .av.claude_channel, .av.claude_cli { background:#b86a45; }
+.av.codex_thread { background:#3b4a63; } .av.claude_channel, .av.claude_cli { background:#9a5634; }
 .row .t { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .row .s { font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .row .s.warn { color:var(--warn); } .row .s.err { color:var(--err); }
@@ -65,6 +65,8 @@ details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:
 .switch[aria-checked="true"] .knob { background:var(--accent); } .switch[aria-checked="true"] .knob::after { left:16px; }
 .iconbtn { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:6px 10px; font-size:13px; }
 .back { display:none; }
+#panelBtn .ico { display:none; }
+@media (max-width: 760px) { #panelBtn .ico { display:inline; font-size:18px; line-height:1; } }
 .msgs { flex:1; overflow:auto; padding:20px 18px; display:flex; flex-direction:column; gap:12px; }
 .bubble { max-width:min(680px,88%); padding:10px 14px; border-radius:14px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .me { align-self:flex-end; background:var(--accent); color:var(--on-accent); border-bottom-right-radius:4px; }
@@ -102,18 +104,18 @@ details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:
 .mrow button.primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
 .field { display:flex; flex-direction:column; gap:4px; margin-top:10px; font-size:13px; }
 .field input { border:1px solid var(--border); background:var(--surface-alt); border-radius:10px; padding:9px 11px; }
-.modenote { display:block; margin:6px 10px; padding:8px 10px; border-radius:8px; background:#fff4d6; color:#5a4300; font-size:13px; text-decoration:none; }
+.modenote { display:block; margin:6px 10px; padding:8px 10px; border-radius:10px; background:var(--warn-soft); color:var(--warn); font-size:13px; text-decoration:none; }
 .check.pick { width:100%; text-align:left; cursor:pointer; border:1px solid var(--border); background:transparent; font:inherit; }
 .grp.rooms { display:flex; align-items:center; justify-content:space-between; }
 .grp.rooms button { border:0; background:transparent; color:inherit; cursor:pointer; font:inherit; }
-.who { font-size:12px; color:#5b6573; margin:8px 0 2px; }
-.notice { align-self:center; font-size:12px; color:#7a5a00; background:#fff4d6; border-radius:8px; padding:4px 10px; margin:4px 0; }
+.who { font-size:12px; color:var(--muted); margin:8px 0 2px; }
+.notice { align-self:center; font-size:12px; color:var(--warn); background:var(--warn-soft); border-radius:99px; padding:4px 12px; margin:4px 0; }
 .hand { margin-top:4px; font-size:12px; }
 .roombar { display:flex; gap:8px; justify-content:flex-end; margin-bottom:6px; }
 /* AP-1 AI 직원 칸·방 창: 한 줄에 이름표 하나, 입력칸은 화면 색에 맞춤(어두운 화면에서 회색 칸이 되지 않게) */
 #pStaff label, #roomDlg label.small { display:grid; grid-template-columns:4.5em 1fr; align-items:center; gap:8px; margin:8px 0 0; }
 #roomDlg label.small:has(textarea) { grid-template-columns:1fr; }
-#pStaff input, #pStaff select, #roomDlg input:not([type=checkbox]), #roomDlg select, #roomDlg textarea { width:100%; box-sizing:border-box; background:var(--surface-alt); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 8px; font:inherit; font-size:14px; }
+#pStaff input, #pStaff select, #pWork input[type=text], #roomDlg input:not([type=checkbox]), #roomDlg select, #roomDlg textarea { width:100%; box-sizing:border-box; background:var(--surface-alt); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 8px; font:inherit; font-size:14px; }
 #pStaff input#stIcon { width:4em; }
 #rdMembers label { display:flex; gap:6px; align-items:center; margin:4px 0; }
 /* U4 처음 설정 3단계 */
@@ -160,11 +162,13 @@ ol.guide { padding-left:20px; margin:10px 0 0; font-size:14px; } ol.guide li { m
 .kv dt { color:var(--muted); } .kv dd { margin:0; overflow-wrap:anywhere; }
 .sec { border-top:1px solid var(--border); margin-top:16px; padding-top:14px; font-size:14px; }
 .sec h4 { margin:0 0 8px; font-size:14px; }
-details.adv summary { cursor:pointer; color:var(--muted); }
+details.adv summary { cursor:pointer; color:var(--muted); font-weight:600; }
+.sec details.adv + details.adv, #pWork details.adv { margin-top:12px; }
 details.adv[open] summary { margin-bottom:10px; }
 .radio { display:flex; gap:8px; align-items:flex-start; margin:6px 0; font-size:14px; }
 .pbtn { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:6px 12px; font-size:13px; margin:6px 6px 0 0; }
-.pbtn.danger { color:var(--err); }
+.pbtn.danger { color:var(--err); border-color:color-mix(in srgb, var(--err) 45%, var(--border)); }
+.pbtn.danger:hover { background:var(--err-soft); }
 
 .toast { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:30; max-width:min(560px,calc(100% - 32px)); padding:10px 16px; border-radius:12px; box-shadow:var(--shadow); font-size:14px; background:var(--surface); border:1px solid var(--border); }
 .toast.ok { color:var(--ok); } .toast.warn { color:var(--warn); background:var(--warn-soft); } .toast.err { color:var(--err); background:var(--err-soft); }
@@ -183,6 +187,19 @@ details.adv[open] summary { margin-bottom:10px; }
   .panel { position:fixed; inset:0 0 0 auto; width:min(340px,100%); z-index:20; box-shadow:var(--shadow); }
   .compose textarea { font-size:16px; }
   .bubble { max-width:92%; }
+  /* 디자인 통일(2026-11-20): 머리줄이 3줄로 늘어나지 않게 — 엔진·계정·작업 칩은 연결 설정 패널에서 봄 */
+  .head { flex-wrap:nowrap; padding:8px 10px; gap:6px; }
+  .head h2 { flex:1 1 auto; min-width:0; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .head .spacer, #engineChip, #acctChip, #workChip { display:none !important; }
+  #stateChip { flex:0 1 auto; min-width:0; max-width:40vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .head h2 { flex-basis:0; min-width:64px; }
+  .switch { flex:none; white-space:nowrap; }
+  /* 이름은 화면 읽기 프로그램에만(스위치 상태는 손잡이 색으로 보임) */
+  #panelBtn { flex:none; }
+  #speakBtn .lbl, #panelBtn .lbl, #liveLabel { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  .switch { padding:4px; }
+  .iconbtn, .back, #speakBtn { min-width:44px; min-height:44px; }
+  .grp.rooms button { min-width:44px; min-height:44px; }
   /* U7: 손가락으로 누르기 쉽게(44px 이상), 창은 화면 폭에 맞춤 */
   .row, .side-bottom a, .side-bottom button, .pbtn, .back, .switch, .addbtn, .acts a, .acts button, .modal button, .linkbtn, #panelBtn { min-height:44px; }
   .scrim { padding:10px; }
@@ -295,7 +312,7 @@ details.adv[open] summary { margin-bottom:10px; }
       <h1>준비됐어요</h1>
       <p class="muted small" style="margin:0">이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요.</p>
       <div class="check"><div class="av" style="background:#229ED9" aria-hidden="true">✈</div><div><b>메신저로도 쓰기</b><div class="small muted">텔레그램·디스코드·슬랙·카카오톡</div></div><button type="button" class="st linkbtn" id="sMsg">설정하기</button></div>
-      <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>밖에서도 쓰기(허브)</b><div class="small muted">PC가 꺼져 있을 때도 새 세션이 답해요</div></div><a class="st" href="/settings#hub">설정하기</a></div>
+      <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>밖에서도 쓰기(허브)</b><div class="small muted">PC가 꺼져 있을 때도 새 세션이 답해요</div></div><a class="st" href="/settings#apps">설정하기</a></div>
       <button type="button" class="bigbtn" id="s3Open">대화 열기</button>
     </div>
     <div class="sfoot"><button type="button" class="linkbtn" id="sSkip">나중에 하기</button><div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div><span id="sStep">1 / 3</span></div>
@@ -376,10 +393,10 @@ details.adv[open] summary { margin-bottom:10px; }
       <span class="spacer"></span>
       <button type="button" class="switch" role="switch" aria-checked="false" id="liveSwitch" hidden><span class="knob"></span><span id="liveLabel">AI 응답 꺼짐</span></button>
       <button type="button" class="iconbtn" id="speakBtn" aria-pressed="false" hidden title="새 답이 오면 소리로 읽어 줘요">🔈 읽어 주기</button>
-      <button type="button" class="iconbtn" id="panelBtn" aria-expanded="false" hidden>연결 설정</button>
+      <button type="button" class="iconbtn" id="panelBtn" aria-expanded="false" aria-label="연결 설정" hidden><span aria-hidden="true" class="ico">⋯</span><span class="lbl"> 연결 설정</span></button>
     </div>
     <div class="cards" id="cards" aria-live="polite" aria-label="처리할 일"></div>
-    <div class="msgs" id="msgs" aria-live="polite"><div class="welcome" id="welcome">왼쪽에서 대화를 고르면 이어서 질문할 수 있어요.</div></div>
+    <div class="msgs" id="msgs" aria-live="polite"><div class="welcome" id="welcome">목록에서 대화를 고르면 이어서 질문할 수 있어요.</div></div>
     <form class="compose" id="compose">
       <button type="button" class="mic" id="micBtn" aria-label="말로 쓰기" title="말로 쓰기(받아쓴 글은 고친 뒤 보내요)" hidden>🎤</button>
       <textarea id="question" rows="1" placeholder="메시지" aria-label="메시지" disabled></textarea>
@@ -404,25 +421,27 @@ details.adv[open] summary { margin-bottom:10px; }
       <h4>작업 모드</h4>
       <label class="radio"><input type="checkbox" id="wmOn"> <span>작업 모드 켜기 <span class="muted small">(기본 꺼짐)</span></span></label>
       <div class="small muted">켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록).</div>
-      <h4 style="margin-top:12px">사람이 직접 할 일</h4>
+      <details class="adv"><summary>사람이 직접 할 일</summary>
       <div class="small muted">여기에 맞는 일은 AI에게 묻지 않고 "하지 마세요"로 답한 뒤 사람에게 넘겨요(카드에 무엇을·어디서). 직접 처리했으면 "직접 처리함"을 눌러 기록해요.</div>
       <label class="radio"><input type="checkbox" id="hoCmd"> <span>모든 명령 실행</span></label>
       <label class="radio"><input type="checkbox" id="hoFile"> <span>모든 파일 수정</span></label>
       <label class="radio"><input type="checkbox" id="hoPerm"> <span>권한 추가 요청</span></label>
-      <label class="small">이 글자가 들어간 명령(쉼표로 여러 개, 예: git push, deploy, rm -rf)<input type="text" id="hoPat" maxlength="600" style="width:100%"></label>
-      <button type="button" class="linkbtn" id="hoSave">사람이 직접 할 일 저장</button>
+      <label class="small">이 글자가 들어간 명령(쉼표로 여러 개, 예: git push, deploy, rm -rf)<input type="text" id="hoPat" maxlength="600"></label>
+      <button type="button" class="pbtn" id="hoSave">저장</button>
+      </details>
     </div>
     <div class="sec" id="pStaff">
-      <h4>AI 직원</h4>
+      <details class="adv"><summary>AI 직원 이름·역할</summary>
       <div class="small muted">방에서 @이름으로 불러요(빈칸 없이). 역할을 정하면 다음 질문 한 번에 역할 안내가 함께 가요.</div>
       <label class="small">이름 <input id="stName" maxlength="20" autocomplete="off"></label>
       <label class="small">아이콘 <input id="stIcon" maxlength="2" style="width:3em" autocomplete="off"></label>
       <label class="small">역할 <select id="stRole"><option value="">없음</option></select></label>
       <button type="button" class="pbtn" id="stSave">저장</button>
+      </details>
     </div>
     <div class="sec" id="pData">
       <h4>보관 기록</h4>
-      <button type="button" class="pbtn" id="msgDel">이 대화의 서버 보관 기록 지우기</button>
+      <button type="button" class="pbtn danger" id="msgDel">이 대화의 서버 보관 기록 지우기</button>
       <div class="small muted">이어온 서버(이 PC·허브)에 남은 이 대화의 질문·답만 지워요. 원래 Codex·Claude 세션 기록은 그대로예요. 처리 중일 때는 끝난 뒤 지우세요.</div>
     </div>
     <div class="sec" id="pNew" hidden>
@@ -483,7 +502,7 @@ const ERR = {
 };
 const NS_ERR = { bad_name: '이름은 영문·숫자·- 2~32자(앞뒤는 영문·숫자)예요', name_taken: '같은 이름의 세션이 이미 있어요',
   session_limit: '세션 수 한도를 넘었어요 — 보관하거나 삭제하세요', engine_limit: '이 엔진의 세션 수 한도를 넘었어요',
-  profile_not_allowed: 'full 권한은 설정 파일에서만 정할 수 있어요', unknown_host: '그 PC·칸이 목록에 없어요', app_not_allowed: '이 앱에서는 만들 수 없어요', new_sessions_disabled: '새 세션 기능이 꺼져 있어요(설정 → 대화)',
+  profile_not_allowed: 'full 권한은 설정 파일에서만 정할 수 있어요', unknown_host: '그 PC·칸이 목록에 없어요', app_not_allowed: '이 앱에서는 만들 수 없어요', new_sessions_disabled: '새 세션 기능이 꺼져 있어요(설정 → 관리 → 대화 등록)',
   not_active: '깨어 있는 세션이 아니에요', conversation_busy: '처리 중이거나 확인 필요 질문이 있어요', confirm_mismatch: '이름 확인이 맞지 않아요' };
 const AUTH_ERR = { terms_required: '이용 약관과 개인정보 처리방침에 동의해 주세요', email_taken: '이미 신청한 이메일이에요 — 로그인해 보세요', bad_email: '이메일 모양이 맞지 않아요', signup_closed: '지금은 가입 신청을 받지 않아요', account_disabled: '쓸 수 없는 계정이에요(관리자에게 문의)', bad_password: '비밀번호가 맞지 않아요', weak_password: '비밀번호는 10자 이상으로 정하세요', locked: '여러 번 틀려 잠시 잠겼어요. 잠시 뒤 다시 하세요',
   already_setup: '관리자가 이미 있어요. 로그인하세요', setup_required: '관리자를 먼저 만드세요', bad_origin: '이 화면에서 다시 시도하세요' };
@@ -496,7 +515,7 @@ let rooms = [], currentRoom = null, roomTimer = null; const roomSeen = new Map()
 async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
   $('newSessBtn').hidden = r.status !== 200; // 새 세션 기능이 꺼져 있으면 버튼을 숨긴다(403)
-  if (r.status === 200) $('nsLimits').textContent = '지금 ' + r.body.sessions + '/' + r.body.maxSessions + '개 · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude + ' · Antigravity ' + (r.body.perEngine.antigravity ?? 0) + '/' + (r.body.maxPerEngine.antigravity ?? 0) + '. 명령 실행·인터넷(full) 권한은 설정 → 대화 → 새 세션에서 켜요.';
+  if (r.status === 200) $('nsLimits').textContent = '지금 ' + r.body.sessions + '/' + r.body.maxSessions + '개 · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude + ' · Antigravity ' + (r.body.perEngine.antigravity ?? 0) + '/' + (r.body.maxPerEngine.antigravity ?? 0) + '. 명령 실행·인터넷(full) 권한은 설정 → 관리 → 대화 등록 → 새 세션에서 켜요.';
 }
 // SV2: 허브에서는 새 세션을 만들 곳을 고른다 — 허브 자신(글로만 답해요) 또는 엔진 칸·PC(명령·파일 작업까지). 칸 Claude는 서버 Claude 로그인을 같이 씀.
 async function loadNsHosts() {
@@ -693,7 +712,7 @@ async function select(id) {
 }
 // --- U3 대화 연결 ---
 const CONN_ERR = { codex_unavailable: '이 PC의 Codex 목록을 불러오지 못했어요. Codex 앱이 설치·로그인돼 있는지 확인하세요.', excluded_session: '이 대화는 이어온에서 다룰 수 없어요.',
-  bad_session_ref: '대화 ID 형식이 아니에요(예: 01a18790-63c7-73e3-a60b-6ddb60fd5be8).', choose_host: '연결할 PC를 정할 수 없어요. 설정 → 대화의 세션 등록에서 연결하세요.',
+  bad_session_ref: '대화 ID 형식이 아니에요(예: 01a18790-63c7-73e3-a60b-6ddb60fd5be8).', choose_host: '연결할 PC를 정할 수 없어요. 설정 → 관리 → 대화 등록에서 연결하세요.',
   local_only: '이 PC에서 연 화면에서만 연결할 수 있어요.', no_connector_config: '이 PC의 연결부 설정이 없어요. 설치를 다시 실행하세요.',
   device_offline: '그 PC가 꺼져 있어요. PC에서 이어온을 켠 뒤 다시 시도하세요.', device_no_response: '그 PC가 답하지 않아요. PC의 이어온이 켜져 있는지 확인하세요.',
   device_admin_unknown: '그 PC가 처리했는지 확인하지 못했어요. 잠시 뒤 목록을 다시 열어 보세요.', unknown_host: '내 PC가 아니에요.', device_admin_busy: '그 PC가 다른 일을 처리 중이에요. 잠시 뒤 다시 시도하세요.' };
@@ -703,10 +722,10 @@ let connHostId = null;
 const threadsReq = () => connHostId ? api('/v1/admin/hosts/' + encodeURIComponent(connHostId) + '/run', { method: 'POST', body: JSON.stringify({ op: 'codex.threads' }) }) : api('/v1/admin/local/threads');
 async function openConnect() {
   if (device) { connHostId = null; $('connHostRow').hidden = true; $('connect').hidden = false; loadThreads(); return; }
-  if (authState?.mode !== 'hub') { location.href = '/settings#conv'; return; } // hubMode는 "이 PC가 허브에 연결됨"이라 허브 화면 판정에 쓰지 않음(배포 뒤 실제 화면에서 찾음)
+  if (authState?.mode !== 'hub') { location.href = '/settings#reg'; return; } // hubMode는 "이 PC가 허브에 연결됨"이라 허브 화면 판정에 쓰지 않음(배포 뒤 실제 화면에서 찾음)
   const r = await api('/v1/admin/devices').catch(() => ({ status: 0 }));
   const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf && !d.cell) : [];
-  if (!list.length) { toast('err', '연결된 PC가 없어요. 설정 → 밖에서도 쓰기 → PC 연결 링크로 내 PC를 먼저 연결하세요.'); return; }
+  if (!list.length) { toast('err', '연결된 PC가 없어요. 설정 → 앱과 기기 → PC 연결 링크로 내 PC를 먼저 연결하세요.'); return; }
   const sel = $('connHost'); sel.replaceChildren();
   for (const d of list) { const o = el('option', (d.name || d.hostId) + (d.online ? '' : ' (꺼짐)')); o.value = d.hostId; sel.append(o); }
   sel.value = (list.find((d) => d.online) ?? list[0]).hostId; connHostId = sel.value;
@@ -891,7 +910,7 @@ $('s1Next').onclick = () => { setupStep(2); loadThreads($('sList'), async (body)
 $('s3Open').onclick = async () => { closeSetup(); await load(); if (setupConv) await select(setupConv); };
 $('sSkip').onclick = async () => { if (!$('s0').hidden) await setMode('pc'); closeSetup(); }; // 고르지 않고 넘어가면 ①(설계 IM1)
 $('s0Pc').onclick = async () => { if (await setMode('pc')) setupStep(1); };
-$('s0Hub').onclick = async () => { if (await setMode('hub')) { closeSetup(); location.href = '/settings#hub'; } };
+$('s0Hub').onclick = async () => { if (await setMode('hub')) { closeSetup(); location.href = '/settings#apps'; } };
 // --- M1: 사용 방식(① 이 PC에서만 · ② 내 허브). 서버가 모드에 맞지 않는 기능을 켜지 않는다 ---
 const MODE_TXT_M = { pc: '이 PC에서만', hub: '내 허브에 연결' };
 const MODE_ERR = { requests_pending: '처리 중이거나 확인이 필요한 질문이 있어 지금은 바꿀 수 없어요. 정리한 뒤 다시 하세요', local_only: '이 PC에서 연 화면에서만 바꿀 수 있어요', bad_mode: '사용 방식이 맞지 않아요' };
@@ -972,12 +991,14 @@ function cardView(k, c) {
   if (k.kind === 'hub_mode') {
     const acts = [];
     if (/^https?:\/\//.test(k.hubUrl || '')) { const a = el('a', '허브 화면 열기'); a.href = k.hubUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; acts.push(a); }
-    return makeCard('warn', '이 PC는 허브에 연결돼 있어요', '여기서 보낸 질문은 처리하지 않아요. 허브 화면이나 허브에 연결된 메신저 봇에서 보내세요. 허브 연결을 끊으려면 설정 → 밖에서도 쓰기에서 "연결 끊기".', acts);
+    return makeCard('warn', '이 PC는 허브에 연결돼 있어요', '여기서 보낸 질문은 처리하지 않아요. 허브 화면이나 허브에 연결된 메신저 봇에서 보내세요. 허브 연결을 끊으려면 설정 → 앱과 기기 → 허브 연결에서 "연결 끊기".', acts);
   }
-  if (k.kind === 'device_offline') return makeCard('err', 'PC 연결이 끊겼어요', '이 대화가 있는 PC가 꺼져 있거나 이어온이 멈췄어요. PC를 켜고, 그 PC의 이어온 화면에서 "연결됨"인지 확인하세요.');
+  // 디자인 통일(2026-11-20): 꺼짐 카드에는 다음 할 일과 [다시 확인]을 같이 둔다
+  const recheck = () => btn('다시 확인', async () => { await refresh(); const still = cards.some((x) => x.kind === k.kind); toast(still ? 'warn' : 'ok', still ? '아직 꺼져 있어요 — 위 안내대로 켠 뒤 다시 눌러 주세요' : '다시 연결됐어요'); });
+  if (k.kind === 'device_offline') return makeCard('err', 'PC 연결이 끊겼어요', '이 대화가 있는 PC가 꺼져 있거나 이어온이 멈췄어요. PC를 켜고, 그 PC의 이어온 화면에서 "연결됨"인지 확인하세요.', [recheck()]);
   if (k.kind === 'engine_off') return k.engine === 'claude_channel'
-    ? makeCard('err', 'Claude 세션이 꺼져 있어요', '이 대화는 Claude Code를 이어온 채널과 함께 켜 둔 동안만 받아요. 이 PC에서 Claude 채널 세션을 다시 켜세요(설명서 "Claude 채널 세션").')
-    : makeCard('err', '공유 서버가 꺼져 있어요', '동시 사용 모드는 공유 App Server가 켜져 있어야 해요. 연결 설정 → 고급에서 "번갈아 쓰기"로 바꿀 수도 있어요.');
+    ? makeCard('err', 'Claude 세션이 꺼져 있어요', '이 대화는 Claude Code를 이어온 채널과 함께 켜 둔 동안만 받아요. 이 PC에서 Claude 채널 세션을 다시 켜세요(설명서 "Claude 채널 세션").', [recheck()])
+    : makeCard('err', '공유 서버가 꺼져 있어요', '동시 사용 모드는 공유 App Server가 켜져 있어야 해요. 연결 설정 → 고급에서 "번갈아 쓰기"로 바꿀 수도 있어요.', [recheck()]);
   if (k.kind === 'held') {
     const text = k.status === 'approval_required' ? '원래 세션에서 권한 확인이 필요해 멈춘 질문이 있어요. 원래 앱에서 처리한 뒤 정리하세요. 자동으로 승인하지 않아요.'
       : k.errorCode === 'turn_joined_by_other_input' ? '처리 중에 TUI 입력이 합류해 결과를 확정하지 못했어요. TUI에서 결과를 본 뒤 정리하세요. 자동으로 다시 보내지 않아요.'
@@ -992,7 +1013,7 @@ function cardView(k, c) {
   if (k.kind === 'text_only') return makeCard('info', '이 세션은 글로만 답해요', '허브가 직접 돌리는 새 세션은 서버 컨테이너 안이라 명령 실행·파일 작업이 되지 않아요. 그런 일은 서버의 엔진 칸("서버 · 이름") 대화에 맡기세요.');
   if (k.kind === 'hub_codex_login') {
     const a = el('a', '로그인하러 가기'); a.href = '/settings#hubsec';
-    return makeCard('err', '허브의 Codex 로그인이 필요해요', '이 허브가 Codex에 로그인돼 있지 않아 새 Codex 세션이 답할 수 없어요. 설정 → 허브 보안·Codex에서 로그인하세요(주소와 코드가 나와요).', [a]);
+    return makeCard('err', '허브의 Codex 로그인이 필요해요', '이 허브가 Codex에 로그인돼 있지 않아 새 Codex 세션이 답할 수 없어요. 설정 → 관리 → 허브 보안에서 로그인하세요(주소와 코드가 나와요).', [a]);
   }
   if (k.kind === 'archived') {
     const card = makeCard('warn', '보관된 세션이에요', '꺼내면 다시 질문할 수 있어요.', [btn('꺼내기', async () => {
@@ -1056,7 +1077,7 @@ function renderHead() {
   $('stateChip').hidden = false; $('stateChip').textContent = stateOf(c)[1];
   $('workChip').hidden = c.workMode !== true;
   $('panelBtn').hidden = false;
-  $('question').placeholder = c.label + '에게 메시지';
+  $('question').placeholder = matchMedia('(max-width: 760px)').matches ? '메시지' : c.label + '에게 메시지'; // 휴대폰에서는 잘리지 않게 짧게
   renderPanel(c); renderSendable();
 }
 async function review(card, requestId, executed) {
@@ -1165,7 +1186,7 @@ function speakText(text) {
   speechSynthesis.speak(u);
 }
 function voiceAuto(text) { if (voiceAutoOn) speakText(text); }
-function renderSpeak() { $('speakBtn').setAttribute('aria-pressed', String(voiceAutoOn)); $('speakBtn').textContent = voiceAutoOn ? '🔊 읽어 주기 켜짐' : '🔈 읽어 주기'; }
+function renderSpeak() { const b = $('speakBtn'); b.setAttribute('aria-pressed', String(voiceAutoOn)); const t = voiceAutoOn ? '읽어 주기 켜짐' : '읽어 주기'; b.setAttribute('aria-label', t); const ic = el('span', voiceAutoOn ? '🔊' : '🔈'); ic.setAttribute('aria-hidden', 'true'); b.replaceChildren(ic, el('span', ' ' + t, 'lbl')); }
 $('speakBtn').hidden = !canSpeak; renderSpeak();
 $('speakBtn').onclick = async () => {
   if (!voiceAutoOn && !(await voiceNotice())) return;
