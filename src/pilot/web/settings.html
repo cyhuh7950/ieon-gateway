@@ -106,6 +106,12 @@ table.list tr.pick:hover { background:var(--surface-alt); }
 #log { min-height:200px; font-size:12px; line-height:1.9; }
 .q { color:var(--accent); font-weight:600; margin-top:12px; }
 .a { white-space:pre-wrap; }
+/* 앱과 기기: 넓은 화면에서 두 칸(허브 연결·앱 | 기기) — 한 탭 = 한 화면(2026-11-20) */
+@media (min-width:1100px) {
+  .admin[data-tab="apps"] { grid-template-columns:1fr 1fr; align-items:start; }
+  .admin[data-tab="apps"] > nav { grid-column:1 / -1; }
+  .admin[data-tab="apps"] > section[aria-label="기기"] { grid-column:2; grid-row:3 / span 2; }
+}
 /* 휴대폰 폭(대화 화면과 같은 760px): 누를 것 44px, 표는 한 줄에 한 카드로 쌓음(옆으로 밀지 않음) */
 @media (max-width:760px) {
   header { padding:6px 12px; flex-wrap:nowrap; }
@@ -489,7 +495,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     <div class="row"><button class="primary" type="button" id="adCode">연결 코드 만들기</button></div>
     <div id="adCodeBox" class="state warn" hidden role="alert"></div>
     <table class="list"><thead><tr><th>앱 기기</th><th>연결한 때</th><th>마지막 사용</th><th></th></tr></thead><tbody id="adList"></tbody></table>
-    <details class="fold"><summary>휴대폰 알림 <span class="sum">(Firebase 파일 두 개를 한 번 넣기)</span> <span class="tip" tabindex="0" role="note" aria-label="앱을 닫아도 &quot;○○가 답했어요&quot;가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요." data-tip="앱을 닫아도 &quot;○○가 답했어요&quot;가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요.">i</span></summary>
+    <details class="fold"><summary>휴대폰 알림 <span class="tip" tabindex="0" role="note" aria-label="앱을 닫아도 &quot;○○가 답했어요&quot;가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요." data-tip="앱을 닫아도 &quot;○○가 답했어요&quot;가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요.">i</span></summary>
     <div id="pushState" class="muted"></div>
     <div class="row"><label class="field">서비스 계정 키(.json)<input type="file" id="pushKeyFile" accept=".json,application/json"></label></div>
     <div class="row"><label class="field">앱 설정 파일(google-services.json)<input type="file" id="pushAppFile" accept=".json,application/json"></label></div>
@@ -1642,6 +1648,7 @@ function showAtab(name) {
   for (const g of document.querySelectorAll('#agrp button')) g.setAttribute('aria-pressed', String(g.dataset.grp === grp));
   for (const b of document.querySelectorAll('#atabs button')) { if (b.dataset.grp !== grp) b.hidden = true; b.setAttribute('aria-pressed', String(b.dataset.atab === name)); }
   for (const s of secs) { s.hidden = s.dataset.atab !== name; markNa(s); }
+  $('admin').dataset.tab = name; // 탭별 배치(앱과 기기는 넓은 화면에서 두 칸)
   try { localStorage.setItem('ieon_stab', name); } catch { /* 저장 못 해도 동작 */ }
   if (location.hash.slice(1) !== name) history.replaceState(null, '', location.pathname + '#' + name);
 }
