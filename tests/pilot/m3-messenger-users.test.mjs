@@ -11,7 +11,7 @@ import { createBridge } from '../../src/pilot/messenger/bridge.mjs';
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
-test('M3: 연결 숫자 → 메신저 계정 연결, 그 계정의 봇 요청은 그 가입자 대화만, 연결 안 된 사람은 관리자 대화, 카카오는 연결 안 됨, 끊으면 다시 관리자 기준', async (t) => {
+test('M3: 연결 숫자 → 메신저 계정 연결, 그 계정의 봇 요청은 그 가입자 대화만, 연결 안 된 사람은 관리자 대화, 카카오도 연결됨, 끊으면 다시 관리자 기준', async (t) => {
   const d = mkdtempSync(join(tmpdir(), 'ieon-m3-'));
   const app = createApp({ dbPath: join(d, 'p.db'), webAccess: { modes: ['ip_allowlist'], ipAllowlist: ['127.0.0.1', '::1', '::ffff:127.0.0.1'] },
     users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }, { tokenSha256: sha('msg'), userId: 'u_sinsan', appId: 'app_messenger' }], devices: [], bindings: [] });
@@ -35,7 +35,6 @@ test('M3: 연결 숫자 → 메신저 계정 연결, 그 계정의 봇 요청은
   // 가입자: 연결 숫자 받기 → 봇에 그 숫자를 보냄(메신저가 claim으로 알림)
   const code = (await web('/v1/admin/messenger/link', { method: 'POST', body: {} })).body.code;
   assert.match(code, /^\d{6}$/);
-  assert.equal((await msg('/v1/messenger/claim', { method: 'POST', bot: null, body: { platform: 'kakao', botId: 'default', userId: '999', code } })).status === 200, false, '카카오는 연결 안 됨');
   assert.deepEqual((await msg('/v1/messenger/claim', { method: 'POST', bot: null, body: { platform: 'telegram', botId: 'default', userId: '555', name: '유저', code } })).body, { claimed: true, linked: true });
   assert.equal((await msg('/v1/messenger/claim', { method: 'POST', bot: null, body: { platform: 'telegram', botId: 'default', userId: '777', code } })).status === 200, false, '숫자는 한 번만');
   assert.deepEqual((await msg('/v1/messenger/config', { bot: null })).body.linkedUsers, { telegram: ['555'] });
@@ -48,6 +47,13 @@ test('M3: 연결 숫자 → 메신저 계정 연결, 그 계정의 봇 요청은
   const links = (await web('/v1/admin/messenger/link')).body;
   assert.deepEqual(links.links.map((l) => [l.platform, l.senderId, l.name]), [['telegram', '555', '유저']]);
   assert.ok(links.bots.some((b) => b.platform === 'telegram'));
+  // 카카오도 다른 메신저처럼(신산님 2026-11-19): 새 숫자 → 카카오 계정 연결 → 그 계정은 가입자 대화만
+  app.store.saveBot({ platform: 'kakao', botId: 'default', name: '카카오', roleId: null, callNames: [], extraUsers: [], enabled: true });
+  const kcode = (await web('/v1/admin/messenger/link', { method: 'POST', body: {} })).body.code;
+  assert.deepEqual((await msg('/v1/messenger/claim', { method: 'POST', bot: null, body: { platform: 'kakao', botId: 'default', userId: 'kkUser1', code: kcode } })).body, { claimed: true, linked: true });
+  assert.deepEqual((await msg('/v1/conversations', { sender: 'kkUser1', bot: 'kakao:default' })).body.conversations.map((c) => c.conversationId), ['c_user']);
+  assert.ok((await web('/v1/admin/messenger/link')).body.bots.some((x) => x.platform === 'kakao'), '가입자 화면의 같이 쓰는 봇에 카카오');
+  assert.equal((await web('/v1/admin/messenger/link/kakao/kkUser1', { method: 'DELETE' })).body.unlinked, true);
   assert.equal((await web('/v1/admin/messenger/link/telegram/555', { method: 'DELETE' })).body.unlinked, true);
   assert.deepEqual((await msg('/v1/conversations', { sender: '555' })).body.conversations.map((c) => c.conversationId), ['c_admin'], '끊으면 다시 관리자 기준');
 });

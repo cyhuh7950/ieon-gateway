@@ -742,7 +742,7 @@ export function createApp(config) {
       // (그 사람 대화만, 관리 경로는 M2 규칙). 연결 안 된 사람은 지금처럼(관리자가 허용한 사람 = 관리자 대화).
       if (user.appId === 'app_messenger' && req.headers['x-ieon-sender'] && req.headers['x-ieon-bot']) {
         const plat = String(req.headers['x-ieon-bot']).split(':')[0];
-        const lu = plat !== 'kakao' && store.linkedUser(plat, String(req.headers['x-ieon-sender']).slice(0, 128));
+        const lu = store.linkedUser(plat, String(req.headers['x-ieon-sender']).slice(0, 128)); // 카카오도(신산님 2026-11-19 "다른 메신저처럼 연결")
         if (lu) { principal.userId = lu; principal.appId = 'app_web'; principal.viaMessenger = true; }
       }
       // M3: 메신저 봇이 알림(예약 답·보관 예고)을 가져갈 때는 메신저에 연결된 가입자들의 대화 것도 함께 — 봇은 그 대화에 묶인 방에만 보냄
@@ -1259,10 +1259,10 @@ export function createApp(config) {
           return json(res, 200, { code, expiresAt: new Date(Date.now() + CLAIM_MS).toISOString() });
         }
         if (path === '/v1/admin/messenger/link' && req.method === 'GET') {
-          const bots = store.listBots().filter((b) => b.enabled && b.platform !== 'kakao').map((b) => ({ platform: b.platform, name: b.name, username: botStatus.get(`${b.platform}:${b.botId}`)?.username ?? null }));
+          const bots = store.listBots().filter((b) => b.enabled).map((b) => ({ platform: b.platform, name: b.name, username: botStatus.get(`${b.platform}:${b.botId}`)?.username ?? null }));
           return json(res, 200, { links: store.messengerLinks(principal.userId), bots });
         }
-        { const ml = path.match(/^\/v1\/admin\/messenger\/link\/(telegram|discord|slack|line)\/([\w.:@-]{1,128})$/);
+        { const ml = path.match(/^\/v1\/admin\/messenger\/link\/(telegram|discord|slack|line|kakao)\/([\w.:@-]{1,128})$/);
           if (ml && req.method === 'DELETE') return store.unlinkMessenger(principal.userId, ml[1], ml[2]) ? json(res, 200, { unlinked: true }) : json(res, 404, { error: 'not_found' }); }
         if (path === '/v1/admin/messenger/claim') {
           if (req.method === 'POST') {
@@ -1474,10 +1474,10 @@ export function createApp(config) {
           const b = await readJson(req);
           const platform = String(b.platform ?? ''); const botId = String(b.botId ?? ''); const userId = String(b.userId ?? '');
           if (!/^[\w.:@-]{1,128}$/.test(userId)) return json(res, 400, { error: 'bad_claim' });
-          // M3: 가입자의 연결 숫자이면 이 메신저 계정을 그 가입자에 연결(카카오 제외). 주인 등록 숫자보다 먼저 본다.
+          // M3: 가입자의 연결 숫자이면 이 메신저 계정을 그 가입자에 연결(카카오 포함 — 2026-11-19). 주인 등록 숫자보다 먼저 본다.
           { const fk = `${platform}:${userId}`; const lf = linkFails.get(fk);
             const code = String(b.code ?? '').trim(); const lc = linkCodes.get(code);
-            if (lc && lc.expMs > Date.now() && platform !== 'kakao' && !(lf && lf.until > Date.now())) {
+            if (lc && lc.expMs > Date.now() && !(lf && lf.until > Date.now())) {
               linkCodes.delete(code); linkFails.delete(fk);
               store.linkMessenger(platform, userId, lc.userId, b.name ? String(b.name).slice(0, 60) : null);
               process.stderr.write(JSON.stringify({ ch: 'server', event: 'messenger_linked', platform }) + '\n');
