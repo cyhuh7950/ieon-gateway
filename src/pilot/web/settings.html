@@ -435,13 +435,13 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   <section class="atab" data-atab="apps" data-need="hub" hidden aria-label="기기" id="dvSection">
     <h2>기기 <span class="tip" tabindex="0" role="note" aria-label="새 PC는 위의 &quot;PC 연결 링크&quot;를 그 PC에서 열면 바로 연결돼요. 또는 그 PC의 이어온 설정 → 앱과 기기 → 허브 연결에서 &quot;연결&quot;을 누르면 아래 &quot;연결 요청&quot;에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다." data-tip="새 PC는 위의 &quot;PC 연결 링크&quot;를 그 PC에서 열면 바로 연결돼요. 또는 그 PC의 이어온 설정 → 앱과 기기 → 허브 연결에서 &quot;연결&quot;을 누르면 아래 &quot;연결 요청&quot;에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.">i</span></h2>
     <div id="pcLinkOff" class="state" hidden>이 서버는 <b>서버 설치형</b>이에요 — 엔진은 이 서버(엔진 칸)에서만 돌고, PC 연결 화면은 숨겨 두었어요. PC도 연결해 함께 쓰려면 <button type="button" id="pcLinkOn">PC 연결 켜기</button> (데이터는 그대로예요)</div>
-    <div id="inviteBox" hidden>
-      <h3>PC 연결 링크 <span class="tip" tabindex="0" role="note" aria-label="연결할 PC에서 이 링크를 열면 그 PC의 이어온 설정 화면이 열리고 &quot;연결&quot;만 누르면 끝나요(코드 확인 없음). 10분 동안 한 번만 쓸 수 있어요. PC에 이어온이 설치돼 있어야 해요." data-tip="연결할 PC에서 이 링크를 열면 그 PC의 이어온 설정 화면이 열리고 &quot;연결&quot;만 누르면 끝나요(코드 확인 없음). 10분 동안 한 번만 쓸 수 있어요. PC에 이어온이 설치돼 있어야 해요.">i</span></h3>
+    <details class="fold" id="inviteBox" hidden>
+      <summary>PC 연결 링크 <span class="tip" tabindex="0" role="note" aria-label="연결할 PC에서 이 링크를 열면 그 PC의 이어온 설정 화면이 열리고 &quot;연결&quot;만 누르면 끝나요(코드 확인 없음). 10분 동안 한 번만 쓸 수 있어요. PC에 이어온이 설치돼 있어야 해요." data-tip="연결할 PC에서 이 링크를 열면 그 PC의 이어온 설정 화면이 열리고 &quot;연결&quot;만 누르면 끝나요(코드 확인 없음). 10분 동안 한 번만 쓸 수 있어요. PC에 이어온이 설치돼 있어야 해요.">i</span></summary>
       <div class="row"><button class="primary" type="button" id="inviteMake">링크 만들기</button><button type="button" id="inviteCopy" hidden>복사</button></div>
       <div id="inviteLink" class="muted" style="word-break:break-all"></div>
-    </div>
-    <div id="pairBox" hidden><h3>연결 요청</h3><div id="pairRows"></div></div>
-    <table class="list"><thead><tr><th>기기 ID</th><th>이름</th><th>출처</th><th>등록일</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead><tbody id="dvRows"></tbody></table>
+    </details>
+    <details class="fold" id="pairBox" hidden><summary>연결 요청</summary><div id="pairRows"></div></details>
+    <table class="list"><thead><tr><th>이름</th><th>출처</th><th>등록일</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead><tbody id="dvRows"></tbody></table>
     <details class="fold"><summary>최근 기록</summary><div id="dvEvents" class="muted"></div></details>
   </section>
   <section class="atab" data-atab="hubsec" data-admin data-need="hub" hidden aria-label="허브 보안">
@@ -663,7 +663,8 @@ async function loadDevices() {
   for (const d of r.body.devices) {
     const tr = el('tr');
     const state = d.revokedAt ? ['st-err', '폐기됨'] : d.online ? ['st-ok', '연결됨'] : ['muted', '연결 안 됨'];
-    [d.hostId, d.name, d.source === 'web' ? '웹' : '설치 파일', when(d.createdAt), when(d.lastSeenAt)].forEach((v) => tr.append(el('td', v)));
+    { const nm = el('td', d.name); nm.title = d.hostId; tr.append(nm); } // 기기 ID는 이름에 마우스를 올리면(2026-11-20 내부 ID 접기)
+    [d.source === 'web' ? '웹' : '설치 파일', when(d.createdAt), when(d.lastSeenAt)].forEach((v) => tr.append(el('td', v)));
     tr.append(el('td', state[1], state[0]));
     const act = el('td');
     if (d.source === 'web') {
@@ -693,6 +694,7 @@ async function loadPairings() {
   const r = await api('/v1/admin/pairings'); const box = $('pairRows'); box.innerHTML = '';
   const list = r.status === 200 ? r.body.pairings : [];
   if (!list.length) { box.append(el('div', '대기 중인 요청 없음', 'muted')); return; }
+  $('pairBox').open = true; // 기다리는 요청이 있으면 펼친다
   for (const q of list) {
     const row = el('div', null, 'row');
     row.append(el('span', q.name + ' · 코드 ' + q.code + ' · ' + when(q.createdAt)));
@@ -1789,6 +1791,7 @@ function decorate(root) {
   setSum('clSum', selText(document.querySelector('select[aria-label="기본으로 쓸 Claude 계정"]')) ? '— 기본: ' + selText(document.querySelector('select[aria-label="기본으로 쓸 Claude 계정"]')) : '');
   setSum('nsSum', $('nsOn') ? ($('nsOn').checked ? '— 켜짐' : '— 꺼짐') : '');
   for (const b of root.querySelectorAll('button:not(.primary):not(.danger)')) if (DANGER_BTN.test(b.textContent.trim())) b.classList.add('danger');
+  for (const td of root.querySelectorAll('table.list td:not([data-short])')) { const v = td.textContent.trim(); if (td.children.length === 0 && /^[0-9a-f]{8}-[0-9a-f-]{20,}$/i.test(v)) { td.dataset.short = '1'; td.title = v; td.textContent = v.slice(0, 8) + '…'; } }
   for (const t of root.querySelectorAll('table.list')) {
     const hs = [...t.querySelectorAll('thead th')].map((h) => h.textContent.trim()); if (!hs.length) continue;
     for (const tr of t.querySelectorAll('tbody tr')) [...tr.children].forEach((td, i) => { if (hs[i] && !td.dataset.label) td.dataset.label = hs[i]; });
