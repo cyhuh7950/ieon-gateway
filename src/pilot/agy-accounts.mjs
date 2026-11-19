@@ -1,7 +1,8 @@
 // A3(신산님 2026-11-19 "새 세션 범위로 만들기", 실측 ENGINE_ACCOUNTS 12절): Antigravity 이어온 전용 계정 — 이어온 새 세션에서만.
 // 계정 하나 = 로그인 폴더 하나(`agy acp --gemini-dir <폴더>`). 그 폴더에 대화도 저장되므로, 그 계정으로 만든 새 세션은 계속 그 계정으로 이어 쓴다.
 // PC에서 원래 쓰던 Antigravity 대화는 지금처럼 PC 기본 로그인(기본 폴더 ~/.gemini). 기본 폴더에서는 인증 요청을 보내지 않는다(PC 로그인 방식이 바뀜).
-// 로그인: API 키(그 폴더 api-key 파일, 실행 때 GEMINI_API_KEY + ACP authenticate gemini-api-key) 또는 구독(ACP authenticate oauth-personal — 그 PC에서 브라우저가 열림, 미실측).
+// 로그인: API 키(그 폴더 api-key 파일, 실행 때 GEMINI_API_KEY + ACP authenticate gemini-api-key). 구독은 막음 — ACP authenticate(oauth-personal)는
+// 방식만 정하고 실제 로그인을 하지 않는다(2026-11-19 실측: "Auth succeeded" 뒤 "You are not logged into Antigravity"). 계정 폴더별 구독 로그인 길은 미확인.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -36,6 +37,17 @@ export function agyRunFor(c, dir, accountId, { env = process.env } = {}) {
   const e = { ...env }; for (const k of ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'AGY_ADC_AUTH']) delete e[k];
   if (kind === 'api') e.GEMINI_API_KEY = readFileSync(join(home, 'api-key'), 'utf8').trim();
   return { accountId: id, geminiDir: home, authMethod: agyAuthMethod(kind), env: e };
+}
+
+// 연결부 상태 보고(EA10): Antigravity 새 세션별 이어온 계정 이름표(created 기록의 account)·새 세션 기본 이름표. 이름표만.
+export function agyAccountHealth(c) {
+  const label = (id) => (id && id !== PC_DEFAULT ? agyAccounts(c).find((a) => a.id === id)?.label ?? null : null);
+  const per = {};
+  try {
+    const f = c.newSessions?.createdPath;
+    if (f && existsSync(f)) for (const l of readFileSync(f, 'utf8').split('\n').filter(Boolean).slice(-500)) { try { const r = JSON.parse(l); const lb = label(r.account); if (lb && /^[0-9a-f-]{36}$/i.test(String(r.id))) per[String(r.id).toLowerCase()] = lb; } catch { /* 깨진 줄 */ } }
+  } catch { /* 기록 없음 */ }
+  return { agyAccounts: per, agyDefault: label(agyDefaultAccount(c)) };
 }
 
 export function saveAgyApiKey(home, key) {
