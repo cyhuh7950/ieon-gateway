@@ -64,7 +64,7 @@ test('거절·결과 불명은 안내만 하고 다시 보내지 않으며 /revi
   const s = setup(t, { conversations: [conv()], submit: { status: 409, body: { error: 'conversation_busy' } } });
   await s.say('/use 1');
   await s.say('질문');
-  assert.match(s.said.at(-1), /처리 중인 질문이 있어 보낼 수 없음/);
+  assert.match(s.said.at(-1), /처리 중인 질문이 있어 보낼 수 없어요/);
   assert.equal(s.calls.filter((c) => c.path.endsWith('/requests')).length, 1);
 
   const u = setup(t, { conversations: [conv({ heldBy: { requestId: 'req_9', status: 'unknown' } })], result: { status: 'unknown', errorCode: 'turn_joined_by_other_input' } });

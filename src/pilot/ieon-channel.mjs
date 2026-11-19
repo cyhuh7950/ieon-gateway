@@ -2,6 +2,7 @@
 // Claude Code가 `--dangerously-load-development-channels server:ieon`으로 이 프로세스를 띄운다.
 // 이어온 연결부는 loopback HTTP(Bearer 토큰)로 질문을 넣고 reply를 받아 간다.
 // 질문·답변 원문은 파일·로그에 남기지 않는다(메모리에만 보관).
+import { t as i18nT } from '../i18n/index.mjs';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
@@ -19,14 +20,10 @@ const log = (event, extra = {}) => process.stderr.write(JSON.stringify({ ch: 'ie
 
 // --- MCP stdio (줄 단위 JSON-RPC) ---
 const send = (msg) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...msg }) + '\n');
-const INSTRUCTIONS = [
-  '이어온(ieon) 연결부를 통해 사용자의 질문이 <channel source="ieon" chat_id="ieon" message_id="..."> 태그로 들어온다.',
-  '질문한 사람은 이 터미널이 아니라 이어온 화면을 본다. 답은 반드시 reply 도구로 보내고 reply_to에 그 message_id를 넣는다.',
-  'reply 외의 도구 사용이나 파일 변경이 필요해 보이면 실행하지 말고, 그 사실을 reply로 알린다.',
-].join('\n');
+const INSTRUCTIONS = i18nT('server.channel.instructions');
 const TOOLS = [{
   name: 'reply',
-  description: '이어온 질문에 답을 보낸다. reply_to에 질문의 message_id를 넣는다.',
+  description: i18nT('server.channel.reply_desc'),
   inputSchema: {
     type: 'object',
     properties: { reply_to: { type: 'string' }, text: { type: 'string' } },
@@ -50,12 +47,12 @@ function handleRpc(msg) {
     const entry = delivered.get(args.reply_to);
     if (params?.name !== 'reply' || !entry || typeof args.text !== 'string') {
       log('reply_rejected');
-      return send({ id, result: { content: [{ type: 'text', text: 'reply_to가 이어온 질문 ID가 아님' }], isError: true } });
+      return send({ id, result: { content: [{ type: 'text', text: i18nT('server.channel.bad_reply_to') }], isError: true } });
     }
     // 질문 하나에 답은 하나만 받는다. 중복 답장은 이어온에 전달하지 않는다.
     if (entry.replies.length) {
       log('reply_duplicate', { request_id: args.reply_to });
-      return send({ id, result: { content: [{ type: 'text', text: '이미 답을 보낸 질문이라 다시 보내지 않음' }], isError: true } });
+      return send({ id, result: { content: [{ type: 'text', text: i18nT('server.channel.already_replied') }], isError: true } });
     }
     entry.replies.push({ text: args.text.slice(0, MAX_TEXT), at: new Date().toISOString() });
     log('reply_stored', { request_id: args.reply_to });

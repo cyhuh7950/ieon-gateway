@@ -4,6 +4,7 @@
 //   folders: [{ id, name, path }]
 //   attach:  { "<engine>:<sessionRef>": { personal: id|null, shared: [{ id, write }] } }
 // 붙이지 않은 세션은 지금과 똑같이 동작한다(보존). 업무 대화에는 붙일 수 없다.
+import { t as i18nT } from '../i18n/index.mjs';
 import { realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
@@ -103,8 +104,8 @@ export function workspaceFor(c, engine, sessionRef) {
 // 질문 앞에 한 줄(엔진이 어디를 써야 하는지 알게 — 안내일 뿐 차단 아님)
 export function workspaceLine(ws) {
   if (!ws) return '';
-  const parts = [ws.personal && `개인: ${ws.personal}`, ws.write.length && `공유(쓰기): ${ws.write.join(', ')}`, ws.read.length && `공유(읽기만): ${ws.read.join(', ')}`].filter(Boolean);
-  return parts.length ? `[작업 공간] ${parts.join(' · ')}\n\n` : '';
+  const parts = [ws.personal && i18nT('server.workspace.personal', { name: ws.personal }), ws.write.length && i18nT('server.workspace.write', { list: ws.write.join(', ') }), ws.read.length && i18nT('server.workspace.read', { list: ws.read.join(', ') })].filter(Boolean);
+  return parts.length ? i18nT('server.workspace.line', { parts: parts.join(' · ') }) : '';
 }
 
 // 차단 수준(설계 3절 표 + WS0 실측 + 2026-11-18 작업 모드 실측). 사람이 알아볼 말로: 허용 필요 = 사람이 카드에서 허용해야만 써짐, 정리만 = 안내만.
@@ -114,21 +115,21 @@ export function workspaceLine(ws) {
 export function blockLevel(engine, { boundary = false, newSession = false, full = false } = {}) {
   if (engine === 'claude_cli') {
     return full
-      ? { write: 'organize', writeText: '정리만 — full 권한은 명령 도구(Bash)가 있어 폴더 밖도 쓸 수 있어요', read: 'organize', readText: '정리만 — full 권한은 명령으로 다른 폴더도 읽을 수 있어요' }
-      : { write: 'blocked', writeText: '차단 — 작업 폴더·공유(쓰기) 폴더 안만 고치고, 공유(읽기만)·그 밖은 못 고쳐요(Claude --restricted)', read: 'blocked', readText: '차단 — 작업 폴더·붙인 공유 폴더 밖은 못 읽어요(명령 도구 없음)' };
+      ? { write: 'organize', writeText: i18nT('server.ws.claude_full_write'), read: 'organize', readText: i18nT('server.ws.claude_full_read') }
+      : { write: 'blocked', writeText: i18nT('server.ws.claude_write'), read: 'blocked', readText: i18nT('server.ws.claude_read') };
   }
   if (engine === 'codex_thread' && newSession) {
     return boundary
-      ? { write: 'limited', writeText: '엔진 칸 컨테이너가 경계 — 칸 밖은 못 쓰고, 칸 안 폴더끼리는 정리만', read: 'organize', readText: '정리만 — 칸 안 다른 폴더도 읽을 수 있어요' }
-      : { write: full ? 'organize' : 'blocked', writeText: full ? '정리만 — full 권한은 명령·인터넷이 열려 있어요' : '차단(Codex 샌드박스, 승인 없이 실행) — 작업 폴더·공유(쓰기) 폴더 밖은 못 써요', read: 'organize', readText: '정리만 — 이 직원은 다른 폴더도 읽을 수 있어요' };
+      ? { write: 'limited', writeText: i18nT('server.ws.cell_write'), read: 'organize', readText: i18nT('server.ws.cell_read') }
+      : { write: full ? 'organize' : 'blocked', writeText: i18nT(full ? 'server.ws.codex_full_write' : 'server.ws.codex_new_write'), read: 'organize', readText: i18nT('server.ws.other_read') };
   }
   if (engine === 'codex_thread') {
     return boundary
-      ? { write: 'limited', writeText: '엔진 칸 컨테이너가 경계 — 칸 밖은 못 쓰고, 칸 안 폴더끼리는 정리만(파일 수정은 승인 카드로 물음)', read: 'organize', readText: '정리만 — 칸 안 다른 폴더도 읽을 수 있어요' }
-      : { write: 'approval', writeText: '허용할 때만 — 작업 모드에서 파일을 고칠 때마다 카드로 물어요. 작업 폴더 밖이면 카드에 "작업 폴더 밖"이 붙고, 허용하면 써져요', read: 'organize', readText: '정리만 — 이 직원은 다른 폴더도 읽을 수 있어요' };
+      ? { write: 'limited', writeText: i18nT('server.ws.cell_codex_write'), read: 'organize', readText: i18nT('server.ws.cell_read') }
+      : { write: 'approval', writeText: i18nT('server.ws.codex_write'), read: 'organize', readText: i18nT('server.ws.other_read') };
   }
-  if (engine === 'agy_cli') return { write: 'none', writeText: '쓰지 않음(Antigravity 읽기 전용 실행)', read: 'organize', readText: '정리만 — 이어온은 안내만 해요' };
-  return { write: 'organize', writeText: '정리만 — 그 세션 설정 그대로, 이어온은 폴더를 안내만 해요', read: 'organize', readText: '정리만 — 이어온은 안내만 해요' };
+  if (engine === 'agy_cli') return { write: 'none', writeText: i18nT('server.ws.agy_write'), read: 'organize', readText: i18nT('server.ws.guide_only') };
+  return { write: 'organize', writeText: i18nT('server.ws.session_write'), read: 'organize', readText: i18nT('server.ws.guide_only') };
 }
 
 // 화면용: 폴더 목록 + 붙인 것(이름·권한·차단 수준). 폴더 경로는 그 기기 웹 화면에서만 보인다(설정 화면).

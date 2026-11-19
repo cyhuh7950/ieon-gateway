@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
-const web = (f) => readFileSync(fileURLToPath(new URL(`../../src/pilot/web/${f}`, import.meta.url)), 'utf8');
+import { webPage as web } from './web-page.mjs'; // 서버가 보내는 화면(사전·t() 포함)
 const scripts = (html) => [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join('\n');
 
 // 무엇을 읽어도 다시 자기 자신을 돌려주는 가짜 객체(요소·스타일·classList 등). 넣은 값은 기억한다.

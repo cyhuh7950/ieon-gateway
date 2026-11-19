@@ -6,15 +6,16 @@
 // - 처음에는 1:1 대화만(그룹·여러 사람 방은 안내만). 같은 이벤트가 다시 오면 한 번만 처리(webhookEventId).
 // - 토큰·채널 비밀 값·질문·답 원문은 기록하지 않는다(이벤트 종류만).
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { splitText } from './bridge.mjs';
+import { splitText, waitNotice } from './bridge.mjs';
+import { t } from '../../i18n/index.mjs';
 
 const API = 'https://api.line.me';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const WAIT_NOTICE = '접수됨 — 답을 기다리는 중'; // 브리지의 중간 안내. 라인은 자체 "받았어요"로 대신한다.
+const WAIT_NOTICE = waitNotice(); // 브리지의 중간 안내. 라인은 자체 "받았어요"로 대신한다.
 export const LINE_TEXT_MAX = 4800; // 라인 글 한 칸은 5000자까지
 const PER_CALL = 5; // 한 번에 보낼 수 있는 말풍선 수
-export const RECEIVED = '받았어요. 답을 만드는 중이에요 — 끝나면 보내 드릴게요.';
-export const ONLY_DIRECT = '지금은 1:1 대화에서만 쓸 수 있어요. 봇과의 1:1 대화에서 보내 주세요.';
+export const RECEIVED = t('messenger.line.received');
+export const ONLY_DIRECT = t('messenger.line.only_direct');
 
 // 라인 서명: base64(HMAC-SHA256(채널 비밀 값, 받은 본문 그대로)). 길이가 다르면 바로 거절, 같으면 시간 차이 없는 비교.
 export function lineSignatureOk(raw, signature, channelSecret) {
@@ -76,7 +77,7 @@ export function runLine(opts) {
       await onMessage({ platform: 'line', userId: user, chatId: user, isGroup: false, called: true, text: ev.message.text, ...(id ? { msgId: `ln-${id}` } : {}) }, send);
     } catch (e) {
       log({ platform: 'line', event: 'handle_error', error: String(e.message).slice(0, 80) });
-      out.push('처리 중 오류가 났습니다.');
+      out.push(t('messenger.handle_error'));
     } finally {
       clearTimeout(late); clearTimeout(timer);
       await flush();
@@ -110,7 +111,7 @@ export function runLine(opts) {
         if (r.status === 401) { log({ platform: 'line', event: 'open_error', error: 'relay_unauthorized' }); return; }
         if (!r.ok) throw new Error(`relay_${r.status}`);
         attempt = 0;
-        if (!announced) { announced = true; log({ platform: 'line', event: 'started', bot: botName ?? '라인 연결' }); }
+        if (!announced) { announced = true; log({ platform: 'line', event: 'started', bot: botName ?? 'line' }); }
         const { items } = await r.json();
         for (const item of items ?? []) handleItem(item).catch(() => {});
       } catch (e) {

@@ -2,10 +2,11 @@
 //   IEON_RELAY_PORT(필수, 기본값 없음) · IEON_RELAY_HOST(기본 127.0.0.1)
 //   IEON_RELAY_PC_TOKEN(16자 이상) · IEON_RELAY_KAKAO_SECRET(16자 이상) · IEON_RELAY_TRUST_PROXY=1(reverse proxy 뒤일 때)
 import { createRelay } from './relay.mjs';
+import { t } from '../i18n/index.mjs';
 
 const env = process.env;
 const port = Number(env.IEON_RELAY_PORT);
-if (!Number.isInteger(port) || port < 1024 || port > 65535) { process.stderr.write('IEON_RELAY_PORT가 필요합니다(1024~65535).\n'); process.exit(2); }
+if (!Number.isInteger(port) || port < 1024 || port > 65535) { process.stderr.write(t('server.relay.bad_port') + '\n'); process.exit(2); }
 const relay = createRelay({
   pcToken: env.IEON_RELAY_PC_TOKEN, kakaoSecret: env.IEON_RELAY_KAKAO_SECRET, trustProxy: env.IEON_RELAY_TRUST_PROXY === '1',
   log: (e) => process.stderr.write(JSON.stringify(e) + '\n'),

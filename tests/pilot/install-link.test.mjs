@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createApp } from '../../src/pilot/server.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
@@ -49,5 +51,5 @@ test('업데이트(2026-11-19 daon 실측): 설치 스크립트는 터미널이 
   assert.ok(ieun.includes('  update)') && ieun.includes('up -d --force-recreate'));
   const sh = readFileSync(new URL('../../deploy/server/install.sh', import.meta.url), 'utf8');
   assert.ok(sh.includes("sed -n 's/^ieun-engine-//p'") && sh.includes('deploy/hub/ieun.sh engine update'));
-  assert.ok(srv.includes("label: '서버 칸의 Codex 로그인(허브 로그인을 같이 씀)'"), '엔진 칸 대화 계정 문구');
+  assert.ok(srv.includes("label: i18nT('server.account.cell_codex')") && KO['server.account.cell_codex'] === '서버 칸의 Codex 로그인(허브 로그인을 같이 씀)', '엔진 칸 대화 계정 문구');
 });

@@ -2,6 +2,7 @@
 // 사람이 없을 때 모델이 호출되므로 — 예약마다 웹 화면에서 사람이 승인(만들기·다시 켜기 = 승인), 하루 횟수 한도, 질문만(작업 모드인 대화는 그때 보내지 않음),
 // 결과 불명(확인 필요)이 남아 있으면 그 예약을 멈추고 사람이 다시 켤 때까지 보내지 않는다. 자동 재전송 없음 — 보낼 수 없었던 회차는 건너뛰고 기록만 남긴다.
 // 시간은 그 예약의 시간대(기본 Asia/Seoul) 벽시계 기준.
+import { t as i18nT } from '../i18n/index.mjs';
 
 export const SCHEDULE_KINDS = ['daily', 'interval', 'once'];
 export const MAX_SCHEDULES = 20;
@@ -65,7 +66,7 @@ export function nextRun(s, from = new Date()) {
 
 // 사람이 읽는 말(화면·목록)
 export function describeSchedule(s) {
-  if (s.kind === 'daily') return `매일 ${s.spec.time}`;
-  if (s.kind === 'interval') return s.spec.minutes % 60 === 0 ? `${s.spec.minutes / 60}시간마다` : `${s.spec.minutes}분마다`;
-  return `한 번 ${new Date(s.spec.at).toLocaleString('ko-KR', { timeZone: s.tz })}`;
+  if (s.kind === 'daily') return i18nT('server.sched.daily', { time: s.spec.time });
+  if (s.kind === 'interval') return s.spec.minutes % 60 === 0 ? i18nT('server.sched.hours', { n: s.spec.minutes / 60 }) : i18nT('server.sched.minutes', { n: s.spec.minutes });
+  return i18nT('server.sched.once', { at: new Date(s.spec.at).toLocaleString(i18nT('server.intl_locale'), { timeZone: s.tz }) });
 }

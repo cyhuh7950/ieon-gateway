@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { claudeAccountKind, claudeEnvFor, claudeHomeOf, saveClaudeApiKey, saveCompat } from '../../src/pilot/claude-accounts.mjs';
 import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
 import { claudeCliAdapter } from '../../src/pilot/adapters/claude-cli.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const tmp = (t) => { const d = mkdtempSync(join(tmpdir(), 'ieon-a2c-')); t.after(() => rmSync(d, { recursive: true, force: true })); return d; };
 const KEY = 'up_' + 'k'.repeat(30);
@@ -70,8 +72,7 @@ test('Claude 실행: 기존 대화는 existing으로 물어 확인 안 된 호�
 test('화면·메신저·채널 창: 호환 주소 칸·안내 문구, 채널 창은 확인된 조합만', () => {
   const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
   assert.ok(SET.includes('id="clCompatForm"') && SET.includes("acRun('claude.accounts.compat'"));
-  assert.ok(readFileSync(new URL('../../src/pilot/web/app.html', import.meta.url), 'utf8').includes('combo_unverified:'));
-  assert.ok(readFileSync(new URL('../../src/pilot/messenger/bridge.mjs', import.meta.url), 'utf8').includes('combo_unverified:'));
+  assert.ok(KO['errors.combo_unverified'], '화면·메신저가 같이 쓰는 오류 문구');
   const ps = readFileSync(new URL('../../scripts/ieon.ps1', import.meta.url), 'utf8');
   assert.ok(ps.includes("-notin @('api.upstage.ai')") && ps.includes('`$env:ANTHROPIC_BASE_URL'));
 });

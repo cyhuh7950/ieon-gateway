@@ -1,4 +1,5 @@
 // 모델 없는 실행 대역. 실제 Codex SDK·Claude 채널을 import하지 않는다.
+import { t as i18nT } from '../i18n/index.mjs';
 import { EngineError } from './contracts.mjs';
 
 function base(engine, opts, reject) {
@@ -10,7 +11,7 @@ function base(engine, opts, reject) {
       if (opts.needsApproval) return { approvalRequired: true };
       if (opts.loseAck) throw new Error('ack lost after send');
       opts.beforeReturn?.();
-      return { receipt: `${engine}-turn-${adapter.calls.length}`, answer: opts.answer ?? '예시 답변' };
+      return { receipt: `${engine}-turn-${adapter.calls.length}`, answer: opts.answer ?? i18nT('server.fake_answer') };
     },
   };
   return adapter;

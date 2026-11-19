@@ -1,4 +1,5 @@
 // 접수·중복·세션 잠금·상태·receipt를 SQLite 단일 writer로 원자 저장한다.
+import { t as i18nT } from '../i18n/index.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { STATUS, RELEASING, EngineError, STOP_UNSUPPORTED } from './contracts.mjs';
@@ -329,7 +330,7 @@ export function openStore(path) {
         const requestId = `req_${randomUUID()}`;
         // AP-1: 역할을 새로 정한 AI 직원은 다음 질문 한 번에만 역할 안내를 붙인다(매번 붙이지 않음 — 세션이 기억)
         const st = db.prepare('SELECT s.guide_pending, r.ai_guide FROM staff s LEFT JOIN roles r ON r.role_id = s.role_id WHERE s.conversation_id = ?').get(conversationId);
-        const roleGuide = st?.guide_pending && st.ai_guide?.trim() ? `[역할 안내]\n${st.ai_guide.trim()}\n\n` : '';
+        const roleGuide = st?.guide_pending && st.ai_guide?.trim() ? i18nT('server.role_guide', { guide: st.ai_guide.trim() }) : '';
         if (st?.guide_pending) db.prepare('UPDATE staff SET guide_pending = 0 WHERE conversation_id = ?').run(conversationId);
         const fullPrefix = (roleGuide + (prefix ?? '')) || null;
         db.prepare(`INSERT INTO requests (request_id, conversation_id, user_id, app_id, idem_key,
@@ -386,8 +387,8 @@ export function openStore(path) {
         const ns = db.prepare(`SELECT n.name, n.profile, n.workspace, n.state, n.role_guide FROM new_sessions n JOIN requests r
           ON r.conversation_id = n.conversation_id WHERE r.request_id = ?`).get(row.request_id);
         // 역할 봇에서 만든 새 세션의 첫 질문(엔진 세션을 만드는 질문)에만 AI 역할 안내를 붙인다. 저장된 질문은 그대로다.
-        const base = row.prefix ? `${row.prefix}[질문]\n${row.question}` : row.question; // AP-1 방·역할 머리말
-        const question = ns?.state === 'pending' && ns.role_guide ? `[역할 안내]\n${ns.role_guide}\n\n[질문]\n${base}` : base;
+        const base = row.prefix ? row.prefix + i18nT('server.question_head') + row.question : row.question; // AP-1 방·역할 머리말
+        const question = ns?.state === 'pending' && ns.role_guide ? i18nT('server.role_guide', { guide: ns.role_guide }) + i18nT('server.question_head') + base : base;
         return { requestId: row.request_id, engine: row.engine, sessionRef: row.session_ref, question,
           ...(row.engine === 'codex_thread' ? { connectMode: row.connect_mode } : {}),
           // W2: 작업 모드인 대화의 질문만(연결부가 승인 카드로 묻고 쓰기를 작업 폴더 안으로)
@@ -1077,7 +1078,7 @@ export function openStore(path) {
     ensureDefaultBots() {
       for (const p of ['telegram', 'discord', 'slack', 'line']) { // L1: 라인도 기본 봇을 두어 메신저 창에서 고를 수 있게
         db.prepare(`INSERT OR IGNORE INTO bots (platform, bot_id, name, role_id, call_names, extra_users, enabled)
-          VALUES (?, ?, '기본 봇', NULL, '[]', '[]', 1)`).run(p, DEFAULT_BOT);
+          VALUES (?, ?, ?, NULL, '[]', '[]', 1)`).run(p, DEFAULT_BOT, i18nT('server.default_bot_name'));
       }
     },
     listBots() { return db.prepare('SELECT * FROM bots ORDER BY platform, bot_id').all().map(botView); },

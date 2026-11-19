@@ -5,11 +5,12 @@
 // - 상태(토큰 있음·없음·중복·연결됨·실제 봇 이름)만 서버에 보고한다. 토큰 값은 보고·기록하지 않는다.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createBridge } from './bridge.mjs';
+import { t } from '../../i18n/index.mjs';
 import { DEFAULT_BOT, migrateRooms, resolveBotTokens } from '../bots.mjs';
 const RELAY_OFF = new Set(['kakaoRelayUrl_missing', 'relay_missing']);
 
 // 서버가 아직 봇 정의 API를 모르면(이전 버전) 메신저마다 default 봇만 쓴다.
-const LEGACY = ['telegram', 'discord', 'slack'].map((platform) => ({ platform, botId: DEFAULT_BOT, name: '기본 봇', callNames: [], extraUsers: [], enabled: true }));
+const LEGACY = ['telegram', 'discord', 'slack'].map((platform) => ({ platform, botId: DEFAULT_BOT, name: t('server.default_bot_name'), callNames: [], extraUsers: [], enabled: true }));
 
 export function loadRoomStore(path) {
   const raw = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
@@ -124,13 +125,13 @@ export function createBotRunner(opts) {
             name: m.userName ?? m.name ?? null, code: String(m.text).trim(), ...(already ? { allowed: true } : {}) } }).catch(() => null);
           log({ platform: b.platform, botId: b.botId, event: 'claim', ok: r?.status === 200 });
           // M3: 가입자 연결 숫자였으면 "주인 등록"이 아니라 그 이어온 계정과 연결된 것
-          if (r?.status === 200 && r.body?.linked) { refreshedAt = -Infinity; await refreshAllowed(); return send('이어온 계정과 연결됐어요. 이제 이 대화에서는 내 대화만 보여요. /sessions로 대화를 고르세요.'); }
-          if (r?.status === 200 && already) return send('이미 허용된 분이라 따로 등록하지 않았어요. 화면에 완료로 표시돼요.');
+          if (r?.status === 200 && r.body?.linked) { refreshedAt = -Infinity; await refreshAllowed(); return send(t('messenger.claim.linked')); }
+          if (r?.status === 200 && already) return send(t('messenger.claim.already'));
           if (r?.status === 200) {
             refreshedAt = -Infinity; await refreshAllowed();
-            return send('주인으로 등록됐어요. 이제 질문하면 이어서 답해요. /sessions로 대화를 고를 수 있어요.');
+            return send(t('messenger.claim.owner'));
           }
-          if (r?.status === 403) return send(r.body?.error === 'claim_locked' ? '숫자를 여러 번 틀려 막혔어요. 이어온 화면에서 숫자를 새로 받으세요.' : '숫자가 맞지 않아요. 이어온 화면의 숫자를 다시 확인하세요.');
+          if (r?.status === 403) return send(t(r.body?.error === 'claim_locked' ? 'messenger.claim.locked' : 'messenger.claim.wrong'));
         }
         const ok = entry.bridge.allowed(m);
         log({ platform: b.platform, botId: b.botId, event: 'message', allowed: ok });

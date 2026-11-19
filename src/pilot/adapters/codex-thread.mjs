@@ -2,6 +2,7 @@
 // - alternate: 잠금 사전 확인 → SDK resumeThread → runStreamed (X1에서 확인한 방식)
 // - shared_server: 공유 App Server에 붙어 thread가 idle일 때만 turn/start (X2에서 확인한 방식)
 // 기본은 live 실행 차단이다. allowlist 밖 thread·업무 대화는 거부한다. override를 넘기지 않는다.
+import { t as i18nT } from '../../i18n/index.mjs';
 import { mkdirSync, readFileSync, statSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -50,13 +51,14 @@ async function runAlternate(threadId, question, deps) {
 }
 
 // 답 끝에 붙이는 알림: 그 자리에서 멈춘 도구, 샌드박스에서 막혀 실패한 파일 수정
-const TOOL_WORD = { mcp_tool_call: 'MCP 도구', dynamic_tool_call: '외부 도구', commandExecution: '명령', fileChange: '파일 수정', mcpToolCall: 'MCP 도구', webSearch: '웹 검색', dynamicToolCall: '외부 도구' };
+const TOOL_KEY = { mcp_tool_call: 'mcp', dynamic_tool_call: 'dynamic', commandExecution: 'command', fileChange: 'file', mcpToolCall: 'mcp', webSearch: 'web_search', dynamicToolCall: 'dynamic' };
+const toolWord = (type, fallback) => (TOOL_KEY[type] ? i18nT(`server.tool.${TOOL_KEY[type]}`) : fallback);
 export function blockedNote(turn) {
   const lines = [];
-  if (turn.blocked) lines.push(`- ${TOOL_WORD[turn.blocked] ?? turn.blocked}${turn.blockedWhat ? ' ' + turn.blockedWhat : ''} — 이 대화에서 쓸 수 없어 그 자리에서 멈춤(답이 덜 끝났을 수 있어요)`);
-  for (const p of (turn.deniedFiles ?? []).slice(0, 5)) lines.push(`- 파일 수정 ${p} — 권한 설정에서 막힘`);
-  if ((turn.deniedFiles ?? []).length > 5) lines.push(`- 외 ${turn.deniedFiles.length - 5}개`);
-  return lines.length ? `[이어온] 실행되지 않은 작업:\n${lines.join('\n')}` : '';
+  if (turn.blocked) lines.push(i18nT('server.note.blocked_item', { tool: toolWord(turn.blocked, turn.blocked), what: turn.blockedWhat ? ' ' + turn.blockedWhat : '' }));
+  for (const p of (turn.deniedFiles ?? []).slice(0, 5)) lines.push(i18nT('server.note.denied_file', { path: p }));
+  if ((turn.deniedFiles ?? []).length > 5) lines.push(i18nT('server.note.more_item', { n: turn.deniedFiles.length - 5 }));
+  return lines.length ? i18nT('server.note.not_run', { list: lines.join('\n') }) : '';
 }
 const withNote = (answer, note) => [String(answer ?? '').trim(), note].filter(Boolean).join('\n\n');
 
@@ -172,19 +174,19 @@ const inRoot = (p, root) => { const a = normPath(p).toLowerCase(); const b = nor
 export function fileChangeSummary(paths = [], roots = []) {
   const list = [...new Set(paths.filter((p) => typeof p === 'string' && p))];
   if (!list.length) return null;
-  const mark = (p) => (roots.length && !roots.some((r) => r && inRoot(p, r)) ? `${normPath(p)} (작업 폴더 밖)` : normPath(p));
+  const mark = (p) => (roots.length && !roots.some((r) => r && inRoot(p, r)) ? i18nT('server.approval.outside', { path: normPath(p) }) : normPath(p));
   const outside = roots.length ? list.filter((p) => !roots.some((r) => r && inRoot(p, r))).length : 0;
-  const head = `파일 수정 ${list.length}개${outside ? ` — 작업 폴더 밖 ${outside}개` : ''}: `;
-  return (head + list.slice(0, 3).map(mark).join(', ') + (list.length > 3 ? ` 외 ${list.length - 3}개` : '')).slice(0, 300);
+  const head = i18nT('server.approval.files', { n: list.length, outside: outside ? i18nT('server.approval.files_outside', { n: outside }) : '' });
+  return (head + list.slice(0, 3).map(mark).join(', ') + (list.length > 3 ? i18nT('server.approval.more', { n: list.length - 3 }) : '')).slice(0, 300);
 }
 export const approvalSummary = (method, params = {}) => {
   if (method === 'item/commandExecution/requestApproval') return String(params.command ?? '').slice(0, 300);
   if (method === 'item/fileChange/requestApproval') {
     const files = fileChangeSummary(params.changes ?? [], params.roots ?? []);
-    const base = params.reason ?? (params.grantRoot ? `작업 폴더 밖 쓰기 요청: ${normPath(params.grantRoot)}` : null);
-    return String([base, files].filter(Boolean).join(' · ') || '파일 수정(어느 파일인지 엔진이 알려 주지 않음)').slice(0, 300);
+    const base = params.reason ?? (params.grantRoot ? i18nT('server.approval.grant_root', { path: normPath(params.grantRoot) }) : null);
+    return String([base, files].filter(Boolean).join(' · ') || i18nT('server.approval.file_unknown')).slice(0, 300);
   }
-  return String(params.reason ?? '권한 요청').slice(0, 300);
+  return String(params.reason ?? i18nT('server.approval.permission')).slice(0, 300);
 };
 
 // 서버 요청 하나에 대한 답(JSON-RPC 응답 객체). 시험에서 바로 부른다.
@@ -264,7 +266,7 @@ async function runShared(threadId, question, { endpoint, token, approve = null, 
     if (status2 === 'interrupted' && signal?.aborted && !blocked) throw new StoppedError();
     // 규칙 점검 1: 질문 모드에서 엔진이 도구를 쓰려 하면 그 차례를 끊고, 잠그지 않고 답 끝에 알린다(시작됐을 수 있음).
     if (blocked) {
-      const note = `[이어온] 질문 모드라 실행하려던 작업을 끊었어요:\n- ${TOOL_WORD[blockedItem?.type] ?? '도구'}${blockedItem?.what ? ' ' + blockedItem.what : ''} — 끊기 전에 시작됐을 수 있어요(원래 세션에서 확인). 실행이 필요하면 작업 모드로 보내세요.`;
+      const note = i18nT('server.note.cut', { tool: toolWord(blockedItem?.type, i18nT('server.tool.generic')), what: blockedItem?.what ? ' ' + blockedItem.what : '' });
       return { receipt: `codex:${threadId}:${turnId}`, answer: withNote(answer, note), usage: Object.keys(usage).length ? usage : null };
     }
     if (status2 === 'failed' && !answer && isUsageLimit(JSON.stringify(turnError))) throw new EngineError('usage_limit', 429);

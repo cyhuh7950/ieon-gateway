@@ -11,6 +11,8 @@ import { createApp } from '../../src/pilot/server.mjs';
 import { pollOnce } from '../../src/pilot/connector.mjs';
 import { codexThreadAdapter } from '../../src/pilot/adapters/codex-thread.mjs';
 import { EngineError } from '../../src/pilot/contracts.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const T1 = '01a18790-0000-7000-8000-000000000001';
@@ -145,7 +147,7 @@ test('화면: 연결 설정의 작업 모드(Codex 기존 대화만, 켤 때 확
   assert.ok(A.includes('id="pWork"') && A.includes('id="wmOn"') && A.includes('id="workChip"'));
   assert.ok(A.includes("$('pWork').hidden = false;"), 'E3: Codex·Antigravity 기존 대화만');
   assert.ok(A.includes("if (on && !confirm('작업 모드를 켤까요?"));
-  assert.ok(A.includes("work_dir_required: ['warn'"));
+  assert.ok(KO['errors.work_dir_required'] && !/ERR_HARD = new Set\([^)]*'work_dir_required'/.test(A));
 });
 
 test('메신저 승인(W2-b): 작업 모드 질문의 승인 요청을 그 대화방에 알리고 /허용 n · /거부 n, 주인만, 알린 번호만', async (t) => {
