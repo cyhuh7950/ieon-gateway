@@ -132,6 +132,8 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
   receipts.add(job.requestId);
   let outcome;
   const watch = stopWatcher({ baseUrl, headers, requestId: job.requestId, log, ...(stopPollMs ? { pollMs: stopPollMs } : {}) });
+  // 엔진 실행을 시작한다고 서버에 알린다(화면에 "처리 중"). 기다리지 않고, 실패해도 실행은 계속(예전 서버는 404).
+  fetch(`${baseUrl}/v1/device/jobs/${job.requestId}/running`, { method: 'POST', headers, body: '{}' }).catch(() => {});
   try {
     const result = await adapter.run({ engine: job.engine, sessionRef: job.sessionRef, question: job.question, requestId: job.requestId,
       connectMode: job.connectMode, newSession: job.newSession, workMode: job.workMode === true },

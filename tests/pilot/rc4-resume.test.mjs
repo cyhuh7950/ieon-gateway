@@ -108,3 +108,16 @@ test('연결부가 다시 켜지면 그 PC가 처리 중이던 질문은 결과 
   assert.ok((await s.call('/v1/conversations/c1/cards')).body.cards.some((c) => c.kind === 'held'), '확인 카드');
   assert.equal((await s.call('/v1/device/restarted', { token: 'dev', method: 'POST', body: {} })).body.unknown, 0, '두 번째는 바꿀 것 없음');
 });
+
+// 2026-11-20 실측: 연결부 경로는 끝날 때까지 "보내는 중"(dispatching)으로만 보였다 — 엔진 실행을 시작하면 처리 중(running)
+test('연결부가 엔진 실행 시작을 알리면 처리 중, 다른 PC·없는 질문은 404, 처리 중에도 결과·중지는 그대로', async (t) => {
+  const s = await setup(t);
+  const id = (await s.call('/v1/conversations/c1/requests', { method: 'POST', body: { question: 'q' }, key: 'k-rc4-running1' })).body.requestId;
+  await s.call('/v1/device/jobs', { token: 'dev' });
+  assert.equal((await s.call(`/v1/device/jobs/${id}/running`, { token: 'dev', method: 'POST', body: {} })).status, 204);
+  assert.equal((await s.call('/v1/requests/' + id)).body.status, 'running');
+  assert.equal((await s.call('/v1/device/jobs/req_none/running', { token: 'dev', method: 'POST', body: {} })).status, 404);
+  assert.equal((await s.call(`/v1/requests/${id}/stop`, { method: 'POST' })).status, 202, '처리 중에도 중지 가능');
+  await s.call(`/v1/device/jobs/${id}/result`, { token: 'dev', method: 'POST', body: { status: 'completed', answer: '답' } });
+  assert.equal((await s.call('/v1/requests/' + id)).body.status, 'completed');
+});

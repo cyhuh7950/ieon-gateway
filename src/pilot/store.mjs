@@ -1288,6 +1288,13 @@ export function openStore(path) {
     touchDevice(hostId, at) { db.prepare('UPDATE devices SET last_seen_at = ? WHERE host_id = ?').run(at, hostId); },
     // RC4 실제 끊김(2026-11-20 실측): 연결부가 다시 켜졌다 = 그 연결부가 처리하던 질문은 이제 아무도 처리하지 않는다. 계속 '처리 중'으로 두지 않고
     // 결과 불명으로 돌려 확인 카드를 띄운다(엔진이 실제로 돌았는지는 모름 — 자동으로 다시 보내지 않음). 서버 다시 시작과 같은 처리.
+    // 2026-11-20 실측: 연결부 경로는 끝날 때까지 dispatching(보내는 중)으로만 보였다 — 연결부가 엔진 실행을 시작하면 running(처리 중)으로
+    markRunning(hostId, requestId) {
+      const row = request(String(requestId ?? '')); const b = row && binding(row.conversation_id);
+      if (!b || b.hostId !== hostId) return false;
+      if (row.status !== STATUS.dispatching) return row.status === STATUS.running;
+      setStatus(row, STATUS.running); return true;
+    },
     deviceRestarted(hostId) {
       const rows = db.prepare("SELECT request_id, conversation_id FROM requests WHERE status IN ('dispatching', 'running') AND json_extract(snap, '$.hostId') = ?").all(hostId);
       for (const r of rows) db.prepare("UPDATE requests SET status = 'unknown', error_code = COALESCE(error_code, 'connector_restarted') WHERE request_id = ?").run(r.request_id);

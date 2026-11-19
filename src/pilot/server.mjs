@@ -701,6 +701,12 @@ export function createApp(config) {
           const stop = store.stopRequested(device.hostId, jc[1]);
           return stop === null ? json(res, 404, { error: 'not_found' }) : json(res, 200, { stop });
         }
+        // 2026-11-20: 연결부가 엔진 실행을 시작함 → 처리 중(전에는 끝날 때까지 "보내는 중"으로만 보였음)
+        const jr = path.match(/^\/v1\/device\/jobs\/([\w-]+)\/running$/);
+        if (req.method === 'POST' && jr) {
+          if (!store.markRunning(device.hostId, jr[1])) return json(res, 404, { error: 'not_found' });
+          return json(res, 204);
+        }
         const m = path.match(/^\/v1\/device\/jobs\/([\w-]+)\/result$/);
         if (req.method === 'POST' && m) {
           const updated = store.report(device.hostId, m[1], await readJson(req));
