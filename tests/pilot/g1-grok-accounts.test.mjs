@@ -71,3 +71,14 @@ test('상태 보고: Grok 새 세션별 계정 이름표와 기본 이름표', (
   const h = grokAccountHealth({ grokAccounts: { accounts: [{ id: 'k1', label: '개인' }], defaultAccount: 'k1' }, newSessions: { createdPath: f } });
   assert.deepEqual(h, { grokAccounts: { 'gs-0001': '개인' }, grokDefault: '개인' });
 });
+
+// 2026-11-20 실측(Antigravity 1.5.12): 머리 없는 실행에서 허락이 필요한 도구가 자동 거부되면 SUCCESS인데 답이 비어 온다 — 빈 답 대신 이유 한 줄
+test('자동 거부로 빈 답이면 이유 한 줄, 그 밖의 빈 답·보통 답은 그대로', async () => {
+  const mk = (stdout, stderr) => cliOnceAdapter({ live: true, engine: 'agy_cli', allowlist: ['9e943423-0000-4000-8000-0000000000e1'], bin: 'agy', probe: () => 'NO_LOCK_FILE',
+    run: async () => ({ code: 0, stdout, stderr }) });
+  const id = '9e943423-0000-4000-8000-0000000000e1';
+  const ok = JSON.stringify({ conversation_id: id, status: 'SUCCESS', response: '' });
+  assert.match((await mk(ok, 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.').run({ sessionRef: id, question: 'q' })).answer, /허락이 필요한 작업이 막혀/);
+  assert.equal((await mk(ok, '').run({ sessionRef: id, question: 'q' })).answer, '');
+  assert.equal((await mk(JSON.stringify({ conversation_id: id, status: 'SUCCESS', response: '답' }), 'auto-denied').run({ sessionRef: id, question: 'q' })).answer, '답');
+});
