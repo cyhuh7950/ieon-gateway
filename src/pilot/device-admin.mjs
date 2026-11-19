@@ -4,13 +4,15 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { addClaudeAccount, removeClaudeAccount, useClaudeAccount, readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
+import { addAgyAccount, removeAgyAccount, useAgyAccount, addClaudeAccount, removeClaudeAccount, useClaudeAccount, readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
   addWorkspaceFolder, removeWorkspaceFolder, attachWorkspaceTo } from './device-settings.mjs';
 import { workspacesView } from './workspaces.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome, readCodexCompat, saveCodexCompat, removeCodexCompat, compatHostOf } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
+import { AGY_KEY, agyAccountKind, agyHomeOf, agyLogoutFiles, createAgyLogin, saveAgyApiKey } from './agy-accounts.mjs';
+import { CLI_ENGINES } from './adapters/cli-once.mjs';
 import { claudeAccountKind, claudeHomeOf, claudeLogout, compatConfirmed, compatHost, createClaudeAccountLogin, createClaudeHome, readCompat, removeClaudeHome, saveClaudeApiKey, saveCompat } from './claude-accounts.mjs';
 import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin, saveClaudeLogin, removeClaudeLogin } from './claude-login.mjs';
 
@@ -30,6 +32,9 @@ export const OPS = {
   'claude.accounts.add': 'write', 'claude.accounts.login': 'write', 'claude.accounts.code': 'write', 'claude.accounts.cancel': 'write',
   'claude.accounts.apikey': 'write', 'claude.accounts.logout': 'write', 'claude.accounts.delete': 'write', 'claude.accounts.use': 'write',
   'claude.accounts.compat': 'write', // A2-c: 호환 주소(주소·키·모델)
+  // A3(신산님 2026-11-19 "새 세션 범위로 만들기"): Antigravity 이어온 전용 계정 — 새 세션용(계정 폴더에 대화도 저장되므로 기존 대화는 PC 기본 로그인)
+  'agy.accounts.get': 'read', 'agy.accounts.add': 'write', 'agy.accounts.login': 'write', 'agy.accounts.cancel': 'write',
+  'agy.accounts.apikey': 'write', 'agy.accounts.logout': 'write', 'agy.accounts.delete': 'write', 'agy.accounts.use': 'write',
   // WS1-a 작업공간: 그 기기의 폴더 등록·빼기, AI 직원(허용 목록 세션)에 붙이기 — PC형·허브형 같은 명령
   'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
@@ -44,7 +49,7 @@ const DEFAULT_ID = 'pc_default';
 
 export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {},
   claudeDir = claudeAuthDir(), claudeLogin = null, claudeProjects = claudeProjectsDir(), busyOf = claudeBusy, listThreads = null,
-  claudeAccountLogin = null, claudeLogoutImpl = claudeLogout, claudeDesktop = undefined }) {
+  claudeAccountLogin = null, claudeLogoutImpl = claudeLogout, claudeDesktop = undefined, agyLogin = null }) {
   const logins = new Map(); // 계정별 공식 로그인 진행 상태
   let cLogin = null;
   const claudeLoginJob = () => (cLogin ??= claudeLogin ?? createClaudeLogin({ dir: claudeDir, log }));
@@ -118,6 +123,12 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     for (const x of readDevice(p).cliSessions.filter((s) => s.engine === 'claude_cli')) if (!out.has(x.sessionId.toLowerCase())) out.set(x.sessionId.toLowerCase(), { sessionId: x.sessionId.toLowerCase(), name: '' });
     return [...out.values()].filter((s) => s.sessionId !== EXCLUDED_THREAD).slice(-50);
   };
+  // A3: Antigravity 계정(새 세션용)
+  const aLogins = new Map();
+  const aLoginOf = (p, id) => { if (!aLogins.has(id)) aLogins.set(id, (agyLogin ?? ((home) => createAgyLogin({ bin: CLI_ENGINES.agy_cli.bin(), home, log })))(agyHomeOf(dirOf(p), id))); return aLogins.get(id); };
+  const aKnown = (p, id) => { if (!/^[a-z0-9]{2,16}$/.test(String(id)) || !readDevice(p).agyAccounts.some((x) => x.id === id)) throw Object.assign(new Error('not_found'), { http: 404 }); return id; };
+  const agyView = (p) => { const d = readDevice(p); const dir = dirOf(p);
+    return { accounts: d.agyAccounts.map((x) => ({ ...x, engine: 'antigravity', kind: agyAccountKind(agyHomeOf(dir, x.id)), login: aLogins.get(x.id)?.view() ?? { state: 'idle' } })), defaultAccount: d.agyDefaultAccount }; };
   const claudePc = (p) => {
     const d = readDevice(p); const dir = dirOf(p);
     // 호환 주소는 주소의 호스트·모델·확인된 조합 여부만(키는 내지 않음)
@@ -206,6 +217,31 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         saveClaudeApiKey(claudeHomeOf(dirOf(p), id), String(a.key)); log({ event: 'account_api_key', engine: 'claude', ok: true });
         return { status: 200, body: claudePc(p) };
       }
+      case 'agy.accounts.get': return { status: 200, body: agyView(p) };
+      case 'agy.accounts.add': {
+        const id = 'g' + randomBytes(4).toString('hex');
+        addAgyAccount(p, { id, label: a.label });
+        mkdirSync(agyHomeOf(dirOf(p), id), { recursive: true });
+        log({ event: 'account_added', engine: 'antigravity' });
+        return { status: 201, body: { id, ...agyView(p) } };
+      }
+      case 'agy.accounts.login': aLoginOf(p, aKnown(p, a.id)).start(); return { status: 200, body: agyView(p) };
+      case 'agy.accounts.cancel': aLoginOf(p, aKnown(p, a.id)).cancel(); return { status: 200, body: agyView(p) };
+      case 'agy.accounts.apikey': {
+        const id = aKnown(p, a.id);
+        if (!AGY_KEY.test(String(a.key ?? ''))) return { status: 400, body: { error: 'bad_api_key' } };
+        saveAgyApiKey(agyHomeOf(dirOf(p), id), String(a.key)); log({ event: 'account_api_key', engine: 'antigravity', ok: true });
+        return { status: 200, body: agyView(p) };
+      }
+      case 'agy.accounts.logout': { const id = aKnown(p, a.id); aLoginOf(p, id).cancel(); agyLogoutFiles(agyHomeOf(dirOf(p), id)); return { status: 200, body: agyView(p) }; }
+      case 'agy.accounts.delete': {
+        const id = aKnown(p, a.id); aLoginOf(p, id).cancel(); aLogins.delete(id);
+        // 계정 폴더에는 그 계정으로 만든 새 세션의 대화도 있다 — 지우면 그 새 세션은 이어 쓸 수 없다(화면에서 확인 받음)
+        rmSync(agyHomeOf(dirOf(p), id), { recursive: true, force: true });
+        removeAgyAccount(p, id); log({ event: 'account_removed', engine: 'antigravity' });
+        return { status: 200, body: { ...agyView(p), ...(await applyDevice()) } };
+      }
+      case 'agy.accounts.use': useAgyAccount(p, { accountId: String(a.accountId ?? '') }); return { status: 200, body: { ...agyView(p), ...(await applyDevice()) } };
       case 'claude.accounts.compat': {
         const id = cKnown(p, a.id);
         saveCompat(claudeHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, model: a.model, auth: a.auth ?? 'bearer' });

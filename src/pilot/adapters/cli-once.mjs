@@ -86,6 +86,17 @@ export function cliOnceAdapter(opts) {
     if (!pending && spec.lockDir) { const o = probe(sessionRef, opts.lockDir ?? spec.lockDir()); if (o === 'WRITER_LOCK_CONFLICT') throw new EngineError('session_in_use', 409); if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(o)) throw new EngineError('lock_check_failed', 409); }
     if (pending) mkdirSync(checked.workspace, { recursive: true });
     const mode = checked.profile.agy?.mode ?? 'plan';
+    // A3: 이어온 Antigravity 계정 — 처음엔 엔진 기본 계정, 그 뒤엔 그 세션을 만든 계정(대화가 그 계정 폴더에 있음). PC 기본이면 지금처럼 한 번 실행(-p)
+    let acct = null;
+    try { acct = pending ? (opts.agyRun?.(null) ?? null) : (created.account?.(sessionRef) ? opts.agyRun?.(created.account(sessionRef)) ?? null : null); } catch (e) { throw new EngineError(e.message, e.http ?? 409); }
+    if (acct) {
+      const r = await (opts.acp ?? acpTurn)({ bin, args: spec.acpArgs, env: acct.env, cwd: checked.workspace, geminiDir: acct.geminiDir, authMethod: acct.authMethod, newSession: pending, sessionId: pending ? null : sessionRef,
+        question, mode, signal, spawnImpl: opts.spawnImpl });
+      const id = String(r.sessionId ?? sessionRef);
+      if (!spec.validId(id)) throw Object.assign(new Error('acp_no_session'), { unknownCode: 'acp_no_session' });
+      if (pending) created.add(id, newSession.name, acct.accountId);
+      return { receipt: `${opts.engine}:${id}`, answer: r.answer, sessionRef: id, usage: null };
+    }
     const { code, stdout, stderr, stopped } = await run(bin, spec.newArgs(pending ? null : sessionRef, question, mode), { cwd: checked.workspace, env: envOf(pending ? null : sessionRef), signal });
     if (stopped) throw new StoppedError();
     const j = lastJson(stdout);

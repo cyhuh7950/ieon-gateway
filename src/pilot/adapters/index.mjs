@@ -8,6 +8,7 @@ import { codexEnvFor } from '../accounts.mjs';
 import { cliOnceAdapter } from './cli-once.mjs';
 import { readWorkspaces, workspaceFor, workspaceLine } from '../workspaces.mjs';
 import { claudeEnvFor } from '../claude-accounts.mjs';
+import { agyRunFor } from '../agy-accounts.mjs';
 
 // WS1-a: 작업 공간을 붙인 세션의 질문 앞에 폴더 한 줄(안내 — 차단은 엔진 샌드박스가 따로). 붙이지 않은 세션·새 세션은 그대로.
 export function withWorkspaceLine(adapter, config) {
@@ -29,15 +30,18 @@ export function codexWorkspaceDirs(config) {
 }
 
 // 이 연결부가 새 세션용으로 만든 엔진 세션 ID 기록(한 줄에 하나, 추가만 한다).
+// A3: account — 그 새 세션을 만든 이어온 계정(Antigravity 계정 폴더에 대화가 있으므로 계속 그 계정으로)
 export function createdLog(path) {
-  const ids = new Map(existsSync(path)
-    ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).map((r) => [r.id, r.name]) : []);
+  const rows = existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
+  const ids = new Map(rows.map((r) => [r.id, r.name]));
+  const acc = new Map(rows.filter((r) => r.account).map((r) => [r.id, r.account]));
   return {
     has: (id) => ids.has(id),
-    add(id, name) {
+    account: (id) => acc.get(id) ?? null,
+    add(id, name, account = null) {
       if (ids.has(id)) return;
-      appendFileSync(path, JSON.stringify({ id, name, at: new Date().toISOString() }) + '\n');
-      ids.set(id, name);
+      appendFileSync(path, JSON.stringify({ id, name, ...(account ? { account } : {}), at: new Date().toISOString() }) + '\n');
+      ids.set(id, name); if (account) acc.set(id, account);
     },
   };
 }
@@ -63,7 +67,8 @@ export async function buildAdapters(config) {
       workspaceOf: (ref) => workspaceFor(config, 'claude_cli', ref), // WS1-b
       accountEnv: config.accountsDir ? (ref, o = {}) => claudeEnvFor(config, config.accountsDir, { ref, existing: o.existing === true }) : undefined }), // A2-b: PC의 이어온 전용 Claude 계정(없으면 지금처럼)
     // E1·E2: 세션 쪽은 그 PC의 허용 목록, 토큰 쪽은 지금 PC 기본 로그인(API 키 변수는 실행 때 지움)
-    agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories, newSessions }), // E4: 새 세션도
+    agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories, newSessions, // E4: 새 세션도
+      agyRun: config.accountsDir ? (acc) => agyRunFor(config, config.accountsDir, acc) : undefined }), // A3: 새 세션은 이어온 Antigravity 계정 폴더로
     grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories }),
   };
   for (const k of ['codex_thread', 'claude_cli', 'agy_cli', 'grok_cli']) adapters[k] = withWorkspaceLine(adapters[k], config);
