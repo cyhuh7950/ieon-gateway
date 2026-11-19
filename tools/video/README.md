@@ -59,3 +59,45 @@ node tools/video/build-intro.mjs
 - 메신저·AI 제품 로고는 상표라 쓰지 않고 글자 이름표 + 첫 글자 동그라미로 그린다.
 - 배경음은 넣지 않았다(저작권 없는 음원을 고르면 `build-intro.mjs` 5단계에서 섞으면 됨).
 - 목소리를 신산님 목소리로 바꾸려면 `.local/video/voice/<장면>.wav`를 같은 이름으로 바꾸고 `build-intro.mjs`를 다시 실행(장면 길이가 목소리에 맞춰 바뀜).
+
+## 사용법 영상(01~05) 만들기
+
+[docs/video/SCRIPT.md](../../docs/video/SCRIPT.md)의 01~05편. 소개 영상과 같은 도구에 아래만 더했다.
+
+| 파일 | 하는 일 |
+| --- | --- |
+| `usage-scenes.mjs` | 편마다 장면 목록(말·화면 종류·캡처 그림·강조 테두리·확대) — 대본과 같은 문장 |
+| `capture-usage.mjs` | 웹 화면(01~04) + 휴대폰 크기 PC 앱(04·05) 실제 화면 → `.local/video/usage-shots/` |
+| `usage.html` | 그림 장면(표지·웹 창·휴대폰 틀·받아쓰기 흐름·PC 알림·끝) — 자막도 화면에 그림 |
+| `build-usage.mjs` | 목소리(없을 때만 `tts.ps1`) → 시간표 → 그림(`render.cjs`, `VIDEO_HTML=usage.html`) → MP4 + SRT |
+
+```bash
+VIDEO_SET=usage VIDEO_DELAY_MS=3500 node tools/video/demo-server.mjs
+```
+(`VIDEO_SET=usage`: 꺼진 회사 PC 대화를 더하고, 작업 모드 대화는 허락 카드를 올린다 — 실제로 실행하는 것은 없음)
+
+```bash
+app/node_modules/electron/dist/electron.exe tools/video/viewer.cjs --remote-debugging-port=9335 --user-data-dir=.local/video/ud-web http://127.0.0.1:28799/
+```
+
+```bash
+app/node_modules/electron/dist/electron.exe app/electron/main.cjs --remote-debugging-port=9333 --user-data-dir=.local/video/ud-usage-app
+```
+
+```bash
+node tools/video/capture-usage.mjs
+```
+(웹 먼저 — 방·작업 모드·연결 코드를 웹에서 만든 뒤 휴대폰. 캡처가 끝나면 가짜 서버·두 창을 끈다)
+
+```bash
+node tools/video/build-usage.mjs still
+```
+(편마다 장면 한 장씩 → `.local/video/usage-stills/<편>`)
+
+```bash
+node tools/video/build-usage.mjs
+```
+→ `.local/video/이어온_사용법_01_웹질문.mp4` … `_05_음성알림지우기.mp4`와 같은 이름의 `.srt`. 한 편만: `node tools/video/build-usage.mjs 03`.
+
+- 확인 창(confirm·prompt)은 캡처에 찍히지 않아 캡처 도구가 미리 "예"로 답한다. 받아쓰기 창과 Windows 알림은 실제로 띄우지 않고 `usage.html`에서 그린다.
+- 목소리를 바꾸려면 `.local/video/usage-voice/<편>/<장면>.wav`를 같은 이름으로 바꾸고 `build-usage.mjs`를 다시 실행.

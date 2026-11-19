@@ -94,3 +94,17 @@ test('메신저 /status: 확인 필요 질문이 막고 있으면 그때 세션�
   await bridge.handle(m('/status', 3), send);
   assert.match(said.at(-1), /⚠ 그때 보낸 세션과 지금 연결된 세션이 다름/);
 });
+
+// 2026-11-20 실측: 처리하던 연결부가 죽었다가 다시 켜져도 질문이 계속 '처리 중'(대화 막힘)으로 남던 것 — 다시 켜졌다고 알리면 결과 불명(확인 카드)으로
+test('연결부가 다시 켜지면 그 PC가 처리 중이던 질문은 결과 불명(connector_restarted)으로, 대기 중 질문은 그대로', async (t) => {
+  const s = await setup(t);
+  const id = (await s.call('/v1/conversations/c1/requests', { method: 'POST', body: { question: 'q' }, key: 'k-rc4-restart1' })).body.requestId;
+  await s.call('/v1/device/jobs', { token: 'dev' }); // 연결부가 가져감(dispatching)
+  assert.equal((await s.call('/v1/requests/' + id)).body.status, 'dispatching');
+  const r = await s.call('/v1/device/restarted', { token: 'dev', method: 'POST', body: {} });
+  assert.deepEqual([r.status, r.body.unknown], [200, 1]);
+  const b = (await s.call('/v1/requests/' + id)).body;
+  assert.deepEqual([b.status, b.errorCode], ['unknown', 'connector_restarted']);
+  assert.ok((await s.call('/v1/conversations/c1/cards')).body.cards.some((c) => c.kind === 'held'), '확인 카드');
+  assert.equal((await s.call('/v1/device/restarted', { token: 'dev', method: 'POST', body: {} })).body.unknown, 0, '두 번째는 바꿀 것 없음');
+});

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>이어온 사용법</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #08101b; font-family: 'Malgun Gothic', 'Segoe UI Emoji', sans-serif; color: #e8eef5; }
+  #stage { position: absolute; inset: 0; background: radial-gradient(1200px 700px at 50% 52%, #12304a 0%, #0b1726 55%, #070d16 100%); }
+  .sub { position: absolute; left: 160px; right: 160px; bottom: 40px; text-align: center; font-size: 40px; line-height: 1.45; font-weight: 600; color: #fff; text-shadow: 0 2px 6px #000, 0 0 2px #000; z-index: 10; }
+  .sub span { background: rgba(0,0,0,.72); padding: 4px 18px; border-radius: 10px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .logo { position: absolute; width: 220px; height: 220px; border-radius: 44px; background: #0f766e; display: grid; place-items: center; box-shadow: 0 0 0 6px rgba(20,184,166,.18), 0 20px 60px rgba(0,0,0,.5); }
+  .logo b { font-size: 132px; line-height: 1; color: #fff; font-weight: 700; }
+  .txt { position: absolute; white-space: nowrap; }
+  .frame { position: absolute; transform-origin: 50% 50%; }
+  .brw { position: absolute; border-radius: 16px; background: #dfe3e8; padding-top: 40px; box-shadow: 0 30px 80px rgba(0,0,0,.6); overflow: hidden; }
+  .brw::before { content: ''; position: absolute; left: 18px; top: 13px; width: 14px; height: 14px; border-radius: 50%; background: #ff5f57; box-shadow: 22px 0 #febc2e, 44px 0 #28c840; }
+  .brw .url { position: absolute; left: 110px; top: 8px; width: 520px; height: 24px; border-radius: 12px; background: #fff; font-size: 15px; color: #555; padding: 3px 14px; }
+  .dev { position: absolute; border-radius: 48px; background: #0b0f14; padding: 14px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .win { position: absolute; border-radius: 10px; background: #1f2937; padding-top: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); overflow: hidden; }
+  .win .wt { position: absolute; left: 16px; top: 7px; font-size: 17px; color: #e5e7eb; }
+  .scr { position: relative; overflow: hidden; width: 100%; height: 100%; }
+  .dev .scr { border-radius: 36px; }
+  .scr img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+  .ring { position: absolute; border: 6px solid #f59e0b; border-radius: 14px; box-shadow: 0 0 0 4px rgba(245,158,11,.25), 0 0 28px rgba(245,158,11,.55); }
+  .toast { position: absolute; width: 560px; border-radius: 12px; background: #202020; color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.6); padding: 20px 24px; display: flex; gap: 18px; align-items: center; border: 1px solid #3a3a3a; }
+  .toast .ic { width: 56px; height: 56px; border-radius: 12px; background: #0f766e; display: grid; place-items: center; font-size: 32px; font-weight: 700; }
+  .toast b { display: block; font-size: 24px; } .toast span { font-size: 24px; color: #d4d4d4; }
+  .task { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: rgba(20,24,32,.92); border-top: 1px solid #2a3240; }
+  .listen { position: absolute; left: 0; right: 0; bottom: 0; background: #f8fafc; color: #0f172a; border-radius: 34px 34px 0 0; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px 22px 34px; box-shadow: 0 -10px 30px rgba(0,0,0,.25); }
+  .listen .mic { width: 84px; height: 84px; border-radius: 50%; background: #0f766e; color: #fff; display: grid; place-items: center; font-size: 40px; }
+  .listen .said { font-size: 26px; min-height: 36px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+'use strict';
+// 시간표: build-usage.mjs가 window.__TIMELINE = [{ id, type, start, dur, say, sayStart, sayDur, shots, hl, zoom, ep, epTitle, … }]
+const W = 1920, H = 1080, CX = 960;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const eo = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const eio = (x) => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const prog = (t, a, b) => eo((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const stage = document.getElementById('stage');
+const el = (cls, html, style = {}, parent = stage) => { const e = document.createElement('div'); if (cls) e.className = cls; if (html != null) e.innerHTML = html; Object.assign(e.style, style); parent.append(e); return e; };
+const place = (e, x, y, o = 1, s = 1) => { e.style.left = x + 'px'; e.style.top = y + 'px'; e.style.opacity = o; e.style.transform = `translate(-50%,-50%) scale(${s})`; };
+const SHOT = '../../.local/video/usage-shots/';
+const SIZE = { web: [1920, 1200], phone: [1170, 2532], pc: [960, 1640] };
+
+// 장면 안 비율(0~1)에 맞는 캡처 그림
+function shotAt(sc, f) { let s = sc.shots[0][0]; for (const [n, at] of sc.shots) if (f >= at) s = n; return s; }
+// 강조 테두리(그림 픽셀 → 화면 픽셀)
+function ring(scr, r, k, o) { const e = el('ring', '', { left: r[0] * k - 8 + 'px', top: r[1] * k - 8 + 'px', width: r[2] * k + 16 + 'px', height: r[3] * k + 16 + 'px', opacity: o }, scr); return e; }
+// 확대(그림의 한 점을 향해 천천히)
+function zoomTo(frame, sc, lt, d, k, w, h, padTop = 0) {
+  if (!sc.zoom) return;
+  const [zx, zy, zs] = sc.zoom; const p = eio((lt - .4) / Math.max(1.5, d * .6));
+  const s = lerp(1, zs, p);
+  frame.style.transformOrigin = `${(zx * k) / w * 100}% ${(zy * k + padTop) / h * 100}%`;
+  frame.style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+function hlOpacity(sc, lt, d) {
+  const f = lt / d; const a = (sc.hlAt ?? 0) * d + .5, e = sc.hlEnd != null ? sc.hlEnd * d : 1e9;
+  return f * d < e ? prog(lt, a, a + .4) : 0;
+}
+
+const SCN = {
+  title(sc, lt, d) {
+    const g = el('logo', '<b>이</b>'); place(g, CX, 380, prog(lt, 0, .5), lerp(.8, .8, 1));
+    const n = el('txt', '사용법 ' + sc.ep, { fontSize: '34px', color: '#8fd3c8', letterSpacing: '.12em' }); place(n, CX, 560, prog(lt, .2, .7));
+    const t = el('txt', sc.epTitle, { fontSize: '76px', fontWeight: 700 }); place(t, CX, 650, prog(lt, .3, .9), lerp(.96, 1, prog(lt, .3, 1)));
+  },
+  end(sc, lt, d) {
+    const g = el('logo', '<b>이</b>'); place(g, CX, 360, 1, .75);
+    if (sc.last) {
+      const t = el('txt', '이어온', { fontSize: '72px', fontWeight: 700 }); place(t, CX, 590, prog(lt, .2, .8));
+      const s = el('txt', 'ieon-gateway', { fontSize: '30px', color: '#8fd3c8', letterSpacing: '.08em' }); place(s, CX, 670, prog(lt, .6, 1.2));
+    } else {
+      const s = el('txt', '다음 영상', { fontSize: '32px', color: '#8fd3c8', letterSpacing: '.1em' }); place(s, CX, 560, prog(lt, .2, .7));
+      const t = el('txt', sc.next, { fontSize: '64px', fontWeight: 700 }); place(t, CX, 645, prog(lt, .3, .9));
+    }
+    stage.style.opacity = 1 - prog(lt, d - .8, d);
+  },
+  web(sc, lt, d) {
+    const [sw, sh] = SIZE.web; const w = 1380, k = w / sw, h = sh * k + 40;
+    const f = el('frame brw', '<div class="url">127.0.0.1:28799</div>', { width: w + 'px', height: h + 'px' });
+    const scr = el('scr', `<img src="${SHOT + shotAt(sc, lt / d)}.png">`, { height: sh * k + 'px' }, f);
+    place(f, CX, 492, prog(lt, 0, .35));
+    if (sc.hl) ring(scr, sc.hl, k, hlOpacity(sc, lt, d));
+    zoomTo(f, sc, lt, d, k, w, h, 40);
+  },
+  phone(sc, lt, d, img) {
+    const [sw, sh] = SIZE.phone; const hh = 820, k = hh / sh, w = sw * k;
+    const f = el('frame dev', '', { width: w + 28 + 'px', height: hh + 28 + 'px' });
+    const scr = el('scr', `<img src="${SHOT + (img || shotAt(sc, lt / d))}.png">`, { width: w + 'px', height: hh + 'px' }, f);
+    place(f, CX, 458, prog(lt, 0, .35));
+    if (sc.hl) ring(scr, sc.hl, k, hlOpacity(sc, lt, d));
+    if (sc.hl2) ring(scr, sc.hl2, k, sc.hlEnd != null ? prog(lt, sc.hlEnd * d + .4, sc.hlEnd * d + .8) : 0);
+    return { scr, k, w, hh };
+  },
+  dictate(sc, lt, d) {
+    const f = lt / d; const sw = sc.shots[1][1];
+    const P = SCN.phone({ ...sc, hl: null }, lt, d);
+    if (f < sw) {
+      // 기기 받아쓰기 창(안드로이드 기본 창을 단순하게) — 말한 글이 한 글자씩
+      const p = clamp((f - .08) / (sw - .2));
+      const L = el('listen', '', {}, P.scr);
+      L.style.transform = `translateY(${(1 - prog(lt, .2, .6)) * 100}%)`;
+      const m = el('mic', '🎤', { transform: `scale(${1 + .08 * Math.sin(lt * 9)})` }, L);
+      el('said', sc.text.slice(0, Math.round(sc.text.length * p)), {}, L);
+    } else if (sc.hl) ring(P.scr, sc.hl, P.k, prog(lt, sw * d + .2, sw * d + .6));
+  },
+  toast(sc, lt, d) {
+    const [sw, sh] = SIZE.pc; const hh = 820, k = hh / sh, w = sw * k;
+    // PC 바탕화면 + 이어온 PC 앱 창(최소화 → 알림)
+    const desk = el('', '', { position: 'absolute', inset: 0, background: 'linear-gradient(135deg,#1e3a5f,#0f2a3f 55%,#14202e)' });
+    el('task', '', {}, desk);
+    const mini = prog(lt, 1.8, 2.8);
+    const f = el('frame win', '<div class="wt">이어온</div>', { width: w + 'px', height: hh + 34 + 'px' });
+    el('scr', `<img src="${SHOT + shotAt(sc, lt / d)}.png">`, { height: hh + 'px' }, f);
+    f.style.left = lerp(CX, 900, mini) + 'px'; f.style.top = lerp(486, 1040, mini) + 'px';
+    f.style.opacity = 1 - mini * .95; f.style.transform = `translate(-50%,-50%) scale(${lerp(1, .05, mini)})`;
+    const t = el('toast', `<div class="ic">이</div><div><b>${sc.toast[0]}</b><span>${sc.toast[1]}</span></div>`);
+    const tp = prog(lt, 3.6, 4.2);
+    t.style.left = lerp(1940, 1330, tp) + 'px'; t.style.top = '560px'; t.style.opacity = tp;
+  },
+};
+
+window.render = (t) => {
+  const TL = window.__TIMELINE || [];
+  const sc = TL.find((s) => t >= s.start && t < s.start + s.dur) || TL[TL.length - 1];
+  if (!sc) return;
+  const lt = t - sc.start;
+  stage.innerHTML = ''; stage.style.opacity = 1;
+  SCN[sc.type](sc, lt, sc.dur);
+  stage.style.filter = lt < .25 && sc !== TL[0] ? `brightness(${lerp(.55, 1, prog(lt, 0, .25))})` : '';
+  if (t >= sc.sayStart && t <= sc.sayStart + sc.sayDur + .25) el('sub', `<span>${sc.say}</span>`);
+};
+// 그림 미리 불러오기 — render.cjs가 시간표를 넣은 뒤 읽으므로 읽는 순간에 만든다
+Object.defineProperty(window, '__ready', { get: () => Promise.all([...new Set((window.__TIMELINE || []).flatMap((s) => (s.shots || []).map((x) => x[0])))]
+  .map((n) => new Promise((r) => { const i = new Image(); i.onload = i.onerror = r; i.src = SHOT + n + '.png'; }))) });
+</script>
+</body>
+</html>

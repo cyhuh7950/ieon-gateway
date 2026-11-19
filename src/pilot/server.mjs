@@ -662,6 +662,12 @@ export function createApp(config) {
           return adminQueue.done(device.hostId, ar[1], { status: Number(b.status) || 500, body: b.body && typeof b.body === 'object' ? b.body : {} }) ? json(res, 204) : json(res, 404, { error: 'not_found' });
         }
         // W3: 이 PC가 허브에 연결돼 있으면 이 PC 서버는 작업을 내주지 않는다(한 PC가 두 서버의 질문을 함께 실행하지 않게).
+        // RC4: 연결부가 켜질 때 한 번 알린다 — 그 PC가 처리 중이던 질문은 결과 불명으로(확인 카드)
+        if (req.method === 'POST' && path === '/v1/device/restarted') {
+          const convs = store.deviceRestarted(device.hostId);
+          if (convs.length) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'connector_restarted', host: device.hostId, unknown: convs.length }) + '\n'); for (const c of new Set(convs)) notify(c, { type: 'request' }); }
+          return json(res, 200, { unknown: convs.length });
+        }
         if (req.method === 'GET' && path === '/v1/device/jobs' && hubModeOn()) return json(res, 204);
         if (req.method === 'GET' && path === '/v1/device/jobs') {
           const job = store.claim(device.hostId);

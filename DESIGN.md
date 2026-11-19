@@ -28,32 +28,27 @@ colors:
 typography:
   title:
     fontFamily: "Pretendard Variable, Pretendard, Noto Sans KR, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "19px"
+    fontSize: "20px"
     fontWeight: 700
     lineHeight: 1.35
   headline:
     fontFamily: "Pretendard Variable, Pretendard, Noto Sans KR, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "17px"
+    fontSize: "16px"
     fontWeight: 700
     lineHeight: 1.4
-  body:
-    fontFamily: "Pretendard Variable, Pretendard, Noto Sans KR, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "15px"
-    fontWeight: 400
-    lineHeight: 1.55
-  body-dense:
-    fontFamily: "Pretendard Variable, Pretendard, Noto Sans KR, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "14px"
-    fontWeight: 400
-    lineHeight: 1.6
   label:
     fontFamily: "Pretendard Variable, Pretendard, Noto Sans KR, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "13px"
+    fontSize: "14px"
     fontWeight: 600
     lineHeight: 1.45
-  caption:
+  body:
     fontFamily: "Pretendard Variable, Pretendard, Noto Sans KR, Malgun Gothic, Segoe UI, sans-serif"
     fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.6
+  caption:
+    fontFamily: "Pretendard Variable, Pretendard, Noto Sans KR, Malgun Gothic, Segoe UI, sans-serif"
+    fontSize: "11px"
     fontWeight: 400
     lineHeight: 1.45
 rounded:
@@ -111,7 +106,7 @@ components:
 
 이어온 화면은 사람이 PC의 AI 세션에 말을 건네는 창구다. 주인공은 대화와 그 대화의 상태(보낼 수 있음·바쁨·꺼짐)이고, 화면 장식은 뒤로 물러난다. 하얀 바탕과 차분한 회색 위에 청록 하나만 강조로 쓰고, 어두운 모드에서도 같은 관계를 지킨다.
 
-밀도는 메신저 수준이다. 대화 화면은 15px 본문으로 편히 읽히고, 설정·관리 화면은 14px로 조금 빽빽하지만 같은 색·모서리·버튼을 쓴다. 어느 화면으로 옮겨도 같은 앱으로 느껴져야 한다. 고급 항목은 접어 두고 기본값으로 바로 동작하는 것이 먼저다.
+밀도는 업무 화면 수준(PMO 기준 12px 본문)이다. 대화 화면과 설정·관리 화면이 같은 글자 크기·색·모서리·버튼을 쓴다. 어느 화면으로 옮겨도 같은 앱으로 느껴져야 한다. 고급 항목은 접어 두고 기본값으로 바로 동작하는 것이 먼저다.
 
 **Key Characteristics:**
 - 강조색은 청록 하나, 상태색(ok·warn·err)은 의미가 있을 때만
@@ -151,15 +146,15 @@ components:
 **Character:** 한 글꼴로 굵기와 크기만 달리 쓴다. 한국어 존댓말 문장이 편히 읽히는 것이 기준이다.
 
 ### Hierarchy
-- **Title** (700, 19~21px): 창·처음 설정 카드 제목.
-- **Headline** (700, 17px): 대화 머리줄 제목, 설정 화면의 탭 제목(h2).
-- **Body** (400, 15px, 1.55): 대화 화면 본문·말풍선.
-- **Body-dense** (400, 14px, 1.6): 설정·관리 화면 본문, 패널, 표.
-- **Label** (600, 13~15px): 섹션 소제목(h3 15px), 버튼, 입력 이름표.
-- **Caption** (400, 12px): 칩, 날짜, 출처 같은 보조 표시만. 본문에 12px을 쓰지 않는다.
+- **Title** (700, 20px): 처음 설정·로그인 카드 제목.
+- **Headline** (700, 16px): 대화 머리줄 제목, 창 제목, 설정 화면 탭 제목(h2).
+- **Label** (600, 14px): 섹션 소제목(h3)·접는 줄, 메뉴.
+- **Body** (400, 12px, 1.6): 모든 화면의 본문·말풍선·표·입력칸(휴대폰 입력칸은 16px).
+- **Caption** (400, 11px): 배지·칩·짧은 상태·표 머리글.
+- 숫자 코드(메신저 연결 숫자)만 24px.
 
 ### Named Rules
-**12px 바닥 규칙.** 읽어야 하는 문장은 14px 아래로 내리지 않는다. 휴대폰 입력칸은 16px(iOS 확대 방지).
+**12px 기준 규칙(PMO PRODUCT_DESIGN_STANDARD 4.2, 2026-11-20 신산님 "PMO 기준 12px로").** 본문·입력은 12px. 14px은 메뉴·소제목·강조에만, 휴대폰 입력칸은 16px(iOS 확대 방지), 10px 이하는 쓰지 않는다.
 
 **제목 차례 규칙.** h1 → h2 → h3 차례를 건너뛰거나 뒤집지 않는다.
 
@@ -222,7 +217,7 @@ components:
 
 ### Don't:
 - **Don't** 남색(#24344d)이나 파랑(#2563eb) 같은 두 번째 강조색을 쓰지 않는다.
-- **Don't** 본문을 12px로 쓰지 않는다.
+- **Don't** 본문을 12px보다 크게 키우지 않는다(PMO 4.2 — 메뉴·소제목·강조만 14px).
 - **Don't** 브라우저 기본 버튼·링크 모양을 그대로 두지 않는다.
 - **Don't** 내부 ID(`c_…`, `h_…`)나 파일 이름을 일반 사용자 화면에 그대로 보이지 않는다.
 - **Don't** 지금 못 쓴다는 이유로 기능을 숨기지 않는다.
