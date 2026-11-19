@@ -366,7 +366,7 @@ export function createApp(config) {
     if (c.engine === 'agy_cli') { // A3: 이어온 계정으로 만든 새 세션은 그 계정(처음 질문 전이면 새 세션 기본)
       const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
       const mine = c.newSession ? (h?.agyAccounts?.[ref] ?? (ref.startsWith('pending:') ? h?.agyDefault : null)) : null;
-      if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine, kind: 'api' };
+      if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine }; // API 키·호환 주소 모두 있을 수 있어 종류는 붙이지 않음
       return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Antigravity 로그인' };
     }
     if (c.engine === 'grok_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Grok 로그인' };
