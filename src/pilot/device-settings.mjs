@@ -9,6 +9,7 @@ import { childEnv } from './parent-watch.mjs';
 import { codexAccounts, cleanLabel, MAX_ACCOUNTS, PC_DEFAULT } from './accounts.mjs';
 import { claudeAccounts } from './claude-accounts.mjs';
 import { agyAccounts } from './agy-accounts.mjs';
+import { grokAccounts } from './grok-accounts.mjs';
 import { addFolder, removeFolder, attachWorkspace } from './workspaces.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -45,6 +46,9 @@ export function readDevice(path) {
     // A3: Antigravity 이어온 전용 계정(새 세션용), 새 세션 기본
     agyAccounts: agyAccounts(c),
     agyDefaultAccount: c.agyAccounts?.defaultAccount ?? PC_DEFAULT,
+    // G1: Grok 이어온 전용 계정(새 세션용), 새 세션 기본
+    grokAccounts: grokAccounts(c),
+    grokDefaultAccount: c.grokAccounts?.defaultAccount ?? PC_DEFAULT,
   };
 }
 
@@ -144,6 +148,26 @@ export function useAgyAccount(path, { accountId }) {
   const c = read(path);
   if (accountId !== PC_DEFAULT && !agyAccounts(c).some((a) => a.id === accountId)) fail('bad_account');
   c.agyAccounts ??= {}; if (accountId === PC_DEFAULT) delete c.agyAccounts.defaultAccount; else c.agyAccounts.defaultAccount = accountId;
+  write(path, c);
+}
+
+// G1: Grok 계정(새 세션용) 등록·지우기·기본 고르기 — Antigravity와 같은 모양
+export function addGrokAccount(path, { id, label }) {
+  const c = read(path); const list = grokAccounts(c);
+  if (list.length >= MAX_ACCOUNTS) fail('too_many_accounts');
+  const name = cleanLabel(label); if (!name) fail('bad_label');
+  c.grokAccounts ??= {}; c.grokAccounts.accounts = [...list, { id, label: name }]; write(path, c);
+}
+export function removeGrokAccount(path, id) {
+  const c = read(path); if (!grokAccounts(c).some((a) => a.id === id)) return false;
+  c.grokAccounts.accounts = grokAccounts(c).filter((a) => a.id !== id);
+  if (c.grokAccounts.defaultAccount === id) delete c.grokAccounts.defaultAccount;
+  write(path, c); return true;
+}
+export function useGrokAccount(path, { accountId }) {
+  const c = read(path);
+  if (accountId !== PC_DEFAULT && !grokAccounts(c).some((a) => a.id === accountId)) fail('bad_account');
+  c.grokAccounts ??= {}; if (accountId === PC_DEFAULT) delete c.grokAccounts.defaultAccount; else c.grokAccounts.defaultAccount = accountId;
   write(path, c);
 }
 

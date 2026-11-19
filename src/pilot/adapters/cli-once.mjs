@@ -21,7 +21,8 @@ const exe = (p) => (process.platform === 'win32' ? `${p}.exe` : p);
 export const CLI_ENGINES = Object.freeze({
   agy_cli: {
     name: 'Antigravity', verified: true,
-    bin: () => join(homedir(), '.gemini', 'bin', exe('agy')),
+    // Windows·맥은 ~/.gemini/bin, 리눅스 공식 설치는 ~/.local/bin, 허브 이미지는 /usr/local/bin(2026-11-20) — 있는 곳을 쓴다
+    bin: () => [join(homedir(), '.gemini', 'bin', exe('agy')), join(homedir(), '.local', 'bin', exe('agy')), '/usr/local/bin/agy'].find((p) => existsSync(p)) ?? join(homedir(), '.gemini', 'bin', exe('agy')),
     // E0: -p 한 번 실행, JSON 결과(conversation_id·status·response·usage), --conversation 이어 쓰기, plan+샌드박스면 파일 안 생김
     args: (id, q) => ['-p', q, '--output-format', 'json', '--mode', 'plan', '--sandbox', '--print-timeout', '280s', '--conversation', id],
     // E4 새 세션: 처음 질문은 --conversation 없이(새 대화), 다음부터 받은 대화 ID로. 방식은 권한 프로필의 agy.mode, auto(명령까지)만 샌드박스를 풂.
@@ -39,6 +40,8 @@ export const CLI_ENGINES = Object.freeze({
     // 공식 문서: -p 한 번 실행·--output-format json·-r <ID> 이어 쓰기. --always-approve·--fork-session은 쓰지 않음.
     // TO_VERIFY(구독 뒤 실측): 결과 JSON 칸 이름, 읽기 전용(권한을 묻지 않는 실행에서 자동 거부되는지·--deny 규칙), 사용 중 잠금 위치.
     args: (id, q) => ['-p', q, '--output-format', 'json', '-r', id],
+    // G1 새 세션: 처음 질문은 -r 없이(새 대화), 다음부터 받은 세션 ID로. 권한 방식은 TO_VERIFY(지금은 묻는 도구를 쓰지 않는 기본 실행).
+    newArgs: (id, q) => ['-p', q, '--output-format', 'json', ...(id ? ['-r', id] : [])],
     lockDir: null, // 사용 중 판별 방법 미확인 — 확인 전에는 "보낼 때 다른 곳에서 열어 두지 않기"(ME5)를 화면에 안내
     keyVars: ['XAI_API_KEY'],
     parse: (j) => ({ sessionId: j?.sessionId ?? j?.session_id, ok: !(j?.is_error || j?.error) && (j?.result ?? j?.response) !== undefined, answer: j?.result ?? j?.response, status: j?.status ?? null, usage: j?.usage }),
@@ -97,14 +100,17 @@ export function cliOnceAdapter(opts) {
       if (pending) created.add(id, newSession.name, acct.accountId);
       return { receipt: `${opts.engine}:${id}`, answer: r.answer, sessionRef: id, usage: null };
     }
-    const { code, stdout, stderr, stopped } = await run(bin, spec.newArgs(pending ? null : sessionRef, question, mode), { cwd: checked.workspace, env: envOf(pending ? null : sessionRef), signal });
+    // G1: 키로 들어가는 계정(Grok) — 처음엔 엔진 기본 계정, 그 뒤엔 그 세션을 만든 계정. PC 기본이면 null
+    let keyAcct = null;
+    try { keyAcct = pending ? (opts.newEnv?.(null) ?? null) : (created.account?.(sessionRef) ? opts.newEnv?.(created.account(sessionRef)) ?? null : null); } catch (e) { throw new EngineError(e.message, e.http ?? 409); }
+    const { code, stdout, stderr, stopped } = await run(bin, spec.newArgs(pending ? null : sessionRef, question, mode), { cwd: checked.workspace, env: keyAcct ? { ...envOf(null), ...keyAcct.env } : envOf(pending ? null : sessionRef), signal });
     if (stopped) throw new StoppedError();
     const j = lastJson(stdout);
     if (!j) { if (code !== 0 && isLimit(stderr)) throw new EngineError('usage_limit', 429); throw Object.assign(new Error('cli_bad_output'), { unknownCode: `cli_exit_${code}` }); }
     const r = spec.parse(j);
     const newId = String(r.sessionId ?? '');
     if (!spec.validId(newId)) throw Object.assign(new Error('cli_no_session'), { unknownCode: 'cli_no_session' });
-    if (pending) created.add(newId, newSession.name); // 이어온이 만든 대화로 적어 둠(다음 질문부터 이 ID로만)
+    if (pending) created.add(newId, newSession.name, keyAcct?.accountId); // 이어온이 만든 대화로 적어 둠(다음 질문부터 이 ID로만)
     else if (newId !== sessionRef) throw Object.assign(new Error('session_changed'), { unknownCode: 'session_changed', sessionRef });
     if (!r.ok) {
       if (!r.answer && isLimit(`${r.status} ${JSON.stringify(j).slice(0, 500)}`)) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: newId });

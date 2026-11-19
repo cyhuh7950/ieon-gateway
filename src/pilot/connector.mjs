@@ -9,6 +9,7 @@ import { createCodexLogin } from './codex-login.mjs';
 import { claudeKind } from './claude-login.mjs';
 import { claudeAccountHealth } from './claude-accounts.mjs';
 import { agyAccountHealth } from './agy-accounts.mjs';
+import { grokAccountHealth } from './grok-accounts.mjs';
 
 // P3: 허브 주소 검사. https·http(규칙 점검 8, 2026-11-18 신산님 — 도메인 없는 서버 설치형도 PC를 붙일 수 있게. http는 암호화가 안 돼 화면에 경고).
 // 사용자 정보·쿼리·조각은 거절한다.
@@ -208,6 +209,7 @@ export async function engineHealth(config) {
     // A2-b: PC의 이어온 전용 Claude 계정(대화별·기본) 이름표·종류
     ...(claudeKind() ? {} : claudeAccountHealth(config, config.accountsDir)),
     ...agyAccountHealth(config), // A3: Antigravity 새 세션의 이어온 계정 이름표
+    ...grokAccountHealth(config), // G1: Grok 새 세션의 이어온 계정 이름표
     // 엔진 칸(컨테이너가 경계 — 새 세션이 명령까지 할 수 있는 곳). 허브가 새 세션 기본 위치를 고를 때 씀
     boundary: process.env.IEON_CONTAINER_BOUNDARY === '1',
   };

@@ -11,7 +11,7 @@ const req = (name, engine = 'codex', extra = {}) => ({ engine, name, hostId: 'h_
 test('설정: 기본값을 채우고 잘못된 값은 거부한다', () => {
   const c = loadNewSessionsConfig({});
   assert.equal(c.enabled, true); // 기본 켜짐(신산님 2026-11-17)
-  assert.deepEqual(c.limits, { maxSessions: 30, maxActive: 5, maxPerEngine: { codex: 30, claude: 10, antigravity: 10 } }); // 규칙 점검 9, E4
+  assert.deepEqual(c.limits, { maxSessions: 30, maxActive: 5, maxPerEngine: { codex: 30, claude: 10, antigravity: 10, grok: 10 } }); // 규칙 점검 9, E4
   assert.equal(c.permissions.default, 'workspace');
   assert.equal(c.permissions.allowFullFromChat, false);
   assert.deepEqual(Object.keys(c.permissions.profiles), ['read_only', 'workspace', 'full']);
@@ -86,8 +86,8 @@ test('세션 수 한도: 총수·엔진별 한도를 넘으면 거절하고 보�
   assert.equal(store.createSession(owner, req('x1'), c).http, 201);
   assert.equal(store.createSession(owner, req('x2'), c).http, 201);
   assert.deepEqual(store.createSession(owner, req('x3'), c), { http: 409, code: 'session_limit', limit: 3 });
-  assert.deepEqual(store.sessionLimits(c), { sessions: 3, maxSessions: 3, perEngine: { codex: 2, claude: 1, antigravity: 0 },
-    maxPerEngine: { codex: 3, claude: 1, antigravity: 10 }, maxActive: 2 });
+  assert.deepEqual(store.sessionLimits(c), { sessions: 3, maxSessions: 3, perEngine: { codex: 2, claude: 1, antigravity: 0, grok: 0 },
+    maxPerEngine: { codex: 3, claude: 1, antigravity: 10, grok: 10 }, maxActive: 2 });
   store.setSessionState('n_x1', 'archived');
   assert.equal(store.createSession(owner, req('x3'), c).http, 201);
 });
