@@ -226,7 +226,7 @@ details.adv[open] summary { margin-bottom:10px; }
     <h2 id="nsTitle">새 세션 만들기</h2>
     <p class="muted small" style="margin:0">이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만들어요. 첫 질문을 보내면 시작해요.</p>
     <form id="nsForm">
-      <label class="field">엔진<select id="nsEngine"><option value="codex">Codex</option><option value="claude">Claude</option></select></label>
+      <label class="field">엔진<select id="nsEngine"><option value="codex">Codex</option><option value="claude">Claude</option><option value="antigravity">Antigravity(그 PC에 설치돼 있을 때)</option></select></label>
       <label class="field" id="nsHostRow" hidden>어디서<select id="nsHost"></select></label>
       <label class="field">이름<input id="nsName" placeholder="영문·숫자·- 2~32자" maxlength="32" autocomplete="off" spellcheck="false" required></label>
       <label class="field">권한<select id="nsProfile"><option value="workspace">작업 폴더 안 읽기·쓰기(기본)</option><option value="read_only">읽기 전용</option></select></label>
@@ -496,7 +496,7 @@ let rooms = [], currentRoom = null, roomTimer = null; const roomSeen = new Map()
 async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
   $('newSessBtn').hidden = r.status !== 200; // 새 세션 기능이 꺼져 있으면 버튼을 숨긴다(403)
-  if (r.status === 200) $('nsLimits').textContent = '지금 ' + r.body.sessions + '/' + r.body.maxSessions + '개 · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude + '. 명령 실행·인터넷(full) 권한은 설정 → 대화 → 새 세션에서 켜요.';
+  if (r.status === 200) $('nsLimits').textContent = '지금 ' + r.body.sessions + '/' + r.body.maxSessions + '개 · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude + ' · Antigravity ' + (r.body.perEngine.antigravity ?? 0) + '/' + (r.body.maxPerEngine.antigravity ?? 0) + '. 명령 실행·인터넷(full) 권한은 설정 → 대화 → 새 세션에서 켜요.';
 }
 // SV2: 허브에서는 새 세션을 만들 곳을 고른다 — 허브 자신(글로만 답해요) 또는 엔진 칸·PC(명령·파일 작업까지). 칸 Claude는 서버 Claude 로그인을 같이 씀.
 async function loadNsHosts() {

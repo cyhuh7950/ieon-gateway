@@ -273,10 +273,10 @@ export function createBridge(opts) {
     if (/^\/(help|start)\b/.test(text)) {
       const head = bot.name ? `${bot.name}${bot.role ? ` · ${bot.role.name}${bot.role.description ? ` — ${bot.role.description}` : ''}` : ''}${bot.callNames?.length ? `\n그룹에서 부르기: "${bot.callNames[0]}, …" 또는 @멘션` : ''}\n\n` : '';
       return send(head + '명령어\n/sessions 세션 목록\n/use <번호> 이 대화방을 그 세션에 연결\n/status 연결된 세션 상태\n/review done|not 확인 필요 질문 정리\n'
-        + '/new codex|claude <이름> [read_only|workspace] 새 세션을 만들고 이 대화방에 연결\n/sleep <이름> 잠재우기\n/archived 보관 목록\n'
+        + '/new codex|claude|antigravity <이름> [read_only|workspace] 새 세션을 만들고 이 대화방에 연결\n/sleep <이름> 잠재우기\n/archived 보관 목록\n'
         + '/restore <이름> 보관에서 꺼내기\n/close <이름> 삭제(확인 단계 있음)\n/limits 세션 수와 한도\n/허용 <번호> · /거부 <번호> 작업 모드 승인 요청에 답하기(주인만)\n/처리 <번호> · /중단 <번호> 사람에게 넘긴 일 기록(주인만)\n/last 마지막 답 다시 받기(다시 실행하지 않음)\n/stop 이 대화방의 마지막 질문만 멈추기(물어본 사람·주인)\n/whoami 내 ID\n그 밖의 글은 연결된 세션에 질문으로 보냅니다.');
     }
-    const create = text.match(/^\/new\s+(codex|claude)\s+(\S+)(?:\s+(\S+))?\s*$/);
+    const create = text.match(/^\/new\s+(codex|claude|antigravity)\s+(\S+)(?:\s+(\S+))?\s*$/);
     if (create) {
       const r = await opts.api({ method: 'POST', path: '/v1/sessions', body: { engine: create[1], name: create[2], ...(create[3] ? { profile: create[3] } : {}) } });
       if (r.status !== 201) return send(`새 세션을 만들 수 없음: ${nsFail(r)}${r.body?.allowed ? ` (가능: ${r.body.allowed.join(', ')})` : ''}`);
@@ -284,12 +284,12 @@ export function createBridge(opts) {
       saveRooms();
       return send(`새 ${create[1] === 'codex' ? 'Codex' : 'Claude'} 세션 "${r.body.name}"(권한 ${r.body.profile})을 만들고 이 대화방에 연결했습니다. 첫 질문을 보내면 시작합니다.`);
     }
-    if (/^\/new\b/.test(text)) return send('사용법: /new codex|claude <이름> [read_only|workspace]');
+    if (/^\/new\b/.test(text)) return send('사용법: /new codex|claude|antigravity <이름> [read_only|workspace]');
     if (/^\/limits\b/.test(text)) {
       const r = await opts.api({ method: 'GET', path: '/v1/sessions/limits' });
       if (r.status !== 200) return send(nsFail(r));
       const l = r.body;
-      return send(`새 세션 ${l.sessions}/${l.maxSessions} (Codex ${l.perEngine.codex}/${l.maxPerEngine.codex}, Claude ${l.perEngine.claude}/${l.maxPerEngine.claude}) · 동시 처리 ${l.maxActive}`);
+      return send(`새 세션 ${l.sessions}/${l.maxSessions} (Codex ${l.perEngine.codex}/${l.maxPerEngine.codex}, Claude ${l.perEngine.claude}/${l.maxPerEngine.claude}, Antigravity ${l.perEngine.antigravity ?? 0}/${l.maxPerEngine.antigravity ?? 0}) · 동시 처리 ${l.maxActive}`);
     }
     if (/^\/archived\b/.test(text)) {
       const arch = all.filter((c) => c.newSession?.state === 'archived');

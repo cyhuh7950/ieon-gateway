@@ -60,7 +60,7 @@
 | E1 | Grok 어댑터(방식 A), 대화 연결 목록·카드·준비 확인, 설명서 | 대역 시험(같은 세션만·불러오기 실패 거부·결과 불명·API 키 제거) + 시험 세션 실측(승인) |
 | E2 | Gemini 계열 어댑터(3절 결정에 따라 Antigravity 또는 CLI) | 같은 기준 |
 | E3 | ACP 상주 연결(방식 B) — 승인 카드와 함께 | **구현(2026-11-19, Antigravity 작업 모드)** — 아래 E3 기록 |
-| E4 | Grok·Gemini 새 세션 만들기(선택) | NEW_SESSIONS 규칙대로 |
+| E4 | Grok·Gemini 새 세션 만들기(선택) | NEW_SESSIONS 규칙대로 — **Antigravity 구현 2026-11-19**(아래 E4 기록), Grok은 실제 시험 보류라 아직 |
 
 ## 5-1. E1·E2 구현 기록(2026-11-13, 신산님 "이대로 진행")
 
@@ -100,3 +100,10 @@
 - **안전:** 불러오기 실패 → `session_load_failed`(새 세션으로 대체하지 않음, prompt 안 보냄), 멈춤 → `session/cancel` 뒤 `stopped`, 끊김·시간 초과 → 결과 불명(자동 재전송 없음), API 키 변수는 지금처럼 지움, presence 잠금으로 사용 중 거부.
 - **화면:** 연결 설정의 작업 모드가 Antigravity 기존 대화에도 보임(새 세션·Claude·Grok은 아직 아님).
 - **시험:** `e3-acp` 4건(가짜 ACP 에이전트), `w2-work-mode` 화면 조건. **미확인:** 실제 Antigravity로 작업 모드 승인 왕복(모델 호출 — 시험 질문 승인 필요), Antigravity의 실제 모드 이름(`plan`)·허락 요청 모양.
+
+## E4 구현 기록(2026-11-19, 신산님 "9번까지 차례로")
+
+- **Antigravity 새 세션:** `NEW_ENGINES.antigravity = agy_cli`, 한도 기본 10. 처음 질문은 `agy -p … --output-format json --mode <방식> [--sandbox]`를 작업 폴더에서(`--conversation` 없이) → 결과의 `conversation_id`를 새 세션 ID로 적어 두고(연결부 created 기록), 다음부터 그 ID로만 `--conversation`. 이어 쓸 때 다른 ID로 답하면 결과 불명(`session_changed`).
+- **권한 → 방식:** 프로필 `agy.mode` — read_only `plan`, workspace `accept-edits`, full `auto`(auto만 샌드박스 없음). 예전 설정 파일(agy 칸 없음)은 이름별 기본, 모르는 프로필은 `plan`, 틀린 값은 설정 오류.
+- **같이 바꾼 곳:** 화면 새 세션 엔진 고르기·한도 표시, 메신저 `/new antigravity`·`/limits`, 설정의 엔진별 한도.
+- **시험:** `e4-agy-new` 4건, 새 세션 시험 기대값(엔진별 한도에 antigravity). **미확인:** 실제 Antigravity 새 대화 만들기·이어 쓰기(모델 호출 — 시험 질문 승인), `accept-edits`가 `-p`에서 실제로 파일을 고치는지.
