@@ -4,7 +4,11 @@ import { homedir } from 'node:os';
 import { basename, dirname, posix, resolve, win32 } from 'node:path';
 
 // Claude 새 세션은 채널(기존 실행 중 세션)이 아니라 claude -p로 실행하는 별도 엔진이다(N2).
-export const NEW_ENGINES = Object.freeze({ codex: 'codex_thread', claude: 'claude_cli' });
+// E4(2026-11-19 신산님 "9번까지 차례로"): Antigravity 새 세션(agy -p, 처음 질문에 새 대화 → 받은 대화 ID로 이어 씀). Grok은 실제 시험 보류라 아직.
+export const NEW_ENGINES = Object.freeze({ codex: 'codex_thread', claude: 'claude_cli', antigravity: 'agy_cli' });
+// Antigravity 실행 방식(--mode): plan(읽기만·계획) / accept-edits(파일 고치기 허용) / auto(명령까지). 권한 프로필마다 기본값.
+export const AGY_MODES = new Set(['plan', 'accept-edits', 'auto']);
+const AGY_DEFAULT = { read_only: { mode: 'plan' }, workspace: { mode: 'accept-edits' }, full: { mode: 'auto' } };
 export const SESSION_STATES = Object.freeze(['pending', 'active', 'sleeping', 'archived']);
 const CODEX_SANDBOXES = new Set(['read-only', 'workspace-write']);
 
@@ -14,16 +18,16 @@ const DEFAULTS = Object.freeze({
   // app_bot_*: 웹 봇 관리에서 정의한 모든 추가 봇(MULTI_BOTS 4절)
   creatorApps: ['app_web', 'app_messenger', 'app_bot_*'],
   // 규칙 점검 9(2026-11-18 신산님): 처음 쓸 때 걸리지 않게 넉넉히(전에는 전체 10·동시 3·Claude 3). 웹에서 바꿀 수 있음.
-  limits: { maxSessions: 30, maxActive: 5, maxPerEngine: { codex: 30, claude: 10 } },
+  limits: { maxSessions: 30, maxActive: 5, maxPerEngine: { codex: 30, claude: 10, antigravity: 10 } },
   permissions: {
     default: 'workspace',
     allowFullFromChat: false,
     profiles: {
-      read_only: { codex: { sandbox: 'read-only', network: false }, claude: { allowedTools: ['Read', 'Grep', 'Glob'] } },
+      read_only: { codex: { sandbox: 'read-only', network: false }, claude: { allowedTools: ['Read', 'Grep', 'Glob'] }, agy: AGY_DEFAULT.read_only },
       workspace: { codex: { sandbox: 'workspace-write', network: false },
-        claude: { allowedTools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'] } },
+        claude: { allowedTools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'] }, agy: AGY_DEFAULT.workspace },
       full: { codex: { sandbox: 'workspace-write', network: true },
-        claude: { allowedTools: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash', 'WebFetch'] } },
+        claude: { allowedTools: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash', 'WebFetch'] }, agy: AGY_DEFAULT.full },
     },
   },
   cleanup: { idleSleepMinutes: 30, archiveAfterDays: 14, archiveNoticeDays: 3, deleteRequiresConfirm: true, deleteWorkspaceOnClose: false },
@@ -44,6 +48,8 @@ export function loadNewSessionsConfig(raw = {}) {
   const permissions = { ...DEFAULTS.permissions, ...raw.permissions,
     profiles: { ...DEFAULTS.permissions.profiles, ...raw.permissions?.profiles } };
   for (const [name, p] of Object.entries(permissions.profiles)) {
+    if (p && !p.agy) permissions.profiles[name] = { ...p, agy: AGY_DEFAULT[name] ?? { mode: 'plan' } }; // 예전 설정 파일(agy 없음)은 이름별 기본, 모르는 이름은 읽기만
+    if (!AGY_MODES.has(permissions.profiles[name]?.agy?.mode)) fail(`profile.${name}.agy`);
     if (!CODEX_SANDBOXES.has(p?.codex?.sandbox) || typeof p.codex.network !== 'boolean') fail(`profile.${name}.codex`);
     if (!Array.isArray(p?.claude?.allowedTools) || p.claude.allowedTools.some((x) => typeof x !== 'string')) fail(`profile.${name}.claude`);
   }

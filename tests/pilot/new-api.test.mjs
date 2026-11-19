@@ -48,8 +48,8 @@ test('POST /v1/sessions: 거절 사유를 그대로 돌려준다', async (t) => 
   assert.deepEqual((await call('/v1/sessions', { token: 'mine', method: 'POST', body: { engine: 'codex', name: 'ok1' } })).body, { error: 'app_not_allowed' });
   assert.equal((await call('/v1/sessions', { method: 'POST', body: { engine: 'codex', name: 'ok1' } })).status, 201);
   assert.deepEqual(await call('/v1/sessions', { method: 'POST', body: { engine: 'codex', name: 'ok2' } }), { status: 409, body: { error: 'session_limit', limit: 1 } });
-  assert.deepEqual((await call('/v1/sessions/limits')).body, { sessions: 1, maxSessions: 1, perEngine: { codex: 1, claude: 0 },
-    maxPerEngine: { codex: 30, claude: 10 }, maxActive: 1 }); // 규칙 점검 9 기본값
+  assert.deepEqual((await call('/v1/sessions/limits')).body, { sessions: 1, maxSessions: 1, perEngine: { codex: 1, claude: 0, antigravity: 0 },
+    maxPerEngine: { codex: 30, claude: 10, antigravity: 10 }, maxActive: 1 }); // 규칙 점검 9 기본값, E4 Antigravity
 });
 
 test('기능이 꺼져 있으면 세션 API는 모두 403', async (t) => {

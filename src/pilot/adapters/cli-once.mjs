@@ -6,7 +6,8 @@
 //    실행할 때 API 키 환경 변수는 지워 종량제로 새지 않게 한다(ME7) — API 키는 신산님이 명시적으로 고를 때만(accountEnv가 넘김).
 // 질문 원문은 로그에 남기지 않는다(오류 출력도 보관하지 않음).
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
+import { checkNewSession } from '../new-sessions.mjs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { EngineError, StoppedError } from '../contracts.mjs';
@@ -23,6 +24,8 @@ export const CLI_ENGINES = Object.freeze({
     bin: () => join(homedir(), '.gemini', 'bin', exe('agy')),
     // E0: -p 한 번 실행, JSON 결과(conversation_id·status·response·usage), --conversation 이어 쓰기, plan+샌드박스면 파일 안 생김
     args: (id, q) => ['-p', q, '--output-format', 'json', '--mode', 'plan', '--sandbox', '--print-timeout', '280s', '--conversation', id],
+    // E4 새 세션: 처음 질문은 --conversation 없이(새 대화), 다음부터 받은 대화 ID로. 방식은 권한 프로필의 agy.mode, auto(명령까지)만 샌드박스를 풂.
+    newArgs: (id, q, mode) => ['-p', q, '--output-format', 'json', '--mode', mode, ...(mode === 'auto' ? [] : ['--sandbox']), '--print-timeout', '280s', ...(id ? ['--conversation', id] : [])],
     // E0: 대화마다 presence 잠금(처리 중이면 잡힘). Antigravity는 동시 실행을 막지 않으므로 이어온이 확인한다.
     lockDir: () => join(homedir(), '.gemini', 'antigravity-cli', 'presence'),
     acpArgs: ['acp'], // E3: 작업 모드(ACP session/resume + 허락 요청 → 승인 카드)
@@ -69,9 +72,39 @@ export function cliOnceAdapter(opts) {
   if (!spec) throw new Error(`unknown_cli_engine:${opts.engine}`);
   const run = opts.run ?? runCli;
   const probe = opts.probe ?? ((id, dir) => probeLockAt(id, dir).outcome);
+  const envOf = (id) => { const env = { ...process.env }; for (const k of spec.keyVars) delete env[k]; Object.assign(env, opts.accountEnv?.(id) ?? {}); return env; };
+  // E4 새 세션(이어온이 만든 대화만): 작업 폴더·권한은 이 연결부 설정으로 다시 검사(서버 DB만 믿지 않음)
+  async function runNew({ sessionRef, question, newSession }, signal) {
+    if (!spec.newArgs || !opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
+    if (!opts.live) throw new EngineError('live_disabled', 503);
+    const { config, created } = opts.newSessions;
+    let checked; try { checked = checkNewSession(config, newSession); } catch (e) { throw new EngineError(e.code, e.http); }
+    const pending = String(sessionRef).startsWith('pending:');
+    if (!pending && (!spec.validId(String(sessionRef)) || !created.has(sessionRef))) throw new EngineError('session_not_allowed', 403);
+    const bin = opts.bin ?? spec.bin();
+    if (!opts.run && !existsSync(bin)) throw new EngineError('engine_not_installed', 503);
+    if (!pending && spec.lockDir) { const o = probe(sessionRef, opts.lockDir ?? spec.lockDir()); if (o === 'WRITER_LOCK_CONFLICT') throw new EngineError('session_in_use', 409); if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(o)) throw new EngineError('lock_check_failed', 409); }
+    if (pending) mkdirSync(checked.workspace, { recursive: true });
+    const mode = checked.profile.agy?.mode ?? 'plan';
+    const { code, stdout, stderr, stopped } = await run(bin, spec.newArgs(pending ? null : sessionRef, question, mode), { cwd: checked.workspace, env: envOf(pending ? null : sessionRef), signal });
+    if (stopped) throw new StoppedError();
+    const j = lastJson(stdout);
+    if (!j) { if (code !== 0 && isLimit(stderr)) throw new EngineError('usage_limit', 429); throw Object.assign(new Error('cli_bad_output'), { unknownCode: `cli_exit_${code}` }); }
+    const r = spec.parse(j);
+    const newId = String(r.sessionId ?? '');
+    if (!spec.validId(newId)) throw Object.assign(new Error('cli_no_session'), { unknownCode: 'cli_no_session' });
+    if (pending) created.add(newId, newSession.name); // 이어온이 만든 대화로 적어 둠(다음 질문부터 이 ID로만)
+    else if (newId !== sessionRef) throw Object.assign(new Error('session_changed'), { unknownCode: 'session_changed', sessionRef });
+    if (!r.ok) {
+      if (!r.answer && isLimit(`${r.status} ${JSON.stringify(j).slice(0, 500)}`)) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: newId });
+      throw Object.assign(new Error('cli_error'), { unknownCode: `cli_${String(r.status ?? 'error').toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 30)}`, sessionRef: newId });
+    }
+    return { receipt: `${opts.engine}:${newId}`, answer: String(r.answer ?? ''), sessionRef: newId, usage: r.usage && typeof r.usage === 'object' ? r.usage : null };
+  }
   return {
     engine: opts.engine,
-    async run({ sessionRef: id, question, workMode = false }, { signal = null, approve = null } = {}) {
+    async run({ sessionRef: id, question, workMode = false, newSession }, { signal = null, approve = null } = {}) {
+      if (newSession) return runNew({ sessionRef: id, question, newSession }, signal);
       if (!spec.validId(String(id)) || !(opts.allowlist ?? []).includes(id)) throw new EngineError('session_not_allowed', 403);
       if (!opts.live) throw new EngineError('live_disabled', 503);
       const bin = opts.bin ?? spec.bin();
