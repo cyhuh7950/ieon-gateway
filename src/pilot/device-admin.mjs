@@ -104,9 +104,22 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     if (!/^[a-z0-9]{2,16}$/.test(String(id)) || !readDevice(p).claudeAccounts.some((x) => x.id === id)) throw Object.assign(new Error('not_found'), { http: 404 });
     return id;
   };
+  // 계정을 따로 고를 수 있는 Claude 대화: 이 PC의 이어온 새 세션(기록에 있고 실제 Claude 세션 파일이 있는 것) + 허용 목록의 Claude 대화
+  const claudeSessions = (p) => {
+    const out = new Map();
+    try {
+      const f = JSON.parse(readFileSync(p, 'utf8')).newSessions?.createdPath;
+      if (f && existsSync(f)) for (const l of readFileSync(f, 'utf8').split('\n').filter(Boolean)) {
+        try { const r = JSON.parse(l); if (/^[0-9a-f-]{36}$/i.test(String(r.id)) && findClaudeSession(r.id, claudeProjects)) out.set(r.id.toLowerCase(), { sessionId: r.id.toLowerCase(), name: String(r.name ?? '') }); } catch { /* 깨진 줄 */ }
+      }
+    } catch { /* 설정 없음 */ }
+    for (const x of readDevice(p).cliSessions.filter((s) => s.engine === 'claude_cli')) if (!out.has(x.sessionId.toLowerCase())) out.set(x.sessionId.toLowerCase(), { sessionId: x.sessionId.toLowerCase(), name: '' });
+    return [...out.values()].filter((s) => s.sessionId !== EXCLUDED_THREAD).slice(-50);
+  };
   const claudePc = (p) => {
     const d = readDevice(p); const dir = dirOf(p);
-    return { accounts: d.claudeAccounts.map((x) => ({ ...x, engine: 'claude', kind: claudeAccountKind(claudeHomeOf(dir, x.id)), login: cLogins.get(x.id)?.view() ?? { state: 'idle' } })), defaultAccount: d.claudeDefaultAccount };
+    return { accounts: d.claudeAccounts.map((x) => ({ ...x, engine: 'claude', kind: claudeAccountKind(claudeHomeOf(dir, x.id)), login: cLogins.get(x.id)?.view() ?? { state: 'idle' } })), defaultAccount: d.claudeDefaultAccount,
+      sessions: claudeSessions(p), accountFor: d.claudeAccountFor };
   };
   async function perform(op, a) {
     // Claude 로그인은 연결부 설정과 상관없이(허브 자신에도 있음)
@@ -206,7 +219,7 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
       }
       case 'claude.accounts.use':
         if (claudeDir) return { status: 409, body: { error: 'claude_shared_login' } };
-        useClaudeAccount(p, { accountId: String(a.accountId ?? '') });
+        useClaudeAccount(p, { sessionId: a.sessionId ?? null, accountId: String(a.accountId ?? ''), knownSession: (id) => claudeSessions(p).some((s) => s.sessionId === id) });
         return { status: 200, body: { ...claudePc(p), ...(await applyDevice()) } };
       case 'device.live':
         setLive(p, a.live);

@@ -79,7 +79,8 @@ export function claudeCliAdapter(opts) {
     async run({ sessionRef, question, newSession }, { signal = null } = {}) {
       // A2-b: 이어온 전용 Claude 계정이 기본이면 그 계정으로(로그인 전·없는 계정이면 보내기 전에 거절 — 다른 계정 사용량으로 새지 않게)
       let env = null;
-      try { env = opts.accountEnv?.() ?? null; } catch (e) { throw new EngineError(e.message, e.http ?? 409); }
+      const ref = newSession && sessionRef.startsWith('pending:') ? null : sessionRef; // 처음 질문 전 새 세션은 엔진 기본
+      try { env = opts.accountEnv?.(ref) ?? null; } catch (e) { throw new EngineError(e.message, e.http ?? 409); }
       const { id, pending, cwd, tools: list } = newSession ? forNew(sessionRef, newSession) : forExisting(sessionRef);
       const tools = list.join(',');
       // WS1-b: 붙인 작업 공간(개인·공유 폴더) — 지금 있는 폴더만 --add-dir, 공유(읽기만)는 고치기 거부

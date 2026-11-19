@@ -352,9 +352,15 @@ export function createApp(config) {
     const hubMine = access && c.newSession && c.engine === 'codex_thread' ? health.get(c.hostId)?.codexDefault : null;
     if (hubMine) return { mode: 'ieon_login', label: '이어온 계정 ' + hubMine + ' (허브)' };
     if (c.engine === 'claude_cli' && health.get(c.hostId)?.claudeKind) return { mode: 'hub_login', label: '서버 Claude 로그인(허브·모든 칸이 같이 씀)', ...kindTag(c) }; // SV2
-    if (access && c.newSession) return { mode: 'hub_login', label: c.engine === 'codex_thread' ? '허브의 Codex 로그인' : '허브의 Claude 로그인' };
-    if (c.engine === 'claude_channel') return { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' };
-    if (c.engine === 'claude_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
+    if (access && c.newSession && c.hostId === selfHostId()) return { mode: 'hub_login', label: c.engine === 'codex_thread' ? '허브의 Codex 로그인' : '허브의 Claude 로그인' }; // PC·칸의 새 세션은 그곳의 계정(아래)
+    // A2-b: PC의 이어온 전용 Claude 계정(대화별 → 기본). 채널 창은 사람이 연 창의 계정 — 새로 여는 창이 기본 계정을 씀
+    if (c.engine === 'claude_channel') { const d = health.get(c.hostId)?.claudeDefault; return { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' + (d ? ' — 새로 여는 창은 이어온 계정 ' + d : '') }; }
+    if (c.engine === 'claude_cli') {
+      const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
+      const mine = h?.claudeAccounts?.[ref] ?? h?.claudeDefault;
+      if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine, ...kindTag(c) };
+      return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
+    }
     // E1·E2 토큰 쪽: 지금은 그 PC의 앱 로그인(이어온 전용 계정은 A3)
     if (c.engine === 'agy_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Antigravity 로그인' };
     if (c.engine === 'grok_cli') return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Grok 로그인' };
@@ -367,7 +373,7 @@ export function createApp(config) {
   };
   // SV3: 이 대화의 질문이 나가는 계정의 종류(구독/API). Codex 기존 대화·새 세션만 안다(그 밖은 null).
   const accountKind = (c) => {
-    if (c.engine === 'claude_cli') return health.get(c.hostId)?.claudeKind ?? null; // SV2: 서버 Claude 로그인 종류
+    if (c.engine === 'claude_cli') { const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase(); return h?.claudeKind ?? (h?.claudeAccounts?.[ref] ? h.claudeAccountKinds?.[ref] : h?.claudeDefaultKind) ?? null; } // SV2: 서버 Claude 로그인 종류, A2-b: PC 이어온 Claude 계정 종류
     if (c.engine !== 'codex_thread' || c.connectMode === 'shared_server') return null;
     const h = health.get(c.hostId);
     if (!h) return null;
@@ -583,6 +589,11 @@ export function createApp(config) {
               codexAccountIds: Object.fromEntries(h.codexAccountIds && typeof h.codexAccountIds === 'object' ? Object.entries(h.codexAccountIds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && /^[a-z0-9_]{2,16}$/.test(String(v))).map(([k, v]) => [k.toLowerCase(), String(v)]) : []),
               codexDefaultId: /^[a-z0-9_]{2,16}$/.test(String(h.codexDefaultId ?? '')) ? String(h.codexDefaultId) : null,
               claudeKind: KIND.has(h.claudeKind) ? h.claudeKind : null, // SV2
+              // A2-b: PC의 이어온 전용 Claude 계정 이름표(대화별·기본)·종류 — 정해진 모양만
+              claudeAccounts: Object.fromEntries(h.claudeAccounts && typeof h.claudeAccounts === 'object' ? Object.entries(h.claudeAccounts).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && typeof v === 'string').map(([k, v]) => [k.toLowerCase(), cleanLabel(v)]) : []),
+              claudeAccountKinds: Object.fromEntries(h.claudeAccountKinds && typeof h.claudeAccountKinds === 'object' ? Object.entries(h.claudeAccountKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && KIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : []),
+              claudeDefault: typeof h.claudeDefault === 'string' ? cleanLabel(h.claudeDefault) : null,
+              claudeDefaultKind: KIND.has(h.claudeDefaultKind) ? h.claudeDefaultKind : null,
               boundary: h.boundary === true }); // 엔진 칸(컨테이너가 경계)
           }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }

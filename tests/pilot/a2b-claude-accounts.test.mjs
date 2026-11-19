@@ -131,3 +131,71 @@ test('채널 창(ieon.ps1 claude): 고른 계정으로 연다(구독은 계정 �
   assert.ok(ps.includes('$cfg.claudeAccounts.defaultAccount') && ps.includes('`$env:CLAUDE_CONFIG_DIR') && ps.includes('`$env:ANTHROPIC_API_KEY = (Get-Content -Raw'));
   assert.ok(ps.includes("($pre + 'claude --dangerously-load-development-channels server:ieon')"));
 });
+
+// --- A2-b 마무리(2026-11-19 신산님 "1번 진행하자"): 대화별 Claude 계정, 어느 계정으로 나가는지 화면·메신저에 표시 ---
+import { claudeAccountHealth, claudeAccountId } from '../../src/pilot/claude-accounts.mjs';
+import { createApp } from '../../src/pilot/server.mjs';
+import { createHash } from 'node:crypto';
+import { healthHeader } from '../../src/pilot/connector.mjs';
+const SID = '0b0e0000-0000-4000-8000-0000000000a1';
+const SID2 = '0b0e0000-0000-4000-8000-0000000000a2';
+
+test('대화별 Claude 계정: 대화에 고른 것 → 기본 → PC 기본, 실행 환경도 그 계정, 상태 보고는 이름표·종류만', (t) => {
+  const d = tmp(t); const dir = join(d, 'acc');
+  const c = { claudeAccounts: { accounts: [{ id: 'c1', label: '개인' }, { id: 'c2', label: '회사' }], defaultAccount: 'c1', accountFor: { [SID]: 'c2' } } };
+  assert.equal(claudeAccountId(c, SID), 'c2'); assert.equal(claudeAccountId(c, SID2), 'c1'); assert.equal(claudeAccountId(c, null), 'c1');
+  for (const id of ['c1', 'c2']) { mkdirSync(claudeHomeOf(dir, id), { recursive: true }); }
+  writeFileSync(join(claudeHomeOf(dir, 'c2'), '.credentials.json'), '{}');
+  writeFileSync(join(claudeHomeOf(dir, 'c1'), 'api-key'), FAKE_KEY);
+  assert.equal(claudeEnvFor(c, dir, { env: {}, ref: SID }).CLAUDE_CONFIG_DIR, claudeHomeOf(dir, 'c2'));
+  assert.equal(claudeEnvFor(c, dir, { env: {}, ref: SID2 }).ANTHROPIC_API_KEY, FAKE_KEY);
+  assert.deepEqual(claudeAccountHealth(c, dir), { claudeAccounts: { [SID]: '회사' }, claudeAccountKinds: { [SID]: 'subscription' }, claudeDefault: '개인', claudeDefaultKind: 'api' });
+  assert.ok(!JSON.stringify(claudeAccountHealth(c, dir)).includes('sk-ant'), '상태 보고에 키가 섞이지 않음');
+  assert.deepEqual(claudeAccountHealth({}, dir), { claudeAccounts: {}, claudeAccountKinds: {}, claudeDefault: null, claudeDefaultKind: null });
+});
+
+test('기기 명령: 대화별 Claude 계정은 이 PC의 Claude 새 세션·허용 목록 대화만, 기본 따름으로 되돌림, 계정을 지우면 그 선택도 지움', async (t) => {
+  const d = tmp(t); mkdirSync(join(d, 's2')); mkdirSync(join(d, 'desk'));
+  const projects = join(d, 'projects'); mkdirSync(join(projects, 'p'), { recursive: true });
+  writeFileSync(join(projects, 'p', `${SID}.jsonl`), JSON.stringify({ type: 'user', cwd: d, message: { role: 'user', content: 'q' } }) + '\n');
+  const created = join(d, 'created.jsonl');
+  writeFileSync(created, [JSON.stringify({ id: SID, name: '보고서' }), JSON.stringify({ id: SID2, name: 'Codex 새 세션(Claude 기록 없음)' })].join('\n') + '\n');
+  const cfg = join(d, 's2', 'connector.json'); writeFileSync(cfg, JSON.stringify({ newSessions: { createdPath: created } }));
+  const pc = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: null, claudeDesktop: join(d, 'desk'), claudeProjects: projects, claudeLogoutImpl: async () => true });
+  const id = (await pc.run('claude.accounts.add', { label: '회사' })).body.id;
+  let g = await pc.run('claude.get');
+  assert.deepEqual(g.body.pc.sessions, [{ sessionId: SID, name: '보고서' }], 'Claude 세션 기록이 있는 새 세션만');
+  assert.equal((await pc.run('claude.accounts.use', { sessionId: SID2, accountId: id })).body.error, 'session_not_allowed');
+  assert.equal((await pc.run('claude.accounts.use', { sessionId: 'nope', accountId: id })).body.error, 'bad_session_id');
+  assert.deepEqual((await pc.run('claude.accounts.use', { sessionId: SID, accountId: id })).body.accountFor, { [SID]: id });
+  assert.deepEqual((await pc.run('claude.accounts.use', { sessionId: SID, accountId: 'inherit' })).body.accountFor, {});
+  await pc.run('claude.accounts.use', { sessionId: SID, accountId: id });
+  assert.deepEqual((await pc.run('claude.accounts.delete', { id })).body.accountFor, {}, '지운 계정을 가리키는 대화 선택은 지움');
+});
+
+test('Claude 실행: 대화별 계정을 묻는 열쇠는 세션 ID(처음 질문 전의 새 세션은 기본)', async (t) => {
+  const d = tmp(t); const cwd = join(d, 'w'); mkdirSync(cwd);
+  const refs = [];
+  const run = async () => ({ code: 0, stdout: JSON.stringify({ session_id: SID, subtype: 'success', result: 'ok', usage: {} }), stopped: false });
+  const a = claudeCliAdapter({ live: true, spawnClaude: run, allowlist: [SID], workingDirectories: { [SID]: cwd }, busy: () => 'free', accountEnv: (ref) => { refs.push(ref); return null; } });
+  await a.run({ sessionRef: SID, question: 'q' });
+  assert.deepEqual(refs, [SID]);
+});
+
+test('표시: 연결부가 알려 준 Claude 계정이 대화 목록의 계정 이름(대화별 → 기본), 채널 창은 새로 여는 창의 계정을 덧붙임', async (t) => {
+  const d = mkdtempSync(join(tmpdir(), 'ieon-a2b-show-'));
+  const sha = (s) => createHash('sha256').update(s).digest('hex');
+  const app = createApp({ dbPath: join(d, 'p.db'), users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }], devices: [{ tokenSha256: sha('pc'), hostId: 'h_pc' }], bindings: [] });
+  const base = `http://127.0.0.1:${await app.listen(0)}`;
+  t.after(async () => { await app.close(); rmSync(d, { recursive: true, force: true }); });
+  for (const [cid, ref, engine] of [['c_cl1', SID, 'claude_cli'], ['c_cl2', SID2, 'claude_cli'], ['c_ch', 'chan1', 'claude_channel']]) {
+    assert.equal(app.store.saveBinding('u_sinsan', { conversationId: cid, label: cid, engine, hostId: 'h_pc', sessionRef: ref, appIds: ['app_web'] }).http, 200, cid);
+  }
+  const health = { claudeAccounts: { [SID]: '회사' }, claudeAccountKinds: { [SID]: 'subscription' }, claudeDefault: '개인', claudeDefaultKind: 'api' };
+  await fetch(base + '/v1/device/jobs', { headers: { authorization: 'Bearer pc', 'x-ieon-health': healthHeader({ codexShared: 'not_configured', claudeChannel: 'up', codexAccounts: {}, codexDefault: null, ...health }) } });
+  const list = await fetch(base + '/v1/conversations', { headers: { authorization: 'Bearer web' } }).then((r) => r.json());
+  const acc = Object.fromEntries(list.conversations.map((c) => [c.conversationId, c.account]));
+  assert.deepEqual(acc.c_cl1, { mode: 'ieon_login', label: '이어온 계정 회사', kind: 'subscription' });
+  assert.deepEqual(acc.c_cl2, { mode: 'ieon_login', label: '이어온 계정 개인', kind: 'api' });
+  assert.match(acc.c_ch.label, /새로 여는 창은 이어온 계정 개인/);
+});
