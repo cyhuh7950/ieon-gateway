@@ -117,6 +117,8 @@ export function openStore(path) {
   db.exec('CREATE TABLE IF NOT EXISTS messenger_links (platform TEXT NOT NULL, sender_id TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT, created_at TEXT NOT NULL, PRIMARY KEY (platform, sender_id))');
   db.exec('DROP INDEX IF EXISTS staff_name'); // M2-b: AI 직원 이름은 같은 사람 안에서만 겹치지 않게(코드에서 확인)
   db.exec('CREATE TABLE IF NOT EXISTS users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, pw_hash TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, decided_at TEXT)');
+  // M4: 가입할 때 이용 약관·개인정보 처리방침에 동의한 때(예전 가입자는 빈칸)
+  if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'terms_at')) db.exec('ALTER TABLE users ADD COLUMN terms_at TEXT');
   // M2: PC 기기의 주인(연결을 승인한 사람). 예전 기기(빈칸)는 관리자 것
   if (!db.prepare('PRAGMA table_info(devices)').all().some((c) => c.name === 'owner_user_id')) db.exec('ALTER TABLE devices ADD COLUMN owner_user_id TEXT');
   db.exec('CREATE TABLE IF NOT EXISTS web_push_subs (endpoint TEXT PRIMARY KEY, user_id TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL)');
@@ -1173,17 +1175,19 @@ export function openStore(path) {
     deleteAllWebSessions() { db.prepare("DELETE FROM web_sessions").run(); },
     deleteWebSessionsOf(userId) { db.prepare('DELETE FROM web_sessions WHERE user_id = ?').run(userId); },
     // --- M2 사용자 ---
-    addUser(userId, email, pwHash) {
+    addUser(userId, email, pwHash, termsAt = null) {
       if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) return { http: 409, code: 'email_taken' };
-      db.prepare("INSERT INTO users (user_id, email, pw_hash, status, created_at) VALUES (?, ?, ?, 'pending', ?)").run(userId, email, pwHash, new Date().toISOString());
+      db.prepare("INSERT INTO users (user_id, email, pw_hash, status, created_at, terms_at) VALUES (?, ?, ?, 'pending', ?, ?)").run(userId, email, pwHash, new Date().toISOString(), termsAt);
       return { http: 201 };
     },
     userByEmail(email) { const r = db.prepare('SELECT * FROM users WHERE email = ?').get(email); return r ? { userId: r.user_id, email: r.email, pwHash: r.pw_hash, status: r.status } : null; },
     user(userId) { const r = db.prepare('SELECT user_id, email, status FROM users WHERE user_id = ?').get(userId); return r ? { userId: r.user_id, email: r.email, status: r.status } : null; },
     listUsers() {
-      return db.prepare("SELECT u.user_id, u.email, u.status, u.created_at, u.decided_at, (SELECT COUNT(*) FROM devices d WHERE d.owner_user_id = u.user_id AND d.revoked_at IS NULL) AS devices FROM users u ORDER BY u.created_at DESC").all()
-        .map((r) => ({ userId: r.user_id, email: r.email, status: r.status, createdAt: r.created_at, decidedAt: r.decided_at, devices: r.devices }));
+      return db.prepare("SELECT u.user_id, u.email, u.status, u.created_at, u.decided_at, u.terms_at, (SELECT COUNT(*) FROM devices d WHERE d.owner_user_id = u.user_id AND d.revoked_at IS NULL) AS devices FROM users u ORDER BY u.created_at DESC").all()
+        .map((r) => ({ userId: r.user_id, email: r.email, status: r.status, createdAt: r.created_at, decidedAt: r.decided_at, termsAt: r.terms_at, devices: r.devices }));
     },
+    // M4: 그 사람이 since(ISO) 뒤에 보낸 질문 수(웹·앱·메신저·예약 모두 — 요청 주인 기준)
+    userQuestionsSince(userId, since) { return db.prepare('SELECT COUNT(*) AS n FROM requests WHERE user_id = ? AND created_at >= ?').get(userId, since).n; },
     // --- M3 메신저 연결 ---
     linkMessenger(platform, senderId, userId, name = null) { db.prepare('INSERT INTO messenger_links (platform, sender_id, user_id, name, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (platform, sender_id) DO UPDATE SET user_id = excluded.user_id, name = excluded.name').run(platform, senderId, userId, name, new Date().toISOString()); },
     unlinkMessenger(userId, platform, senderId) { return db.prepare('DELETE FROM messenger_links WHERE user_id = ? AND platform = ? AND sender_id = ?').run(userId, platform, senderId).changes === 1; },

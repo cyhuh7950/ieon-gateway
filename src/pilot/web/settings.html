@@ -404,7 +404,9 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <h2>여러 사람</h2>
       <div class="muted">켜면 로그인 화면에 "가입 신청"이 생겨요. 신청한 사람은 여기서 승인해야 쓸 수 있고, 각자 자기 PC만 연결해 자기 대화만 봐요(관리자도 남의 대화는 못 봐요). 다른 사람이 이 허브에 닿으려면 위 접속 제한도 열어야 해요.</div>
       <label class="chk"><input type="checkbox" id="muOn"> 여러 사람 쓰기(가입 신청 받기)</label>
-      <table class="list"><thead><tr><th>이메일</th><th>상태</th><th>PC</th><th>신청한 때</th><th></th></tr></thead><tbody id="muRows"></tbody></table>
+      <div class="row"><label for="muPerDay">가입자 하루 질문 한도(모든 가입자 기본)</label><input id="muPerDay" type="number" min="0" max="100000" placeholder="없음" style="width:8em"><button type="button" id="muPerDaySave">저장</button></div>
+      <div class="muted">비우거나 0이면 한도 없음. 사람마다 다르게 하려면 표의 "한도" 칸(비우면 기본을 따름, 0이면 그 사람만 한도 없음). 오늘은 한국 시간 0시부터 세고, 넘으면 보내지 않고 알려요(관리자는 한도 없음). 가입할 때 <a href="/terms" target="_blank" rel="noopener">이용 약관</a>·<a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a> 동의를 받아요.</div>
+      <table class="list"><thead><tr><th>이메일</th><th>상태</th><th>PC</th><th>오늘 질문</th><th>한도</th><th>신청한 때</th><th></th></tr></thead><tbody id="muRows"></tbody></table>
     </div>
     <div id="cxBox" hidden>
       <h2>Codex 로그인(이 허브)</h2>
@@ -1529,8 +1531,15 @@ async function loadUsers() {
   if (authState?.mode !== 'hub') return;
   const r = await api('/v1/admin/users'); if (r.status !== 200) return;
   $('muBox').hidden = false; $('muOn').checked = r.body.enabled;
+  if (document.activeElement !== $('muPerDay')) $('muPerDay').value = r.body.defaultPerDay ?? '';
   const rows = r.body.users.map((u) => {
-    const tr = el('tr'); [u.email, MU_ST[u.status] || u.status, String(u.devices), (u.createdAt || '').slice(0, 10)].forEach((v) => tr.append(el('td', v)));
+    const tr = el('tr'); [u.email, MU_ST[u.status] || u.status, String(u.devices), String(u.todayQuestions ?? 0) + (u.effectiveLimit ? ' / ' + u.effectiveLimit : '')].forEach((v) => tr.append(el('td', v)));
+    // M4: 그 사람 한도(비우면 기본을 따름)
+    { const td = el('td'); const inp = el('input'); inp.type = 'number'; inp.min = '0'; inp.max = '100000'; inp.style.width = '6em'; inp.placeholder = '기본'; inp.value = u.limit ?? ''; inp.setAttribute('aria-label', u.email + ' 하루 질문 한도');
+      inp.onchange = async () => { const v = inp.value === '' ? null : Number(inp.value); const x = await api('/v1/admin/settings/member-limits', { method: 'PUT', body: JSON.stringify({ users: { [u.userId]: v } }) });
+        setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? u.email + '의 한도를 ' + (v === null ? '기본을 따르게' : v === 0 ? '없게' : '하루 ' + v + '번으로') + ' 했어요' : (x.body.error === 'bad_limit' ? '0 이상의 정수로 넣어 주세요' : x.body.error)); loadUsers(); };
+      td.append(inp); tr.append(td); }
+    tr.append(el('td', (u.createdAt || '').slice(0, 10)));
     const td = el('td');
     const act = (label, op, ask) => { const b = el('button', label); b.type = 'button'; b.onclick = async () => { if (ask && !confirm(ask)) return; const x = await api('/v1/admin/users/' + u.userId + '/' + op, { method: 'POST', body: '{}' }); setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? u.email + ' — ' + (MU_ST[x.body.status] || x.body.status) : x.body.error); loadUsers(); }; td.append(b); };
     if (u.status === 'pending') { act('승인', 'approve', u.email + '을 승인할까요? 이 사람은 자기 PC를 연결해 쓸 수 있어요.'); act('거절', 'reject', u.email + ' 신청을 거절할까요?'); }
@@ -1554,6 +1563,9 @@ $('myPwForm').onsubmit = async (e) => {
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '비밀번호를 바꿨어요 — 다른 곳의 로그인은 끊겼어요' : ({ bad_password: '지금 비밀번호가 맞지 않아요', weak_password: '새 비밀번호는 10자 이상이에요' }[r.body.error] || r.body.error));
   if (r.status === 200) for (const id of ['myPwCur', 'myPwNew', 'myPwNew2']) $(id).value = '';
 };
+$('muPerDaySave').onclick = async () => { const raw = $('muPerDay').value; const v = raw === '' ? null : Number(raw);
+  const r = await api('/v1/admin/settings/member-limits', { method: 'PUT', body: JSON.stringify({ perDay: v }) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? (r.body.perDay ? '가입자 하루 질문 한도를 ' + r.body.perDay + '번으로 했어요' : '가입자 하루 질문 한도를 없앴어요') : (r.body.error === 'bad_limit' ? '0 이상의 정수로 넣어 주세요' : r.body.error)); loadUsers(); };
 $('muOn').onchange = async () => { const on = $('muOn').checked; if (on && !confirm('여러 사람 쓰기를 켤까요? 로그인 화면에 가입 신청이 생기고, 승인한 사람만 쓸 수 있어요.')) { $('muOn').checked = false; return; }
   const r = await api('/v1/admin/settings/multi-user', { method: 'PUT', body: JSON.stringify({ enabled: on }) }); setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? (on ? '가입 신청을 받아요' : '가입 신청을 받지 않아요(승인된 사람은 그대로)') : r.body.error); loadUsers(); };
 // M2: 가입한 사용자의 설정 화면 — 관리자용 탭·칸은 숨기고 자기 PC·작업 폴더·예약·앱 연결만

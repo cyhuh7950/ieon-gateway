@@ -40,6 +40,7 @@ const DEVICE_FRESH_MS = 30000;
 const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
 const WEB_SETTINGS = fileURLToPath(new URL('./web/settings.html', import.meta.url));
 const WEB_PRIVACY = fileURLToPath(new URL('./web/privacy.html', import.meta.url)); // AP-5a: 스토어용 개인정보 처리방침(누구나 열람)
+const WEB_TERMS = fileURLToPath(new URL('./web/terms.html', import.meta.url)); // M4: 이용 약관(누구나 열람, 가입할 때 동의)
 const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 // U7: 휴대폰 "홈 화면에 추가"·PC 앱 창용(PWA). 화면 코드는 그대로, 설치 정보와 아이콘만 준다. 오프라인 캐시(서비스 워커)는 두지 않는다
 // (대화는 늘 서버 상태가 기준이라 옛 화면을 보여 주면 오해가 생김).
@@ -456,11 +457,18 @@ export function createApp(config) {
   };
 
   // 질문 접수 한 벌 — 웹·앱·외부 프로그램 질문과 W3 예약이 같은 검사를 거친다(허브 연결 중·PC 끊김·엔진 꺼짐·서비스용·계정 한도·동시 질문 수).
+  // M4 가입자 한도: 설정 member_limits = { perDay: 기본(모든 가입자), users: { <userId>: 그 사람만 } }. 관리자(가입자 표에 없는 사람)는 한도 없음.
+  const memberLimits = () => store.getSetting('member_limits')?.value ?? {};
+  const memberLimitOf = (userId) => { if (!store.user(userId)) return null; const m = memberLimits(); const v = m.users?.[userId] !== undefined ? m.users[userId] : m.perDay; return Number.isInteger(v) && v > 0 ? v : null; };
+  const kstDayStart = (now = Date.now()) => new Date(Math.floor((now + 9 * 3600_000) / 86400_000) * 86400_000 - 9 * 3600_000).toISOString();
   const askConversation = (principal, conv, key, question) => {
     if (hubModeOn()) return { status: 409, body: { error: 'hub_mode' } };
     if (!online(conv.hostId)) return { status: 503, body: { error: 'device_unavailable' } };
     if (engineReady(conv) === false) return { status: 503, body: { error: conv.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down' } };
     if (serviceBlocked(principal, conv)) return { status: 409, body: { error: 'service_needs_api_key' } };
+    // M4: 가입자의 하루 질문 한도(관리자가 정함, 기본은 없음). 오늘 = 한국 시간 0시부터. 넘으면 보내지 않고 알림(자동으로 다시 보내지 않음)
+    const ml = memberLimitOf(principal.userId);
+    if (ml) { const used = store.userQuestionsSince(principal.userId, kstDayStart()); if (used >= ml) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'member_limit' }) + '\n'); return { status: 429, body: { error: 'member_limit', limit: ml, used } }; } }
     const over = accountOver(conv);
     if (over) { process.stderr.write(JSON.stringify({ ch: 'server', event: 'account_limit', reason: over.reason }) + '\n'); return { status: 429, body: { error: 'account_limit_reached', reason: over.reason, usage: over.usage, limit: over.limit } }; }
     const r = store.submit(principal, conv.conversationId, key, { question }, { accountKey: accountKeyOf(conv) });
@@ -548,6 +556,10 @@ export function createApp(config) {
         return res.end(readFileSync(WEB_PNG[path]));
       }
       // U8(UD4): 예전 화면(/classic)은 없앴다. 예전 주소로 오면 설정 화면으로 보낸다.
+      if (req.method === 'GET' && path === '/terms') {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
+        return res.end(readFileSync(WEB_TERMS));
+      }
       if (req.method === 'GET' && path === '/privacy') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'max-age=3600' });
         return res.end(readFileSync(WEB_PRIVACY));
@@ -795,7 +807,11 @@ export function createApp(config) {
       // --- 봇 관리(웹 사용자만) ---
       if (path.startsWith('/v1/admin/') && !path.startsWith('/v1/admin/settings')) {
         // --- M2 사용자 목록·승인(관리자만 — 위에서 사용자는 /v1/admin/users를 못 씀). 이메일·상태·기기 수만, 대화 내용은 없음 ---
-        if (req.method === 'GET' && path === '/v1/admin/users') return json(res, 200, { users: store.listUsers(), enabled: auth.multiUser() });
+        if (req.method === 'GET' && path === '/v1/admin/users') { // M4: 사람마다 오늘 질문 수·한도(내용은 없음)
+          const since = kstDayStart(); const m = memberLimits();
+          return json(res, 200, { users: store.listUsers().map((u) => ({ ...u, todayQuestions: store.userQuestionsSince(u.userId, since), limit: m.users?.[u.userId] !== undefined ? m.users[u.userId] : null, effectiveLimit: memberLimitOf(u.userId) })),
+            enabled: auth.multiUser(), defaultPerDay: Number.isInteger(m.perDay) ? m.perDay : null });
+        }
         // M2-b: 임시 비밀번호(메일 없이 "비밀번호 찾기" — 관리자가 한 번 보고 전해 줌, 그 사람 로그인은 끊김)·가입자 지우기
         { const ur = path.match(/^\/v1\/admin\/users\/(u_[0-9a-f]{16})\/(reset|delete)$/);
           if (ur && req.method === 'POST') {
@@ -1360,6 +1376,14 @@ export function createApp(config) {
           };
         };
         if (req.method === 'GET' && path === '/v1/admin/settings') return json(res, 200, view());
+        if (req.method === 'PUT' && path === '/v1/admin/settings/member-limits') { // M4: 가입자 하루 질문 한도 — perDay(기본), users{id: 수|null(기본 따름)|0(한도 없음)}
+          const b = await readJson(req); const ok = (v) => v === null || (Number.isInteger(v) && v >= 0 && v <= 100000);
+          if (b.perDay !== undefined && !ok(b.perDay)) return json(res, 400, { error: 'bad_limit' });
+          const cur = store.getSetting('member_limits')?.value ?? {}; const next = { perDay: cur.perDay ?? null, users: { ...(cur.users ?? {}) } };
+          if (b.perDay !== undefined) next.perDay = b.perDay || null;
+          for (const [uid, v] of Object.entries(b.users ?? {})) { if (!/^u_[0-9a-f]{16}$/.test(uid) || !ok(v) || !store.user(uid)) return json(res, 400, { error: 'bad_limit' }); if (v === null) delete next.users[uid]; else next.users[uid] = v; }
+          store.setSetting('member_limits', next); return json(res, 200, next);
+        }
         if (req.method === 'PUT' && path === '/v1/admin/settings/multi-user') { // M2: 여러 사람 쓰기(가입 신청 받기) 켜기·끄기
           const b = await readJson(req); if (typeof b.enabled !== 'boolean') return json(res, 400, { error: 'bad_multi_user' });
           store.setSetting('multiUser.enabled', { enabled: b.enabled }); return json(res, 200, view());

@@ -34,13 +34,13 @@ test('M2: 가입 신청 → 승인 대기 → 승인, 사용자는 자기 PC·�
   const admin = browser(); const a = browser(); const b = browser();
   assert.equal((await admin('/v1/auth/setup', { method: 'POST', body: { password: 'admin-password-123' } })).status, 200);
   // 여러 사람 쓰기가 꺼져 있으면 가입 신청 불가
-  assert.equal((await a('/v1/auth/signup', { method: 'POST', body: { email: 'a@example.com', password: 'a-password-123' } })).body.error, 'signup_closed');
+  assert.equal((await a('/v1/auth/signup', { method: 'POST', body: { email: 'a@example.com', password: 'a-password-123', agree: true } })).body.error, 'signup_closed');
   assert.equal((await admin('/v1/admin/settings/multi-user', { method: 'PUT', body: { enabled: true } })).body.multiUser.enabled, true);
   assert.equal((await a('/v1/auth/state')).body.signupOpen, true);
   // 가입 신청 → 승인 대기(로그인은 되지만 기능은 못 씀)
-  assert.deepEqual((await a('/v1/auth/signup', { method: 'POST', body: { email: 'A@Example.com', password: 'a-password-123' } })).body, { loggedIn: true, status: 'pending' });
-  assert.equal((await b('/v1/auth/signup', { method: 'POST', body: { email: 'a@example.com', password: 'other-password-1' } })).body.error, 'email_taken', '대소문자 달라도 같은 이메일');
-  await b('/v1/auth/signup', { method: 'POST', body: { email: 'b@example.com', password: 'b-password-123' } });
+  assert.deepEqual((await a('/v1/auth/signup', { method: 'POST', body: { email: 'A@Example.com', password: 'a-password-123', agree: true } })).body, { loggedIn: true, status: 'pending' });
+  assert.equal((await b('/v1/auth/signup', { method: 'POST', body: { email: 'a@example.com', password: 'other-password-1', agree: true } })).body.error, 'email_taken', '대소문자 달라도 같은 이메일');
+  await b('/v1/auth/signup', { method: 'POST', body: { email: 'b@example.com', password: 'b-password-123', agree: true } });
   assert.deepEqual([(await a('/v1/auth/state')).body.role, (await a('/v1/auth/state')).body.status], ['user', 'pending']);
   assert.equal((await a('/v1/conversations')).body.error, 'pending_approval');
   // 관리자: 사용자 목록(이메일·상태·PC 수) → 승인
@@ -82,7 +82,7 @@ test('M2: 사용자는 자기 PC에만 새 세션, PC가 없으면 거절', asyn
   const admin = browser(); const u = browser();
   await admin('/v1/auth/setup', { method: 'POST', body: { password: 'admin-password-123' } });
   await admin('/v1/admin/settings/multi-user', { method: 'PUT', body: { enabled: true } });
-  await u('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123' } });
+  await u('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123', agree: true } });
   const id = (await admin('/v1/admin/users')).body.users[0].userId;
   await admin(`/v1/admin/users/${id}/approve`, { method: 'POST', body: {} });
   app.store.setSetting('newSessions', { enabled: true });
@@ -95,7 +95,7 @@ test('M2-b: AI 직원 이름은 사람마다 따로, 임시 비밀번호·내 �
   const admin = browser(); const u = browser();
   await admin('/v1/auth/setup', { method: 'POST', body: { password: 'admin-password-123' } });
   await admin('/v1/admin/settings/multi-user', { method: 'PUT', body: { enabled: true } });
-  await u('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123' } });
+  await u('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123', agree: true } });
   const id = (await admin('/v1/admin/users')).body.users[0].userId;
   await admin(`/v1/admin/users/${id}/approve`, { method: 'POST', body: {} });
   // 관리자 대화와 가입자 대화가 같은 AI 직원 이름을 쓸 수 있음(같은 사람 안에서는 겹치면 안 됨)
