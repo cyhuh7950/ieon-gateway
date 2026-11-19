@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { addClaudeAccount, removeClaudeAccount, useClaudeAccount, readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
   addWorkspaceFolder, removeWorkspaceFolder, attachWorkspaceTo } from './device-settings.mjs';
 import { workspacesView } from './workspaces.mjs';
-import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome } from './accounts.mjs';
+import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome, readCodexCompat, saveCodexCompat, removeCodexCompat, compatHostOf } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
@@ -17,7 +17,7 @@ import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin,
 // 명령 목록(이 밖의 것은 거절). read: 보기만(앞단을 거친 PC 화면 요청도 허용), 나머지는 바꾸기.
 export const OPS = {
   'device.get': 'read', 'device.live': 'write', 'device.codex.put': 'write', 'device.codex.delete': 'write',
-  'accounts.get': 'read', 'accounts.add': 'write', 'accounts.use': 'write', 'accounts.login': 'write',
+  'accounts.get': 'read', 'accounts.add': 'write', 'accounts.use': 'write', 'accounts.login': 'write', 'accounts.compat': 'write', // A2-c: Codex 호환 주소
   'accounts.login.cancel': 'write', 'accounts.logout': 'write', 'accounts.delete': 'write', 'accounts.apikey': 'write', // 신산님 2026-11-16: 구독 로그인·API 키 모두 이어온 화면에서
   'mode.get': 'read', 'mode.set': 'write',
   // SV2: 서버 Claude 로그인(허브·모든 칸이 같이 씀) — 구독(공식 setup-token, 주소+코드)·API 키 모두 이어온 화면에서
@@ -83,7 +83,8 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     const k = kinds(p);
     for (const [id, l] of logins) if (l.view().state === 'done' && !k[id]) { setKind(p, id, 'subscription'); k[id] = 'subscription'; } // 기기 코드 로그인이 끝나면 구독으로 적음
     return { defaultLogin: { loggedIn: hasLogin(desktopCodexHome()), login: logins.get(DEFAULT_ID)?.view() ?? { state: 'idle' }, kind: k[DEFAULT_ID] ?? null },
-      accounts: d.codexAccounts.map((a) => ({ ...a, engine: 'codex', loggedIn: hasLogin(codexHomeOf(dir, a.id)), login: logins.get(a.id)?.view() ?? { state: 'idle' }, kind: k[a.id] ?? null })),
+      accounts: d.codexAccounts.map((a) => { const home = codexHomeOf(dir, a.id); const cp = readCodexCompat(home); // A2-c: 호환 주소는 호스트·모델만(키 없음)
+        return { ...a, engine: 'codex', loggedIn: Boolean(cp) || hasLogin(home), login: logins.get(a.id)?.view() ?? { state: 'idle' }, kind: cp ? 'compat' : k[a.id] ?? null, ...(cp ? { compat: { host: compatHostOf(cp.baseUrl), model: cp.model } } : {}) }; }),
       defaultAccount: d.codexDefaultAccount, accountFor: d.codexAccountFor, threads: d.codexThreads.map((t) => ({ threadId: t.threadId, mode: t.mode })) };
   };
   const known = (p, id) => {
@@ -273,10 +274,17 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
       case 'accounts.use':
         useCodexAccount(p, { threadId: a.threadId ?? null, accountId: String(a.accountId ?? '') });
         return { status: 200, body: { ...accounts(p), ...(await applyDevice()) } };
+      case 'accounts.compat': {
+        const id = known(p, a.id);
+        saveCodexCompat(codexHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, model: a.model });
+        log({ event: 'account_compat', engine: 'codex', ok: true });
+        return { status: 200, body: { ...accounts(p), ...(await applyDevice()) } };
+      }
       case 'accounts.login': loginOf(p, knownOrDefault(p, a.id)).start(); return { status: 200, body: accounts(p) };
       case 'accounts.login.cancel': loginOf(p, knownOrDefault(p, a.id)).cancel(); return { status: 200, body: accounts(p) };
       case 'accounts.logout': {
         const id = knownOrDefault(p, a.id);
+        if (id !== DEFAULT_ID && removeCodexCompat(codexHomeOf(dirOf(p), id)) && !hasLogin(codexHomeOf(dirOf(p), id))) return { status: 200, body: { ...accounts(p), ...(await applyDevice()) } }; // A2-c: 호환 주소 지우기
         const shared = id === DEFAULT_ID ? sharedTarget() : null; // 허브·칸이 같이 쓰는 로그인이면 원본 경로
         await loginOf(p, id).logout();
         if (shared) { rmSync(shared.target, { force: true }); try { rmSync(shared.link, { force: true }); symlinkSync(shared.target, shared.link); } catch { /* 다시 로그인하면 ieun.sh share-login이 맞춤 */ } }

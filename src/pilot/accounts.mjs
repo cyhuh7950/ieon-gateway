@@ -2,7 +2,7 @@
 // 계정 하나 = 이어온 전용 폴더 하나(CODEX_HOME). 로그인은 그 폴더에만(신산님이 공식 기기 코드로), 세션 기록·잠금은
 // Desktop 폴더와 같은 것을 쓴다(디렉터리 연결 junction 3개 + 상태 DB는 공식 CODEX_SQLITE_HOME).
 // 이어온은 로그인 파일을 읽거나 옮기지 않는다(있는지만 본다). 프로세스 전체 환경(process.env)은 바꾸지 않고 질문마다 SDK에만 넘긴다.
-import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 
@@ -37,12 +37,48 @@ export function codexAccountId(c, threadId) {
   return per ?? c.codex?.defaultAccount ?? PC_DEFAULT;
 }
 
+// A2-c(신산님 2026-11-19 "2번 진행하자", 설계 EA8): Codex 호환 주소 — Codex는 그대로, 모델만 다른 곳(OpenAI Responses API 호환 라우터·게이트웨이·로컬 모델).
+// 그 계정 폴더(CODEX_HOME)의 config.toml에 공식 모델 제공처(model_provider)를 적고, 키는 compat-key(600)에 두었다가 실행할 때만 환경 변수로 넘긴다.
+// Codex 0.165는 wire_api = "responses"만 받는다(실행 파일 문구 "`wire_api = \"chat\"` is no longer supported", 2026-11-19 확인).
+// 세션 경계는 CLI — 사람이 만든 기존 Codex 대화를 다른 모델로 이어 쓰는 확인된 조합은 아직 없다 → 이어온 새 세션에서만(그 밖은 combo_unverified).
+export const COMPAT_ENV_KEY = 'IEON_COMPAT_API_KEY';
+const COMPAT_URL = /^(https:\/\/[a-z0-9.-]+(:\d+)?|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?)(\/[\w.\-\/~%]*)?$/i;
+const COMPAT_MODEL = /^[\w.\-:/@]{1,100}$/;
+const BASE_TOML = '# 이어온 전용 계정 폴더(A2). 로그인은 이 폴더의 파일에만 둔다.\ncli_auth_credentials_store = "file"\n';
+export function readCodexCompat(home) { try { const c = JSON.parse(readFileSync(join(home, 'compat.json'), 'utf8')); return c && COMPAT_URL.test(c.baseUrl) && existsSync(join(home, 'compat-key')) ? c : null; } catch { return null; } }
+export function saveCodexCompat(home, { baseUrl, key, model }) {
+  const url = String(baseUrl ?? '').trim().replace(/\/+$/, '');
+  if (!COMPAT_URL.test(url)) fail('bad_base_url');
+  const k = String(key ?? '').trim();
+  if (!/^\S{8,500}$/.test(k)) fail('bad_api_key');
+  const m = String(model ?? '').trim();
+  if (!COMPAT_MODEL.test(m)) fail('bad_model');
+  if (!existsSync(home)) fail('not_found', 404);
+  writeFileSync(join(home, 'compat-key'), k + '\n', { mode: 0o600 });
+  writeFileSync(join(home, 'compat.json'), JSON.stringify({ baseUrl: url, model: m }, null, 2) + '\n');
+  // 주소·모델은 위 모양 검사를 통과한 값만이라 TOML 따옴표를 깨지 않는다
+  writeFileSync(join(home, 'config.toml'), BASE_TOML + `model = "${m}"\nmodel_provider = "ieon_compat"\n\n[model_providers.ieon_compat]\nname = "이어온 호환 주소"\nbase_url = "${url}"\nenv_key = "${COMPAT_ENV_KEY}"\nwire_api = "responses"\n`);
+}
+export function removeCodexCompat(home) {
+  if (!existsSync(join(home, 'compat.json'))) return false;
+  rmSync(join(home, 'compat.json'), { force: true }); rmSync(join(home, 'compat-key'), { force: true });
+  writeFileSync(join(home, 'config.toml'), BASE_TOML);
+  return true;
+}
+export const compatHostOf = (baseUrl) => { try { return new URL(baseUrl).host.toLowerCase(); } catch { return null; } };
+
 // SDK에 넘길 환경. PC 기본이면 null(지금처럼 new Codex()). 계정이 없거나 로그인 전이면 보내기 전에 거절.
 export function codexEnvFor(c, dir, threadId, { env = process.env } = {}) {
   const id = codexAccountId(c, threadId);
   if (id === PC_DEFAULT) return null;
   if (!codexAccounts(c).some((a) => a.id === id)) fail('account_missing', 409);
   const home = codexHomeOf(dir, id);
+  const cp = readCodexCompat(home);
+  if (cp) {
+    if (threadId) fail('combo_unverified', 409); // 기존 대화(사람이 만든 것)는 확인된 조합이 없어 새 세션에서만
+    const e = { ...env }; delete e.OPENAI_API_KEY; delete e.CODEX_API_KEY;
+    return { ...e, CODEX_HOME: home, CODEX_SQLITE_HOME: desktopCodexHome(env), [COMPAT_ENV_KEY]: readFileSync(join(home, 'compat-key'), 'utf8').trim() };
+  }
   if (!hasLogin(home)) fail('account_not_logged_in', 409);
   return { ...env, CODEX_HOME: home, CODEX_SQLITE_HOME: desktopCodexHome(env) };
 }

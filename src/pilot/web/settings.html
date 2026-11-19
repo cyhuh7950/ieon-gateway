@@ -177,6 +177,11 @@ header .right button { border:1px solid var(--border); background:var(--surface)
       <div class="muted">로그인은 두 가지 중 편한 것: <b>로그인</b>(ChatGPT 구독 — 버튼을 누르고 "승인 창 열기"에서 승인만, 코드는 자동으로 복사돼요) 또는 <b>API 키</b>(OpenAI API 키를 한 번 넣으면 이어온이 안에서 로그인까지 — 사용량만큼 요금, 다른 사람이 쓰는 서비스용).</div>
       <table class="list"><thead><tr><th>이름</th><th>상태</th><th></th></tr></thead><tbody id="acList"></tbody></table>
       <form id="acKeyForm" class="row" hidden><input id="acKey" type="password" placeholder="OpenAI API 키(sk-…)" autocomplete="off" aria-label="API 키"><button class="primary" type="submit">API 키로 로그인</button><button type="button" id="acKeyCancel">취소</button></form>
+      <form id="acCompatForm" hidden>
+        <div class="muted">호환 주소: Codex는 그대로 두고 AI 모델만 다른 곳으로 보내요(OpenAI <b>Responses API</b> 호환 주소만 — Chat Completions만 되는 곳은 Codex가 받지 않아요). 이어온 <b>새 세션</b>에서만 쓰여요(쓰던 Codex 대화를 다른 모델로 이어 쓰는 것은 아직 확인되지 않았어요). 키는 다시 보이지 않고, 사용량은 그 서비스 요금으로 나가요.</div>
+        <div class="row"><input id="acCpUrl" placeholder="주소 (예: https://router.example.com/v1)" autocomplete="off" spellcheck="false" aria-label="Codex 호환 주소"><input id="acCpModel" placeholder="모델 이름" autocomplete="off" spellcheck="false" aria-label="Codex 호환 모델 이름"></div>
+        <div class="row"><input id="acCpKey" type="password" placeholder="키" autocomplete="off" aria-label="Codex 호환 주소 키"><button class="primary" type="submit">호환 주소 저장</button><button type="button" id="acCpCancel">취소</button></div>
+      </form>
       <div id="acLogin" class="state warn" hidden></div>
       <form id="acAdd" class="row">
         <input id="acLabel" placeholder="계정 이름표 (예: 개인, 회사)" maxlength="40" autocomplete="off" aria-label="계정 이름표">
@@ -958,24 +963,34 @@ document.addEventListener('submit', async (e) => {
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'API 키로 로그인했어요' : ({ bad_api_key: 'API 키 형식이 아니에요', api_key_login_failed: '이 키로 로그인하지 못했어요(키를 확인하세요)' }[r.body.error] || HOST_ERR[r.body.error] || r.body.error));
   loadAccounts();
 });
-document.addEventListener('click', (e) => { if (e.target?.id === 'acKeyCancel') { $('acKeyForm').hidden = true; $('acKey').value = ''; acKeyFor = null; } });
+document.addEventListener('click', (e) => { if (e.target?.id === 'acKeyCancel') { $('acKeyForm').hidden = true; $('acKey').value = ''; acKeyFor = null; } if (e.target?.id === 'acCpCancel') { $('acCompatForm').hidden = true; $('acCpKey').value = ''; acKeyFor = null; } });
+// A2-c: Codex 호환 주소(주소·키·모델). 키는 저장 뒤 다시 보이지 않는다.
+document.addEventListener('submit', async (e) => {
+  if (e.target?.id !== 'acCompatForm') return; e.preventDefault();
+  const key = $('acCpKey').value.trim(); $('acCpKey').value = '';
+  if (!acKeyFor) return;
+  const r = await acRun('accounts.compat', { id: acKeyFor.id, baseUrl: $('acCpUrl').value.trim(), model: $('acCpModel').value.trim(), key });
+  if (r.status !== 200) return setStatus('err', ({ bad_base_url: '주소는 https://…(내 PC의 로컬 모델은 http://localhost…)로 넣으세요', bad_model: '모델 이름을 넣으세요(영문·숫자·.-_:/@)', bad_api_key: '키를 넣으세요' })[r.body.error] || AC_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error);
+  $('acCompatForm').hidden = true; acKeyFor = null; setStatus('ok', '호환 주소를 저장했어요 — 기본 계정으로 고르면 Codex 새 세션이 그쪽 모델로 나가요' + devNote(r.body)); loadAccounts();
+});
 async function loadAccounts() {
   const r = await acRun('accounts.get'); $('acBox').hidden = r.status !== 200;
   $('acTargetNote').hidden = r.status === 200 || acTarget === 'local'; if (r.status !== 200) { $('acTargetNote').textContent = HOST_ERR[r.body.error] || r.body.error; return; }
   const d = r.body; const tb = $('acList'); tb.innerHTML = '';
   let waiting = null;
   // 신산님 2026-11-16: 기본 로그인(그 PC·칸이 원래 쓰는 로그인)에도 로그인·API 키 — 칸을 새로 만들면 여기서 바로
-  const KIND = { api: ' · API 키', subscription: ' · 구독' };
+  const KIND = { api: ' · API 키', subscription: ' · 구독', compat: ' · 호환 주소' };
   const rows = [{ id: 'pc_default', label: acTarget === 'hub' ? '허브 기본 로그인(모든 서버 칸이 같이 씀)' : '기본 로그인(그 PC·칸이 원래 쓰는 로그인)', ...(d.defaultLogin ?? { loggedIn: true, login: { state: 'idle' } }), builtin: true }, ...d.accounts];
   for (const a of rows) {
     const tr = el('tr'); tr.append(el('td', a.label));
-    tr.append(el('td', a.loggedIn ? '로그인됨' + (KIND[a.kind] ?? '') : (AC_LOGIN[a.login.state] ?? '로그인 필요'), a.loggedIn ? 'ok' : 'warn'));
+    tr.append(el('td', a.kind === 'compat' ? '호환 주소 · ' + (a.compat?.host ?? '') + ' · ' + (a.compat?.model ?? '') + ' (새 세션에서만)' : a.loggedIn ? '로그인됨' + (KIND[a.kind] ?? '') : (AC_LOGIN[a.login.state] ?? '로그인 필요'), a.loggedIn ? 'ok' : 'warn'));
     const td = el('td');
     const act = (text, fn) => { const b = el('button', text); b.type = 'button'; b.onclick = fn; td.append(b); };
     if (!a.loggedIn && a.login.state !== 'waiting') act('로그인', async () => { await acRun('accounts.login', { id: a.id }); loadAccounts(); });
     if (a.login.state === 'waiting') act('취소', async () => { await acRun('accounts.login.cancel', { id: a.id }); loadAccounts(); });
     if (!a.loggedIn) act('API 키', () => { acKeyFor = a; $('acKeyForm').hidden = false; $('acKey').value = ''; $('acKey').focus(); });
-    if (a.loggedIn) act('로그아웃', async () => { if (!confirm(a.label + ' 계정에서 로그아웃할까요? 이 계정을 쓰는 대화는 다시 로그인할 때까지 보내지 않습니다.')) return; await acRun('accounts.logout', { id: a.id }); loadAccounts(); });
+    if (!a.loggedIn && !a.builtin) act('호환 주소', () => { acKeyFor = a; $('acCompatForm').hidden = false; for (const k of ['acCpUrl', 'acCpModel', 'acCpKey']) $(k).value = ''; $('acCpUrl').focus(); });
+    if (a.loggedIn) act(a.kind === 'compat' ? '호환 주소 지우기' : '로그아웃', async () => { if (!confirm(a.label + (a.kind === 'compat' ? ' 계정의 호환 주소를 지울까요? 이 계정을 쓰는 새 세션은 다시 넣을 때까지 보내지 않습니다.' : ' 계정에서 로그아웃할까요? 이 계정을 쓰는 대화는 다시 로그인할 때까지 보내지 않습니다.'))) return; await acRun('accounts.logout', { id: a.id }); loadAccounts(); });
     if (!a.builtin) act('지우기', async () => { if (!confirm(a.label + ' 계정을 지울까요? 로그아웃하고, 이 계정을 쓰던 대화는 PC 기본 로그인으로 돌아갑니다. 대화 기록은 지우지 않습니다.')) return;
       const y = await acRun('accounts.delete', { id: a.id }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '계정을 지웠습니다' : (AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadAccounts(); });
     tr.append(td); tb.append(tr);
