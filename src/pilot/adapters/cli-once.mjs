@@ -5,6 +5,7 @@
 //  - 토큰 쪽(accountEnv): 어느 계정·키의 사용량으로 나갈지는 이어온이 정한다. 지금은 PC 기본 로그인만(A3에서 이어온 전용 계정),
 //    실행할 때 API 키 환경 변수는 지워 종량제로 새지 않게 한다(ME7) — API 키는 신산님이 명시적으로 고를 때만(accountEnv가 넘김).
 // 질문 원문은 로그에 남기지 않는다(오류 출력도 보관하지 않음).
+import { t as i18nT } from '../../i18n/index.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { checkNewSession } from '../new-sessions.mjs';
@@ -67,7 +68,7 @@ export function runCli(bin, args, { cwd, env, timeoutMs = 300_000, signal = null
 const lastJson = (s) => { const t = String(s).trim(); try { return JSON.parse(t); } catch { /* 여러 줄이면 마지막 줄 */ } try { return JSON.parse(t.split('\n').pop()); } catch { return null; } };
 const isLimit = (s) => /usage[ _]?limit|quota|rate[ _]?limit|resource[ _]?exhausted|hit your limit/i.test(String(s ?? ''));
 // 2026-11-20 실측: 머리 없는 실행(-p)에서 허락이 필요한 도구가 자동 거부되면 SUCCESS인데 답이 비어 온다 — 빈 답 대신 이유 한 줄
-const answerOf = (a, stderr) => { const t = String(a ?? ''); return t.trim() || !/auto-denied|no output produced/i.test(String(stderr ?? '')) ? t : '[이어온] 허락이 필요한 작업이 막혀 답이 없어요(읽기 전용).'; };
+const answerOf = (a, stderr) => { const t = String(a ?? ''); return t.trim() || !/auto-denied|no output produced/i.test(String(stderr ?? '')) ? t : i18nT('server.note.cli_blocked'); };
 const isNotFound = (s) => /not\s*found|no\s+(such\s+)?(conversation|session)|unknown\s+(conversation|session)|does not exist/i.test(String(s ?? ''));
 
 // opts: { live, engine('agy_cli'|'grok_cli'), allowlist: [세션 ID], workingDirectories?: {id: dir}, bin?, run?, probe?, accountEnv?(id) }

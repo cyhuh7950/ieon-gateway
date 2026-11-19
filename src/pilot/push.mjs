@@ -2,6 +2,7 @@
 // - 알림 글은 "○○가 답했어요" / "○○가 허락을 기다려요" / "○○에게 보내지 못했어요" / "○○ — 확인이 필요해요"만. 질문·답·명령 원문은 넣지 않는다(구글 서버를 거침).
 // - 서비스 계정 키로 구글에 로그인(JWT RS256, node 기본 crypto — 새 부품 없음). 키 원문은 화면·로그에 내보내지 않는다.
 // - 알림 주소(FCM 토큰)가 더는 쓰이지 않으면(UNREGISTERED·404) 그 주소를 지운다.
+import { t as i18nT } from '../i18n/index.mjs';
 import { createSign } from 'node:crypto';
 
 const fail = (why) => { throw Object.assign(new Error(why), { http: 400 }); };
@@ -25,19 +26,18 @@ export function validateGoogleServices(v, packageName = 'kr.sinsan.ieon') {
 
 // 이름 뒤 "이/가"(앱 notify.ts와 같음)
 export function iga(name) {
-  const c = name.charCodeAt(name.length - 1);
-  return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? name + '이' : name + '가';
+  return ieonFormat([{ k: '{name|이가}' }], 'k', { name }); // 조사 처리는 사전 채우기와 같은 함수
 }
 
 // 새 소식 하나 → 알림 글(원문 없음). 알릴 것이 아니면 null(접수·실행 중 등)
-export function pushNote(e, who = 'AI 직원') {
+export function pushNote(e, who = i18nT('server.staff')) {
   if (e.type === 'request' && e.requestId) {
-    if (e.status === 'completed') return { body: `${iga(who)} 답했어요`, tag: 'r:' + e.requestId };
-    if (e.status === 'failed') return { body: `${who}에게 보내지 못했어요`, tag: 'r:' + e.requestId };
-    if (e.status === 'unknown') return { body: `${who} — 확인이 필요해요`, tag: 'r:' + e.requestId };
+    if (e.status === 'completed') return { body: i18nT('server.push.answered', { who }), tag: 'r:' + e.requestId };
+    if (e.status === 'failed') return { body: i18nT('server.push.failed', { who }), tag: 'r:' + e.requestId };
+    if (e.status === 'unknown') return { body: i18nT('server.push.unknown', { who }), tag: 'r:' + e.requestId };
     return null;
   }
-  if (e.type === 'approval' && e.approvalId && e.status === 'pending') return { body: `${iga(who)} 허락을 기다려요`, tag: 'a:' + e.approvalId };
+  if (e.type === 'approval' && e.approvalId && e.status === 'pending') return { body: i18nT('server.push.approval', { who }), tag: 'a:' + e.approvalId };
   return null;
 }
 
@@ -60,7 +60,7 @@ export function createPusher({ fetchImpl = fetch, now = () => Date.now(), log = 
     return j.access_token;
   }
   // 돌려주는 값: 'sent' | 'gone'(그 주소는 더 안 씀 — 지우기) | 'failed'
-  async function send(sa, token, { title = '이어온', body, conversationId, tag }) {
+  async function send(sa, token, { title = i18nT('common.product'), body, conversationId, tag }) {
     try {
       const at = await accessToken(sa);
       const r = await fetchImpl(`https://fcm.googleapis.com/v1/projects/${sa.projectId}/messages:send`, { method: 'POST',
@@ -131,7 +131,7 @@ export function validateWebSub(v) {
 export function createWebPusher({ fetchImpl = fetch, log = () => {} } = {}) {
   async function send(v, sub, note, subject) {
     try {
-      const body = encryptWebPush(JSON.stringify({ title: note.title ?? '이어온', body: note.body, conversationId: note.conversationId ?? '', tag: note.tag ?? '' }), sub);
+      const body = encryptWebPush(JSON.stringify({ title: note.title ?? i18nT('common.product'), body: note.body, conversationId: note.conversationId ?? '', tag: note.tag ?? '' }), sub);
       const r = await fetchImpl(sub.endpoint, { method: 'POST', signal: AbortSignal.timeout(10_000), body,
         headers: { authorization: vapidAuth(sub.endpoint, v, subject), 'content-encoding': 'aes128gcm', 'content-type': 'application/octet-stream', ttl: '3600', urgency: 'high' } });
       if (r.ok) return 'sent';

@@ -1,6 +1,7 @@
 // S2.1 이어온 실증 서버(loopback 한정). 웹/외부 앱 API와 PC 연결부 API를 한 프로세스에서 제공한다.
 // 사용: node src/pilot/server.mjs <configPath>
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
+import { t as i18nT, pickLang, injectPage, PAGE_NAMESPACES } from '../i18n/index.mjs';
 import { createServer } from 'node:http';
 import { hostname } from 'node:os';
 import { existsSync, readFileSync, rmSync, chmodSync, writeFileSync, utimesSync, statSync, createReadStream } from 'node:fs';
@@ -46,7 +47,7 @@ const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 // (대화는 늘 서버 상태가 기준이라 옛 화면을 보여 주면 오해가 생김).
 const WEB_SW = fileURLToPath(new URL('./web/sw.js', import.meta.url)); // 웹 알림 전용 서비스 워커
 const WEB_PNG = { '/icon-192.png': fileURLToPath(new URL('./web/icon-192.png', import.meta.url)), '/icon-512.png': fileURLToPath(new URL('./web/icon-512.png', import.meta.url)) };
-const MANIFEST = JSON.stringify({ name: '이어온', short_name: '이어온', description: '내 Codex·Claude Code 작업 세션과 이어서 대화', lang: 'ko',
+const MANIFEST = JSON.stringify({ name: i18nT('common.product'), short_name: i18nT('common.product'), description: i18nT('common.product_tagline'), lang: i18nT.lang,
   start_url: '/', scope: '/', display: 'standalone', background_color: '#0f766e', theme_color: '#0f766e',
   icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
     { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] });
@@ -160,7 +161,7 @@ export function createApp(config) {
   };
   // 방 → AI 직원 한 명에게 보내기. 사용 중·꺼짐이면 보내지 않고 알림만 남긴다(자동으로 기다렸다 보내지 않음).
   const sendToMember = (principal, room, c, question, key, extraPrefix = '') => {
-    const prefix = (room.guide ? `[방 안내 — ${room.name}]\n${room.guide}\n\n` : '') + extraPrefix;
+    const prefix = (room.guide ? i18nT('server.room_guide', { name: room.name, guide: room.guide }) : '') + extraPrefix;
     let code = null; let r = null;
     if (!online(c.hostId)) code = 'device_unavailable';
     else if (engineReady(c) === false) code = c.engine === 'claude_channel' ? 'session_not_running' : 'shared_server_down';
@@ -250,7 +251,7 @@ export function createApp(config) {
     const subs = owner ? store.webSubs(owner) : [];
     if (!subs.length) return;
     const c = store.conversations({ userId: owner, appId: 'app_web' }).find((x) => x.conversationId === e.conversationId);
-    const note = pushNote(e, c ? (c.staff?.set && c.staff?.name) || labelOf(c) : 'AI 직원');
+    const note = pushNote(e, c ? (c.staff?.set && c.staff?.name) || labelOf(c) : i18nT('server.staff'));
     if (!note) return;
     const v = vapid();
     for (const s of subs) webPusher.send(v, s, { ...note, conversationId: e.conversationId }, vapidSubject()).then((r) => { if (r === 'gone') store.removeWebSub(s.endpoint); }).catch(() => {});
@@ -261,7 +262,7 @@ export function createApp(config) {
     const { owner, tokens } = store.pushTargets(e.conversationId);
     if (!tokens.length) return;
     const c = store.conversations({ userId: owner, appId: 'app_web' }).find((x) => x.conversationId === e.conversationId);
-    const note = pushNote(e, c ? (c.staff?.set && c.staff?.name) || labelOf(c) : 'AI 직원');
+    const note = pushNote(e, c ? (c.staff?.set && c.staff?.name) || labelOf(c) : i18nT('server.staff'));
     if (!note) return;
     for (const t of tokens) pusher.send(sa, t, { ...note, conversationId: e.conversationId }).then((r) => { if (r === 'gone') store.clearPushToken(t); }).catch(() => {});
   });
@@ -351,37 +352,37 @@ export function createApp(config) {
   const accountOf = (c) => {
     // A2-d: 허브 새 세션도 허브에서 고른 이어온 계정이면 그 이름표(허브 연결부가 알려 줌)
     const hubMine = access && c.newSession && c.engine === 'codex_thread' ? health.get(c.hostId)?.codexDefault : null;
-    if (hubMine) return { mode: 'ieon_login', label: '이어온 계정 ' + hubMine + ' (허브)' };
-    if (c.engine === 'claude_cli' && health.get(c.hostId)?.claudeKind) return { mode: 'hub_login', label: '서버 Claude 로그인(허브·모든 칸이 같이 씀)', ...kindTag(c) }; // SV2
-    if (access && c.newSession && c.hostId === selfHostId()) return { mode: 'hub_login', label: c.engine === 'codex_thread' ? '허브의 Codex 로그인' : '허브의 Claude 로그인' }; // PC·칸의 새 세션은 그곳의 계정(아래)
+    if (hubMine) return { mode: 'ieon_login', label: i18nT('server.account.ieon_hub', { name: hubMine }) };
+    if (c.engine === 'claude_cli' && health.get(c.hostId)?.claudeKind) return { mode: 'hub_login', label: i18nT('server.account.server_claude'), ...kindTag(c) }; // SV2
+    if (access && c.newSession && c.hostId === selfHostId()) return { mode: 'hub_login', label: i18nT(c.engine === 'codex_thread' ? 'server.account.hub_codex' : 'server.account.hub_claude') }; // PC·칸의 새 세션은 그곳의 계정(아래)
     // A2-b: PC의 이어온 전용 Claude 계정(대화별 → 기본). 채널 창은 사람이 연 창의 계정 — 새로 여는 창이 기본 계정을 씀
-    if (c.engine === 'claude_channel') { const d = health.get(c.hostId)?.claudeDefault; return { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' + (d ? ' — 새로 여는 창은 이어온 계정 ' + d : '') }; }
+    if (c.engine === 'claude_channel') { const d = health.get(c.hostId)?.claudeDefault; return { mode: 'pc_default', label: d ? i18nT('server.account.claude_window_default', { name: d }) : i18nT('server.account.claude_window') }; }
     if (c.engine === 'claude_cli') {
       const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
       const mine = h?.claudeAccounts?.[ref] ?? h?.claudeDefault;
-      if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine, ...kindTag(c) };
-      return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Claude Code 계정' };
+      if (mine) return { mode: 'ieon_login', label: i18nT('server.account.ieon', { name: mine }), ...kindTag(c) };
+      return { mode: 'pc_default', label: i18nT('server.account.pc_claude') };
     }
     // E1·E2 토큰 쪽: 지금은 그 PC의 앱 로그인(이어온 전용 계정은 A3)
     if (c.engine === 'agy_cli') { // A3: 이어온 계정으로 만든 새 세션은 그 계정(처음 질문 전이면 새 세션 기본)
       const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
       const mine = c.newSession ? (h?.agyAccounts?.[ref] ?? (ref.startsWith('pending:') ? h?.agyDefault : null)) : null;
-      if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine }; // API 키·호환 주소 모두 있을 수 있어 종류는 붙이지 않음
-      return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Antigravity 로그인' };
+      if (mine) return { mode: 'ieon_login', label: i18nT('server.account.ieon', { name: mine }) }; // API 키·호환 주소 모두 있을 수 있어 종류는 붙이지 않음
+      return { mode: 'pc_default', label: i18nT('server.account.pc_agy') };
     }
     if (c.engine === 'grok_cli') { // G1: 이어온 계정으로 만든 새 세션은 그 계정(처음 질문 전이면 새 세션 기본)
       const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
       const mine = c.newSession ? (h?.grokAccounts?.[ref] ?? (ref.startsWith('pending:') ? h?.grokDefault : null)) : null;
-      if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine, kind: 'api' };
-      return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Grok 로그인' };
+      if (mine) return { mode: 'ieon_login', label: i18nT('server.account.ieon', { name: mine }), kind: 'api' };
+      return { mode: 'pc_default', label: i18nT('server.account.pc_grok') };
     }
-    if (c.connectMode === 'shared_server') return { mode: 'shared_server', label: '공유 서버의 로그인 — 그 PC에서 띄운 Codex 공유 서버' };
+    if (c.connectMode === 'shared_server') return { mode: 'shared_server', label: i18nT('server.account.shared_server') };
     // A2: 연결부가 알려 준 이어온 전용 계정(대화별 → 새 세션은 기본)
     const h = health.get(c.hostId);
     const mine = c.newSession ? h?.codexDefault : h?.codexAccounts?.[String(c.sessionRef ?? '').toLowerCase()];
-    if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine, ...kindTag(c) };
-    if (health.get(c.hostId)?.boundary) return { mode: 'hub_login', label: '서버 칸의 Codex 로그인(허브 로그인을 같이 씀)', ...kindTag(c) }; // 엔진 칸에는 Codex Desktop이 없음(2026-11-19 daon에서 발견)
-    return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정', ...kindTag(c) };
+    if (mine) return { mode: 'ieon_login', label: i18nT('server.account.ieon', { name: mine }), ...kindTag(c) };
+    if (health.get(c.hostId)?.boundary) return { mode: 'hub_login', label: i18nT('server.account.cell_codex'), ...kindTag(c) }; // 엔진 칸에는 Codex Desktop이 없음(2026-11-19 daon에서 발견)
+    return { mode: 'pc_default', label: i18nT('server.account.pc_codex'), ...kindTag(c) };
   };
   // SV3: 이 대화의 질문이 나가는 계정의 종류(구독/API). Codex 기존 대화·새 세션만 안다(그 밖은 null).
   const accountKind = (c) => {
@@ -443,13 +444,13 @@ export function createApp(config) {
   const installBundle = config.installBundle ?? '/app/ieon-gateway.tar.gz';
   const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
   const installScript = (base) => [
-    '#!/bin/sh', '# 이어온 서버 설치(허브에서 받기). 설치 폴더: $IEON_DIR(없으면 ~/ieon-gateway)', 'set -e',
+    '#!/bin/sh', '# ' + i18nT('server.install.title'), 'set -e',
     `BASE=${shq(base)}`, 'DIR="${IEON_DIR:-$HOME/ieon-gateway}"',
-    'command -v curl >/dev/null 2>&1 || { echo "curl이 필요해요(sudo apt-get install -y curl)"; exit 1; }',
-    'echo "이어온 설치 파일을 받는 중... ($DIR)"', 'mkdir -p "$DIR"',
+    `command -v curl >/dev/null 2>&1 || { echo "${i18nT('server.install.need_curl')}"; exit 1; }`,
+    `echo "${i18nT('server.install.downloading')}"`, 'mkdir -p "$DIR"',
     'curl -fsSL "$BASE/ieon-gateway.tar.gz" | tar -xz -C "$DIR"', 'cd "$DIR"',
     // 2026-11-19 daon 실측: 원격 접속(터미널 없음)에서는 -r /dev/tty가 참이어도 열 수 없어 멈췄다 → 실제로 열리는지 먼저 본다(안 열리면 기본 답으로)
-    '# 파이프로 받은 스크립트라 질문은 터미널에서 읽는다(터미널이 없으면 기본 답)', 'if (exec </dev/tty) 2>/dev/null; then exec sh deploy/server/install.sh </dev/tty; else exec sh deploy/server/install.sh </dev/null; fi', ''].join('\n');
+    '# ' + i18nT('server.install.tty'), 'if (exec </dev/tty) 2>/dev/null; then exec sh deploy/server/install.sh </dev/tty; else exec sh deploy/server/install.sh </dev/null; fi', ''].join('\n');
   const approvalShowMs = config.approvalShowMs ?? 30 * 60_000; // RC1: 결정된 승인 카드를 대화에 남겨 두는 시간
   const cardsFor = (c, live, principal) => {
     const cards = [];
@@ -604,8 +605,9 @@ export function createApp(config) {
       if (req.method === 'GET' && path === '/classic') { res.writeHead(302, { location: '/settings' }); return res.end(); }
       if (req.method === 'GET' && (path === '/' || path === '/settings')) {
         // 배포 뒤 브라우저가 예전 화면을 그대로 보이지 않게 늘 서버에 다시 묻는다(2026-11-19 A2-c 배포 확인 중 발견 — 캐시 지시가 없어 예전 설정 화면이 보임)
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
-        return res.end(readFileSync(path === '/' ? WEB_PAGE : WEB_SETTINGS));
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache', vary: 'accept-language, cookie' });
+        // I18N-a: 고른 언어(쿠키 ieon_lang → 브라우저 언어)의 사전과 t()를 페이지에 넣는다(따로 불러오지 않아 깜빡임 없음)
+        return res.end(injectPage(readFileSync(path === '/' ? WEB_PAGE : WEB_SETTINGS, 'utf8'), pickLang(req), PAGE_NAMESPACES[path === '/' ? 'app.html' : 'settings.html']));
       }
 
       // --- PC 연결부 API ---
@@ -733,7 +735,7 @@ export function createApp(config) {
         if (retry) return tooMany(res, retry);
         const b = await readJson(req);
         const code = String(b.code ?? '').replace(/\D/g, '');
-        const name = String(b.name ?? '').trim().slice(0, 40) || '이어온 앱';
+        const name = String(b.name ?? '').trim().slice(0, 40) || i18nT('common.product_app');
         if (code.length !== 8) return json(res, 400, { error: 'bad_code' });
         const token = randomBytes(32).toString('hex'); const deviceId = 'ad_' + randomBytes(6).toString('hex');
         const r = store.useAppPairCode(createHash('sha256').update(code).digest('hex'), { deviceId, name, tokenHash: createHash('sha256').update(token).digest('hex') });
@@ -1093,7 +1095,7 @@ export function createApp(config) {
               const ids = new Set(store.listBindings().map((x) => x.conversationId));
               const base = 'c_' + sessionRef.replaceAll('-', '').slice(0, 12);
               conversationId = base; for (let n = 2; ids.has(conversationId); n += 1) conversationId = base + '_' + n;
-              const label = String(b.args?.label ?? '').trim().slice(0, 60) || '이름 없는 대화';
+              const label = String(b.args?.label ?? '').trim().slice(0, 60) || i18nT('server.conv.unnamed');
               const appIds = (config.users ?? []).some((u) => u.appId === 'app_messenger') ? ['app_web', 'app_messenger'] : ['app_web'];
               let v; try { v = validateBinding(conversationId, { engine: 'codex_thread', label, hostId: host, sessionRef, appIds }, userHosts(principal)); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
               const s2 = store.saveBinding(principal.userId, v);
@@ -1109,7 +1111,7 @@ export function createApp(config) {
               const ids = new Set(store.listBindings().map((x) => x.conversationId));
               const base = 'c_' + sessionRef.replaceAll('-', '').slice(0, 12);
               conversationId = base; for (let n = 2; ids.has(conversationId); n += 1) conversationId = base + '_' + n;
-              const label = String(b.args?.label ?? '').trim().slice(0, 60) || String(r.body.title ?? '').slice(0, 60) || 'Claude 대화';
+              const label = String(b.args?.label ?? '').trim().slice(0, 60) || String(r.body.title ?? '').slice(0, 60) || i18nT('server.conv.claude');
               const appIds = (config.users ?? []).some((u) => u.appId === 'app_messenger') ? ['app_web', 'app_messenger'] : ['app_web'];
               let v; try { v = validateBinding(conversationId, { engine: 'claude_cli', label, hostId: host, sessionRef, appIds }, userHosts(principal)); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
               const s2 = store.saveBinding(principal.userId, v);
@@ -1147,7 +1149,7 @@ export function createApp(config) {
             const hosts = knownHosts();
             const hostId = body.hostId ? String(body.hostId) : (hosts.length === 1 ? hosts[0] : null);
             if (!hostId || !hosts.includes(hostId)) return json(res, 400, { error: 'choose_host', hosts });
-            const label = String(body.label ?? '').trim().slice(0, 60) || '이름 없는 대화';
+            const label = String(body.label ?? '').trim().slice(0, 60) || i18nT('server.conv.unnamed');
             // 작업 폴더는 Codex가 알려 준 값을 쓰되, 지금 없는 폴더면 비워 둔다(연결은 막지 않음).
             const dir = typeof body.workingDirectory === 'string' && body.workingDirectory ? body.workingDirectory : null;
             try { upsertCodexThread(cfgPath, { threadId, mode: 'alternate', workingDirectory: dir }); } catch (e) {
@@ -1698,7 +1700,7 @@ export function createApp(config) {
           const c = ok && members.find((m) => m.conversationId === post.conversationId);
           if (!c) return json(res, 400, { error: 'bad_retry' });
           if (!store.markRoomRetried(room.roomId, post.postId)) return json(res, 400, { error: 'bad_retry' });
-          store.addRoomPost(room.roomId, { kind: 'user', text: `↻ @${staffView(c).name}에게 다시 보냄`, idemKey: key });
+          store.addRoomPost(room.roomId, { kind: 'user', text: i18nT('server.room.retried', { name: staffView(c).name }), idemKey: key });
           sendToMember(principal, room, c, post.resend, `${key}-r`);
           return json(res, 202, { posts: postsView() });
         }
@@ -1707,11 +1709,11 @@ export function createApp(config) {
         const target = members.find((m) => m.conversationId === String(b.to ?? ''));
         if (!from || !target) return json(res, 400, { error: 'bad_handoff' });
         const fromConv = members.find((m) => m.conversationId === from.conversationId) ?? { conversationId: from.conversationId, label: from.conversationId };
-        const note = String(b.note ?? '').trim().slice(0, 1000) || '이 답을 보고 이어서 해 주세요.';
-        const head = `[${staffView(fromConv).name}의 답]\n`;
+        const note = String(b.note ?? '').trim().slice(0, 1000) || i18nT('server.room.handoff_note');
+        const head = i18nT('server.room.handoff_head', { name: staffView(fromConv).name });
         const room0 = MAX_QUESTION - head.length - note.length - 10;
         const question = head + (from.answer.length > room0 ? from.answer.slice(0, room0) + '…' : from.answer) + '\n\n' + note;
-        store.addRoomPost(room.roomId, { kind: 'user', text: `→ ${staffView(target).name}에게 넘김: ${note}`, conversationId: from.conversationId, idemKey: key });
+        store.addRoomPost(room.roomId, { kind: 'user', text: i18nT('server.room.handed', { name: staffView(target).name, note }), conversationId: from.conversationId, idemKey: key });
         sendToMember(principal, room, target, question, `${key}-h`);
         return json(res, 202, { posts: postsView() });
       }

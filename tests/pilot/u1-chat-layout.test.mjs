@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const web = (f) => readFileSync(fileURLToPath(new URL(`../../src/pilot/web/${f}`, import.meta.url)), 'utf8');
 const APP = web('app.html');
@@ -64,7 +66,7 @@ test('휴대폰 폭에서는 목록과 대화를 번갈아 보여 준다', () =>
 });
 
 test('보낼 수 없는 이유와 확인 필요는 대화 안에 보이고, 자동으로 다시 보내지 않는다', () => {
-  for (const code of ['device_unavailable', 'desktop_holds_thread', 'live_disabled', 'session_not_running', 'session_archived']) assert.ok(APP.includes(code + ':'), code);
+  for (const code of ['device_unavailable', 'desktop_holds_thread', 'live_disabled', 'session_not_running', 'session_archived']) assert.ok(KO['errors.' + code], code);
   assert.ok(APP.includes("'/review'") || APP.includes('/review'), '확인 필요 정리 버튼');
   assert.ok(!/setTimeout\([^)]*requests'[^)]*method: 'POST'/.test(APP));
   // 질문은 사용자가 보낼 때만, 매번 새 중복 방지 키로

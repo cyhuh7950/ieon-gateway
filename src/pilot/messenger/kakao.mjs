@@ -3,12 +3,14 @@
 // - 콜백은 1회용이고 유효 시간이 짧다(약 1분으로 알려져 있음, 실측 전). 그래서 브리지가 보내는 글을 모아 한 번에 보낸다.
 // - 제한 시간(callbackLimitMs) 안에 답이 안 끝나면 "오래 걸린다"는 안내로 콜백을 쓰고, 뒤늦은 답은 보관했다가 /last로 보낸다.
 import { callbackAllowed } from '../../relay/relay.mjs';
-import { splitText } from './bridge.mjs';
+import { splitText, waitNotice } from './bridge.mjs';
+import { t } from '../../i18n/index.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const WAIT_NOTICE = '접수됨 — 답을 기다리는 중'; // 브리지의 중간 안내. 스킬 응답이 이미 "접수"를 알렸으므로 콜백에는 넣지 않는다.
-const SLOW = '답이 오래 걸리고 있습니다. 끝나면 /last 를 보내 받아 보세요.';
-const BUSY = '아직 답을 만드는 중입니다. 잠시 뒤 /last 를 다시 보내 주세요.';
+// 브리지의 중간 안내. 스킬 응답이 이미 "접수"를 알렸으므로 콜백에는 넣지 않는다.
+const WAIT_NOTICE = waitNotice();
+const SLOW = t('messenger.kakao.slow');
+const BUSY = t('messenger.kakao.busy');
 const BUBBLE = 1000; // simpleText 한 칸 글자 수 한도
 const MAX_OUTPUTS = 3; // 응답 하나의 말풍선 수 한도
 
@@ -17,7 +19,7 @@ export function kakaoBody(text) {
   let parts = splitText(String(text), BUBBLE);
   if (parts.length > MAX_OUTPUTS) {
     parts = parts.slice(0, MAX_OUTPUTS);
-    const tail = '\n…(길어서 줄임 — 전체는 웹 화면에서 확인)';
+    const tail = t('messenger.kakao.cut');
     parts[MAX_OUTPUTS - 1] = parts[MAX_OUTPUTS - 1].slice(0, BUBBLE - tail.length) + tail;
   }
   return { version: '2.0', template: { outputs: parts.map((t) => ({ simpleText: { text: t } })) } };
@@ -57,7 +59,7 @@ export function runKakao(opts) {
       if (spent) return;
       spent = true;
       clearTimeout(timer);
-      const text = [...buf, ...(slow ? [SLOW] : [])].join('\n\n') || '(답이 없습니다)';
+      const text = [...buf, ...(slow ? [SLOW] : [])].join('\n\n') || t('messenger.kakao.empty');
       const ok = await post(item.callbackUrl, kakaoBody(text)).catch(() => false);
       if (!ok) { log({ platform: 'kakao', event: 'callback_failed' }); if (!slow) stash(user, text); }
     };
@@ -66,7 +68,7 @@ export function runKakao(opts) {
       if (spent) stash(user, String(t)); else buf.push(String(t));
     };
     if (item.text.trim() === '/last') {
-      buf.push(take(user) || (busy.get(user) ? BUSY : '보관된 답이 없습니다.'));
+      buf.push(take(user) || (busy.get(user) ? BUSY : t('messenger.kakao.no_last')));
       return flush(false);
     }
     timer = setTimeout(() => flush(true), limit);
@@ -75,7 +77,7 @@ export function runKakao(opts) {
       await onMessage({ platform: 'kakao', userId: user, chatId: user, isGroup: false, called: true, text: item.text }, send);
     } catch (e) {
       log({ platform: 'kakao', event: 'handle_error', error: String(e.message).slice(0, 80) });
-      buf.push('처리 중 오류가 났습니다.');
+      buf.push(t('messenger.handle_error'));
     } finally {
       busy.set(user, busy.get(user) - 1);
       if (!busy.get(user)) busy.delete(user);
@@ -95,7 +97,7 @@ export function runKakao(opts) {
         if (r.status === 401) { log({ platform: 'kakao', event: 'open_error', error: 'unauthorized' }); return; } // 토큰이 틀리면 다시 붙어도 실패하므로 멈춘다.
         if (!r.ok) throw new Error(`relay_${r.status}`);
         attempt = 0;
-        if (!announced) { announced = true; log({ platform: 'kakao', event: 'started', bot: '카카오 중계 연결' }); }
+        if (!announced) { announced = true; log({ platform: 'kakao', event: 'started', bot: 'kakao-relay' }); }
         const { items } = await r.json();
         for (const item of items ?? []) handleItem(item).catch((e) => log({ platform: 'kakao', event: 'handle_error', error: String(e.message).slice(0, 80) }));
       } catch (e) {

@@ -4,6 +4,7 @@
 // 질문마다 붙었다 떨어진다 — 계속 붙어 있으면 사람이 Antigravity에서 그 대화를 열 때 "사용 중"이 되므로(presence 잠금).
 // 작업 모드: 에이전트의 session/request_permission을 이어온 승인 카드로(사람이 허용할 때만 allow_once). 질문만이면 늘 거부.
 // 불러오기에 실패해도 새 세션으로 대체하지 않는다(ME4). 결과가 없으면(끊김·시간 초과) 결과 불명 — 자동 재전송 없음.
+import { t as i18nT } from '../../i18n/index.mjs';
 import { spawn } from 'node:child_process';
 import { EngineError, StoppedError } from '../contracts.mjs';
 
@@ -46,12 +47,12 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId = null, quest
         const tc = m.params?.toolCall ?? {};
         let decision = 'decline';
         if (workMode && approve) {
-          const summary = String(tc.title ?? tc.kind ?? '도구 사용').replace(/\s+/g, ' ').slice(0, 300);
+          const summary = String(tc.title ?? tc.kind ?? i18nT('server.tool.use')).replace(/\s+/g, ' ').slice(0, 300);
           decision = await approve({ kind: KIND[tc.kind] ?? 'permissions', summary, cwd, itemId: tc.toolCallId ? String(tc.toolCallId).slice(0, 80) : null }).catch(() => 'decline');
         }
         const allow1 = pick(['allow_once']);
         log({ event: 'acp_permission', decision });
-        if (decision !== 'accept') denied.push(String(tc.title ?? tc.kind ?? '도구 사용').replace(/\s+/g, ' ').slice(0, 120));
+        if (decision !== 'accept') denied.push(String(tc.title ?? tc.kind ?? i18nT('server.tool.use')).replace(/\s+/g, ' ').slice(0, 120));
         if (decision === 'accept' && allow1) return reply(m.id, { outcome: { outcome: 'selected', optionId: allow1 } });
         return reply(m.id, reject1 ? { outcome: { outcome: 'selected', optionId: reject1 } } : { outcome: { outcome: 'cancelled' } });
       }
@@ -101,7 +102,7 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId = null, quest
         throw Object.assign(new Error('acp_prompt_error'), { unknownCode: 'acp_prompt_error' });
       });
       if (r?.stopReason === 'cancelled' || stopped) throw new StoppedError();
-      const note = denied.length ? `[이어온] 허락하지 않아 실행되지 않은 작업 ${denied.length}개:\n${denied.slice(0, 5).map((d) => `- ${d}`).join('\n')}` : '';
+      const note = denied.length ? i18nT('server.note.acp_denied', { n: denied.length, list: denied.slice(0, 5).map((d) => `- ${d}`).join('\n') }) : '';
       return { answer: [text.join('').trim(), note].filter(Boolean).join('\n\n'), stopReason: r?.stopReason ?? null, sessionId };
     })().then((v) => finish(null, v), (e) => finish(e));
   });

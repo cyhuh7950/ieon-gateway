@@ -12,6 +12,8 @@ import { codexThreadAdapter } from '../../src/pilot/adapters/codex-thread.mjs';
 import { EngineError } from '../../src/pilot/contracts.mjs';
 import { codexAccountHealth, healthHeader, pollOnce } from '../../src/pilot/connector.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const T1 = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
 const T2 = '01a18790-0000-7000-8000-000000000002';
@@ -159,6 +161,7 @@ test('설정 → 계정 API: 추가·로그인(계정 폴더로)·고르기·지
 
 test('화면: 계정 오류 안내(탭 자체는 a2d-hub-parity 시험)', () => {
   const A = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
-  assert.ok(A.includes("account_not_logged_in: ['warn'") && A.includes("account_missing: ['warn'"));
+  assert.ok(KO['errors.account_not_logged_in'] && KO['errors.account_missing']);
+  assert.ok(!/ERR_HARD = new Set\([^)]*'account_(not_logged_in|missing)'/.test(A), '경고(warn)');
   assert.ok(!A.includes('준비 중 — 설정 → 계정') && !A.includes('(설정 → 계정, 준비 중)'));
 });

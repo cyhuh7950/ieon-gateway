@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { tempStore, owner } from './helpers.mjs';
 import { validateHostLimit } from '../../src/pilot/settings.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const bind = (id, hostId) => ({ conversationId: id, ownerUserId: 'u_sinsan', appIds: ['app_web'], hostId, engine: 'codex_thread', sessionRef: `0000000${id.slice(-1)}-1111-4222-8333-444444444444` });
@@ -35,8 +37,7 @@ test('한도 설정값 검사 · 화면·메신저·앱이 host_busy를 안내�
   for (const v of [{ perHost: -1 }, { perHost: 51 }, { perHost: 'x' }, {}]) assert.throws(() => validateHostLimit(v), /bad_host_limit/);
   const read = (p) => readFileSync(join(ROOT, p), 'utf8');
   const app = read('src/pilot/web/app.html');
-  assert.ok(app.includes("host_busy: ['warn',") && app.includes("'conversation_busy', 'host_busy', 'active_limit'"));
-  assert.ok(read('src/pilot/messenger/bridge.mjs').includes('host_busy:'));
+  assert.ok(KO['errors.host_busy'] && !/ERR_HARD = new Set\([^)]*'host_busy'/.test(app) && app.includes("'conversation_busy', 'host_busy', 'active_limit'"));
   assert.ok(read('src/pilot/server.mjs').includes("'active_limit', 'host_busy',"), '방에서도 다시 보내기');
   assert.ok(read('app/src/lib/api.ts').includes('"host_busy"') && read('app/src/lib/texts.ts').includes('host_busy:'));
   const set = read('src/pilot/web/settings.html');

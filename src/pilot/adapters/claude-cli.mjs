@@ -4,6 +4,7 @@
 // 안전: --restricted(사용자·프로젝트 설정·훅 무시, 파일 도구를 작업 폴더로 제한, bypassPermissions 거부),
 // --strict-mcp-config(MCP 없음), --tools·--allowedTools는 프로필 도구만, --permission-prompts none(그 밖은 자동 거부).
 // 질문은 표준 입력으로만 넘기고 로그에 남기지 않는다.
+import { t as i18nT } from '../../i18n/index.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { claudeBusy } from '../claude-sessions.mjs';
@@ -38,8 +39,8 @@ export function spawnClaude(args, input, { cwd, timeoutMs = TIMEOUT_MS, signal =
 export function deniedNote(denials = []) {
   if (!denials.length) return '';
   const what = (d) => { const i = d?.tool_input ?? {}; const t = i.file_path ?? i.path ?? i.notebook_path ?? i.url ?? i.command ?? i.pattern ?? '';
-    return `- ${String(d?.tool_name ?? '도구')}${t ? ' ' + String(t).replace(/\s+/g, ' ').slice(0, 120) : ''}`; };
-  return `[이어온] 권한 설정에서 막혀 실행되지 않은 작업 ${denials.length}개:\n${denials.slice(0, 5).map(what).join('\n')}${denials.length > 5 ? `\n- 외 ${denials.length - 5}개` : ''}`;
+    return `- ${String(d?.tool_name ?? i18nT('server.tool.generic'))}${t ? ' ' + String(t).replace(/\s+/g, ' ').slice(0, 120) : ''}`; };
+  return i18nT('server.note.claude_denied', { n: denials.length, list: denials.slice(0, 5).map(what).join('\n') }) + (denials.length > 5 ? i18nT('server.note.more', { n: denials.length - 5 }) : '');
 }
 
 // SV2 기존 대화(서버 칸에서 사람이 연 Claude 대화를 고른 것)의 도구: 새 세션 기본 프로필(없으면 작업 폴더 안 읽기·쓰기). 명령(Bash)은 열지 않는다.

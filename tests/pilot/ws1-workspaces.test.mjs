@@ -14,6 +14,8 @@ import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
 import { codexWorkspaceDirs, withWorkspaceLine } from '../../src/pilot/adapters/index.mjs';
 import { codexThreadAdapter } from '../../src/pilot/adapters/codex-thread.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const T1 = '01a18790-0000-7000-8000-000000000001';
@@ -156,8 +158,7 @@ test('서버: 붙이기는 전용 주소로만(대화 주인·세션 확인 → 
 });
 
 test('메신저 /status·설정 화면: 작업 공간은 폴더 이름만, 설정 화면에 작업 폴더 탭과 승인 확인', () => {
-  const bridge = readFileSync(join(ROOT, 'src/pilot/messenger/bridge.mjs'), 'utf8');
-  assert.ok(bridge.includes('작업 공간: ${ws}'));
+  assert.ok(KO['messenger.describe.workspace'].includes('작업 공간: {ws}'));
   const set = readFileSync(join(ROOT, 'src/pilot/web/settings.html'), 'utf8');
   assert.ok(set.includes('data-atab="work" hidden aria-label="작업 폴더"') && set.includes("'/v1/admin/workspaces/attach'") && set.includes('승인할까요?'));
 });

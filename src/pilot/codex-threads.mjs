@@ -1,6 +1,7 @@
 // U3: 이 PC의 최근 Codex 대화 목록(쉬운 화면의 "대화 연결"). 공식 Codex app-server의 thread/list만 쓴다.
 // 안전(AGENTS UD2 예외): 업무 대화는 Codex에 excludedThreadIds로 빼 달라고 요청하고, 받은 목록에서 한 번 더 뺀다.
 // 이 목록은 화면 응답에만 쓰고 로그에 남기지 않는다. 대화 본문은 읽지 않는다(Codex가 주는 제목·첫 줄 미리보기만).
+import { t as i18nT } from '../i18n/index.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +23,7 @@ const shortText = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').tri
 // 목록 한 줄. 제목이 없으면 첫 질문 미리보기를 짧게 쓴다.
 export function toListItem(t) {
   const at = Number(t.recencyAt ?? t.updatedAt ?? t.createdAt);
-  return { threadId: String(t.id).toLowerCase(), title: shortText(t.name || t.preview || '(제목 없음)', 60),
+  return { threadId: String(t.id).toLowerCase(), title: shortText(t.name || t.preview || i18nT('server.conv.untitled'), 60),
     workingDirectory: typeof t.cwd === 'string' && t.cwd ? t.cwd.replaceAll('\\', '/') : null,
     updatedAt: Number.isFinite(at) && at > 0 ? new Date(at * 1000).toISOString() : null };
 }
@@ -69,6 +70,6 @@ export function listCodexThreads({ codex, limit = 30, timeoutMs = 45000, spawnIm
         }
       }
     });
-    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'ieon', title: '이어온', version: '0.0.1' } } });
+    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'ieon', title: i18nT('common.product'), version: '0.0.1' } } });
   });
 }

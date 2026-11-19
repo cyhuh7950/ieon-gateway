@@ -14,6 +14,8 @@ import { EngineError } from '../../src/pilot/contracts.mjs';
 import { createBridge } from '../../src/pilot/messenger/bridge.mjs';
 import { createBotRunner } from '../../src/pilot/messenger/runner.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const TID = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
 const LIMIT = 'You’ve hit your usage limit. Upgrade to Pro, or try again at 7:04 PM.';
@@ -60,7 +62,7 @@ test('메신저: 한도는 어느 계정인지와 바꿀 길을 알리고, 결�
   const bridge = createBridge({ api, allowedUsers: { telegram: ['111'] }, roomsPath: join(dir, 'rooms.json'), pollMs: 1, waitMs: 1000 });
   const said = []; const say = (text) => bridge.handle({ platform: 'telegram', userId: '111', chatId: '-1', text }, async (s) => { said.push(s); });
   await say('/use 1'); await say('질문');
-  assert.match(said.at(-1), /사용 한도에 걸려 실행되지 않았음 — 지금 쓰는 계정: PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정/);
+  assert.match(said.at(-1), /사용 한도에 걸려 실행되지 않았어요\. — 지금 쓰는 계정: PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정/);
   assert.ok(!/review/.test(said.at(-1)), '잠그지 않으므로 정리 명령이 필요 없음');
   await say('/status');
   assert.match(said.at(-1), /계정: PC 기본 로그인/);
@@ -83,7 +85,8 @@ test('메신저 실행기: 연결 실패는 이유 코드와 함께 바로 보�
 test('화면: 계정 표시·한도 카드(다시 보내기는 누를 때만)·메신저 창 기다림과 실패 이유', () => {
   const APP = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
   assert.ok(APP.includes('id="acctChip"') && APP.includes('id="pAccount"'), '대화 위쪽·연결 설정에 사용 계정');
-  assert.ok(APP.includes("usage_limit: ['warn', '계정의 사용 한도에 걸려 실행되지 않았어요.']"));
+  assert.equal(KO['errors.usage_limit'], '계정의 사용 한도에 걸려 실행되지 않았어요.');
+  assert.ok(APP.includes("t('errors.' + c)") && !/ERR_HARD = new Set\([^)]*'usage_limit'/.test(APP), '한도는 경고(warn)');
   assert.ok(APP.includes("' 지금 쓰는 계정: ' + (acct ?? '알 수 없음')"), '한도 카드에 계정 이름');
   assert.ok(APP.includes("if (s === 'token_missing' && Date.now() - savedAt < 75_000)"), '저장 직후 토큰 없음은 기다림');
   assert.ok(APP.includes("bad_access_token: '토큰이 맞지 않아요"), '토큰 거절 이유');

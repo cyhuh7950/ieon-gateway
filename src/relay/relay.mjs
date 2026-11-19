@@ -6,6 +6,7 @@
 //   메신저 쪽이 한다(이 모듈은 라인 토큰도 갖지 않는다). 메신저마다 대기열을 따로 두어 카카오 실행기가 라인 몫을 가져가지 않게 한다.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
+import { makeT, serverLang } from '../i18n/index.mjs';
 
 const DEFAULTS = {
   maxBody: 16 * 1024, maxText: 2000, maxQueue: 100, ttlMs: 60_000, pcAliveMs: 45_000, pollWaitMs: 25_000,
@@ -13,13 +14,12 @@ const DEFAULTS = {
   callbackHosts: ['bot-api.kakao.com'],
 };
 
-const MSG = {
-  accepted: '접수되었습니다. 답을 기다리는 중…',
-  pcDown: '이어온 PC가 연결되어 있지 않습니다. PC를 켠 뒤 다시 보내 주세요.',
-  full: '지금 대기 중인 요청이 너무 많습니다. 잠시 뒤 다시 보내 주세요.',
-  noCallback: '이 블록에 AI 챗봇 콜백이 켜져 있지 않아 답을 보낼 수 없습니다. 오픈빌더 설정을 확인하세요.',
-  bad: '요청을 처리할 수 없습니다.',
-};
+// 카카오 안내 글: 중계 언어(cfg.lang, 없으면 서버 기본 언어 — IEON_LANG)
+let MSG = msgFor(serverLang());
+function msgFor(lang) {
+  const t = makeT(lang);
+  return { accepted: t('messenger.relay.accepted'), pcDown: t('messenger.relay.pc_down'), full: t('messenger.relay.full'), noCallback: t('messenger.relay.no_callback'), bad: t('messenger.relay.bad') };
+}
 
 const text = (t) => ({ version: '2.0', template: { outputs: [{ simpleText: { text: t } }] } });
 const accepted = () => ({ version: '2.0', useCallback: true, data: { text: MSG.accepted } });
@@ -63,9 +63,10 @@ async function readJson(req, max) {
 
 // cfg: { pcToken, kakaoSecret, ...DEFAULTS 덮어쓰기, log(e), now() }
 export function createRelay(cfg) {
-  if (!cfg?.pcToken || String(cfg.pcToken).length < 16) throw new Error('pcToken은 16자 이상이어야 합니다.');
-  if (!cfg.kakaoSecret || String(cfg.kakaoSecret).length < 16) throw new Error('kakaoSecret은 16자 이상이어야 합니다.');
+  if (!cfg?.pcToken || String(cfg.pcToken).length < 16) throw new Error(makeT(serverLang())('server.relay.bad_pc_token'));
+  if (!cfg.kakaoSecret || String(cfg.kakaoSecret).length < 16) throw new Error(makeT(serverLang())('server.relay.bad_kakao_secret'));
   const o = { ...DEFAULTS, ...cfg };
+  if (cfg.lang) MSG = msgFor(cfg.lang);
   const now = o.now ?? Date.now;
   const log = (e) => o.log?.({ ch: 'relay', at: new Date(now()).toISOString(), ...e });
   const queues = { kakao: [], line: [] }; // 메신저별 대기열. kakao: { id, channel, userKey, text, callbackUrl, at } / line: { id, channel, raw, signature, at }

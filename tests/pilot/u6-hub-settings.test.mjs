@@ -33,7 +33,7 @@ const OLD_APIS = [
   '/v1/admin/kakao/skill-url', '/v1/admin/kakao/relay-status', '/v1/admin/bots', '/v1/admin/roles', '/v1/admin/sessions', '/v1/admin/bots/',
   '/v1/admin/roles/',
 ];
-const web = (name) => readFileSync(fileURLToPath(new URL(`../../src/pilot/web/${name}`, import.meta.url)), 'utf8');
+import { webPage as web } from './web-page.mjs'; // 서버가 보내는 화면(사전·t() 포함)
 
 async function hubAndPc(t, hubExtra = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'ieon-u6-'));

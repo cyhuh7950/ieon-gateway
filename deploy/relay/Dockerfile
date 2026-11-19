@@ -3,6 +3,9 @@
 FROM node:22-alpine
 WORKDIR /app
 COPY src/relay/ ./src/relay/
+# I18N-a: 안내 글은 언어별 사전에서(src/i18n·locales)
+COPY src/i18n/ ./src/i18n/
+COPY locales/ ./locales/
 ENV NODE_ENV=production
 USER node
 CMD ["node", "src/relay/main.mjs"]

@@ -12,6 +12,8 @@ import { upsertCliSession, readDevice } from '../../src/pilot/device-settings.mj
 import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
 import { validateBinding } from '../../src/pilot/settings.mjs';
 import { probeLockAt } from '../../src/pilot/lock-probe.mjs';
+import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+const KO = loadDict('ko');
 
 const A = '9e943423-83d6-448a-aaf0-48b2121879e5';
 const fakeRun = (result) => { const calls = []; const run = async (bin, args, o) => { calls.push({ bin, args, env: o.env, cwd: o.cwd }); return typeof result === 'function' ? result(args) : result; }; return { run, calls }; };
@@ -87,5 +89,6 @@ test('화면: PC 설정의 Antigravity·Grok 허용 목록, 세션 등록 엔진
   const S = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
   const P = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
   assert.ok(S.includes('id="cliAdd"') && S.includes('id="cliList"') && S.includes("devRun('device.cli.put'") && S.includes('<option value="agy_cli">Antigravity 대화</option>'));
-  assert.ok(P.includes("agy_cli: 'Antigravity', grok_cli: 'Grok'") && P.includes("session_in_use: ['warn'") && P.includes("session_load_failed: ['err'"));
+  assert.ok(P.includes("agy_cli: 'Antigravity', grok_cli: 'Grok'") && KO['errors.session_in_use'] && KO['errors.session_load_failed']);
+  assert.ok(/ERR_HARD = new Set\([^)]*'session_load_failed'/.test(P) && !/ERR_HARD = new Set\([^)]*'session_in_use'/.test(P));
 });
