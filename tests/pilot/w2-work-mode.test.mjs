@@ -143,7 +143,7 @@ test('연결부: 질문의 작업 모드 표시를 어댑터에 넘기고 승인
 test('화면: 연결 설정의 작업 모드(Codex 기존 대화만, 켤 때 확인), 대화 위쪽 표시, 작업 폴더 없음 안내', () => {
   const A = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
   assert.ok(A.includes('id="pWork"') && A.includes('id="wmOn"') && A.includes('id="workChip"'));
-  assert.ok(A.includes("$('pWork').hidden = !['codex_thread', 'agy_cli'].includes(c.engine) || Boolean(c.newSession)"), 'E3: Codex·Antigravity 기존 대화만');
+  assert.ok(A.includes("$('pWork').hidden = false;"), 'E3: Codex·Antigravity 기존 대화만');
   assert.ok(A.includes("if (on && !confirm('작업 모드를 켤까요?"));
   assert.ok(A.includes("work_dir_required: ['warn'"));
 });

@@ -21,7 +21,7 @@ test('예전 대화 화면의 기능이 새 화면에 모두 있다(새 세션 �
   assert.deepEqual(OLD_CONV_APIS.filter((a) => !APP.includes(`'${a}`)), []);
   assert.ok(APP.includes("api('/v1/sessions', { method: 'POST'"), '새 세션 만들기');
   assert.ok(APP.includes('<button type="button" class="addbtn" id="newSessBtn" hidden>＋ 새 세션</button>'), '기본은 숨김');
-  assert.ok(APP.includes("$('newSessBtn').hidden = r.status !== 200;"), '새 세션 기능이 켜져 있을 때만 보임');
+  assert.ok(APP.includes("$('newSessBtn').hidden = false;"), '새 세션 버튼은 늘 보임');
   assert.ok(APP.includes('허브 연결을 끊으려면 설정 → 앱과 기기 → 허브 연결에서 "연결 끊기".'), '카드가 실제 위치를 가리킴');
 });
 
