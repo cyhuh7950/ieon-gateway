@@ -65,6 +65,7 @@ nav.agrp button { border:0; border-radius:99px; min-height:32px; padding:4px 16p
 nav.agrp button[aria-pressed="true"] { background:var(--text); color:var(--surface); font-weight:600; }
 details.fold > summary { font-size:15px; color:var(--text); padding:2px 0; }
 details.fold { margin:16px 0; }
+details.fold > summary .sum { font-weight:400; color:var(--muted); font-size:13px; }
 nav.atabs button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
 .subcard { border-top:1px solid var(--border); margin-top:16px; padding-top:4px; }
 details { border:1px solid var(--border); border-radius:10px; padding:8px 12px; margin:12px 0; background:var(--surface); }
@@ -215,7 +216,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     <div id="acTargetNote" class="muted" hidden></div>
     <div id="acBox" hidden>
       <div class="muted">질문이 어느 계정의 사용량으로 나갈지 정합니다. 대화(세션)는 계정과 상관없이 이 PC의 것을 그대로 이어 씁니다. 이어온 전용 계정은 Codex Desktop·웹의 로그인과 따로이고, 로그인은 공식 화면에서 직접 합니다(이어온은 로그인 정보를 읽지 않음). 한도에 걸려도 이어온이 스스로 다른 계정으로 바꾸지 않습니다.</div>
-      <h3>Codex 계정</h3>
+      <details class="fold"><summary>Codex 계정 <span class="sum" id="acSum"></span></summary>
       <div class="muted">로그인은 두 가지 중 편한 것: <b>로그인</b>(ChatGPT 구독 — 버튼을 누르고 "승인 창 열기"에서 승인만, 코드는 자동으로 복사돼요) 또는 <b>API 키</b>(OpenAI API 키를 한 번 넣으면 이어온이 안에서 로그인까지 — 사용량만큼 요금, 다른 사람이 쓰는 서비스용).</div>
       <table class="list"><thead><tr><th>이름</th><th>상태</th><th></th></tr></thead><tbody id="acList"></tbody></table>
       <form id="acKeyForm" class="row" hidden><input id="acKey" type="password" placeholder="OpenAI API 키(sk-…)" autocomplete="off" aria-label="API 키"><button class="primary" type="submit">API 키로 로그인</button><button type="button" id="acKeyCancel">취소</button></form>
@@ -232,7 +233,8 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <div class="row"><label for="acDefault">기본으로 쓸 계정</label><select id="acDefault"></select></div>
       <div class="muted">기본 계정은 새 세션과, 아래에서 따로 고르지 않은 대화에 쓰입니다. 동시 사용(공유 서버) 대화는 그 서버의 로그인을 씁니다.</div>
       <table class="list"><thead><tr><th>Codex 대화</th><th>쓸 계정</th></tr></thead><tbody id="acThreads"></tbody></table>
-      <h3>Claude 계정</h3>
+      </details>
+      <details class="fold"><summary>Claude 계정 <span class="sum" id="clSum"></span></summary>
       <div id="clBox" class="muted">불러오는 중…</div>
       <form id="clKeyForm" class="row" hidden><input id="clKey" type="password" placeholder="Claude API 키(sk-ant-…)" autocomplete="off" aria-label="Claude API 키"><button class="primary" type="submit">API 키 넣기</button><button type="button" id="clKeyCancel">취소</button></form>
       <form id="clCompatForm" hidden>
@@ -242,6 +244,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
         <button class="primary" type="submit">호환 주소 저장</button><button type="button" id="clCpCancel">취소</button></div>
       </form>
       <form id="clCodeForm" class="row" hidden><input id="clCode" placeholder="승인 뒤 받은 코드 붙여 넣기" autocomplete="off" aria-label="Claude 로그인 코드"><button class="primary" type="submit">코드 넣기</button></form>
+      </details>
       <details class="fold"><summary>Antigravity 계정(새 세션용)</summary>
       <div id="agBox" class="muted">불러오는 중…</div>
       <form id="agCompatForm" hidden>
@@ -320,6 +323,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="auKakao">카카오톡</label><input type="text" id="auKakao" placeholder="사용자 ID, 쉼표로 구분">
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="auReset">파일 값으로</button></div>
     </form>
+    <details class="fold"><summary>카카오톡(스킬 URL·중계)</summary>
     <div id="skillBox" hidden>
       <h3>카카오 스킬 URL</h3>
       <div id="relayState" class="muted"></div>
@@ -333,6 +337,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="kkLimit">콜백 제한 시간(초)</label><input type="text" id="kkLimit" placeholder="5~120 (비우면 기본 55초)">
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="kkReset">파일 값으로</button></div>
     </form>
+    </details>
   </section>
   <section class="atab" data-atab="reg" data-admin hidden aria-label="세션 등록">
     <h2>세션 직접 등록</h2>
@@ -352,7 +357,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   </section>
   <section class="atab" data-atab="reg" data-admin hidden aria-label="새 세션">
     <h2>새 세션</h2>
-    <h3>설정 <span id="nsSrc" class="muted"></span></h3>
+    <details class="fold"><summary>새 세션 설정 <span class="sum" id="nsSum"></span> <span id="nsSrc" class="muted"></span></summary>
     <form id="nsForm" class="grid2">
       <span>켜기</span><label class="chk"><input type="checkbox" id="nsOn"> 새 세션 만들기를 켭니다</label>
       <label for="nsMax">세션 수 한도</label><input type="text" id="nsMax">
@@ -370,6 +375,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <span>작업 폴더</span><div id="nsRoot" class="muted"></div>
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="nsReset">파일 값으로</button></div>
     </form>
+    </details>
     <details class="fold"><summary>동시 질문 수·기다리는 시간</summary>
     <div class="muted">PC·엔진 칸 하나가 한꺼번에 맡는 질문(기다림 + 처리 중) 수예요. 넘으면 줄 세우지 않고 "바빠요"로 알려 주고, 자동으로 다시 보내지 않아요. 0이면 한도 없음.</div>
     <form id="hlForm" class="row">
@@ -403,6 +409,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   <section class="atab" data-atab="msgadv" data-admin hidden aria-label="역할">
     <h2>역할</h2>
     <table class="list"><thead><tr><th>역할 ID</th><th>이름</th><th>만들 수 있는 엔진</th><th>허용 권한</th><th>기본 세션</th></tr></thead><tbody id="roleRows"></tbody></table>
+    <details class="fold" id="roleFold"><summary>역할 만들기·고치기</summary>
     <form id="roleForm" class="grid2" style="margin-top:10px">
       <label for="rId">역할 ID</label><input type="text" id="rId" placeholder="영문 소문자·숫자·- (예: review)" maxlength="32">
       <label for="rName">이름</label><input type="text" id="rName" maxlength="30">
@@ -413,6 +420,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="rDefault">기본 세션</label><select id="rDefault"></select>
       <span></span><div class="row"><button class="primary" type="submit">역할 저장</button><button type="button" id="rDelete">역할 삭제</button><button type="button" id="rNew">새 역할</button></div>
     </form>
+    </details>
   </section>
   <section class="atab" data-atab="msg" data-need="user" hidden aria-label="메신저 연결" id="myMsgSection">
     <h2>메신저 연결</h2>
@@ -498,12 +506,13 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     <div class="row"><button class="primary" type="button" id="adCode">연결 코드 만들기</button></div>
     <div id="adCodeBox" class="state warn" hidden role="alert"></div>
     <table class="list"><thead><tr><th>앱 기기</th><th>연결한 때</th><th>마지막 사용</th><th></th></tr></thead><tbody id="adList"></tbody></table>
-    <h3>휴대폰 알림</h3>
+    <details class="fold"><summary>휴대폰 알림 <span class="sum">(Firebase 파일 두 개를 한 번 넣기)</span></summary>
     <div class="muted">앱을 닫아도 "○○가 답했어요"가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요.</div>
     <div id="pushState" class="muted"></div>
     <div class="row"><label class="field">서비스 계정 키(.json)<input type="file" id="pushKeyFile" accept=".json,application/json"></label></div>
     <div class="row"><label class="field">앱 설정 파일(google-services.json)<input type="file" id="pushAppFile" accept=".json,application/json"></label></div>
     <div class="row"><button type="button" id="pushOff">휴대폰 알림 끄기(키 지우기)</button></div>
+    </details>
   </section>
 </div>
 <script>
@@ -1221,6 +1230,8 @@ document.addEventListener('click', (e) => { if (e.target?.id === 'clKeyCancel') 
 let agFor = null, agPoll = null;
 const AG_FAIL = { timeout: '15분이 지나 취소됐어요', exited: '로그인 창이 닫혔어요', login_failed: '로그인하지 못했어요', engine_not_installed: '그 PC에 Antigravity가 없어요', save_failed: '저장하지 못했어요' };
 async function loadAgy() {
+  // 허브 자신에는 Antigravity 계정이 없다(PC 새 세션용) — 묻지 않고 칸을 숨김(2026-11-20: 10초마다 400이 나던 것)
+  $('agBox').closest('details').hidden = acTarget === 'hub'; if (acTarget === 'hub') return;
   const r = await acRun('agy.accounts.get'); const box = $('agBox'); box.innerHTML = '';
   if (r.status !== 200) { box.textContent = HOST_ERR[r.body.error] || r.body.error; return; }
   const d = r.body;
@@ -1300,6 +1311,7 @@ $('modeApply').onclick = async () => {
   loadMode(); loadHubLink().catch(() => {});
 };
 async function loadHubLink() {
+  if (authState?.mode === 'hub') { $('hubLinkBox').hidden = true; return; } // 허브 화면에는 "허브에 연결"이 없다(10초마다 404가 나던 것)
   const r = await api('/v1/admin/local/hub'); $('hubLinkBox').hidden = r.status !== 200; if (r.status !== 200) return;
   const s = r.body; const box = $('hubLinkState'); box.innerHTML = '';
   const line = s.state === 'pairing' ? ['state warn', '허브 웹의 기기 화면에서 이 코드를 승인하세요: ' + s.code]
@@ -1563,6 +1575,7 @@ function editRole(id) {
   document.getElementsByName('rEng').forEach((c) => { c.checked = q ? q.engines.includes(c.value) : true; });
   document.getElementsByName('rProf').forEach((c) => { c.checked = q ? q.profiles.includes(c.value) : true; });
   $('rGuide').value = q?.aiGuide || ''; $('rDefault').value = q?.defaultSession || ''; $('rDelete').disabled = !q;
+  if (q) { $('roleFold').open = true; $('roleFold').scrollIntoView({ block: 'nearest' }); } // 표에서 고르면 고칠 칸을 펼침
 }
 $('rNew').onclick = () => editRole(null);
 $('roleForm').onsubmit = async (e) => {
@@ -1744,7 +1757,12 @@ async function boot() {
 }
 // 디자인 통일(2026-11-20): 되돌릴 수 없는 일 버튼은 danger 모양, 휴대폰 표 카드에는 칸 이름을 붙인다(DESIGN.md)
 const DANGER_BTN = /^(삭제|지우기|폐기|끊기|거절|빼기)|(지우기[)]|삭제|폐기)$/;
+const setSum = (id, t) => { const x = $(id); if (x && x.textContent !== t) x.textContent = t; };
+const selText = (sel) => (sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : '');
 function decorate(root) {
+  setSum('acSum', selText($('acDefault')) ? '— 기본: ' + selText($('acDefault')) : '');
+  setSum('clSum', selText(document.querySelector('select[aria-label="기본으로 쓸 Claude 계정"]')) ? '— 기본: ' + selText(document.querySelector('select[aria-label="기본으로 쓸 Claude 계정"]')) : '');
+  setSum('nsSum', $('nsOn') ? ($('nsOn').checked ? '— 켜짐' : '— 꺼짐') : '');
   for (const b of root.querySelectorAll('button:not(.primary):not(.danger)')) if (DANGER_BTN.test(b.textContent.trim())) b.classList.add('danger');
   for (const t of root.querySelectorAll('table.list')) {
     const hs = [...t.querySelectorAll('thead th')].map((h) => h.textContent.trim()); if (!hs.length) continue;
