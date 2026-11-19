@@ -24,7 +24,7 @@ test('M3: 연결 숫자 → 메신저 계정 연결, 그 계정의 봇 요청은
   app.store.saveBot({ platform: 'telegram', botId: 'default', name: '기본 봇', roleId: null, callNames: [], extraUsers: [], enabled: true });
   // 관리자 대화(메신저에도 보임)와 가입자 대화
   app.store.setSetting('multiUser.enabled', { enabled: true });
-  await web('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123' } });
+  await web('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123', agree: true } });
   const uid = app.store.userByEmail('u@example.com').userId;
   app.store.setUserStatus(uid, 'approved');
   app.store.saveBinding('u_sinsan', { conversationId: 'c_admin', label: '관리자 대화', engine: 'codex_thread', hostId: 'h_a', sessionRef: '01a18790-0000-7000-8000-0000000000c1', appIds: ['app_web', 'app_messenger'] });

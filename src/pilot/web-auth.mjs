@@ -122,8 +122,9 @@ export function createWebAuth({ store, config, access, clientIp, installKind = (
         const email = normEmail(body.email);
         if (!validEmail(email)) { json(res, 400, { error: 'bad_email' }); return true; }
         if (!validPassword(body.password)) { json(res, 400, { error: 'weak_password' }); return true; }
+        if (body.agree !== true) { json(res, 400, { error: 'terms_required' }); return true; } // M4: 이용 약관·개인정보 처리방침 동의
         const userId = 'u_' + randomBytes(8).toString('hex');
-        const r = store.addUser(userId, email, hashPassword(body.password));
+        const r = store.addUser(userId, email, hashPassword(body.password), new Date().toISOString());
         if (r.http !== 201) { fail(ip); json(res, r.http, { error: r.code }); return true; }
         issue(req, res, userId); log('signup', req); json(res, 201, { loggedIn: true, status: 'pending' }); return true;
       }

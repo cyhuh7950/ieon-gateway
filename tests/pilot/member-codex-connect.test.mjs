@@ -54,8 +54,8 @@ test('허브: 가입자가 내 PC의 Codex 대화를 골라 연결 → 내 대�
   const admin = browser(); const u = browser(); const other = browser();
   await admin('/v1/auth/setup', { method: 'POST', body: { password: 'admin-password-123' } });
   await admin('/v1/admin/settings/multi-user', { method: 'PUT', body: { enabled: true } });
-  await u('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123' } });
-  await other('/v1/auth/signup', { method: 'POST', body: { email: 'o@example.com', password: 'o-password-123' } });
+  await u('/v1/auth/signup', { method: 'POST', body: { email: 'u@example.com', password: 'u-password-123', agree: true } });
+  await other('/v1/auth/signup', { method: 'POST', body: { email: 'o@example.com', password: 'o-password-123', agree: true } });
   for (const x of (await admin('/v1/admin/users')).body.users) await admin(`/v1/admin/users/${x.userId}/approve`, { method: 'POST', body: {} });
   const dev = await u('/v1/admin/devices', { method: 'POST', body: { hostId: 'h_upc', name: '내 PC' } });
   assert.equal(dev.status, 201);
