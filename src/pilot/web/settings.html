@@ -126,6 +126,10 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   table.list td[data-label]:not(:empty)::before { content:attr(data-label); display:block; font-size:12px; color:var(--muted); }
   table.list td:empty { display:none; }
 }
+/* ⓘ 풍선 도움말(DESIGN.md): 설명문은 화면에 쓰지 않고 여기에 */
+.tip { display:inline-grid; place-items:center; width:18px; height:18px; margin-left:6px; border:1px solid var(--border); border-radius:50%; font:italic 600 11px/1 Georgia, serif; color:var(--muted); cursor:help; position:relative; vertical-align:middle; flex:none; }
+.tip:hover, .tip:focus-visible { color:var(--accent); border-color:var(--accent); }
+.tip:hover::after, .tip:focus::after { content:attr(data-tip); position:absolute; left:-10px; top:calc(100% + 6px); width:max-content; max-width:min(340px, 80vw); padding:8px 10px; border-radius:8px; background:var(--text); color:var(--surface); font:400 12px/1.55 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif; white-space:normal; text-align:left; z-index:60; box-shadow:var(--shadow); }
 </style>
 </head>
 <body>
@@ -153,16 +157,14 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     <div class="row" id="pcTargetRow" hidden><label for="pcTarget">PC</label><select id="pcTarget"></select></div>
     <div id="pcTargetNote" class="muted" hidden></div>
     <div id="modeBox" hidden>
-      <h3>사용 방식</h3>
+      <h3>사용 방식 <span class="tip" tabindex="0" role="note" aria-label="이어온 공용 서비스(가입해서 쓰기)는 준비 중이에요. 두 방식을 섞어 쓰지 않도록 서버가 맞지 않는 기능을 켜지 않아요." data-tip="이어온 공용 서비스(가입해서 쓰기)는 준비 중이에요. 두 방식을 섞어 쓰지 않도록 서버가 맞지 않는 기능을 켜지 않아요.">i</span></h3>
       <div id="modeNow" class="muted"></div>
       <div class="row"><label class="chk"><input type="radio" name="mode" value="pc" id="modePc"> 이 PC에서만 — 공개 서버 없이 이 PC 화면·텔레그램·디스코드·슬랙(카카오톡·라인은 공개 중계가 있을 때만)</label></div>
       <div class="row"><label class="chk"><input type="radio" name="mode" value="hub" id="modeHub"> 내 허브에 연결 — 질문·메신저·이 PC 설정은 허브 화면에서, 이 PC의 봇·카카오 중계는 끔</label></div>
-      <div class="muted">이어온 공용 서비스(가입해서 쓰기)는 준비 중이에요. 두 방식을 섞어 쓰지 않도록 서버가 맞지 않는 기능을 켜지 않아요.</div>
       <div class="row"><button class="primary" type="button" id="modeApply">사용 방식 바꾸기</button></div>
     </div>
     <div id="devBox" hidden>
-      <h3>실제 실행·Codex 허용 목록</h3>
-      <div class="muted">그 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. PC형은 그 PC에서 연 화면에서, 허브형은 허브 화면에서 PC를 골라 바꿉니다(허브가 그 PC에 전달).</div>
+      <h3>실제 실행·Codex 허용 목록 <span class="tip" tabindex="0" role="note" aria-label="그 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. PC형은 그 PC에서 연 화면에서, 허브형은 허브 화면에서 PC를 골라 바꿉니다(허브가 그 PC에 전달)." data-tip="그 PC에서 실제로 AI를 부를지, 어떤 Codex 대화를 이어 쓸지 정합니다. PC형은 그 PC에서 연 화면에서, 허브형은 허브 화면에서 PC를 골라 바꿉니다(허브가 그 PC에 전달).">i</span></h3>
       <div class="row"><label class="chk"><input type="checkbox" id="devLive"> 실제 실행 켜기(AI 호출이 생김)</label><span id="devConn" class="muted"></span></div>
       <table class="list"><thead><tr><th>Codex 대화 ID</th><th>연결 방식</th><th>작업 폴더</th><th></th></tr></thead><tbody id="devThreads"></tbody></table>
       <form id="devAdd" class="row">
@@ -172,18 +174,15 @@ table.list tr.pick:hover { background:var(--surface-alt); }
         <button class="primary" type="submit">허용 목록에 추가</button>
       </form>
       <div id="cxBox" hidden>
-        <h3>그 PC의 Codex 대화</h3>
-        <div class="muted">그 PC에서 최근에 쓴 Codex 대화예요. [연결]을 누르면 허용 목록에 넣고 이어온 대화 목록에도 바로 생겨요(대화 화면의 ＋ 대화 연결과 같음).</div>
+        <h3>그 PC의 Codex 대화 <span class="tip" tabindex="0" role="note" aria-label="그 PC에서 최근에 쓴 Codex 대화예요. [연결]을 누르면 허용 목록에 넣고 이어온 대화 목록에도 바로 생겨요(대화 화면의 ＋ 대화 연결과 같음)." data-tip="그 PC에서 최근에 쓴 Codex 대화예요. [연결]을 누르면 허용 목록에 넣고 이어온 대화 목록에도 바로 생겨요(대화 화면의 ＋ 대화 연결과 같음).">i</span></h3>
         <div class="row"><button type="button" id="cxLoad">대화 목록 불러오기</button></div>
         <table class="list"><tbody id="cxList"></tbody></table>
       </div>
       <div id="clsBox" hidden>
-        <h3>서버 Claude 대화</h3>
-        <div class="muted">이 칸에서 사람이 연 Claude 대화예요. [연결]을 누르면 바로 이어온 대화 목록에 생기고, 질문은 같은 대화로 이어져요(사람이 칸에서 그 폴더의 Claude를 열어 두면 보내지 않고 알려요). 사용량은 서버 Claude 로그인(설정 → 계정)으로 나가요.</div>
+        <h3>서버 Claude 대화 <span class="tip" tabindex="0" role="note" aria-label="이 칸에서 사람이 연 Claude 대화예요. [연결]을 누르면 바로 이어온 대화 목록에 생기고, 질문은 같은 대화로 이어져요(사람이 칸에서 그 폴더의 Claude를 열어 두면 보내지 않고 알려요). 사용량은 서버 Claude 로그인(설정 → 계정)으로 나가요." data-tip="이 칸에서 사람이 연 Claude 대화예요. [연결]을 누르면 바로 이어온 대화 목록에 생기고, 질문은 같은 대화로 이어져요(사람이 칸에서 그 폴더의 Claude를 열어 두면 보내지 않고 알려요). 사용량은 서버 Claude 로그인(설정 → 계정)으로 나가요.">i</span></h3>
         <table class="list"><thead><tr><th>제목</th><th>작업 폴더</th><th>최근</th><th></th></tr></thead><tbody id="clsList"></tbody></table>
       </div>
-      <details class="fold"><summary>Antigravity·Grok 허용 목록</summary>
-      <div class="muted">그 PC에서 이어 쓸 Antigravity 대화·Grok 세션 ID. 질문은 읽기 전용으로 가고, 사용량은 그 PC의 각 앱 로그인 계정으로 나가요. Grok은 구독 계정이 있어야 실제로 답해요.</div>
+      <details class="fold"><summary>Antigravity·Grok 허용 목록 <span class="tip" tabindex="0" role="note" aria-label="그 PC에서 이어 쓸 Antigravity 대화·Grok 세션 ID. 질문은 읽기 전용으로 가고, 사용량은 그 PC의 각 앱 로그인 계정으로 나가요. Grok은 구독 계정이 있어야 실제로 답해요." data-tip="그 PC에서 이어 쓸 Antigravity 대화·Grok 세션 ID. 질문은 읽기 전용으로 가고, 사용량은 그 PC의 각 앱 로그인 계정으로 나가요. Grok은 구독 계정이 있어야 실제로 답해요.">i</span></summary>
       <table class="list"><thead><tr><th>엔진</th><th>세션 ID</th><th>작업 폴더</th><th></th></tr></thead><tbody id="cliList"></tbody></table>
       <form id="cliAdd" class="row">
         <select id="cliEngine" aria-label="엔진"><option value="agy_cli">Antigravity</option><option value="grok_cli">Grok</option></select>
@@ -195,11 +194,10 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </div>
   </section>
   <section class="atab" data-atab="work" hidden aria-label="작업 폴더">
-    <h2>작업 폴더</h2>
+    <h2>작업 폴더 <span class="tip" tabindex="0" role="note" aria-label="AI 직원마다 쓸 폴더를 정해요 — 개인 폴더 하나와 공유 폴더 여러 개(읽기만 / 읽기·쓰기). 폴더를 붙이지 않은 직원은 지금과 똑같이 동작해요. 폴더를 나누는 것과 실제로 막는 것은 달라요 — 직원마다 아래 &quot;막는 정도&quot;를 확인하세요. 임시 폴더 아래는 등록할 수 없어요(Codex가 임시 폴더는 늘 쓰기를 허용해서 직원끼리 막히지 않음)." data-tip="AI 직원마다 쓸 폴더를 정해요 — 개인 폴더 하나와 공유 폴더 여러 개(읽기만 / 읽기·쓰기). 폴더를 붙이지 않은 직원은 지금과 똑같이 동작해요. 폴더를 나누는 것과 실제로 막는 것은 달라요 — 직원마다 아래 &quot;막는 정도&quot;를 확인하세요. 임시 폴더 아래는 등록할 수 없어요(Codex가 임시 폴더는 늘 쓰기를 허용해서 직원끼리 막히지 않음).">i</span></h2>
     <div class="row" id="wsTargetRow" hidden><label for="wsTarget">PC·칸</label><select id="wsTarget"></select></div>
     <div id="wsNote" class="muted" hidden></div>
     <div id="wsBox" hidden>
-      <div class="muted">AI 직원마다 쓸 폴더를 정해요 — 개인 폴더 하나와 공유 폴더 여러 개(읽기만 / 읽기·쓰기). 폴더를 붙이지 않은 직원은 지금과 똑같이 동작해요. <b>폴더를 나누는 것과 실제로 막는 것은 달라요</b> — 직원마다 아래 "막는 정도"를 확인하세요. 임시 폴더 아래는 등록할 수 없어요(Codex가 임시 폴더는 늘 쓰기를 허용해서 직원끼리 막히지 않음).</div>
       <h3>폴더</h3>
       <table class="list"><thead><tr><th>이름</th><th>경로</th><th></th></tr></thead><tbody id="wsFolders"></tbody></table>
       <form id="wsAdd" class="row">
@@ -213,17 +211,14 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </div>
   </section>
   <section class="atab" data-atab="acct" data-admin hidden aria-label="계정">
-    <h2>계정</h2>
+    <h2>계정 <span class="tip" tabindex="0" role="note" aria-label="질문이 어느 계정의 사용량으로 나갈지 정합니다. 대화(세션)는 계정과 상관없이 이 PC의 것을 그대로 이어 씁니다. 이어온 전용 계정은 Codex Desktop·웹의 로그인과 따로이고, 로그인은 공식 화면에서 직접 합니다(이어온은 로그인 정보를 읽지 않음). 한도에 걸려도 이어온이 스스로 다른 계정으로 바꾸지 않습니다." data-tip="질문이 어느 계정의 사용량으로 나갈지 정합니다. 대화(세션)는 계정과 상관없이 이 PC의 것을 그대로 이어 씁니다. 이어온 전용 계정은 Codex Desktop·웹의 로그인과 따로이고, 로그인은 공식 화면에서 직접 합니다(이어온은 로그인 정보를 읽지 않음). 한도에 걸려도 이어온이 스스로 다른 계정으로 바꾸지 않습니다.">i</span></h2>
     <div class="row" id="acTargetRow" hidden><label for="acTarget">어디의 계정</label><select id="acTarget"></select></div>
     <div id="acTargetNote" class="muted" hidden></div>
     <div id="acBox" hidden>
-      <div class="muted">질문이 어느 계정의 사용량으로 나갈지 정합니다. 대화(세션)는 계정과 상관없이 이 PC의 것을 그대로 이어 씁니다. 이어온 전용 계정은 Codex Desktop·웹의 로그인과 따로이고, 로그인은 공식 화면에서 직접 합니다(이어온은 로그인 정보를 읽지 않음). 한도에 걸려도 이어온이 스스로 다른 계정으로 바꾸지 않습니다.</div>
-      <details class="fold"><summary>Codex 계정 <span class="sum" id="acSum"></span></summary>
-      <div class="muted">로그인은 두 가지 중 편한 것: <b>로그인</b>(ChatGPT 구독 — 버튼을 누르고 "승인 창 열기"에서 승인만, 코드는 자동으로 복사돼요) 또는 <b>API 키</b>(OpenAI API 키를 한 번 넣으면 이어온이 안에서 로그인까지 — 사용량만큼 요금, 다른 사람이 쓰는 서비스용).</div>
+      <details class="fold"><summary>Codex 계정 <span class="sum" id="acSum"></span> <span class="tip" tabindex="0" role="note" aria-label="로그인은 두 가지 중 편한 것: 로그인(ChatGPT 구독 — 버튼을 누르고 &quot;승인 창 열기&quot;에서 승인만, 코드는 자동으로 복사돼요) 또는 API 키(OpenAI API 키를 한 번 넣으면 이어온이 안에서 로그인까지 — 사용량만큼 요금, 다른 사람이 쓰는 서비스용). 호환 주소: Codex는 그대로 두고 AI 모델만 다른 곳으로 보내요(OpenAI Responses API 호환 주소만 — Chat Completions만 되는 곳은 Codex가 받지 않아요). 이어온 새 세션에서만 쓰여요(쓰던 Codex 대화를 다른 모델로 이어 쓰는 것은 아직 확인되지 않았어요). 키는 다시 보이지 않고, 사용량은 그 서비스 요금으로 나가요. 기본 계정은 새 세션과, 아래에서 따로 고르지 않은 대화에 쓰입니다. 동시 사용(공유 서버) 대화는 그 서버의 로그인을 씁니다." data-tip="로그인은 두 가지 중 편한 것: 로그인(ChatGPT 구독 — 버튼을 누르고 &quot;승인 창 열기&quot;에서 승인만, 코드는 자동으로 복사돼요) 또는 API 키(OpenAI API 키를 한 번 넣으면 이어온이 안에서 로그인까지 — 사용량만큼 요금, 다른 사람이 쓰는 서비스용). 호환 주소: Codex는 그대로 두고 AI 모델만 다른 곳으로 보내요(OpenAI Responses API 호환 주소만 — Chat Completions만 되는 곳은 Codex가 받지 않아요). 이어온 새 세션에서만 쓰여요(쓰던 Codex 대화를 다른 모델로 이어 쓰는 것은 아직 확인되지 않았어요). 키는 다시 보이지 않고, 사용량은 그 서비스 요금으로 나가요. 기본 계정은 새 세션과, 아래에서 따로 고르지 않은 대화에 쓰입니다. 동시 사용(공유 서버) 대화는 그 서버의 로그인을 씁니다.">i</span></summary>
       <table class="list"><thead><tr><th>이름</th><th>상태</th><th></th></tr></thead><tbody id="acList"></tbody></table>
       <form id="acKeyForm" class="row" hidden><input id="acKey" type="password" placeholder="OpenAI API 키(sk-…)" autocomplete="off" aria-label="API 키"><button class="primary" type="submit">API 키로 로그인</button><button type="button" id="acKeyCancel">취소</button></form>
       <form id="acCompatForm" hidden>
-        <div class="muted">호환 주소: Codex는 그대로 두고 AI 모델만 다른 곳으로 보내요(OpenAI <b>Responses API</b> 호환 주소만 — Chat Completions만 되는 곳은 Codex가 받지 않아요). 이어온 <b>새 세션</b>에서만 쓰여요(쓰던 Codex 대화를 다른 모델로 이어 쓰는 것은 아직 확인되지 않았어요). 키는 다시 보이지 않고, 사용량은 그 서비스 요금으로 나가요.</div>
         <div class="row"><input id="acCpUrl" placeholder="주소 (예: https://router.example.com/v1 — 보통 /v1까지)" autocomplete="off" spellcheck="false" aria-label="Codex 호환 주소"><input id="acCpModel" placeholder="모델 이름" autocomplete="off" spellcheck="false" aria-label="Codex 호환 모델 이름"></div>
         <div class="row"><input id="acCpKey" type="password" placeholder="키" autocomplete="off" aria-label="Codex 호환 주소 키"><button class="primary" type="submit">호환 주소 저장</button><button type="button" id="acCpCancel">취소</button></div>
       </form>
@@ -233,48 +228,42 @@ table.list tr.pick:hover { background:var(--surface-alt); }
         <button class="primary" type="submit">계정 추가</button>
       </form>
       <div class="row"><label for="acDefault">기본으로 쓸 계정</label><select id="acDefault"></select></div>
-      <div class="muted">기본 계정은 새 세션과, 아래에서 따로 고르지 않은 대화에 쓰입니다. 동시 사용(공유 서버) 대화는 그 서버의 로그인을 씁니다.</div>
       <table class="list"><thead><tr><th>Codex 대화</th><th>쓸 계정</th></tr></thead><tbody id="acThreads"></tbody></table>
       </details>
-      <details class="fold"><summary>Claude 계정 <span class="sum" id="clSum"></span></summary>
+      <details class="fold"><summary>Claude 계정 <span class="sum" id="clSum"></span> <span class="tip" tabindex="0" role="note" aria-label="호환 주소: Claude Code는 그대로 두고 AI 모델만 다른 곳으로 보내요(예: Upstage Solar, 라우터, 회사 게이트웨이, 내 PC의 로컬 모델). 그 서비스가 알려 준 Anthropic 호환 주소·키·모델 이름을 넣으세요. 주소 끝에 /v1은 넣지 않아요(Claude Code가 /v1/messages를 붙임 — 2026-11-19 Upstage로 확인). 키는 다시 보이지 않아요. 사용량은 그 서비스 요금으로 나가요." data-tip="호환 주소: Claude Code는 그대로 두고 AI 모델만 다른 곳으로 보내요(예: Upstage Solar, 라우터, 회사 게이트웨이, 내 PC의 로컬 모델). 그 서비스가 알려 준 Anthropic 호환 주소·키·모델 이름을 넣으세요. 주소 끝에 /v1은 넣지 않아요(Claude Code가 /v1/messages를 붙임 — 2026-11-19 Upstage로 확인). 키는 다시 보이지 않아요. 사용량은 그 서비스 요금으로 나가요.">i</span></summary>
       <div id="clBox" class="muted">불러오는 중…</div>
       <form id="clKeyForm" class="row" hidden><input id="clKey" type="password" placeholder="Claude API 키(sk-ant-…)" autocomplete="off" aria-label="Claude API 키"><button class="primary" type="submit">API 키 넣기</button><button type="button" id="clKeyCancel">취소</button></form>
       <form id="clCompatForm" hidden>
-        <div class="muted">호환 주소: Claude Code는 그대로 두고 AI 모델만 다른 곳으로 보내요(예: Upstage Solar, 라우터, 회사 게이트웨이, 내 PC의 로컬 모델). 그 서비스가 알려 준 Anthropic 호환 주소·키·모델 이름을 넣으세요. 주소 끝에 <b>/v1은 넣지 않아요</b>(Claude Code가 /v1/messages를 붙임 — 2026-11-19 Upstage로 확인). 키는 다시 보이지 않아요. 사용량은 그 서비스 요금으로 나가요.</div>
         <div class="row"><input id="clCpUrl" placeholder="주소 (예: https://api.upstage.ai/… — 끝에 /v1은 넣지 않아요)" autocomplete="off" spellcheck="false" aria-label="호환 주소"><input id="clCpModel" placeholder="모델 이름 (예: solar-pro4)" autocomplete="off" spellcheck="false" aria-label="모델 이름"></div>
         <div class="row"><input id="clCpKey" type="password" placeholder="키" autocomplete="off" aria-label="호환 주소 키"><select id="clCpAuth" aria-label="키 보내는 방식"><option value="bearer">키 보내는 방식: Authorization Bearer(대부분)</option><option value="x-api-key">키 보내는 방식: x-api-key(Anthropic 방식)</option></select>
         <button class="primary" type="submit">호환 주소 저장</button><button type="button" id="clCpCancel">취소</button></div>
       </form>
       <form id="clCodeForm" class="row" hidden><input id="clCode" placeholder="승인 뒤 받은 코드 붙여 넣기" autocomplete="off" aria-label="Claude 로그인 코드"><button class="primary" type="submit">코드 넣기</button></form>
       </details>
-      <details class="fold"><summary>Antigravity 계정(새 세션용)</summary>
+      <details class="fold"><summary>Antigravity 계정(새 세션용) <span class="tip" tabindex="0" role="note" aria-label="호환 주소: Antigravity는 그대로 두고 AI 모델만 다른 곳(회사 게이트웨이·라우터·내 PC의 로컬 모델)으로 보내요 — Antigravity의 &quot;기업용 모델 게이트웨이&quot; 기능이에요. 주소는 https(내 PC는 http://localhost도 됨), 키, 쓸 모델 이름(쉼표로 여러 개, 비우면 게이트웨이가 알려 주는 목록), 요청 형식(보통 Gemini). 키는 다시 보이지 않아요." data-tip="호환 주소: Antigravity는 그대로 두고 AI 모델만 다른 곳(회사 게이트웨이·라우터·내 PC의 로컬 모델)으로 보내요 — Antigravity의 &quot;기업용 모델 게이트웨이&quot; 기능이에요. 주소는 https(내 PC는 http://localhost도 됨), 키, 쓸 모델 이름(쉼표로 여러 개, 비우면 게이트웨이가 알려 주는 목록), 요청 형식(보통 Gemini). 키는 다시 보이지 않아요.">i</span></summary>
       <div id="agBox" class="muted">불러오는 중…</div>
       <form id="agCompatForm" hidden>
-        <div class="muted">호환 주소: Antigravity는 그대로 두고 AI 모델만 다른 곳(회사 게이트웨이·라우터·내 PC의 로컬 모델)으로 보내요 — Antigravity의 "기업용 모델 게이트웨이" 기능이에요. 주소는 https(내 PC는 http://localhost도 됨), 키, 쓸 모델 이름(쉼표로 여러 개, 비우면 게이트웨이가 알려 주는 목록), 요청 형식(보통 Gemini). 키는 다시 보이지 않아요.</div>
         <div class="row"><input id="agCpUrl" placeholder="주소 (예: https://gateway.example.com)" autocomplete="off" spellcheck="false" aria-label="Antigravity 호환 주소"><input id="agCpModels" placeholder="모델 이름(선택, 쉼표로)" autocomplete="off" spellcheck="false" aria-label="Antigravity 호환 모델"></div>
         <div class="row"><input id="agCpKey" type="password" placeholder="키" autocomplete="off" aria-label="Antigravity 호환 주소 키"><select id="agCpWire" aria-label="요청 형식"><option value="gemini">요청 형식: Gemini(보통)</option><option value="responses">요청 형식: OpenAI Responses</option></select>
         <button class="primary" type="submit">호환 주소 저장</button><button type="button" id="agCpCancel">취소</button></div>
       </form>
       <form id="agKeyForm" class="row" hidden><input id="agKey" type="password" placeholder="Gemini API 키" autocomplete="off" aria-label="Gemini API 키"><button class="primary" type="submit">API 키 넣기</button><button type="button" id="agKeyCancel">취소</button></form>
       </details>
-      <details class="fold"><summary>사용량·한도</summary>
-      <div class="muted">계정마다 오늘 질문 수와 이번 달 토큰입니다. 한도는 <b>API 키 계정</b>에만 걸려요(기본은 한도 없음). 넘으면 그 계정으로는 보내지 않고 알려요(자동으로 다시 보내지 않음).</div>
+      <details class="fold"><summary>사용량·한도 <span class="tip" tabindex="0" role="note" aria-label="계정마다 오늘 질문 수와 이번 달 토큰입니다. 한도는 API 키 계정에만 걸려요(기본은 한도 없음). 넘으면 그 계정으로는 보내지 않고 알려요(자동으로 다시 보내지 않음)." data-tip="계정마다 오늘 질문 수와 이번 달 토큰입니다. 한도는 API 키 계정에만 걸려요(기본은 한도 없음). 넘으면 그 계정으로는 보내지 않고 알려요(자동으로 다시 보내지 않음).">i</span></summary>
       <table class="list"><thead><tr><th>계정</th><th>오늘 질문</th><th>이번 달 토큰</th><th>하루 질문 한도</th><th>한 달 토큰 한도</th><th></th></tr></thead><tbody id="acUsage"></tbody></table>
       </details>
     </div>
   </section>
   <section class="atab" data-atab="apps" hidden aria-label="허브 연결">
-    <h2>허브 연결</h2>
+    <h2>허브 연결 <span class="tip" tabindex="0" role="note" aria-label="허브 화면에서 만든 &quot;PC 연결 링크&quot;로 열었어요. 연결하면 그 허브에서 보낸 질문이 이 PC에서 실행돼요. 내가 만든 링크가 맞을 때만 연결하세요." data-tip="허브 화면에서 만든 &quot;PC 연결 링크&quot;로 열었어요. 연결하면 그 허브에서 보낸 질문이 이 PC에서 실행돼요. 내가 만든 링크가 맞을 때만 연결하세요.">i</span></h2>
     <div id="joinBox" class="state warn" hidden role="alert">
       <b>이 PC를 허브에 연결할까요?</b>
       <div>연결할 허브: <code id="joinHub"></code></div>
-      <div class="muted">허브 화면에서 만든 "PC 연결 링크"로 열었어요. 연결하면 그 허브에서 보낸 질문이 이 PC에서 실행돼요. <b>내가 만든 링크가 맞을 때만</b> 연결하세요.</div>
       <div class="row"><input id="joinName" placeholder="이 PC 이름(비우면 컴퓨터 이름)" maxlength="40" autocomplete="off" aria-label="이 PC 이름"><button class="primary" type="button" id="joinOk">연결</button><button type="button" id="joinNo">취소</button></div>
     </div>
     <div id="joinHubOnly" class="state warn" hidden>PC 연결 링크는 연결할 PC에서 여세요. 여기는 허브 화면이에요.</div>
     <div id="hubLinkBox" hidden>
-      <h3>허브에 연결</h3>
-      <div class="muted">허브형(ieun)을 쓸 때 이 PC를 허브에 연결합니다. 허브 화면의 "PC 연결 링크"를 이 PC에서 열면 가장 쉬워요. 직접 하려면 허브 주소를 넣고 "연결"을 누르면 6자리 코드가 나오고, 허브 설정 → 앱과 기기 → 기기의 연결 요청에서 같은 코드를 승인하면 끝납니다.</div>
+      <h3>허브에 연결 <span class="tip" tabindex="0" role="note" aria-label="허브형(ieun)을 쓸 때 이 PC를 허브에 연결합니다. 허브 화면의 &quot;PC 연결 링크&quot;를 이 PC에서 열면 가장 쉬워요. 직접 하려면 허브 주소를 넣고 &quot;연결&quot;을 누르면 6자리 코드가 나오고, 허브 설정 → 앱과 기기 → 기기의 연결 요청에서 같은 코드를 승인하면 끝납니다." data-tip="허브형(ieun)을 쓸 때 이 PC를 허브에 연결합니다. 허브 화면의 &quot;PC 연결 링크&quot;를 이 PC에서 열면 가장 쉬워요. 직접 하려면 허브 주소를 넣고 &quot;연결&quot;을 누르면 6자리 코드가 나오고, 허브 설정 → 앱과 기기 → 기기의 연결 요청에서 같은 코드를 승인하면 끝납니다.">i</span></h3>
       <div id="hubLinkState"></div>
       <form id="hubLinkForm" class="row">
         <input id="hlUrl" placeholder="https://ieun-gateway.sinsan.kr" autocomplete="off" aria-label="허브 주소">
@@ -285,8 +274,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </div>
   </section>
   <section class="atab" data-atab="msg" data-admin hidden aria-label="봇">
-    <h2>봇</h2>
-    <div class="muted">봇을 고르면 아래 편집 칸의 "토큰"에 메신저에서 받은 봇 토큰을 넣을 수 있습니다. 저장한 토큰은 다시 보이지 않고, 1분 안에 봇이 연결됩니다.</div>
+    <h2>봇 <span class="tip" tabindex="0" role="note" aria-label="봇을 고르면 아래 편집 칸의 &quot;토큰&quot;에 메신저에서 받은 봇 토큰을 넣을 수 있습니다. 저장한 토큰은 다시 보이지 않고, 1분 안에 봇이 연결됩니다." data-tip="봇을 고르면 아래 편집 칸의 &quot;토큰&quot;에 메신저에서 받은 봇 토큰을 넣을 수 있습니다. 저장한 토큰은 다시 보이지 않고, 1분 안에 봇이 연결됩니다.">i</span></h2>
     <table class="list"><thead><tr><th>메신저</th><th>봇 ID</th><th>이름</th><th>역할</th><th>부르는 이름</th><th>상태</th></tr></thead><tbody id="botRows"></tbody></table>
     <form id="botAdd" class="row" style="margin-top:10px">
       <select id="addPlatform" aria-label="메신저"><option value="telegram">텔레그램</option><option value="discord">디스코드</option><option value="slack">슬랙</option><option value="kakao">카카오톡</option><option value="line">라인</option></select>
@@ -310,13 +298,11 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </div>
   </section>
   <section class="atab" data-atab="msg" data-admin hidden aria-label="허용 요청">
-    <h2>허용 요청</h2>
-    <div class="muted">허용 목록에 없는 사람이 봇에게 보낸 최근 메시지(24시간)입니다. "허용"을 누르면 그 봇의 추가 허용 사용자로 들어갑니다.</div>
+    <h2>허용 요청 <span class="tip" tabindex="0" role="note" aria-label="허용 목록에 없는 사람이 봇에게 보낸 최근 메시지(24시간)입니다. &quot;허용&quot;을 누르면 그 봇의 추가 허용 사용자로 들어갑니다." data-tip="허용 목록에 없는 사람이 봇에게 보낸 최근 메시지(24시간)입니다. &quot;허용&quot;을 누르면 그 봇의 추가 허용 사용자로 들어갑니다.">i</span></h2>
     <div id="deniedRows"></div>
   </section>
   <section class="atab" data-atab="msgadv" data-admin hidden aria-label="메신저 고급">
-    <h2>메신저 고급</h2>
-    <div class="muted">여기서 저장한 값이 있으면 그 값을, 없으면 설치 때 정한 값을 씁니다. "파일 값으로"를 누르면 여기 값을 지우고 설치 때 값으로 돌아갑니다.</div>
+    <h2>메신저 고급 <span class="tip" tabindex="0" role="note" aria-label="여기서 저장한 값이 있으면 그 값을, 없으면 설치 때 정한 값을 씁니다. &quot;파일 값으로&quot;를 누르면 여기 값을 지우고 설치 때 값으로 돌아갑니다." data-tip="여기서 저장한 값이 있으면 그 값을, 없으면 설치 때 정한 값을 씁니다. &quot;파일 값으로&quot;를 누르면 여기 값을 지우고 설치 때 값으로 돌아갑니다.">i</span></h2>
     <h3>메신저 공통 허용 사용자 <span id="auSrc" class="muted"></span></h3>
     <form id="auForm" class="grid2">
       <label for="auTelegram">텔레그램</label><input type="text" id="auTelegram" placeholder="사용자 ID, 쉼표로 구분">
@@ -327,9 +313,8 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </form>
     <details class="fold"><summary>카카오톡(스킬 URL·중계)</summary>
     <div id="skillBox" hidden>
-      <h3>카카오 스킬 URL</h3>
+      <h3>카카오 스킬 URL <span class="tip" tabindex="0" role="note" aria-label="카카오 오픈빌더 스킬의 URL 칸에 이 주소를 붙여 넣으세요. 비밀 경로가 들어 있으니 다른 곳에 올리지 마세요." data-tip="카카오 오픈빌더 스킬의 URL 칸에 이 주소를 붙여 넣으세요. 비밀 경로가 들어 있으니 다른 곳에 올리지 마세요.">i</span></h3>
       <div id="relayState" class="muted"></div>
-      <div class="muted">카카오 오픈빌더 스킬의 URL 칸에 이 주소를 붙여 넣으세요. 비밀 경로가 들어 있으니 다른 곳에 올리지 마세요.</div>
       <div class="row"><button type="button" id="skillShow">보기</button><button type="button" id="skillCopy">복사</button></div>
       <div id="skillUrl" class="muted" style="word-break:break-all"></div>
     </div>
@@ -342,8 +327,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </details>
   </section>
   <section class="atab" data-atab="reg" data-admin hidden aria-label="세션 등록">
-    <h2>세션 직접 등록</h2>
-    <div class="muted">PC에 이미 있는 Codex 대화·Claude 채널 세션을 등록합니다. 설치 때 들어온 세션은 보기만 됩니다. Codex 대화는 그 PC의 설정 → 이 PC 허용 목록에도 있어야 실제로 실행됩니다(이 PC에서는 대화 화면의 "＋ 대화 연결"이 둘을 한 번에 합니다). 봇에게 보이게 하려면 봇 편집의 "볼 수 있는 기존 세션"에서 고르세요.</div>
+    <h2>세션 직접 등록 <span class="tip" tabindex="0" role="note" aria-label="PC에 이미 있는 Codex 대화·Claude 채널 세션을 등록합니다. 설치 때 들어온 세션은 보기만 됩니다. Codex 대화는 그 PC의 설정 → 이 PC 허용 목록에도 있어야 실제로 실행됩니다(이 PC에서는 대화 화면의 &quot;＋ 대화 연결&quot;이 둘을 한 번에 합니다). 봇에게 보이게 하려면 봇 편집의 &quot;볼 수 있는 기존 세션&quot;에서 고르세요." data-tip="PC에 이미 있는 Codex 대화·Claude 채널 세션을 등록합니다. 설치 때 들어온 세션은 보기만 됩니다. Codex 대화는 그 PC의 설정 → 이 PC 허용 목록에도 있어야 실제로 실행됩니다(이 PC에서는 대화 화면의 &quot;＋ 대화 연결&quot;이 둘을 한 번에 합니다). 봇에게 보이게 하려면 봇 편집의 &quot;볼 수 있는 기존 세션&quot;에서 고르세요.">i</span></h2>
     <table class="list"><thead><tr><th>ID</th><th>이름</th><th>엔진</th><th>PC</th><th>세션 ID</th><th>보이는 곳</th><th>출처</th></tr></thead><tbody id="bdRows"></tbody></table>
     <details class="fold"><summary>직접 등록하기(대화 화면의 ＋ 대화 연결이 더 쉬워요)</summary>
     <form id="bdForm" class="grid2" style="margin-top:10px">
@@ -378,14 +362,12 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="nsReset">파일 값으로</button></div>
     </form>
     </details>
-    <details class="fold"><summary>동시 질문 수·기다리는 시간</summary>
-    <div class="muted">PC·엔진 칸 하나가 한꺼번에 맡는 질문(기다림 + 처리 중) 수예요. 넘으면 줄 세우지 않고 "바빠요"로 알려 주고, 자동으로 다시 보내지 않아요. 0이면 한도 없음.</div>
+    <details class="fold"><summary>동시 질문 수·기다리는 시간 <span class="tip" tabindex="0" role="note" aria-label="PC·엔진 칸 하나가 한꺼번에 맡는 질문(기다림 + 처리 중) 수예요. 넘으면 줄 세우지 않고 &quot;바빠요&quot;로 알려 주고, 자동으로 다시 보내지 않아요. 0이면 한도 없음." data-tip="PC·엔진 칸 하나가 한꺼번에 맡는 질문(기다림 + 처리 중) 수예요. 넘으면 줄 세우지 않고 &quot;바빠요&quot;로 알려 주고, 자동으로 다시 보내지 않아요. 0이면 한도 없음.">i</span></summary>
     <form id="hlForm" class="row">
       <input id="hlPerHost" type="number" min="0" max="50" aria-label="기기 하나가 한꺼번에 맡는 질문 수">
       <button class="primary" type="submit">저장</button>
     </form>
-    <h3>기다리는 시간</h3>
-    <div class="muted">승인 카드: 작업 모드에서 엔진이 허락을 물을 때 이 시간 안에 답이 없으면 거부해요(15분~1440분 = 24시간). 기다리는 동안 그 대화는 붙잡혀 있어요. 로그인 유지: 이 기간이 지나면 다시 로그인해요(1~90일).</div>
+    <h3>기다리는 시간 <span class="tip" tabindex="0" role="note" aria-label="승인 카드: 작업 모드에서 엔진이 허락을 물을 때 이 시간 안에 답이 없으면 거부해요(15분~1440분 = 24시간). 기다리는 동안 그 대화는 붙잡혀 있어요. 로그인 유지: 이 기간이 지나면 다시 로그인해요(1~90일)." data-tip="승인 카드: 작업 모드에서 엔진이 허락을 물을 때 이 시간 안에 답이 없으면 거부해요(15분~1440분 = 24시간). 기다리는 동안 그 대화는 붙잡혀 있어요. 로그인 유지: 이 기간이 지나면 다시 로그인해요(1~90일).">i</span></h3>
     <form id="ttlForm" class="row">
       <label for="apTtl">승인 카드(분)</label><input id="apTtl" type="number" min="15" max="1440" style="width:7em">
       <label for="loginDays">로그인 유지(일)</label><input id="loginDays" type="number" min="1" max="90" style="width:6em">
@@ -394,8 +376,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </details>
   </section>
   <section class="atab" data-atab="work" hidden aria-label="예약 작업">
-    <h2>예약 작업</h2>
-    <div class="muted">정해진 때 AI 직원에게 질문을 보내요(예: 매일 9시 "어제 변경 요약해 줘"). 사람이 없을 때 AI가 호출되므로 만들 때·다시 켤 때 확인을 받아요. 질문만 보내고(작업 모드인 대화는 그때 건너뜀), 하루 횟수 한도가 있고, 결과를 확인할 수 없는 질문이 남으면 그 예약은 멈춰요(다시 켜야 보냄). 답은 그 대화에 쌓여요.</div>
+    <h2>예약 작업 <span class="tip" tabindex="0" role="note" aria-label="정해진 때 AI 직원에게 질문을 보내요(예: 매일 9시 &quot;어제 변경 요약해 줘&quot;). 사람이 없을 때 AI가 호출되므로 만들 때·다시 켤 때 확인을 받아요. 질문만 보내고(작업 모드인 대화는 그때 건너뜀), 하루 횟수 한도가 있고, 결과를 확인할 수 없는 질문이 남으면 그 예약은 멈춰요(다시 켜야 보냄). 답은 그 대화에 쌓여요." data-tip="정해진 때 AI 직원에게 질문을 보내요(예: 매일 9시 &quot;어제 변경 요약해 줘&quot;). 사람이 없을 때 AI가 호출되므로 만들 때·다시 켤 때 확인을 받아요. 질문만 보내고(작업 모드인 대화는 그때 건너뜀), 하루 횟수 한도가 있고, 결과를 확인할 수 없는 질문이 남으면 그 예약은 멈춰요(다시 켜야 보냄). 답은 그 대화에 쌓여요.">i</span></h2>
     <div id="schHub" class="muted" hidden></div>
     <table class="list"><thead><tr><th>대화</th><th>언제</th><th>질문</th><th>상태</th><th></th></tr></thead><tbody id="schList"></tbody></table>
     <form id="schAdd">
@@ -425,16 +406,14 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </details>
   </section>
   <section class="atab" data-atab="msg" data-need="user" hidden aria-label="메신저 연결" id="myMsgSection">
-    <h2>메신저 연결</h2>
-    <div class="muted">이 허브의 메신저 봇(텔레그램·디스코드·슬랙·라인·카카오)으로도 내 대화를 쓸 수 있어요. 숫자를 받아 봇에게 그대로 보내면 내 계정과 연결돼요(10분·한 번). 연결된 메신저 계정에서는 내 대화만 보여요.</div>
+    <h2>메신저 연결 <span class="tip" tabindex="0" role="note" aria-label="이 허브의 메신저 봇(텔레그램·디스코드·슬랙·라인·카카오)으로도 내 대화를 쓸 수 있어요. 숫자를 받아 봇에게 그대로 보내면 내 계정과 연결돼요(10분·한 번). 연결된 메신저 계정에서는 내 대화만 보여요." data-tip="이 허브의 메신저 봇(텔레그램·디스코드·슬랙·라인·카카오)으로도 내 대화를 쓸 수 있어요. 숫자를 받아 봇에게 그대로 보내면 내 계정과 연결돼요(10분·한 번). 연결된 메신저 계정에서는 내 대화만 보여요.">i</span></h2>
     <div id="myMsgBots" class="muted"></div>
     <div class="row"><button class="primary" type="button" id="myMsgCode">연결 숫자 받기</button></div>
     <div id="myMsgCodeBox" class="state warn" hidden role="alert"></div>
     <table class="list"><thead><tr><th>메신저</th><th>이름</th><th>연결한 때</th><th></th></tr></thead><tbody id="myMsgRows"></tbody></table>
   </section>
   <section class="atab" data-atab="acct" data-need="hub" hidden aria-label="내 비밀번호" id="myPwSection">
-    <h2>내 비밀번호</h2>
-    <div class="muted">이 화면에 로그인하는 비밀번호를 바꿔요(10자 이상). 바꾸면 다른 곳의 로그인은 끊겨요.</div>
+    <h2>내 비밀번호 <span class="tip" tabindex="0" role="note" aria-label="이 화면에 로그인하는 비밀번호를 바꿔요(10자 이상). 바꾸면 다른 곳의 로그인은 끊겨요." data-tip="이 화면에 로그인하는 비밀번호를 바꿔요(10자 이상). 바꾸면 다른 곳의 로그인은 끊겨요.">i</span></h2>
     <form id="myPwForm" class="row">
       <input id="myPwCur" type="password" placeholder="지금 비밀번호" aria-label="지금 비밀번호" autocomplete="current-password" required>
       <input id="myPwNew" type="password" placeholder="새 비밀번호" aria-label="새 비밀번호" autocomplete="new-password" required>
@@ -443,12 +422,10 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     </form>
   </section>
   <section class="atab" data-atab="apps" data-need="hub" hidden aria-label="기기" id="dvSection">
-    <h2>기기</h2>
-    <div class="muted">새 PC는 위의 "PC 연결 링크"를 그 PC에서 열면 바로 연결돼요. 또는 그 PC의 이어온 설정 → 앱과 기기 → 허브 연결에서 "연결"을 누르면 아래 "연결 요청"에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.</div>
+    <h2>기기 <span class="tip" tabindex="0" role="note" aria-label="새 PC는 위의 &quot;PC 연결 링크&quot;를 그 PC에서 열면 바로 연결돼요. 또는 그 PC의 이어온 설정 → 앱과 기기 → 허브 연결에서 &quot;연결&quot;을 누르면 아래 &quot;연결 요청&quot;에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다." data-tip="새 PC는 위의 &quot;PC 연결 링크&quot;를 그 PC에서 열면 바로 연결돼요. 또는 그 PC의 이어온 설정 → 앱과 기기 → 허브 연결에서 &quot;연결&quot;을 누르면 아래 &quot;연결 요청&quot;에 뜹니다. PC 화면의 6자리 코드와 같은지 보고 승인하세요. 토큰은 이어온이 알아서 주고받습니다. PC 안전 설정(허용 목록·실제 실행·작업 폴더)은 여기서 바꿀 수 없습니다.">i</span></h2>
     <div id="pcLinkOff" class="state" hidden>이 서버는 <b>서버 설치형</b>이에요 — 엔진은 이 서버(엔진 칸)에서만 돌고, PC 연결 화면은 숨겨 두었어요. PC도 연결해 함께 쓰려면 <button type="button" id="pcLinkOn">PC 연결 켜기</button> (데이터는 그대로예요)</div>
     <div id="inviteBox" hidden>
-      <h3>PC 연결 링크</h3>
-      <div class="muted">연결할 PC에서 이 링크를 열면 그 PC의 이어온 설정 화면이 열리고 "연결"만 누르면 끝나요(코드 확인 없음). 10분 동안 한 번만 쓸 수 있어요. PC에 이어온이 설치돼 있어야 해요.</div>
+      <h3>PC 연결 링크 <span class="tip" tabindex="0" role="note" aria-label="연결할 PC에서 이 링크를 열면 그 PC의 이어온 설정 화면이 열리고 &quot;연결&quot;만 누르면 끝나요(코드 확인 없음). 10분 동안 한 번만 쓸 수 있어요. PC에 이어온이 설치돼 있어야 해요." data-tip="연결할 PC에서 이 링크를 열면 그 PC의 이어온 설정 화면이 열리고 &quot;연결&quot;만 누르면 끝나요(코드 확인 없음). 10분 동안 한 번만 쓸 수 있어요. PC에 이어온이 설치돼 있어야 해요.">i</span></h3>
       <div class="row"><button class="primary" type="button" id="inviteMake">링크 만들기</button><button type="button" id="inviteCopy" hidden>복사</button></div>
       <div id="inviteLink" class="muted" style="word-break:break-all"></div>
     </div>
@@ -459,8 +436,8 @@ table.list tr.pick:hover { background:var(--surface-alt); }
   <section class="atab" data-atab="hubsec" data-admin data-need="hub" hidden aria-label="허브 보안">
     <h2>허브 보안</h2>
     <div id="secBox" hidden>
-      <h3>보안(허브 접속 제한) <span id="secSrc" class="muted"></span></h3>
-      <div class="muted">이 허브 웹을 열 수 있는 곳을 정합니다. 하나라도 통과하면 열립니다. 지금 접속한 곳이 막히는 변경은 저장되지 않습니다. 지금 내 주소: <b id="secIp"></b></div>
+      <h3>보안(허브 접속 제한) <span id="secSrc" class="muted"></span> <span class="tip" tabindex="0" role="note" aria-label="이 허브 웹을 열 수 있는 곳을 정합니다. 하나라도 통과하면 열립니다. 지금 접속한 곳이 막히는 변경은 저장되지 않습니다. 지금 내 주소:" data-tip="이 허브 웹을 열 수 있는 곳을 정합니다. 하나라도 통과하면 열립니다. 지금 접속한 곳이 막히는 변경은 저장되지 않습니다. 지금 내 주소:">i</span></h3>
+      <div class="muted">지금 내 주소: <b id="secIp"></b></div>
       <form id="secForm" class="grid2">
         <span>방식</span><div><label class="chk"><input type="checkbox" id="secIpOn"> IP 허용 목록</label> <label class="chk"><input type="checkbox" id="secCfOn"> Cloudflare Access</label> <label class="chk"><input type="checkbox" id="secTsOn"> Tailscale</label></div>
         <label for="secIps">허용 IP</label><div><textarea id="secIps" rows="3" placeholder="한 줄에 하나 (예: 203.0.113.10 또는 203.0.113.0/24)"></textarea><button type="button" id="secAddMe">내 주소 추가</button></div>
@@ -470,46 +447,38 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       </form>
     </div>
     <div id="instBox" hidden>
-      <h3>새 서버에 설치</h3>
-      <div class="muted">다른 리눅스 서버에 이어온을 설치할 때, 그 서버의 터미널에 붙여 넣을 명령을 만들어요. 이 허브에서 설치 파일을 받아 설치를 시작해요(저장소 접근 권한이 필요 없음). 명령은 <b>1시간</b> 동안만 쓸 수 있고, 허브를 다시 켜면 사라져요. 다른 사람에게 보내지 마세요.</div>
+      <h3>새 서버에 설치 <span class="tip" tabindex="0" role="note" aria-label="다른 리눅스 서버에 이어온을 설치할 때, 그 서버의 터미널에 붙여 넣을 명령을 만들어요. 이 허브에서 설치 파일을 받아 설치를 시작해요(저장소 접근 권한이 필요 없음). 명령은 1시간 동안만 쓸 수 있고, 허브를 다시 켜면 사라져요. 다른 사람에게 보내지 마세요." data-tip="다른 리눅스 서버에 이어온을 설치할 때, 그 서버의 터미널에 붙여 넣을 명령을 만들어요. 이 허브에서 설치 파일을 받아 설치를 시작해요(저장소 접근 권한이 필요 없음). 명령은 1시간 동안만 쓸 수 있고, 허브를 다시 켜면 사라져요. 다른 사람에게 보내지 마세요.">i</span></h3>
       <div class="row"><button class="primary" type="button" id="instMake">설치 명령 만들기</button><button type="button" id="instCopy" hidden>복사</button></div>
       <div id="instCmd" class="code" style="word-break:break-all"></div>
     </div>
     <div id="muBox" hidden>
-      <h3>여러 사람</h3>
-      <div class="muted">켜면 로그인 화면에 "가입 신청"이 생겨요. 신청한 사람은 여기서 승인해야 쓸 수 있고, 각자 자기 PC만 연결해 자기 대화만 봐요(관리자도 남의 대화는 못 봐요). 다른 사람이 이 허브에 닿으려면 위 접속 제한도 열어야 해요.</div>
+      <h3>여러 사람 <span class="tip" tabindex="0" role="note" aria-label="켜면 로그인 화면에 &quot;가입 신청&quot;이 생겨요. 신청한 사람은 여기서 승인해야 쓸 수 있고, 각자 자기 PC만 연결해 자기 대화만 봐요(관리자도 남의 대화는 못 봐요). 다른 사람이 이 허브에 닿으려면 위 접속 제한도 열어야 해요. 비우거나 0이면 한도 없음. 사람마다 다르게 하려면 표의 &quot;한도&quot; 칸(비우면 기본을 따름, 0이면 그 사람만 한도 없음). 오늘은 한국 시간 0시부터 세고, 넘으면 보내지 않고 알려요(관리자는 한도 없음). 가입할 때 이용 약관·개인정보 처리방침 동의를 받아요." data-tip="켜면 로그인 화면에 &quot;가입 신청&quot;이 생겨요. 신청한 사람은 여기서 승인해야 쓸 수 있고, 각자 자기 PC만 연결해 자기 대화만 봐요(관리자도 남의 대화는 못 봐요). 다른 사람이 이 허브에 닿으려면 위 접속 제한도 열어야 해요. 비우거나 0이면 한도 없음. 사람마다 다르게 하려면 표의 &quot;한도&quot; 칸(비우면 기본을 따름, 0이면 그 사람만 한도 없음). 오늘은 한국 시간 0시부터 세고, 넘으면 보내지 않고 알려요(관리자는 한도 없음). 가입할 때 이용 약관·개인정보 처리방침 동의를 받아요.">i</span></h3>
       <label class="chk"><input type="checkbox" id="muOn"> 여러 사람 쓰기(가입 신청 받기)</label>
       <div class="row"><label for="muPerDay">가입자 하루 질문 한도(모든 가입자 기본)</label><input id="muPerDay" type="number" min="0" max="100000" placeholder="없음" style="width:8em"><button type="button" id="muPerDaySave">저장</button></div>
-      <div class="muted">비우거나 0이면 한도 없음. 사람마다 다르게 하려면 표의 "한도" 칸(비우면 기본을 따름, 0이면 그 사람만 한도 없음). 오늘은 한국 시간 0시부터 세고, 넘으면 보내지 않고 알려요(관리자는 한도 없음). 가입할 때 <a href="/terms" target="_blank" rel="noopener">이용 약관</a>·<a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a> 동의를 받아요.</div>
       <table class="list"><thead><tr><th>이메일</th><th>상태</th><th>PC</th><th>오늘 질문</th><th>한도</th><th>신청한 때</th><th></th></tr></thead><tbody id="muRows"></tbody></table>
     </div>
-    <div id="cxBox" hidden>
-      <h3>Codex 로그인(이 허브)</h3>
-      <div class="muted">허브에서 새 Codex 세션을 만들려면 이 허브가 신산님의 ChatGPT 계정으로 Codex에 로그인되어 있어야 합니다. "로그인"을 누르면 주소와 코드가 나오니, 그 주소를 열어 코드를 넣고 승인하세요. ChatGPT 보안 설정에서 "기기 코드 로그인"이 켜져 있어야 합니다.</div>
+    <div id="hcxBox" hidden>
+      <h3>Codex 로그인(이 허브) <span class="tip" tabindex="0" role="note" aria-label="허브에서 새 Codex 세션을 만들려면 이 허브가 신산님의 ChatGPT 계정으로 Codex에 로그인되어 있어야 합니다. &quot;로그인&quot;을 누르면 주소와 코드가 나오니, 그 주소를 열어 코드를 넣고 승인하세요. ChatGPT 보안 설정에서 &quot;기기 코드 로그인&quot;이 켜져 있어야 합니다." data-tip="허브에서 새 Codex 세션을 만들려면 이 허브가 신산님의 ChatGPT 계정으로 Codex에 로그인되어 있어야 합니다. &quot;로그인&quot;을 누르면 주소와 코드가 나오니, 그 주소를 열어 코드를 넣고 승인하세요. ChatGPT 보안 설정에서 &quot;기기 코드 로그인&quot;이 켜져 있어야 합니다.">i</span></h3>
       <div id="cxState"></div>
       <div class="row"><button type="button" id="cxStart" class="primary">로그인</button><button type="button" id="cxCancel">취소</button></div>
       <div class="row" id="hubEngineRow" hidden><label class="chk"><input type="checkbox" id="hubLive"> 허브 새 세션 실제 실행 켜기(AI 호출이 생김)</label></div>
     </div>
   </section>
   <section class="atab" data-atab="ext" data-admin hidden aria-label="외부 프로그램">
-    <h2>외부 프로그램</h2>
-    <div class="muted">내가 만든 프로그램이 이어온에 질문하게 하려면 여기서 키를 발급하세요. 키는 발급할 때 한 번만 보이니 그 프로그램 설정에 바로 넣으세요. 프로그램마다 볼 수 있는 세션을 고르고, 필요 없어지면 폐기합니다.</div>
+    <h2>외부 프로그램 <span class="tip" tabindex="0" role="note" aria-label="내가 만든 프로그램이 이어온에 질문하게 하려면 여기서 키를 발급하세요. 키는 발급할 때 한 번만 보이니 그 프로그램 설정에 바로 넣으세요. 프로그램마다 볼 수 있는 세션을 고르고, 필요 없어지면 폐기합니다." data-tip="내가 만든 프로그램이 이어온에 질문하게 하려면 여기서 키를 발급하세요. 키는 발급할 때 한 번만 보이니 그 프로그램 설정에 바로 넣으세요. 프로그램마다 볼 수 있는 세션을 고르고, 필요 없어지면 폐기합니다.">i</span></h2>
     <div id="appRows"></div>
     <form id="appAdd" class="row"><input id="appName" placeholder="프로그램 이름 (예: 내 자동화)" maxlength="40" autocomplete="off" aria-label="프로그램 이름"><button class="primary" type="submit">키 발급</button></form>
     <div id="appKey" class="state warn" hidden role="alert"><b>새 API 키(한 번만 보입니다)</b><div><code id="appKeyText"></code> <button type="button" id="appKeyCopy">복사</button> <button type="button" id="appKeyHide">닫기</button></div></div>
   </section>
   <section class="atab" data-atab="apps" hidden aria-label="앱">
     <h2>앱</h2>
-    <h3>앱 받기</h3>
-    <div class="muted">이어온 앱은 이 서버에서 받아요(스토어 없이). 휴대폰 브라우저 주소창에 <b id="appShort"></b> 를 치면 안드로이드 앱이 바로 받아져요. 처음 설치할 때 휴대폰이 "출처를 알 수 없는 앱" 허용을 한 번 물어요.</div>
+    <h3>앱 받기 <span class="tip" tabindex="0" role="note" aria-label="이어온 앱은 이 서버에서 받아요(스토어 없이). 휴대폰 브라우저 주소창에 를 치면 안드로이드 앱이 바로 받아져요. 처음 설치할 때 휴대폰이 &quot;출처를 알 수 없는 앱&quot; 허용을 한 번 물어요." data-tip="이어온 앱은 이 서버에서 받아요(스토어 없이). 휴대폰 브라우저 주소창에 를 치면 안드로이드 앱이 바로 받아져요. 처음 설치할 때 휴대폰이 &quot;출처를 알 수 없는 앱&quot; 허용을 한 번 물어요.">i</span></h3>
     <div class="row" id="appDl"><span class="muted">올려 둔 앱 파일이 없어요</span></div>
-    <h3>이어온 앱 연결</h3>
-    <div class="muted">휴대폰·PC의 이어온 앱을 이 서버에 연결해요. 코드를 만들어 앱에 서버 주소와 함께 넣으면 끝 — 코드는 10분 동안 한 번만 쓸 수 있어요. 앱에서는 대화·방·카드·승인을 쓰고, 설정은 이 웹 화면에서만 바꿔요.</div>
+    <h3>이어온 앱 연결 <span class="tip" tabindex="0" role="note" aria-label="휴대폰·PC의 이어온 앱을 이 서버에 연결해요. 코드를 만들어 앱에 서버 주소와 함께 넣으면 끝 — 코드는 10분 동안 한 번만 쓸 수 있어요. 앱에서는 대화·방·카드·승인을 쓰고, 설정은 이 웹 화면에서만 바꿔요." data-tip="휴대폰·PC의 이어온 앱을 이 서버에 연결해요. 코드를 만들어 앱에 서버 주소와 함께 넣으면 끝 — 코드는 10분 동안 한 번만 쓸 수 있어요. 앱에서는 대화·방·카드·승인을 쓰고, 설정은 이 웹 화면에서만 바꿔요.">i</span></h3>
     <div class="row"><button class="primary" type="button" id="adCode">연결 코드 만들기</button></div>
     <div id="adCodeBox" class="state warn" hidden role="alert"></div>
     <table class="list"><thead><tr><th>앱 기기</th><th>연결한 때</th><th>마지막 사용</th><th></th></tr></thead><tbody id="adList"></tbody></table>
-    <details class="fold"><summary>휴대폰 알림 <span class="sum">(Firebase 파일 두 개를 한 번 넣기)</span></summary>
-    <div class="muted">앱을 닫아도 "○○가 답했어요"가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요.</div>
+    <details class="fold"><summary>휴대폰 알림 <span class="sum">(Firebase 파일 두 개를 한 번 넣기)</span> <span class="tip" tabindex="0" role="note" aria-label="앱을 닫아도 &quot;○○가 답했어요&quot;가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요." data-tip="앱을 닫아도 &quot;○○가 답했어요&quot;가 휴대폰에 와요(질문·답 원문은 보내지 않음). Firebase 콘솔에서 받은 파일 두 개를 여기에 올리면 끝 — 파일을 열거나 복사할 필요 없어요. 비공개 키는 올린 뒤 다시 보이지 않아요.">i</span></summary>
     <div id="pushState" class="muted"></div>
     <div class="row"><label class="field">서비스 계정 키(.json)<input type="file" id="pushKeyFile" accept=".json,application/json"></label></div>
     <div class="row"><label class="field">앱 설정 파일(google-services.json)<input type="file" id="pushAppFile" accept=".json,application/json"></label></div>
@@ -584,7 +553,7 @@ async function loadSettings(force) {
   $('hlPerHost').value = s.hostLimit?.perHost ?? 3; // SV4 동시 질문 수
   $('apTtl').value = s.approvalTtl?.minutes ?? 15; $('loginDays').value = s.loginDays?.days ?? 30; // 규칙 점검 7·10
   { const p = s.push || {}; $('pushState').textContent = (p.configured ? '비공개 키: 올림(프로젝트 ' + p.projectId + ')' : '비공개 키: 아직 없음') + ' · ' + (p.appFile ? '앱 설정 파일: 올림(' + p.appFileProject + ')' : '앱 설정 파일: 아직 없음')
-    + (p.configured && p.appFile && p.projectId !== p.appFileProject ? ' — 두 파일의 프로젝트가 달라요' : ''); $('pushOff').hidden = !p.configured; } // AP-4b
+    + (p.configured && p.appFile && p.projectId !== p.appFileProject ? ' — 두 파일의 프로젝트가 달라요' : ''); $('pushOff').hidden = false; } // AP-4b
   $('nsSrc').textContent = ns.web ? srcText('web', ns.updatedAt) : '(파일 값 사용 중)';
   $('nsOn').checked = Boolean(e?.enabled);
   $('nsMax').value = e?.limits.maxSessions ?? ''; $('nsActive').value = e?.limits.maxActive ?? '';
@@ -708,7 +677,7 @@ async function loadDevices() {
 const PAIR_ERR = { mode_pc: '사용 방식이 "이 PC에서만"이라 허브에 연결하지 않아요. 이 PC 탭 → 사용 방식에서 "내 허브에 연결"로 바꾸세요', code_mismatch: '코드가 맞지 않습니다', not_found: '요청이 없거나 시간이 지났습니다', hub_unreachable: '허브에 접속하지 못했습니다(주소·인터넷 확인)',
   bad_server_url: '허브 주소는 https:// 또는 http://로 시작해야 합니다', bad_name: '이 PC 이름을 1~40자로 넣으세요', too_many_pending: '허브에 대기 중인 요청이 많습니다. 잠시 뒤 다시 하세요', rate_limited: '잠시 뒤 다시 하세요' };
 async function loadPairings() {
-  $('pairBox').hidden = authState?.mode !== 'hub' || authState?.installKind === 'server'; // 연결 요청은 허브 화면에만(서버 설치형은 숨김)
+  $('pairBox').hidden = false; // 연결 요청은 허브 화면에만(서버 설치형은 숨김)
   if ($('pairBox').hidden) return;
   const r = await api('/v1/admin/pairings'); const box = $('pairRows'); box.innerHTML = '';
   const list = r.status === 200 ? r.body.pairings : [];
@@ -776,8 +745,8 @@ async function loadUsage() {
 }
 async function loadDevice() {
   if (pcTarget === 'none') { $('devBox').hidden = true; return; }
-  const r = await devRun('device.get'); $('devBox').hidden = r.status !== 200;
-  if (r.status !== 200) { if (pcTarget !== 'local') { $('pcTargetNote').hidden = false; $('pcTargetNote').textContent = HOST_ERR[r.body.error] || r.body.error; } return; }
+  const r = await devRun('device.get'); $('devBox').hidden = false;
+  if (r.status !== 200) { return; }
   if (pcTarget !== 'local') $('pcTargetNote').hidden = true;
   const d = r.body;
   $('devLive').checked = d.live;
@@ -796,9 +765,9 @@ async function loadDevice() {
   // SV2: 서버 칸이면 그 칸의 Claude 대화 고르기
   // 가입자 대화 붙이기: 허브 화면에서 고른 PC의 Codex 대화(그 PC에 물어 옴 — 10초쯤이라 단추로)
   if (cxFor !== pcTarget) { $('cxList').replaceChildren(); cxFor = pcTarget; }
-  $('cxBox').hidden = pcTarget === 'local';
-  $('clsBox').hidden = !(d.claudeServer && pcTarget !== 'local');
-  if (!$('clsBox').hidden) loadClaudeSessions();
+  $('cxBox').hidden = false; // 이 PC 화면에서도 같은 기능(대화 화면의 ＋ 대화 연결과 같음)
+  $('clsBox').hidden = false; const clsOk = Boolean(d.claudeServer && pcTarget !== 'local'); // 서버 엔진 칸에서만 사용
+  if (clsOk) loadClaudeSessions();
   const tb = $('devThreads'); tb.innerHTML = '';
   if (!d.codexThreads.length) { const tr = el('tr'); tr.append(el('td', '허용된 Codex 대화 없음', 'muted')); tb.append(tr); }
   for (const x of d.codexThreads) {
@@ -840,7 +809,7 @@ async function loadWorkspaces() {
   $('wsEdit').hidden = true;
   if (wsTarget === 'none') { $('wsBox').hidden = true; $('wsNote').hidden = false; $('wsNote').textContent = '연결된 PC·칸이 없어요.'; return; }
   const [r, cv] = await Promise.all([wsRun('workspace.get'), api('/v1/conversations')]);
-  $('wsBox').hidden = r.status !== 200; $('wsNote').hidden = r.status === 200;
+  $('wsBox').hidden = false; $('wsNote').hidden = r.status === 200;
   if (r.status !== 200) { $('wsNote').textContent = wsErr(r.body); return; }
   wsData = r.body;
   const fb = $('wsFolders'); const frows = [];
@@ -991,7 +960,7 @@ async function loadClaudeSessions() {
   if (target !== pcTarget) return;
   if (r.status !== 200) { const tr = el('tr'); tr.append(el('td', CLS_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error, 'muted')); tb.replaceChildren(tr); return; }
   const rows = [];
-  if (!r.body.sessions.length) { const tr = el('tr'); tr.append(el('td', '이 칸에 Claude 대화가 아직 없어요(서버에서 ieun.sh engine claude <칸>으로 연 대화가 여기 나와요)', 'muted')); rows.push(tr); }
+  if (!r.body.sessions.length) { const tr = el('tr'); tr.append(el('td', '아직 없음', 'muted')); rows.push(tr); }
   for (const x of r.body.sessions) {
     const tr = el('tr');
     const when = new Date(x.updatedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -1055,7 +1024,7 @@ document.addEventListener('submit', async (e) => {
   $('acCompatForm').hidden = true; acKeyFor = null; setStatus('ok', '호환 주소를 저장했어요 — 기본 계정으로 고르면 Codex 새 세션이 그쪽 모델로 나가요' + devNote(r.body)); loadAccounts();
 });
 async function loadAccounts() {
-  const r = await acRun('accounts.get'); $('acBox').hidden = r.status !== 200;
+  const r = await acRun('accounts.get'); $('acBox').hidden = false;
   $('acTargetNote').hidden = r.status === 200 || acTarget === 'local'; if (r.status !== 200) { $('acTargetNote').textContent = HOST_ERR[r.body.error] || r.body.error; return; }
   const d = r.body; const tb = $('acList'); tb.innerHTML = '';
   let waiting = null;
@@ -1119,7 +1088,7 @@ let clFor = null; // A2-b: 키·코드를 넣을 PC Claude 계정(null이면 서
 function renderClaudePc(pc) {
   const box = $('clBox');
   if (!pc) { box.textContent = '이 PC의 Claude Code 로그인을 그대로 써요(따로 할 일 없음).'; $('clKeyForm').hidden = true; $('clCodeForm').hidden = true; return; }
-  box.append(el('div', '이어온 전용 Claude 계정은 Claude 앱·Claude Code의 로그인과 따로예요. 로그인(구독 — 승인 창에서 승인하고, 코드가 나오면 아래 칸에 붙여 넣기) 또는 API 키(사용량만큼 요금). 대화 기록은 계정과 상관없이 이 PC의 것을 그대로 이어 써요.'));
+  box.append(tip('이어온 전용 Claude 계정은 Claude 앱·Claude Code의 로그인과 따로예요. 로그인(구독 — 승인 창에서 승인하고, 코드가 나오면 아래 칸에 붙여 넣기) 또는 API 키(사용량만큼 요금). 대화 기록은 계정과 상관없이 이 PC의 것을 그대로 이어 써요.'));
   const t = el('table'); t.className = 'list'; const tb = el('tbody'); t.append(tb);
   let waiting = null;
   const rows = [{ id: 'pc_default', label: 'PC 기본 로그인(그 PC의 Claude Code 계정)', builtin: true, login: { state: 'idle' } }, ...pc.accounts];
@@ -1164,7 +1133,7 @@ function renderClaudePc(pc) {
   row.append(el('span', '기본으로 쓸 Claude 계정'), sel); box.append(row);
   // 대화별 Claude 계정(Codex의 대화별 계정과 같음): 이 PC의 Claude 새 세션·허용 목록 대화
   if ((pc.sessions ?? []).length) {
-    box.append(el('div', '대화마다 다른 계정을 쓰려면 아래에서 고르세요(처음 질문 전의 새 세션과 Claude 채널 창은 기본 계정).'));
+    box.append(tip('대화마다 다른 계정을 쓰려면 아래에서 고르세요(처음 질문 전의 새 세션과 Claude 채널 창은 기본 계정).'));
     const st = el('table'); st.className = 'list'; const sh = el('thead'); const hr = el('tr'); hr.append(el('th', 'Claude 대화'), el('th', '쓸 계정')); sh.append(hr); const sb = el('tbody'); st.append(sh, sb);
     const choices = [['inherit', '기본 계정 따름'], ['pc_default', 'PC 기본 로그인(그 PC의 Claude Code 계정)'], ...pc.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.kind ? '' : ' (로그인 안 됨)')])];
     for (const s of pc.sessions) {
@@ -1232,12 +1201,12 @@ document.addEventListener('click', (e) => { if (e.target?.id === 'clKeyCancel') 
 let agFor = null, agPoll = null;
 const AG_FAIL = { timeout: '15분이 지나 취소됐어요', exited: '로그인 창이 닫혔어요', login_failed: '로그인하지 못했어요', engine_not_installed: '그 PC에 Antigravity가 없어요', save_failed: '저장하지 못했어요' };
 async function loadAgy() {
-  // 허브 자신에는 Antigravity 계정이 없다(PC 새 세션용) — 묻지 않고 칸을 숨김(2026-11-20: 10초마다 400이 나던 것)
-  $('agBox').closest('details').hidden = acTarget === 'hub'; if (acTarget === 'hub') return;
   const r = await acRun('agy.accounts.get'); const box = $('agBox'); box.innerHTML = '';
   if (r.status !== 200) { box.textContent = HOST_ERR[r.body.error] || r.body.error; return; }
   const d = r.body;
-  box.append(el('div', '이어온에서 만드는 Antigravity 새 세션을 어느 계정으로 쓸지 정해요. 이 계정으로 만든 새 세션의 대화는 그 계정 폴더에 저장되어 계속 그 계정으로 이어져요. 그 PC에서 원래 쓰던 Antigravity 대화는 PC 기본 로그인 그대로예요. 로그인은 지금 Gemini API 키만 돼요(사용량만큼 요금). 계정마다 구독으로 로그인하는 길은 아직 찾는 중이에요 — 구독으로 쓰려면 "PC 기본 로그인"을 고르세요.'));
+  // 기능은 늘 보이고, 그 컴퓨터에 Antigravity가 없으면 상태로만 알린다(2026-11-20 신산님)
+
+  box.append(tip('이어온에서 만드는 Antigravity 새 세션을 어느 계정으로 쓸지 정해요. 이 계정으로 만든 새 세션의 대화는 그 계정 폴더에 저장되어 계속 그 계정으로 이어져요. 그 PC에서 원래 쓰던 Antigravity 대화는 PC 기본 로그인 그대로예요. 로그인은 지금 Gemini API 키만 돼요(사용량만큼 요금). 계정마다 구독으로 로그인하는 길은 아직 찾는 중이에요 — 구독으로 쓰려면 "PC 기본 로그인"을 고르세요.'));
   const t = el('table'); t.className = 'list'; const tb = el('tbody'); t.append(tb); let waiting = false;
   for (const a of [{ id: 'pc_default', label: 'PC 기본 로그인(그 PC의 Antigravity)', builtin: true, login: { state: 'idle' } }, ...d.accounts]) {
     const tr = el('tr'); tr.append(el('td', a.label));
@@ -1296,7 +1265,7 @@ const MODE_ERR = { requests_pending: '처리 중이거나 확인이 필요한 �
 let modeView = null;
 async function loadMode() {
   const r = pcTarget === 'local' ? await api('/v1/admin/local/mode') : pcTarget === 'none' ? { status: 0 } : await devRun('mode.get');
-  $('modeBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  $('modeBox').hidden = false; if (r.status !== 200) return;
   modeView = r.body;
   $('modeNow').textContent = r.body.mode ? '지금: ' + MODE_NAME[r.body.mode] : '아직 정하지 않았어요 — 추천: ' + MODE_NAME[r.body.suggested] + (r.body.paired ? '(이 PC가 허브에 연결돼 있어요)' : '');
   const cur = r.body.mode ?? r.body.suggested;
@@ -1313,8 +1282,9 @@ $('modeApply').onclick = async () => {
   loadMode(); loadHubLink().catch(() => {});
 };
 async function loadHubLink() {
-  if (authState?.mode === 'hub') { $('hubLinkBox').hidden = true; return; } // 허브 화면에는 "허브에 연결"이 없다(10초마다 404가 나던 것)
-  const r = await api('/v1/admin/local/hub'); $('hubLinkBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  if (authState?.mode === 'hub') { $('hubLinkBox').hidden = false; return; } // 서버에 묻지 않음(10초마다 404가 나던 것)
+  const r = await api('/v1/admin/local/hub'); $('hubLinkBox').hidden = false; // 쓸 수 있게 되면 다시 켜짐
+  if (r.status !== 200) return;
   const s = r.body; const box = $('hubLinkState'); box.innerHTML = '';
   const line = s.state === 'pairing' ? ['state warn', '허브 웹의 기기 화면에서 이 코드를 승인하세요: ' + s.code]
     : s.state === 'paired' ? [s.connector === 'running' ? 'state ok' : 'state', '허브 ' + s.hubUrl + ' · ' + s.hostId + ' · ' + (s.connector === 'running' ? '연결됨' : '연결 끊김') + (s.canRun ? '' : ' (이 PC의 연결부 설정이 없어 실행할 수 없음)')
@@ -1434,8 +1404,8 @@ async function loadDenied() {
 const OPENAI_LINK = /^https:\/\/(auth\.openai\.com|chatgpt\.com|[a-z0-9.-]+\.openai\.com)\//;
 async function loadCodex() {
   // 허브에서는 상태를 확인하는 동안에도 칸을 보여 준다(첫 확인은 Codex를 띄우느라 몇 초 걸릴 수 있음).
-  if (authState?.mode === 'hub' && $('cxBox').hidden) { $('cxBox').hidden = false; $('cxState').textContent = '확인 중…'; }
-  const r = await api('/v1/admin/codex'); $('cxBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  if (authState?.mode === 'hub' && $('hcxBox').hidden) { $('hcxBox').hidden = false; $('cxState').textContent = '확인 중…'; }
+  const r = await api('/v1/admin/codex'); $('hcxBox').hidden = false; if (r.status !== 200) return;
   const { login, job } = r.body; const box = $('cxState'); box.innerHTML = '';
   box.append(el('div', login.loggedIn ? '로그인됨' + (login.method === 'chatgpt' ? '(ChatGPT 계정)' : '') : '로그인 안 됨', login.loggedIn ? 'state ok' : 'state warn'));
   if (job.state === 'waiting') {
@@ -1448,7 +1418,7 @@ async function loadCodex() {
   $('cxStart').hidden = job.state === 'waiting'; $('cxCancel').hidden = job.state !== 'waiting';
   $('cxStart').textContent = login.loggedIn ? '다시 로그인' : '로그인';
 }
-async function loadHubEngine() { const r = await api('/v1/admin/hub/engine'); $('hubEngineRow').hidden = r.status !== 200; if (r.status === 200) $('hubLive').checked = r.body.live; }
+async function loadHubEngine() { const r = await api('/v1/admin/hub/engine'); $('hubEngineRow').hidden = false; if (r.status === 200) $('hubLive').checked = r.body.live; }
 $('hubLive').onchange = async () => {
   const on = $('hubLive').checked;
   if (on && !confirm('허브에서 만든 새 세션이 질문마다 AI를 호출합니다. 켤까요?')) { $('hubLive').checked = false; return; }
@@ -1461,7 +1431,7 @@ $('cxCancel').onclick = async () => { await api('/v1/admin/codex/login/cancel', 
 const SECU_ERR = { would_lock_out: '이 설정이면 지금 접속한 곳이 막힙니다. 내 주소를 넣거나 다른 방식을 함께 켜세요', closed_not_allowed: '방식을 하나 이상 고르세요',
   'bad_web_access:ipAllowlist_empty': 'IP 허용 목록이 비어 있습니다', 'bad_web_access:cloudflare': 'Cloudflare 팀 도메인(…cloudflareaccess.com)과 AUD를 넣으세요' };
 async function loadSecurity() {
-  const r = await api('/v1/admin/security'); $('secBox').hidden = r.status !== 200; if (r.status !== 200) return;
+  const r = await api('/v1/admin/security'); $('secBox').hidden = false; if (r.status !== 200) return;
   const s = r.body; $('secSrc').textContent = s.source === 'web' ? '(웹에서 정한 값)' : '(설정 파일 값)'; $('secIp').textContent = s.yourIp;
   $('secIpOn').checked = s.modes.includes('ip_allowlist'); $('secCfOn').checked = s.modes.includes('cloudflare_access'); $('secTsOn').checked = s.modes.includes('tailscale');
   $('secIps').value = s.ipAllowlist.join('\n'); $('secTeam').value = s.cloudflare?.teamDomain || ''; $('secAud').value = s.cloudflare?.aud || '';
@@ -1476,7 +1446,7 @@ $('secForm').onsubmit = async (e) => {
 };
 $('secReset').onclick = async () => { const r = await api('/v1/admin/security', { method: 'DELETE' }); setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '설정 파일 값으로 되돌렸습니다' : (SECU_ERR[r.body.error] || r.body.error)); loadSecurity(); };
 async function loadSkill() {
-  const r = await api('/v1/admin/kakao/skill-url'); $('skillBox').hidden = r.status !== 200; $('skillUrl').textContent = ''; $('skillUrl').dataset.url = r.status === 200 ? r.body.url : '';
+  const r = await api('/v1/admin/kakao/skill-url'); $('skillBox').hidden = false; $('skillUrl').textContent = ''; $('skillUrl').dataset.url = r.status === 200 ? r.body.url : '';
   $('relayState').textContent = '';
   if (r.status === 200 && r.body.relay === 'public') {
     const s = await api('/v1/admin/kakao/relay-status');
@@ -1540,7 +1510,7 @@ function editBot(platform, botId, refresh) {
   $('bName').value = b.name; $('bRole').value = b.roleId || ''; $('bCalls').value = b.callNames.join(', '); $('bUsers').value = b.extraUsers.join(', ');
   $('bEnabled').checked = b.enabled;
   $('bSessions').innerHTML = '';
-  if (botId === 'default') $('bSessions').append(el('div', '기본 봇은 server.json에서 app_messenger로 정한 세션을 봅니다. 여기서 더 추가할 수 있습니다.', 'muted'));
+  if (botId === 'default') $('bSessions').append(tip('기본 봇은 server.json에서 app_messenger로 정한 세션을 봅니다. 여기서 더 추가할 수 있습니다.', 'muted'));
   for (const s2 of adminSessions) {
     const l = el('label', null, 'chk'); const c = document.createElement('input'); c.type = 'checkbox'; c.value = s2.conversationId; c.checked = b.sessions.includes(s2.conversationId);
     l.append(c, document.createTextNode(' ' + s2.label + (s2.newSession ? ' (새 세션)' : ''))); $('bSessions').append(l);
@@ -1607,19 +1577,21 @@ $('pcLinkOn').onclick = async () => {
 // 예전 탭 주소(#hub 등)도 새 탭으로 연다(설명서·즐겨찾기 호환)
 const OLD_TAB = { bots: 'msg', messenger: 'msg', roles: 'msgadv', sessions: 'reg', newsess: 'reg', conv: 'reg', ws: 'work', hub: 'apps', devices: 'apps' };
 // 섹션을 이 사람이 볼 수 있나: data-need=hub(허브에서만), data-need=user(가입자만)
+// 2026-11-20 신산님: 개발한 기능은 모두 보이고 누를 수 있다(지금 못 쓰면 쓰는 사람이 알아서) — 숨기거나 비활성으로 막지 않음
+function markNa(s) { s.classList.remove('na'); }
 const secOk = (s) => !((s.dataset.need === 'hub' && authState?.mode !== 'hub') || (s.dataset.need === 'user' && authState?.role !== 'user'));
 function showAtab(name) {
   name = OLD_TAB[name] || name;
   const secs = [...document.querySelectorAll('section.atab')];
   // 볼 섹션이 하나도 없는 탭은 숨긴다(가입자·PC형에서 빈 탭이 생기지 않게)
-  for (const b of document.querySelectorAll('#atabs button')) b.hidden = !secs.some((s) => s.dataset.atab === b.dataset.atab && secOk(s));
+  for (const b of document.querySelectorAll('#atabs button')) b.hidden = !secs.some((s) => s.dataset.atab === b.dataset.atab);
   const btns = [...document.querySelectorAll('#atabs button')].filter((b) => !b.hidden);
   if (!btns.some((b) => b.dataset.atab === name)) name = btns[0]?.dataset.atab;
   const grp = btns.find((b) => b.dataset.atab === name)?.dataset.grp || 'me';
   $('agrp').hidden = !btns.some((b) => b.dataset.grp === 'admin');
   for (const g of document.querySelectorAll('#agrp button')) g.setAttribute('aria-pressed', String(g.dataset.grp === grp));
   for (const b of document.querySelectorAll('#atabs button')) { if (b.dataset.grp !== grp) b.hidden = true; b.setAttribute('aria-pressed', String(b.dataset.atab === name)); }
-  for (const s of secs) s.hidden = s.dataset.atab !== name || !secOk(s);
+  for (const s of secs) { s.hidden = s.dataset.atab !== name; markNa(s); }
   try { localStorage.setItem('ieon_stab', name); } catch { /* 저장 못 해도 동작 */ }
   if (location.hash.slice(1) !== name) history.replaceState(null, '', location.pathname + '#' + name);
 }
@@ -1639,7 +1611,7 @@ function applyMode() {
   $('pcTitle').textContent = hub ? 'PC 설정' : '이 PC';
   // SV4: 서버 설치형(①)은 PC 연결 링크·연결 요청을 숨긴다(엔진 칸은 서버에서 ieun.sh로 붙음)
   const serverOnly = hub && authState?.installKind === 'server';
-  $('inviteBox').hidden = !hub || serverOnly;
+  $('inviteBox').hidden = false;
   $('pcLinkOff').hidden = !serverOnly;
   let saved = null; try { saved = localStorage.getItem('ieon_stab'); } catch { saved = null; }
   const h = location.hash.slice(1);
@@ -1759,6 +1731,9 @@ async function boot() {
 }
 // 디자인 통일(2026-11-20): 되돌릴 수 없는 일 버튼은 danger 모양, 휴대폰 표 카드에는 칸 이름을 붙인다(DESIGN.md)
 const DANGER_BTN = /^(삭제|지우기|폐기|끊기|거절|빼기)|(지우기[)]|삭제|폐기)$/;
+// 설명은 ⓘ 풍선 도움말로(2026-11-20 신산님) — 화면에 설명문을 쓰지 않는다
+function tip(t) { const x = el('span', 'i', 'tip'); x.tabIndex = 0; x.setAttribute('role', 'note'); x.setAttribute('aria-label', t); x.dataset.tip = t; return x; }
+document.addEventListener('click', (e) => { if (e.target.closest?.('.tip')) e.preventDefault(); });
 const setSum = (id, t) => { const x = $(id); if (x && x.textContent !== t) x.textContent = t; };
 const selText = (sel) => (sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : '');
 function decorate(root) {

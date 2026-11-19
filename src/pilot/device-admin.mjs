@@ -44,7 +44,9 @@ export const OPS = {
 // 허브 자신에게 허용하는 명령: 계정만(허브 실제 실행은 관리 → 허브 보안 탭, 허브는 기존 대화 허용 목록이 없음).
 // WS1-b: 허브 자체 새 세션에 붙일 폴더(허브 컨테이너 안 폴더) — 폴더 등록·보기만, 붙이기는 서버 전용 주소가 hubAdmin으로
 export const HUB_SELF_OPS = new Set(['workspace.get', 'workspace.folder.add', 'workspace.folder.delete', 'accounts.get', 'accounts.add', 'accounts.use', 'accounts.login', 'accounts.login.cancel', 'accounts.logout', 'accounts.delete', 'accounts.apikey',
-  'claude.get', 'claude.login', 'claude.code', 'claude.login.cancel', 'claude.apikey', 'claude.logout']);
+  'claude.get', 'claude.login', 'claude.code', 'claude.login.cancel', 'claude.apikey', 'claude.logout',
+  // 2026-11-20 신산님 "기능이 있는 것은 있는 거고, 서버에 설치돼 있어야 사용할 수 있는 거": Antigravity 계정 칸은 허브에서도 같은 기능, 설치 여부는 installed로 알림
+  'agy.accounts.get', 'agy.accounts.add', 'agy.accounts.use', 'agy.accounts.logout', 'agy.accounts.delete', 'agy.accounts.apikey', 'agy.accounts.compat']);
 // API 키 형식(OpenAI 키). 값은 검사만 하고 저장·기록하지 않는다 — Codex가 그 계정의 CODEX_HOME에 직접 저장한다.
 export const API_KEY = /^sk-[A-Za-z0-9_-]{20,300}$/;
 const DEFAULT_ID = 'pc_default';
@@ -131,7 +133,7 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
   const aKnown = (p, id) => { if (!/^[a-z0-9]{2,16}$/.test(String(id)) || !readDevice(p).agyAccounts.some((x) => x.id === id)) throw Object.assign(new Error('not_found'), { http: 404 }); return id; };
   const agyView = (p) => { const d = readDevice(p); const dir = dirOf(p);
     return { accounts: d.agyAccounts.map((x) => { const home = agyHomeOf(dir, x.id); const kind = agyAccountKind(home); const cp = kind === 'compat' ? readAgyCompat(home) : null;
-      return { ...x, engine: 'antigravity', kind, ...(cp ? { compat: { host: agyCompatHost(cp.baseUrl), models: cp.models, wire: cp.wire } } : {}), login: aLogins.get(x.id)?.view() ?? { state: 'idle' } }; }), defaultAccount: d.agyDefaultAccount }; };
+      return { ...x, engine: 'antigravity', kind, ...(cp ? { compat: { host: agyCompatHost(cp.baseUrl), models: cp.models, wire: cp.wire } } : {}), login: aLogins.get(x.id)?.view() ?? { state: 'idle' } }; }), defaultAccount: d.agyDefaultAccount, installed: existsSync(CLI_ENGINES.agy_cli.bin()) }; };
   const claudePc = (p) => {
     const d = readDevice(p); const dir = dirOf(p);
     // 호환 주소는 주소의 호스트·모델·확인된 조합 여부만(키는 내지 않음)

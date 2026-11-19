@@ -151,6 +151,7 @@ ol.guide { padding-left:20px; margin:10px 0 0; font-size:14px; } ol.guide li { m
 .compose textarea { flex:1; resize:none; max-height:180px; border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:12px 14px; line-height:1.5; }
 .compose button { border:0; background:var(--accent); color:var(--on-accent); border-radius:12px; padding:12px 18px; font-weight:600; }
 .compose button:disabled, .compose textarea:disabled { opacity:.55; cursor:not-allowed; }
+button:disabled { opacity:.5; cursor:not-allowed; }
 .compose .mic { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:50%; width:46px; height:46px; padding:0; font-size:19px; }
 .compose .mic.on { border-color:var(--err); }
 #speakBtn[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
@@ -209,6 +210,10 @@ details.adv[open] summary { margin-bottom:10px; }
 @supports (padding: env(safe-area-inset-top)) {
   @media (display-mode: standalone) { body { padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); } }
 }
+/* ⓘ 풍선 도움말(DESIGN.md): 설명문은 화면에 쓰지 않고 여기에 */
+.tip { display:inline-grid; place-items:center; width:18px; height:18px; margin-left:6px; border:1px solid var(--border); border-radius:50%; font:italic 600 11px/1 Georgia, serif; color:var(--muted); cursor:help; position:relative; vertical-align:middle; flex:none; }
+.tip:hover, .tip:focus-visible { color:var(--accent); border-color:var(--accent); }
+.tip:hover::after, .tip:focus::after { content:attr(data-tip); position:absolute; left:-10px; top:calc(100% + 6px); width:max-content; max-width:min(340px, 80vw); padding:8px 10px; border-radius:8px; background:var(--text); color:var(--surface); font:400 12px/1.55 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif; white-space:normal; text-align:left; z-index:60; box-shadow:var(--shadow); }
 </style>
 </head>
 <body>
@@ -418,11 +423,9 @@ details.adv[open] summary { margin-bottom:10px; }
       <dt>상태</dt><dd id="pState"></dd>
     </dl>
     <div class="sec" id="pWork" hidden>
-      <h4>작업 모드</h4>
+      <h4>작업 모드 <span class="tip" tabindex="0" role="note" aria-label="켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록)." data-tip="켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록).">i</span></h4>
       <label class="radio"><input type="checkbox" id="wmOn"> <span>작업 모드 켜기 <span class="muted small">(기본 꺼짐)</span></span></label>
-      <div class="small muted">켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록).</div>
-      <details class="adv"><summary>사람이 직접 할 일</summary>
-      <div class="small muted">여기에 맞는 일은 AI에게 묻지 않고 "하지 마세요"로 답한 뒤 사람에게 넘겨요(카드에 무엇을·어디서). 직접 처리했으면 "직접 처리함"을 눌러 기록해요.</div>
+      <details class="adv"><summary>사람이 직접 할 일 <span class="tip" tabindex="0" role="note" aria-label="여기에 맞는 일은 AI에게 묻지 않고 &quot;하지 마세요&quot;로 답한 뒤 사람에게 넘겨요(카드에 무엇을·어디서). 직접 처리했으면 &quot;직접 처리함&quot;을 눌러 기록해요." data-tip="여기에 맞는 일은 AI에게 묻지 않고 &quot;하지 마세요&quot;로 답한 뒤 사람에게 넘겨요(카드에 무엇을·어디서). 직접 처리했으면 &quot;직접 처리함&quot;을 눌러 기록해요.">i</span></summary>
       <label class="radio"><input type="checkbox" id="hoCmd"> <span>모든 명령 실행</span></label>
       <label class="radio"><input type="checkbox" id="hoFile"> <span>모든 파일 수정</span></label>
       <label class="radio"><input type="checkbox" id="hoPerm"> <span>권한 추가 요청</span></label>
@@ -431,8 +434,7 @@ details.adv[open] summary { margin-bottom:10px; }
       </details>
     </div>
     <div class="sec" id="pStaff">
-      <details class="adv"><summary>AI 직원 이름·역할</summary>
-      <div class="small muted">방에서 @이름으로 불러요(빈칸 없이). 역할을 정하면 다음 질문 한 번에 역할 안내가 함께 가요.</div>
+      <details class="adv"><summary>AI 직원 이름·역할 <span class="tip" tabindex="0" role="note" aria-label="방에서 @이름으로 불러요(빈칸 없이). 역할을 정하면 다음 질문 한 번에 역할 안내가 함께 가요." data-tip="방에서 @이름으로 불러요(빈칸 없이). 역할을 정하면 다음 질문 한 번에 역할 안내가 함께 가요.">i</span></summary>
       <label class="small">이름 <input id="stName" maxlength="20" autocomplete="off"></label>
       <label class="small">아이콘 <input id="stIcon" maxlength="2" style="width:3em" autocomplete="off"></label>
       <label class="small">역할 <select id="stRole"><option value="">없음</option></select></label>
@@ -440,9 +442,8 @@ details.adv[open] summary { margin-bottom:10px; }
       </details>
     </div>
     <div class="sec" id="pData">
-      <h4>보관 기록</h4>
+      <h4>보관 기록 <span class="tip" tabindex="0" role="note" aria-label="이어온 서버(이 PC·허브)에 남은 이 대화의 질문·답만 지워요. 원래 Codex·Claude 세션 기록은 그대로예요. 처리 중일 때는 끝난 뒤 지우세요." data-tip="이어온 서버(이 PC·허브)에 남은 이 대화의 질문·답만 지워요. 원래 Codex·Claude 세션 기록은 그대로예요. 처리 중일 때는 끝난 뒤 지우세요.">i</span></h4>
       <button type="button" class="pbtn danger" id="msgDel">이 대화의 서버 보관 기록 지우기</button>
-      <div class="small muted">이어온 서버(이 PC·허브)에 남은 이 대화의 질문·답만 지워요. 원래 Codex·Claude 세션 기록은 그대로예요. 처리 중일 때는 끝난 뒤 지우세요.</div>
     </div>
     <div class="sec" id="pNew" hidden>
       <h4>새 세션</h4>
@@ -514,14 +515,14 @@ let rooms = [], currentRoom = null, roomTimer = null; const roomSeen = new Map()
 // --- U8 새 세션 만들기(예전 화면에서 옮김). $·api 정의 뒤에 둔다(앞에 두면 화면 전체가 멈춤 — 2026-11-12 발견) ---
 async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
-  $('newSessBtn').hidden = r.status !== 200; // 새 세션 기능이 꺼져 있으면 버튼을 숨긴다(403)
+  $('newSessBtn').hidden = false; // 2026-11-20 신산님: 기능은 늘 보이고 누를 수 있음(못 쓰면 서버가 알려 줌)
   if (r.status === 200) $('nsLimits').textContent = '지금 ' + r.body.sessions + '/' + r.body.maxSessions + '개 · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude + ' · Antigravity ' + (r.body.perEngine.antigravity ?? 0) + '/' + (r.body.maxPerEngine.antigravity ?? 0) + '. 명령 실행·인터넷(full) 권한은 설정 → 관리 → 대화 등록 → 새 세션에서 켜요.';
 }
 // SV2: 허브에서는 새 세션을 만들 곳을 고른다 — 허브 자신(글로만 답해요) 또는 엔진 칸·PC(명령·파일 작업까지). 칸 Claude는 서버 Claude 로그인을 같이 씀.
 async function loadNsHosts() {
   const r = hubMode ? await api('/v1/admin/devices').catch(() => ({ status: 0 })) : { status: 0 };
   const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).sort((a, b) => Number(Boolean(b.cell)) - Number(Boolean(a.cell))) : [];
-  $('nsHostRow').hidden = !list.length; const sel = $('nsHost'); const keep = sel.value; sel.replaceChildren();
+  $('nsHostRow').hidden = false; const sel = $('nsHost'); const keep = sel.value; sel.replaceChildren();
   // 기본: 켜진 첫 엔진 칸(명령·파일 작업까지). 엔진 칸이 없으면 허브 자신(글로만 답해요)
   for (const [v, t] of [['', '허브(글로만 답해요)'], ...list.map((d) => [d.hostId, (d.name || d.hostId) + (d.cell ? ' — 명령·파일 작업까지' : '') + (d.online ? '' : ' (꺼짐)')])]) { const o = el('option', t); o.value = v; sel.append(o); }
   const def = list.find((d) => d.nsDefault)?.hostId ?? '';
@@ -598,7 +599,7 @@ async function boot() {
   document.title = '이어온 — ' + (hub ? '허브' : '이 PC');
   $('where').textContent = hub ? '허브 · ' + location.host : '이 PC';
   $('settingsLink').href = hub ? '/settings#msg' : '/settings';
-  $('logoutBtn').hidden = !hub;
+  $('logoutBtn').hidden = false;
   if (authState?.loggedIn && authState?.status === 'pending') return showPending();
   if (authState?.loggedIn) return startApp();
   if (authState?.localAuto && (await authPost('/v1/auth/local')).status === 200) return startApp();
@@ -620,7 +621,7 @@ async function startApp() {
 async function loadDevice() {
   const r = await api('/v1/admin/local/device').catch(() => ({ status: 0 }));
   device = r.status === 200 ? r.body : null;
-  $('liveSwitch').hidden = !device;
+  $('liveSwitch').hidden = false; if (!device) $('liveLabel').textContent = 'AI 응답'; // 이 PC 화면이 아니면 상태를 모름(누르면 서버가 알려 줌)
   if (device) { $('liveSwitch').setAttribute('aria-checked', String(device.live)); $('liveLabel').textContent = device.live ? 'AI 응답 켜짐' : 'AI 응답 꺼짐'; }
 }
 async function setLive(on, { confirmed = false } = {}) {
@@ -721,7 +722,7 @@ const ago = (iso) => { if (!iso) return ''; const m = Math.round((Date.now() - D
 let connHostId = null;
 const threadsReq = () => connHostId ? api('/v1/admin/hosts/' + encodeURIComponent(connHostId) + '/run', { method: 'POST', body: JSON.stringify({ op: 'codex.threads' }) }) : api('/v1/admin/local/threads');
 async function openConnect() {
-  if (device) { connHostId = null; $('connHostRow').hidden = true; $('connect').hidden = false; loadThreads(); return; }
+  if (device) { connHostId = null; $('connHostRow').hidden = false; $('connect').hidden = false; loadThreads(); return; }
   if (authState?.mode !== 'hub') { location.href = '/settings#reg'; return; } // hubMode는 "이 PC가 허브에 연결됨"이라 허브 화면 판정에 쓰지 않음(배포 뒤 실제 화면에서 찾음)
   const r = await api('/v1/admin/devices').catch(() => ({ status: 0 }));
   const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf && !d.cell) : [];
@@ -729,7 +730,7 @@ async function openConnect() {
   const sel = $('connHost'); sel.replaceChildren();
   for (const d of list) { const o = el('option', (d.name || d.hostId) + (d.online ? '' : ' (꺼짐)')); o.value = d.hostId; sel.append(o); }
   sel.value = (list.find((d) => d.online) ?? list[0]).hostId; connHostId = sel.value;
-  $('connHostRow').hidden = list.length < 2;
+  $('connHostRow').hidden = false;
   $('connDesc').textContent = (list.length < 2 ? '"' + (list[0].name || list[0].hostId) + '"' : '고른 PC') + '에서 최근에 쓴 Codex 대화예요. 고르면 바로 연결돼요.';
   $('connect').hidden = false; loadThreads();
 }
@@ -1097,7 +1098,7 @@ let notifyOnNow = canNotify && Notification.permission === 'granted' && lsGetN('
 const notifiedTags = new Set();
 function lsGetN(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function renderNotify() {
-  const b = $('notifyBtn'); b.hidden = !canNotify; b.setAttribute('aria-pressed', String(notifyOnNow));
+  const b = $('notifyBtn'); b.hidden = false; b.setAttribute('aria-pressed', String(notifyOnNow));
   b.firstElementChild.textContent = notifyOnNow ? '🔔' : '🔕'; b.lastChild.textContent = notifyOnNow ? '알림 켜짐' : '알림';
 }
 // 웹 알림(탭을 닫아도): 알림을 켜면 서비스 워커로 이 브라우저를 서버에 등록한다. 안 되는 브라우저면 탭이 열려 있을 때만(아래 새 소식).
@@ -1187,21 +1188,21 @@ function speakText(text) {
 }
 function voiceAuto(text) { if (voiceAutoOn) speakText(text); }
 function renderSpeak() { const b = $('speakBtn'); b.setAttribute('aria-pressed', String(voiceAutoOn)); const t = voiceAutoOn ? '읽어 주기 켜짐' : '읽어 주기'; b.setAttribute('aria-label', t); const ic = el('span', voiceAutoOn ? '🔊' : '🔈'); ic.setAttribute('aria-hidden', 'true'); b.replaceChildren(ic, el('span', ' ' + t, 'lbl')); }
-$('speakBtn').hidden = !canSpeak; renderSpeak();
+$('speakBtn').hidden = false; renderSpeak();
 $('speakBtn').onclick = async () => {
   if (!voiceAutoOn && !(await voiceNotice())) return;
   voiceAutoOn = !voiceAutoOn; lsSet('ieon.voice.auto.v1', voiceAutoOn ? '1' : '0'); renderSpeak();
   if (!voiceAutoOn && canSpeak) speechSynthesis.cancel();
 };
-$('micBtn').hidden = !SRcls;
+$('micBtn').hidden = false;
 $('micBtn').onclick = async () => {
   if (!SRcls || qa.disabled || !(await voiceNotice())) return;
   const rec = new SRcls(); rec.lang = 'ko-KR'; rec.interimResults = false; rec.maxAlternatives = 1;
   let got = '';
-  $('micBtn').classList.add('on'); $('micBtn').disabled = true;
+  $('micBtn').classList.add('on');
   rec.onresult = (e) => { got = String(e.results?.[0]?.[0]?.transcript ?? ''); };
   rec.onerror = (e) => { if (e.error !== 'aborted') toast('warn', e.error === 'not-allowed' ? '마이크를 쓸 수 없어요. 브라우저에서 마이크를 허용하세요.' : e.error === 'no-speech' ? '말소리를 듣지 못했어요. 다시 눌러 말해 주세요.' : '받아쓰기를 하지 못했어요.'); };
-  rec.onend = () => { $('micBtn').classList.remove('on'); $('micBtn').disabled = false; if (got) { qa.value = (qa.value.trim() ? qa.value.trim() + ' ' : '') + got.trim(); qa.dispatchEvent(new Event('input')); qa.focus(); } };
+  rec.onend = () => { $('micBtn').classList.remove('on'); if (got) { qa.value = (qa.value.trim() ? qa.value.trim() + ' ' : '') + got.trim(); qa.dispatchEvent(new Event('input')); qa.focus(); } };
   rec.start();
 };
 $('compose').onsubmit = (e) => {
@@ -1266,7 +1267,7 @@ $('panelClose').onclick = () => setPanel(false);
 $('backBtn').onclick = () => { $('app').classList.remove('in-chat'); setPanel(false); };
 function renderPanel(c) {
   // W2: 작업 모드(Codex 기존 대화만)
-  $('pWork').hidden = !['codex_thread', 'agy_cli'].includes(c.engine) || Boolean(c.newSession); // E3: Antigravity도 $('wmOn').checked = c.workMode === true; $('wmOn').disabled = c.busy || Boolean(pending);
+  $('pWork').hidden = false; // E3: Antigravity도 $('wmOn').checked = c.workMode === true; $('wmOn').disabled = c.busy || Boolean(pending);
   if (!$('pWork').hidden) loadHandoff(c.conversationId).catch(() => {}); // RC5
   if (document.activeElement?.closest?.('#pStaff') == null) { $('stName').value = c.staff?.name ?? ''; $('stIcon').value = c.staff?.icon ?? ''; fillRoles(c.staff?.roleId ?? ''); }
   $('msgDel').disabled = c.busy || Boolean(pending); // AP-5a
@@ -1275,9 +1276,9 @@ function renderPanel(c) {
   $('pHow').textContent = HOW[c.engine] || '';
   $('pState').textContent = stateOf(c)[1];
   $('pId').textContent = c.conversationId;
-  $('pMode').hidden = c.engine !== 'codex_thread';
+  $('pMode').hidden = false;
   for (const r of document.getElementsByName('mode')) { r.checked = r.value === (c.connectMode || 'alternate'); r.disabled = c.busy || Boolean(pending); }
-  $('pNew').hidden = !c.newSession;
+  $('pNew').hidden = false;
   if (c.newSession) {
     $('pNewInfo').textContent = (NS_STATE[c.newSession.state] || c.newSession.state) + ' · 권한 ' + c.newSession.profile + (c.newSession.sessionId ? ' · 직접 열기 ID ' + c.newSession.sessionId : '');
     $('nsSleep').disabled = c.newSession.state !== 'active' || c.busy;
