@@ -554,7 +554,8 @@ export function createApp(config) {
       }
       if (req.method === 'GET' && path === '/classic') { res.writeHead(302, { location: '/settings' }); return res.end(); }
       if (req.method === 'GET' && (path === '/' || path === '/settings')) {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        // 배포 뒤 브라우저가 예전 화면을 그대로 보이지 않게 늘 서버에 다시 묻는다(2026-11-19 A2-c 배포 확인 중 발견 — 캐시 지시가 없어 예전 설정 화면이 보임)
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
         return res.end(readFileSync(path === '/' ? WEB_PAGE : WEB_SETTINGS));
       }
 
