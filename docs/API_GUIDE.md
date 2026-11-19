@@ -158,7 +158,7 @@ Authorization: Bearer <토큰>
 | `running` | 엔진이 답하는 중 | 2초 뒤 다시 조회 |
 | `completed` | 끝남 | `answer`를 사용 |
 | `failed` | 실행하지 못함 | `errorCode` 확인(6장). 원인을 고친 뒤 **새 키로** 다시 보낼 수 있다 |
-| `unknown` | 보냈는데 결과를 확인하지 못함 | **다시 보내지 않는다.** 사람에게 알리고 7장으로 정리 |
+| `unknown` | 보냈는데 결과를 확인하지 못함(`errorCode` 예: `server_restarted` 서버 다시 시작, `connector_restarted` PC 연결부 다시 켜짐, `stop_unconfirmed` 멈춤 확인 못 함) | **다시 보내지 않는다.** 사람에게 알리고 7장으로 정리 |
 | `approval_required` | AI가 권한이 필요한 작업을 하려다 멈춤 | **다시 보내지 않는다.** 사람에게 알리고 7장으로 정리 |
 
 - 조회 간격은 2초 정도가 적당하다. 1초보다 짧게 하지 않는다.
