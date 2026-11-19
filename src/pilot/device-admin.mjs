@@ -4,13 +4,14 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
+import { addClaudeAccount, removeClaudeAccount, useClaudeAccount, readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
   addWorkspaceFolder, removeWorkspaceFolder, attachWorkspaceTo } from './device-settings.mjs';
 import { workspacesView } from './workspaces.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
+import { claudeAccountKind, claudeHomeOf, claudeLogout, createClaudeAccountLogin, createClaudeHome, removeClaudeHome, saveClaudeApiKey } from './claude-accounts.mjs';
 import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin, saveClaudeLogin, removeClaudeLogin } from './claude-login.mjs';
 
 // 명령 목록(이 밖의 것은 거절). read: 보기만(앞단을 거친 PC 화면 요청도 허용), 나머지는 바꾸기.
@@ -25,6 +26,9 @@ export const OPS = {
   'claude.sessions': 'read', 'claude.connect': 'write',
   // 가입자 대화 붙이기(2026-11-19): 그 PC의 최근 Codex 대화 목록·연결(연결 = 그 PC의 허용 목록에 넣기, 허브가 대화로 등록) — 허브 화면에서 PC를 골라 씀
   'codex.threads': 'read', 'codex.connect': 'write',
+  // A2-b(신산님 2026-11-19 "PC마다 여러 개"): PC의 이어온 전용 Claude 계정(공식 claude auth login 또는 API 키), 엔진 기본 고르기. 서버는 SV2의 같이 쓰는 로그인.
+  'claude.accounts.add': 'write', 'claude.accounts.login': 'write', 'claude.accounts.code': 'write', 'claude.accounts.cancel': 'write',
+  'claude.accounts.apikey': 'write', 'claude.accounts.logout': 'write', 'claude.accounts.delete': 'write', 'claude.accounts.use': 'write',
   // WS1-a 작업공간: 그 기기의 폴더 등록·빼기, AI 직원(허용 목록 세션)에 붙이기 — PC형·허브형 같은 명령
   'workspace.get': 'read', 'workspace.folder.add': 'write', 'workspace.folder.delete': 'write', 'workspace.attach': 'write',
   'device.cli.put': 'write', 'device.cli.delete': 'write', // E1·E2: Antigravity·Grok 세션 허용 목록 // M1: 사용 방식(PC형 화면·허브형 화면 같은 기능)
@@ -38,7 +42,8 @@ export const API_KEY = /^sk-[A-Za-z0-9_-]{20,300}$/;
 const DEFAULT_ID = 'pc_default';
 
 export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {},
-  claudeDir = claudeAuthDir(), claudeLogin = null, claudeProjects = claudeProjectsDir(), busyOf = claudeBusy, listThreads = null }) {
+  claudeDir = claudeAuthDir(), claudeLogin = null, claudeProjects = claudeProjectsDir(), busyOf = claudeBusy, listThreads = null,
+  claudeAccountLogin = null, claudeLogoutImpl = claudeLogout, claudeDesktop = undefined }) {
   const logins = new Map(); // 계정별 공식 로그인 진행 상태
   let cLogin = null;
   const claudeLoginJob = () => (cLogin ??= claudeLogin ?? createClaudeLogin({ dir: claudeDir, log }));
@@ -91,10 +96,25 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     try { if (!lstatSync(link).isSymbolicLink()) return null; return { link, target: resolve(dirname(link), readlinkSync(link)) }; } catch { return null; }
   };
   const knownOrDefault = (p, id) => (id === DEFAULT_ID ? DEFAULT_ID : known(p, id));
+  // A2-b: PC Claude 계정. 서버(같이 쓰는 로그인이 있는 곳)에서는 쓰지 않는다.
+  const cLogins = new Map();
+  const cLoginOf = (p, id) => { if (!cLogins.has(id)) cLogins.set(id, (claudeAccountLogin ?? ((home) => createClaudeAccountLogin({ home, log })))(claudeHomeOf(dirOf(p), id))); return cLogins.get(id); };
+  const cKnown = (p, id) => {
+    if (claudeDir) throw Object.assign(new Error('claude_shared_login'), { http: 409 });
+    if (!/^[a-z0-9]{2,16}$/.test(String(id)) || !readDevice(p).claudeAccounts.some((x) => x.id === id)) throw Object.assign(new Error('not_found'), { http: 404 });
+    return id;
+  };
+  const claudePc = (p) => {
+    const d = readDevice(p); const dir = dirOf(p);
+    return { accounts: d.claudeAccounts.map((x) => ({ ...x, engine: 'claude', kind: claudeAccountKind(claudeHomeOf(dir, x.id)), login: cLogins.get(x.id)?.view() ?? { state: 'idle' } })), defaultAccount: d.claudeDefaultAccount };
+  };
   async function perform(op, a) {
     // Claude 로그인은 연결부 설정과 상관없이(허브 자신에도 있음)
     switch (op) {
-      case 'claude.get': return { status: 200, body: claudeView() };
+      case 'claude.get': {
+        const pc = !claudeDir && connectorConfigPath && existsSync(connectorConfigPath) ? claudePc(connectorConfigPath) : null; // A2-b: PC면 이어온 전용 계정 목록도
+        return { status: 200, body: { ...claudeView(), ...(pc ? { pc } : {}) } };
+      }
       case 'claude.login': claudeWritable(); claudeLoginJob().start(); return { status: 200, body: claudeView() };
       case 'claude.code': {
         claudeWritable();
@@ -148,6 +168,46 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         }
         return { status: 200, body: { threadId, ...(await applyDevice()) } };
       }
+      case 'claude.accounts.add': {
+        if (claudeDir) return { status: 409, body: { error: 'claude_shared_login' } };
+        const id = 'c' + randomBytes(4).toString('hex');
+        addClaudeAccount(p, { id, label: a.label });
+        try { createClaudeHome(dirOf(p), id, claudeDesktop ? { desktop: claudeDesktop } : {}); } catch (e) { removeClaudeAccount(p, id); throw e; }
+        log({ event: 'account_added', engine: 'claude' });
+        return { status: 201, body: { id, ...claudePc(p) } };
+      }
+      case 'claude.accounts.login': cLoginOf(p, cKnown(p, a.id)).start(); return { status: 200, body: claudePc(p) };
+      case 'claude.accounts.code': {
+        const r = cLoginOf(p, cKnown(p, a.id)).code(a.code);
+        return r.error ? { status: 400, body: { error: r.error } } : { status: 200, body: claudePc(p) };
+      }
+      case 'claude.accounts.cancel': cLoginOf(p, cKnown(p, a.id)).cancel(); return { status: 200, body: claudePc(p) };
+      case 'claude.accounts.apikey': {
+        const id = cKnown(p, a.id);
+        if (!CLAUDE_API_KEY.test(String(a.key ?? ''))) return { status: 400, body: { error: 'bad_api_key' } };
+        saveClaudeApiKey(claudeHomeOf(dirOf(p), id), String(a.key)); log({ event: 'account_api_key', engine: 'claude', ok: true });
+        return { status: 200, body: claudePc(p) };
+      }
+      case 'claude.accounts.logout': {
+        const id = cKnown(p, a.id);
+        cLoginOf(p, id).cancel();
+        const ok = await claudeLogoutImpl(claudeHomeOf(dirOf(p), id));
+        return ok ? { status: 200, body: claudePc(p) } : { status: 502, body: { error: 'logout_failed' } };
+      }
+      case 'claude.accounts.delete': {
+        const id = cKnown(p, a.id);
+        cLoginOf(p, id).cancel(); cLogins.delete(id);
+        if (!(await claudeLogoutImpl(claudeHomeOf(dirOf(p), id)))) return { status: 502, body: { error: 'logout_failed' } };
+        // 폴더를 먼저 지우고 성공하면 설정에서 뺀다(실패하면 목록에 남아 다시 지울 수 있게)
+        removeClaudeHome(dirOf(p), id);
+        removeClaudeAccount(p, id);
+        log({ event: 'account_removed', engine: 'claude' });
+        return { status: 200, body: { ...claudePc(p), ...(await applyDevice()) } };
+      }
+      case 'claude.accounts.use':
+        if (claudeDir) return { status: 409, body: { error: 'claude_shared_login' } };
+        useClaudeAccount(p, { accountId: String(a.accountId ?? '') });
+        return { status: 200, body: { ...claudePc(p), ...(await applyDevice()) } };
       case 'device.live':
         setLive(p, a.live);
         log({ event: 'device_live', live: a.live });

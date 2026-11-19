@@ -7,6 +7,7 @@ import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { childEnv } from './parent-watch.mjs';
 import { codexAccounts, cleanLabel, MAX_ACCOUNTS, PC_DEFAULT } from './accounts.mjs';
+import { claudeAccounts } from './claude-accounts.mjs';
 import { addFolder, removeFolder, attachWorkspace } from './workspaces.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -36,6 +37,9 @@ export function readDevice(path) {
     codexDefaultAccount: c.codex?.defaultAccount ?? PC_DEFAULT,
     // 대화별로 직접 고른 것만(없으면 엔진 기본을 따름)
     codexAccountFor: Object.fromEntries(allow.filter((t) => c.codex?.accountFor?.[t]).map((t) => [t, c.codex.accountFor[t]])),
+    // A2-b: 이어온 전용 Claude 계정(PC), 엔진 기본
+    claudeAccounts: claudeAccounts(c),
+    claudeDefaultAccount: c.claudeAccounts?.defaultAccount ?? PC_DEFAULT,
   };
 }
 
@@ -77,6 +81,32 @@ export function useCodexAccount(path, { threadId = null, accountId }) {
     if (accountId === 'inherit') delete c.codex.accountFor[id];
     else { if (!ok) fail('bad_account'); c.codex.accountFor[id] = accountId; }
   }
+  write(path, c);
+}
+
+// A2-b: Claude 계정 등록·지우기·고르기(엔진 기본). 지우면 기본은 PC 기본 로그인으로 돌린다.
+export function addClaudeAccount(path, { id, label }) {
+  const c = read(path);
+  const list = claudeAccounts(c);
+  if (list.length >= MAX_ACCOUNTS) fail('too_many_accounts');
+  const name = cleanLabel(label);
+  if (!name) fail('bad_label');
+  c.claudeAccounts ??= {}; c.claudeAccounts.accounts = [...list, { id, label: name }];
+  write(path, c);
+}
+export function removeClaudeAccount(path, id) {
+  const c = read(path);
+  if (!claudeAccounts(c).some((a) => a.id === id)) return false;
+  c.claudeAccounts.accounts = claudeAccounts(c).filter((a) => a.id !== id);
+  if (c.claudeAccounts.defaultAccount === id) delete c.claudeAccounts.defaultAccount;
+  write(path, c);
+  return true;
+}
+export function useClaudeAccount(path, { accountId }) {
+  const c = read(path);
+  if (accountId !== PC_DEFAULT && !claudeAccounts(c).some((a) => a.id === accountId)) fail('bad_account');
+  c.claudeAccounts ??= {};
+  if (accountId === PC_DEFAULT) delete c.claudeAccounts.defaultAccount; else c.claudeAccounts.defaultAccount = accountId;
   write(path, c);
 }
 

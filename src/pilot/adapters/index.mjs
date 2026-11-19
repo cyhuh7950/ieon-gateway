@@ -7,6 +7,7 @@ import { loadNewSessionsConfig } from '../new-sessions.mjs';
 import { codexEnvFor } from '../accounts.mjs';
 import { cliOnceAdapter } from './cli-once.mjs';
 import { readWorkspaces, workspaceFor, workspaceLine } from '../workspaces.mjs';
+import { claudeEnvFor } from '../claude-accounts.mjs';
 
 // WS1-a: 작업 공간을 붙인 세션의 질문 앞에 폴더 한 줄(안내 — 차단은 엔진 샌드박스가 따로). 붙이지 않은 세션·새 세션은 그대로.
 export function withWorkspaceLine(adapter, config) {
@@ -59,7 +60,8 @@ export async function buildAdapters(config) {
     claude_channel: claudeChannelAdapter({ live, baseUrl: config.claude?.baseUrl, tokenFile: config.claude?.tokenFile }),
     // SV2: 새 세션 + 서버 칸에서 고른 기존 Claude 대화(허용 목록·대화별 작업 폴더)
     claude_cli: claudeCliAdapter({ live, newSessions, allowlist: config.cliEngines?.claude_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.claude_cli?.workingDirectories,
-      workspaceOf: (ref) => workspaceFor(config, 'claude_cli', ref) }), // WS1-b
+      workspaceOf: (ref) => workspaceFor(config, 'claude_cli', ref), // WS1-b
+      accountEnv: config.accountsDir ? () => claudeEnvFor(config, config.accountsDir) : undefined }), // A2-b: PC의 이어온 전용 Claude 계정(없으면 지금처럼)
     // E1·E2: 세션 쪽은 그 PC의 허용 목록, 토큰 쪽은 지금 PC 기본 로그인(API 키 변수는 실행 때 지움)
     agy_cli: cliOnceAdapter({ live, engine: 'agy_cli', allowlist: config.cliEngines?.agy_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.agy_cli?.workingDirectories }),
     grok_cli: cliOnceAdapter({ live, engine: 'grok_cli', allowlist: config.cliEngines?.grok_cli?.allowlist ?? [], workingDirectories: config.cliEngines?.grok_cli?.workingDirectories }),

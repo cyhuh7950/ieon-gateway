@@ -148,6 +148,16 @@
 - **시험:** `a2d-hub-parity` 6건(허브→PC 실제 왕복으로 AI 응답·허용 목록·계정, 업무 대화 거절, 허브 자신 계정, 꺼짐·무응답·모르는 PC·명령, 대기열 격리, 화면 동등, 중계 없음), 민감도 8종 모두 잡힘. 전체 통과.
 - **미확인:** 실제 허브·PC 왕복(적용 뒤), 허브 화면 로그인 흐름.
 
+## 11. A2-b PC Claude 계정(2026-11-19, 신산님 "1번 진행하자"·"PC마다 여러 개")
+
+- **결정:** PC마다 이어온 전용 Claude 계정 여러 개 + 엔진 기본 하나(신산님 고름 — "허브 로그인을 모든 PC가 같이"·"둘 다"가 아니라). 서버(허브·칸)는 SV2의 같이 쓰는 로그인 그대로(PC 계정 명령은 `claude_shared_login`으로 거절).
+- **로그인 방식(실측):** 서버에서 쓰는 `claude setup-token`은 터미널이 없으면 아무것도 내지 않아(2.1.314, 이 PC) Windows에서 쓸 수 없다. 공식 `claude auth login`은 터미널 없이도 승인 주소를 보여 주고 "Paste code here if prompted"로 코드를 받는다 → 계정 폴더를 `CLAUDE_CONFIG_DIR`로 띄우고, 주소를 화면에, 코드는 이어온 칸에서 넣어 준다. 로그인 정보는 Claude가 그 폴더 `.credentials.json`에 저장(이어온은 있는지만 봄). API 키는 그 폴더 `api-key`(600).
+- **세션(원칙 1):** 계정 폴더 `.local/accounts/claude/<id>`에 `projects`를 그 PC의 원래 Claude 폴더(`~/.claude/projects`)로 junction — 계정을 바꿔도 같은 세션 기록. API 키 계정은 원래 폴더 그대로(키만 넘김). 지울 때는 공식 `claude auth logout` 뒤 연결만 끊고 폴더 삭제.
+- **쓰이는 곳:** Claude 새 세션(`claude -p`, 어댑터가 실행마다 환경을 받음 — 구독: `CLAUDE_CONFIG_DIR`, API 키 변수 지움 / API: `ANTHROPIC_API_KEY`만), Claude 채널 창(`ieon.ps1 claude`가 기본 계정으로 창을 엶 — 새로 여는 창부터). 고른 계정이 없거나 로그인 전이면 **Claude를 부르기 전에** `account_missing`/`account_not_logged_in`(409).
+- **화면:** 설정 → 계정 → Claude 계정(PC, 허브에서는 PC를 고름): 계정 목록(로그인·승인 창 열기·코드 칸·API 키·로그아웃·지우기), 계정 추가, 기본 계정. 명령 `claude.accounts.add|login|code|cancel|apikey|logout|delete|use`(PC형·허브형 같은 명령).
+- **아직 안 한 것:** 대화별 Claude 계정(지금은 엔진 기본 하나), 대화 상단·메신저 답의 Claude 계정 이름 표시, 호환 주소(A2-c).
+- **미확인(A0-6 대신):** 실제 로그인(신산님 승인 창)·그 계정으로 기존 Claude 세션 이어 쓰기(모델 호출 — 승인 필요), 이어온 계정 폴더로 연 채널 창의 처음 화면(신뢰·채널 승인 질문이 다시 나올 수 있음).
+
 ## 9. A2-a 구현 기록(2026-11-12, 신산님 "A2 진행", Codex만)
 
 A0 Codex PASS 구성을 그대로 제품에 넣었다. Claude 계정·API 키·호환 주소는 A2-b·A2-c(Claude는 A0-6 미실측, API 키는 키 등록 승인 필요).

@@ -118,7 +118,19 @@ switch ($Command) {
     Get-Content (Join-Path $Run 'messenger.log') -Tail 3
   }
   'claude' {
-    Start-Process pwsh -WorkingDirectory (Join-Path $Local 'c1') -ArgumentList @('-NoExit', '-Command', 'claude --dangerously-load-development-channels server:ieon')
+    # A2-b: 설정 → 계정에서 고른 이어온 전용 Claude 계정이 있으면 그 계정으로 창을 연다(구독: 그 계정 폴더, API 키: 키만). 값은 화면에 내지 않는다.
+    $pre = ''
+    $cfgPath = Join-Path $Local 's2/connector.json'
+    $cfg = if (Test-Path $cfgPath) { try { Get-Content $cfgPath -Raw | ConvertFrom-Json } catch { $null } } else { $null }
+    $acc = $cfg.claudeAccounts.defaultAccount
+    if ($acc -and $acc -match '^[a-z0-9]{2,16}$') {
+      $accRoot = if ($cfg.accountsDir) { $cfg.accountsDir } else { Join-Path $Local 'accounts' }
+      $accHome = Join-Path $accRoot "claude/$acc"
+      if (Test-Path (Join-Path $accHome 'api-key')) { $pre = "`$env:CLAUDE_CODE_OAUTH_TOKEN = `$null; `$env:ANTHROPIC_API_KEY = (Get-Content -Raw '$(Join-Path $accHome 'api-key')').Trim(); " }
+      elseif (Test-Path (Join-Path $accHome '.credentials.json')) { $pre = "`$env:ANTHROPIC_API_KEY = `$null; `$env:CLAUDE_CODE_OAUTH_TOKEN = `$null; `$env:CLAUDE_CONFIG_DIR = '$accHome'; " }
+      else { Write-Output '설정 → 계정에서 고른 Claude 계정이 로그인돼 있지 않아요. 로그인하거나 기본을 "PC 기본 로그인"으로 바꾼 뒤 다시 실행하세요.'; exit 1 }
+    }
+    Start-Process pwsh -WorkingDirectory (Join-Path $Local 'c1') -ArgumentList @('-NoExit', '-Command', ($pre + 'claude --dangerously-load-development-channels server:ieon'))
     Write-Output '새 창에서 Claude 채널 세션을 시작했습니다. 하단이 manual mode인지 확인하세요.'
   }
   'check' {
