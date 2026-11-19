@@ -126,7 +126,14 @@ switch ($Command) {
     if ($acc -and $acc -match '^[a-z0-9]{2,16}$') {
       $accRoot = if ($cfg.accountsDir) { $cfg.accountsDir } else { Join-Path $Local 'accounts' }
       $accHome = Join-Path $accRoot "claude/$acc"
-      if (Test-Path (Join-Path $accHome 'api-key')) { $pre = "`$env:CLAUDE_CODE_OAUTH_TOKEN = `$null; `$env:ANTHROPIC_API_KEY = (Get-Content -Raw '$(Join-Path $accHome 'api-key')').Trim(); " }
+      $compat = if (Test-Path (Join-Path $accHome 'compat.json')) { try { Get-Content (Join-Path $accHome 'compat.json') -Raw | ConvertFrom-Json } catch { $null } } else { $null }
+      if ($compat -and (Test-Path (Join-Path $accHome 'compat-key'))) {
+        # A2-c 호환 주소: 채널 창은 사람이 만든 기존 세션을 이어 쓰므로 확인된 조합(Upstage)만
+        if (([Uri]$compat.baseUrl).Host -notin @('api.upstage.ai')) { Write-Output '고른 Claude 계정의 호환 주소는 기존 대화 이어 쓰기가 아직 확인되지 않아 채널 창을 열지 않아요(이어온 새 세션에서만 쓸 수 있어요). 설정 → 계정에서 기본을 바꾸세요.'; exit 1 }
+        $kv = if ($compat.auth -eq 'x-api-key') { 'ANTHROPIC_API_KEY' } else { 'ANTHROPIC_AUTH_TOKEN' }
+        $pre = "`$env:CLAUDE_CODE_OAUTH_TOKEN = `$null; `$env:ANTHROPIC_API_KEY = `$null; `$env:ANTHROPIC_BASE_URL = '$($compat.baseUrl)'; `$env:$kv = (Get-Content -Raw '$(Join-Path $accHome 'compat-key')').Trim(); `$env:ANTHROPIC_MODEL = '$($compat.model)'; `$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = '$($compat.model)'; "
+      }
+      elseif (Test-Path (Join-Path $accHome 'api-key')) { $pre = "`$env:CLAUDE_CODE_OAUTH_TOKEN = `$null; `$env:ANTHROPIC_API_KEY = (Get-Content -Raw '$(Join-Path $accHome 'api-key')').Trim(); " }
       elseif (Test-Path (Join-Path $accHome '.credentials.json')) { $pre = "`$env:ANTHROPIC_API_KEY = `$null; `$env:CLAUDE_CODE_OAUTH_TOKEN = `$null; `$env:CLAUDE_CONFIG_DIR = '$accHome'; " }
       else { Write-Output '설정 → 계정에서 고른 Claude 계정이 로그인돼 있지 않아요. 로그인하거나 기본을 "PC 기본 로그인"으로 바꾼 뒤 다시 실행하세요.'; exit 1 }
     }

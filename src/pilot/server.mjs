@@ -581,6 +581,7 @@ export function createApp(config) {
               .filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && typeof v === 'string').map(([k, v]) => [k.toLowerCase(), cleanLabel(v)]) : [];
             // SV3: 계정 종류(구독/API) — 정해진 값만
             const KIND = new Set(['api', 'subscription']);
+            const CKIND = new Set(['api', 'subscription', 'compat']); // A2-c: PC Claude 계정은 호환 주소도
             const kinds = h.codexKinds && typeof h.codexKinds === 'object' ? Object.entries(h.codexKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && KIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : [];
             health.set(device.hostId, { codexShared: String(h.codexShared), claudeChannel: String(h.claudeChannel),
               codexAccounts: Object.fromEntries(acc), codexDefault: typeof h.codexDefault === 'string' ? cleanLabel(h.codexDefault) : null,
@@ -591,9 +592,9 @@ export function createApp(config) {
               claudeKind: KIND.has(h.claudeKind) ? h.claudeKind : null, // SV2
               // A2-b: PC의 이어온 전용 Claude 계정 이름표(대화별·기본)·종류 — 정해진 모양만
               claudeAccounts: Object.fromEntries(h.claudeAccounts && typeof h.claudeAccounts === 'object' ? Object.entries(h.claudeAccounts).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && typeof v === 'string').map(([k, v]) => [k.toLowerCase(), cleanLabel(v)]) : []),
-              claudeAccountKinds: Object.fromEntries(h.claudeAccountKinds && typeof h.claudeAccountKinds === 'object' ? Object.entries(h.claudeAccountKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && KIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : []),
+              claudeAccountKinds: Object.fromEntries(h.claudeAccountKinds && typeof h.claudeAccountKinds === 'object' ? Object.entries(h.claudeAccountKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && CKIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : []),
               claudeDefault: typeof h.claudeDefault === 'string' ? cleanLabel(h.claudeDefault) : null,
-              claudeDefaultKind: KIND.has(h.claudeDefaultKind) ? h.claudeDefaultKind : null,
+              claudeDefaultKind: CKIND.has(h.claudeDefaultKind) ? h.claudeDefaultKind : null, // A2-c: 호환 주소도
               boundary: h.boundary === true }); // 엔진 칸(컨테이너가 경계)
           }
         } catch { /* 형식이 틀린 상태 보고는 무시한다 */ }
