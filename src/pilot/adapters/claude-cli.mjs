@@ -77,6 +77,9 @@ export function claudeCliAdapter(opts) {
   return {
     engine: 'claude_cli',
     async run({ sessionRef, question, newSession }, { signal = null } = {}) {
+      // A2-b: 이어온 전용 Claude 계정이 기본이면 그 계정으로(로그인 전·없는 계정이면 보내기 전에 거절 — 다른 계정 사용량으로 새지 않게)
+      let env = null;
+      try { env = opts.accountEnv?.() ?? null; } catch (e) { throw new EngineError(e.message, e.http ?? 409); }
       const { id, pending, cwd, tools: list } = newSession ? forNew(sessionRef, newSession) : forExisting(sessionRef);
       const tools = list.join(',');
       // WS1-b: 붙인 작업 공간(개인·공유 폴더) — 지금 있는 폴더만 --add-dir, 공유(읽기만)는 고치기 거부
@@ -85,7 +88,7 @@ export function claudeCliAdapter(opts) {
       const dirArgs = ws ? claudeDirArgs({ personal: ws.personal && existsSync(ws.personal) ? ws.personal : null, write: live(ws.write), read: live(ws.read) }) : [];
       const args = ['-p', '--output-format', 'json', '--restricted', '--strict-mcp-config', '--permission-prompts', 'none',
         '--tools', tools, '--allowedTools', tools, ...dirArgs, ...(pending ? ['--session-id', id] : ['--resume', id])];
-      const { code, stdout, stopped } = await run(args, question, { cwd, signal });
+      const { code, stdout, stopped } = await run(args, question, { cwd, signal, ...(env ? { env } : {}) });
       if (stopped) throw Object.assign(new StoppedError(), { sessionRef: id }); // 사람이 멈춤 — 세션 ID는 남겨 같은 세션으로 이어 감
       let out;
       try { out = JSON.parse(stdout); } catch { throw Object.assign(new Error('claude_bad_output'), { unknownCode: `claude_exit_${code}`, sessionRef: id }); }
