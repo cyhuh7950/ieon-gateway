@@ -582,10 +582,10 @@ export function createApp(config) {
             // SV3: 계정 종류(구독/API) — 정해진 값만
             const KIND = new Set(['api', 'subscription']);
             const CKIND = new Set(['api', 'subscription', 'compat']); // A2-c: PC Claude 계정은 호환 주소도
-            const kinds = h.codexKinds && typeof h.codexKinds === 'object' ? Object.entries(h.codexKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && KIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : [];
+            const kinds = h.codexKinds && typeof h.codexKinds === 'object' ? Object.entries(h.codexKinds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && CKIND.has(v)).map(([k, v]) => [k.toLowerCase(), v]) : [];
             health.set(device.hostId, { codexShared: String(h.codexShared), claudeChannel: String(h.claudeChannel),
               codexAccounts: Object.fromEntries(acc), codexDefault: typeof h.codexDefault === 'string' ? cleanLabel(h.codexDefault) : null,
-              codexKinds: Object.fromEntries(kinds), codexKind: KIND.has(h.codexKind) ? h.codexKind : null,
+              codexKinds: Object.fromEntries(kinds), codexKind: CKIND.has(h.codexKind) ? h.codexKind : null, // A2-c: 호환 주소도
               // SV3-b: 대화별 계정 ID(정해진 모양만)
               codexAccountIds: Object.fromEntries(h.codexAccountIds && typeof h.codexAccountIds === 'object' ? Object.entries(h.codexAccountIds).slice(0, 100).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && /^[a-z0-9_]{2,16}$/.test(String(v))).map(([k, v]) => [k.toLowerCase(), String(v)]) : []),
               codexDefaultId: /^[a-z0-9_]{2,16}$/.test(String(h.codexDefaultId ?? '')) ? String(h.codexDefaultId) : null,

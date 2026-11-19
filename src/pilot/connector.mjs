@@ -4,7 +4,7 @@
 import { appendFileSync, existsSync, openSync, fsyncSync, closeSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { EngineError, StoppedError } from './contracts.mjs';
-import { accountsDirFor, accountLabel, codexAccountId, codexAccounts, codexHomeOf, desktopCodexHome, PC_DEFAULT } from './accounts.mjs';
+import { accountsDirFor, accountLabel, codexAccountId, codexAccounts, codexHomeOf, desktopCodexHome, PC_DEFAULT, readCodexCompat } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
 import { claudeKind } from './claude-login.mjs';
 import { claudeAccountHealth } from './claude-accounts.mjs';
@@ -222,6 +222,7 @@ export function codexKindCache(config, { statusOf = (env) => createCodexLogin({ 
     try {
       const next = { default: kindOfMethod((await statusOf({ ...process.env }))?.method), byAccount: {} };
       for (const a of codexAccounts(config)) {
+        if (readCodexCompat(codexHomeOf(config.accountsDir, a.id))) { next.byAccount[a.id] = 'compat'; continue; } // A2-c: 호환 주소(로그인 상태를 묻지 않음)
         try { next.byAccount[a.id] = kindOfMethod((await statusOf({ ...process.env, CODEX_HOME: codexHomeOf(config.accountsDir, a.id), CODEX_SQLITE_HOME: desktopCodexHome() }))?.method); } catch { next.byAccount[a.id] = null; }
       }
       kinds = next; at = Date.now();
