@@ -53,6 +53,9 @@ if ! has IEON_WEB_ALLOW; then
   [ "$REPLY" = all ] && REPLY='0.0.0.0/0'
   put IEON_WEB_ALLOW "$REPLY"
 fi
+# SV4 실측(2026-11-19): 같은 서버의 앞단(Nginx Proxy Manager 등, Docker 망 172.16~31.x)을 거쳐 오면 접속 주소가 앞단 주소로 보여
+# 허용 목록에 모두 막힌다. 질문 없이 Docker 사설망을 믿는 앞단으로 둔다(그 밖에서 온 X-Forwarded-For는 계속 무시).
+has IEON_TRUSTED_PROXIES || put IEON_TRUSTED_PROXIES "172.16.0.0/12"
 if ! has IEON_HUB_URL; then
   SIP=$(hostname -I 2>/dev/null | awk '{print $1}')
   say "이 서버의 주소(엔진 칸·PC가 이 주소로 붙어요): https 도메인이 있으면 넣으세요(카카오·이어온 앱에 필요). 없으면 Enter — 이 서버 안쪽 주소를 써요(밖에서 열 주소는 설치 끝에 알려 드려요)."

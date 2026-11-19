@@ -72,6 +72,7 @@ test('설치 스크립트·서버용 compose: 크기·포트·주소는 설치 �
   assert.ok(sh.includes('stty -echo') && sh.includes('chmod 600') && sh.includes('umask 077'), '키는 가려 입력, 파일은 주인만');
   assert.ok(sh.includes('--env-file') && sh.includes('deploy/server/compose.yaml') && sh.includes('ieun.sh engine share-login') && sh.includes('ieun.sh engine add main'));
   assert.ok(sh.includes('get.docker.com') && /ask "Docker가 없어요/.test(sh), 'Docker 설치는 묻고 나서');
+  assert.ok(sh.includes('has IEON_TRUSTED_PROXIES || put IEON_TRUSTED_PROXIES "172.16.0.0/12"'), '같은 서버 앞단(Docker 망) 뒤에서도 실제 접속 주소를 읽음(SV4 실측)');
   assert.ok(!/echo .*\$REPLY/.test(sh) && !/say .*API_KEY=/.test(sh), '입력한 키를 화면에 내지 않음');
   const yml = read('deploy/server/compose.yaml');
   for (const k of ['${IEON_PORT:-28770}:28770', '${IEON_MEM:-2g}', '${IEON_PIDS:-512}', '${IEON_CONTAINER:-ieun-relay}', 'cap_drop: [ALL]', 'no-new-privileges:true', '../../hub/data:/data', 'deploy/hub/Dockerfile'])
