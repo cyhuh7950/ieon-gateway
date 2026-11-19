@@ -97,4 +97,5 @@ test('화면: 허브의 대화 연결은 내 PC를 골라 그 PC 목록·연결�
   assert.ok(html.includes('id="connHost"') && html.includes("op: 'codex.threads'") && html.includes("op: 'codex.connect'"));
   assert.ok(html.includes("api('/v1/admin/local/threads')") && html.includes("api('/v1/admin/connections'"), '이 PC 화면 연결은 그대로');
   assert.ok(!html.includes("location.href = '/settings#conv'; return; } // 허브 화면"), '허브에서 설정으로 보내지 않음');
+  assert.ok(html.includes("if (authState?.mode !== 'hub') { location.href = '/settings#conv'") && !html.includes('if (!hubMode) { location.href'), '허브 화면은 auth state의 mode로 판정');
 });
