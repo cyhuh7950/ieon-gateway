@@ -10,5 +10,8 @@ RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 RUN npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.326 && npm cache clean --force
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+# 신산님 2026-11-19 "허브에서 설치 파일 받기"(저장소는 비공개 그대로): 새 서버 설치 묶음. 관리자가 만든 1시간짜리 설치 링크로만 내준다(/install/<열쇠>/…).
+COPY deploy/ ./deploy/
+RUN tar -czf /app/ieon-gateway.tar.gz package.json package-lock.json src scripts deploy
 ENV NODE_ENV=production HOME=/data/home CODEX_HOME=/data/codex DISABLE_AUTOUPDATER=1
 CMD ["node", "src/hub/run.mjs", "/data"]

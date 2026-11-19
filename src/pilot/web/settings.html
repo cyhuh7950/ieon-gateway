@@ -400,6 +400,12 @@ header .right button { border:1px solid var(--border); background:var(--surface)
         <span></span><div class="row"><button class="primary" type="submit">저장</button><button type="button" id="secReset">파일 값으로</button></div>
       </form>
     </div>
+    <div id="instBox" hidden>
+      <h2>새 서버에 설치</h2>
+      <div class="muted">다른 리눅스 서버에 이어온을 설치할 때, 그 서버의 터미널에 붙여 넣을 명령을 만들어요. 이 허브에서 설치 파일을 받아 설치를 시작해요(저장소 접근 권한이 필요 없음). 명령은 <b>1시간</b> 동안만 쓸 수 있고, 허브를 다시 켜면 사라져요. 다른 사람에게 보내지 마세요.</div>
+      <div class="row"><button class="primary" type="button" id="instMake">설치 명령 만들기</button><button type="button" id="instCopy" hidden>복사</button></div>
+      <div id="instCmd" class="code" style="word-break:break-all"></div>
+    </div>
     <div id="muBox" hidden>
       <h2>여러 사람</h2>
       <div class="muted">켜면 로그인 화면에 "가입 신청"이 생겨요. 신청한 사람은 여기서 승인해야 쓸 수 있고, 각자 자기 PC만 연결해 자기 대화만 봐요(관리자도 남의 대화는 못 봐요). 다른 사람이 이 허브에 닿으려면 위 접속 제한도 열어야 해요.</div>
@@ -1530,7 +1536,7 @@ const MU_ST = { pending: '승인 대기', approved: '쓰는 중', rejected: '거
 async function loadUsers() {
   if (authState?.mode !== 'hub') return;
   const r = await api('/v1/admin/users'); if (r.status !== 200) return;
-  $('muBox').hidden = false; $('muOn').checked = r.body.enabled;
+  $('muBox').hidden = false; $('muOn').checked = r.body.enabled; $('instBox').hidden = false; // 관리자만(이 목록은 관리자만 받음)
   if (document.activeElement !== $('muPerDay')) $('muPerDay').value = r.body.defaultPerDay ?? '';
   const rows = r.body.users.map((u) => {
     const tr = el('tr'); [u.email, MU_ST[u.status] || u.status, String(u.devices), String(u.todayQuestions ?? 0) + (u.effectiveLimit ? ' / ' + u.effectiveLimit : '')].forEach((v) => tr.append(el('td', v)));
@@ -1563,6 +1569,13 @@ $('myPwForm').onsubmit = async (e) => {
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '비밀번호를 바꿨어요 — 다른 곳의 로그인은 끊겼어요' : ({ bad_password: '지금 비밀번호가 맞지 않아요', weak_password: '새 비밀번호는 10자 이상이에요' }[r.body.error] || r.body.error));
   if (r.status === 200) for (const id of ['myPwCur', 'myPwNew', 'myPwNew2']) $(id).value = '';
 };
+$('instMake').onclick = async () => {
+  const r = await api('/v1/admin/install-link', { method: 'POST', body: '{}' });
+  if (r.status !== 201) return setStatus('err', r.body.error === 'no_public_url' ? '이 허브의 공개 주소를 알 수 없어요(https 도메인으로 열어 주세요)' : r.body.error);
+  $('instCmd').textContent = r.body.command; $('instCopy').hidden = false;
+  setStatus(r.body.bundle ? 'ok' : 'err', r.body.bundle ? '설치 명령을 만들었어요 — ' + new Date(r.body.expiresAt).toLocaleTimeString('ko-KR') + '까지' : '명령은 만들었지만 이 허브에 설치 묶음이 없어요(허브를 새 판으로 배포해야 해요)');
+};
+$('instCopy').onclick = async () => { try { await navigator.clipboard.writeText($('instCmd').textContent); setStatus('ok', '복사했어요 — 새 서버 터미널에 붙여 넣으세요'); } catch { setStatus('err', '복사하지 못했어요 — 위 명령을 직접 선택해 복사하세요'); } };
 $('muPerDaySave').onclick = async () => { const raw = $('muPerDay').value; const v = raw === '' ? null : Number(raw);
   const r = await api('/v1/admin/settings/member-limits', { method: 'PUT', body: JSON.stringify({ perDay: v }) });
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? (r.body.perDay ? '가입자 하루 질문 한도를 ' + r.body.perDay + '번으로 했어요' : '가입자 하루 질문 한도를 없앴어요') : (r.body.error === 'bad_limit' ? '0 이상의 정수로 넣어 주세요' : r.body.error)); loadUsers(); };

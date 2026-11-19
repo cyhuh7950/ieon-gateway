@@ -478,7 +478,18 @@ PC를 켜 두지 않아도 서버에서 Codex·Claude가 답하게 하려면 리
 
 권장보다 작아도 설치는 됩니다(설치 때 알려 줌). 컨테이너 크기는 설치 폴더의 환경 파일(`.env`)의 `IEON_MEM`(이어온)·`ENGINE_MEM`(엔진 칸 하나)로 바꿉니다.
 
-**설치**
+**설치(이미 이어온 허브가 있을 때 — 권장)**
+
+1. 쓰던 허브 화면 **설정 → 허브 보안·Codex → 새 서버에 설치 → 설치 명령 만들기 → 복사**(관리자만, 1시간 동안 쓸 수 있음).
+2. 새 서버 터미널에 붙여 넣고 Enter. 예:
+
+```bash
+curl -fsSL https://<허브 주소>/install/<열쇠>/install.sh | sh
+```
+
+   설치 파일을 그 허브에서 받아 `~/ieon-gateway`에 풀고 바로 아래 질문으로 넘어갑니다(저장소 접근 권한이 필요 없음). 다른 폴더에 두려면 `IEON_DIR=/원하는/폴더` 를 앞에 붙입니다.
+
+**설치(저장소에서 받기 — 저장소 접근 권한이 있을 때)**
 
 ```bash
 git clone https://github.com/cyhuh7950/ieon-gateway.git && cd ieon-gateway
@@ -487,6 +498,8 @@ git clone https://github.com/cyhuh7950/ieon-gateway.git && cd ieon-gateway
 ```bash
 sh deploy/server/install.sh
 ```
+
+저장소는 비공개라 권한이 없으면 `git clone`이 실패합니다(2026-11-19 SV4 실측) — 그때는 위 "허브에서 받기"로.
 
 질문에는 대부분 **Enter**(기본값)면 됩니다.
 - **쓰임:** 1) 서버 설치형 — 이 서버에서만 AI를 돌림(PC 연결 없음) / 2) 허브형 — 이 서버 + 연결한 PC들. 나중에 화면에서 1→2로 바꿀 수 있습니다(데이터 그대로).
