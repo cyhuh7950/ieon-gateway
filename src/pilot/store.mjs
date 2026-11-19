@@ -795,7 +795,7 @@ export function openStore(path) {
       const b = binding(conversationId);
       if (!canAccess(principal, b)) return { http: 404, code: 'not_found' };
       if (typeof on !== 'boolean') return { http: 400, code: 'bad_work_mode' };
-      if (on && (b.engine !== 'codex_thread' || newSession(conversationId))) return { http: 400, code: 'work_mode_not_supported' };
+      if (on && (!['codex_thread', 'agy_cli'].includes(b.engine) || newSession(conversationId))) return { http: 400, code: 'work_mode_not_supported' }; // E3: Antigravity도(ACP)
       return tx(() => {
         if (db.prepare('SELECT 1 FROM locks WHERE session_key = ?').get(sessionKey(b))) return { http: 409, code: 'conversation_busy' };
         if (on) db.prepare('INSERT OR REPLACE INTO work_modes (conversation_id, set_by, set_at) VALUES (?, ?, ?)').run(conversationId, principal.userId, new Date().toISOString());

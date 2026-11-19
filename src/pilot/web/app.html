@@ -1245,7 +1245,7 @@ $('panelClose').onclick = () => setPanel(false);
 $('backBtn').onclick = () => { $('app').classList.remove('in-chat'); setPanel(false); };
 function renderPanel(c) {
   // W2: 작업 모드(Codex 기존 대화만)
-  $('pWork').hidden = c.engine !== 'codex_thread' || Boolean(c.newSession); $('wmOn').checked = c.workMode === true; $('wmOn').disabled = c.busy || Boolean(pending);
+  $('pWork').hidden = !['codex_thread', 'agy_cli'].includes(c.engine) || Boolean(c.newSession); // E3: Antigravity도 $('wmOn').checked = c.workMode === true; $('wmOn').disabled = c.busy || Boolean(pending);
   if (!$('pWork').hidden) loadHandoff(c.conversationId).catch(() => {}); // RC5
   if (document.activeElement?.closest?.('#pStaff') == null) { $('stName').value = c.staff?.name ?? ''; $('stIcon').value = c.staff?.icon ?? ''; fillRoles(c.staff?.roleId ?? ''); }
   $('msgDel').disabled = c.busy || Boolean(pending); // AP-5a
@@ -1309,7 +1309,7 @@ $('wmOn').onchange = async () => {
   const on = $('wmOn').checked;
   if (on && !confirm('작업 모드를 켤까요? 이 대화의 Codex가 파일 수정·명령 실행을 하려 할 때마다 허용/거부 카드가 떠요. 허용한 것만 실행돼요.')) { $('wmOn').checked = false; return; }
   const r = await api('/v1/conversations/' + current + '/work-mode', { method: 'PUT', body: JSON.stringify({ on }) });
-  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '작업 모드를 ' + (on ? '켰어요' : '껐어요') : ({ conversation_busy: '처리 중인 질문이 끝난 뒤 바꿀 수 있어요', work_mode_not_supported: '이 대화는 작업 모드를 쓸 수 없어요(지금은 Codex 기존 대화만)' }[r.body.error] || r.body.error));
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '작업 모드를 ' + (on ? '켰어요' : '껐어요') : ({ conversation_busy: '처리 중인 질문이 끝난 뒤 바꿀 수 있어요', work_mode_not_supported: '이 대화는 작업 모드를 쓸 수 없어요(지금은 Codex·Antigravity 기존 대화만)' }[r.body.error] || r.body.error));
   load();
 };
 // AP-5a: 이 대화의 서버 보관 기록(질문·답 원문) 지우기 — 원래 엔진 세션 기록은 그대로
