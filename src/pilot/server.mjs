@@ -375,6 +375,7 @@ export function createApp(config) {
     const h = health.get(c.hostId);
     const mine = c.newSession ? h?.codexDefault : h?.codexAccounts?.[String(c.sessionRef ?? '').toLowerCase()];
     if (mine) return { mode: 'ieon_login', label: '이어온 계정 ' + mine, ...kindTag(c) };
+    if (health.get(c.hostId)?.boundary) return { mode: 'hub_login', label: '서버 칸의 Codex 로그인(허브 로그인을 같이 씀)', ...kindTag(c) }; // 엔진 칸에는 Codex Desktop이 없음(2026-11-19 daon에서 발견)
     return { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정', ...kindTag(c) };
   };
   // SV3: 이 대화의 질문이 나가는 계정의 종류(구독/API). Codex 기존 대화·새 세션만 안다(그 밖은 null).
@@ -442,7 +443,8 @@ export function createApp(config) {
     'command -v curl >/dev/null 2>&1 || { echo "curl이 필요해요(sudo apt-get install -y curl)"; exit 1; }',
     'echo "이어온 설치 파일을 받는 중... ($DIR)"', 'mkdir -p "$DIR"',
     'curl -fsSL "$BASE/ieon-gateway.tar.gz" | tar -xz -C "$DIR"', 'cd "$DIR"',
-    '# 파이프로 받은 스크립트라 질문은 터미널에서 읽는다', 'if [ -r /dev/tty ]; then exec sh deploy/server/install.sh </dev/tty; else exec sh deploy/server/install.sh; fi', ''].join('\n');
+    // 2026-11-19 daon 실측: 원격 접속(터미널 없음)에서는 -r /dev/tty가 참이어도 열 수 없어 멈췄다 → 실제로 열리는지 먼저 본다(안 열리면 기본 답으로)
+    '# 파이프로 받은 스크립트라 질문은 터미널에서 읽는다(터미널이 없으면 기본 답)', 'if (exec </dev/tty) 2>/dev/null; then exec sh deploy/server/install.sh </dev/tty; else exec sh deploy/server/install.sh </dev/null; fi', ''].join('\n');
   const approvalShowMs = config.approvalShowMs ?? 30 * 60_000; // RC1: 결정된 승인 카드를 대화에 남겨 두는 시간
   const cardsFor = (c, live, principal) => {
     const cards = [];

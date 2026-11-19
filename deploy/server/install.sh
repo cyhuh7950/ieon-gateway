@@ -84,6 +84,8 @@ say "이어온이 켜졌어요."
 
 # 6) 로그인 같이 쓰기(환경 파일의 API 키가 있으면 넣음) + 작업용 엔진 칸(파일 작업·명령은 칸에서)
 $SUDO sh deploy/hub/ieun.sh engine share-login
+# 업데이트: 이미 있는 엔진 칸은 새 판으로 다시 만든다(2026-11-19 daon 실측 — 안 하면 칸만 예전 판으로 남음)
+for c in $($DOCKER ps -a --format '{{.Names}}' | sed -n 's/^ieun-engine-//p'); do $SUDO sh deploy/hub/ieun.sh engine update "$c" || true; done
 if ! $DOCKER ps -a --format '{{.Names}}' | grep -q '^ieun-engine-'; then
   ask "작업용 엔진 칸(파일 읽기·고치기, 명령은 승인 카드)을 하나 만들까요? (Y/n)" "Y"
   case "$REPLY" in [Nn]*) ;; *) $SUDO sh deploy/hub/ieun.sh engine add main ;; esac
