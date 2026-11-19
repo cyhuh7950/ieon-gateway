@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { childEnv } from './parent-watch.mjs';
 import { codexAccounts, cleanLabel, MAX_ACCOUNTS, PC_DEFAULT } from './accounts.mjs';
 import { claudeAccounts } from './claude-accounts.mjs';
+import { agyAccounts } from './agy-accounts.mjs';
 import { addFolder, removeFolder, attachWorkspace } from './workspaces.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -41,6 +42,9 @@ export function readDevice(path) {
     claudeAccounts: claudeAccounts(c),
     claudeDefaultAccount: c.claudeAccounts?.defaultAccount ?? PC_DEFAULT,
     claudeAccountFor: { ...(c.claudeAccounts?.accountFor ?? {}) },
+    // A3: Antigravity 이어온 전용 계정(새 세션용), 새 세션 기본
+    agyAccounts: agyAccounts(c),
+    agyDefaultAccount: c.agyAccounts?.defaultAccount ?? PC_DEFAULT,
   };
 }
 
@@ -120,6 +124,26 @@ export function useClaudeAccount(path, { sessionId = null, accountId, knownSessi
     if (accountId === 'inherit') delete c.claudeAccounts.accountFor[id];
     else { if (!ok) fail('bad_account'); c.claudeAccounts.accountFor[id] = accountId; }
   }
+  write(path, c);
+}
+
+// A3: Antigravity 계정(새 세션용) 등록·지우기·기본 고르기
+export function addAgyAccount(path, { id, label }) {
+  const c = read(path); const list = agyAccounts(c);
+  if (list.length >= MAX_ACCOUNTS) fail('too_many_accounts');
+  const name = cleanLabel(label); if (!name) fail('bad_label');
+  c.agyAccounts ??= {}; c.agyAccounts.accounts = [...list, { id, label: name }]; write(path, c);
+}
+export function removeAgyAccount(path, id) {
+  const c = read(path); if (!agyAccounts(c).some((a) => a.id === id)) return false;
+  c.agyAccounts.accounts = agyAccounts(c).filter((a) => a.id !== id);
+  if (c.agyAccounts.defaultAccount === id) delete c.agyAccounts.defaultAccount;
+  write(path, c); return true;
+}
+export function useAgyAccount(path, { accountId }) {
+  const c = read(path);
+  if (accountId !== PC_DEFAULT && !agyAccounts(c).some((a) => a.id === accountId)) fail('bad_account');
+  c.agyAccounts ??= {}; if (accountId === PC_DEFAULT) delete c.agyAccounts.defaultAccount; else c.agyAccounts.defaultAccount = accountId;
   write(path, c);
 }
 

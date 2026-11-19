@@ -200,6 +200,9 @@ header .right button { border:1px solid var(--border); background:var(--surface)
         <button class="primary" type="submit">호환 주소 저장</button><button type="button" id="clCpCancel">취소</button></div>
       </form>
       <form id="clCodeForm" class="row" hidden><input id="clCode" placeholder="승인 뒤 받은 코드 붙여 넣기" autocomplete="off" aria-label="Claude 로그인 코드"><button class="primary" type="submit">코드 넣기</button></form>
+      <h2>Antigravity 계정(새 세션용)</h2>
+      <div id="agBox" class="muted">불러오는 중…</div>
+      <form id="agKeyForm" class="row" hidden><input id="agKey" type="password" placeholder="Gemini API 키" autocomplete="off" aria-label="Gemini API 키"><button class="primary" type="submit">API 키 넣기</button><button type="button" id="agKeyCancel">취소</button></form>
       <h2>사용량·한도</h2>
       <div class="muted">계정마다 오늘 질문 수와 이번 달 토큰입니다. 한도는 <b>API 키 계정</b>에만 걸려요(기본은 한도 없음). 넘으면 그 계정으로는 보내지 않고 알려요(자동으로 다시 보내지 않음).</div>
       <table class="list"><thead><tr><th>계정</th><th>오늘 질문</th><th>이번 달 토큰</th><th>하루 질문 한도</th><th>한 달 토큰 한도</th><th></th></tr></thead><tbody id="acUsage"></tbody></table>
@@ -1017,6 +1020,7 @@ async function loadAccounts() {
   clearTimeout(acPoll); if (waiting) acPoll = setTimeout(() => loadAccounts().catch(() => {}), 3000);
   loadUsage().catch(() => {});
   loadClaude().catch(() => {});
+  loadAgy().catch(() => {}); // A3
   const opts = [['pc_default', acTarget === 'hub' ? '허브 기본 로그인(허브 보안·Codex 탭의 로그인)' : 'PC 기본 로그인(그 PC의 Codex Desktop과 같은 계정)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.loggedIn ? '' : ' (로그인 안 됨)')])];
   const fill = (sel, list, val) => { sel.innerHTML = ''; for (const [v, t] of list) { const o = el('option', t); o.value = v; sel.append(o); } sel.value = val; };
   fill($('acDefault'), opts, d.defaultAccount);
@@ -1154,6 +1158,48 @@ document.addEventListener('submit', async (e) => {
   }
 });
 document.addEventListener('click', (e) => { if (e.target?.id === 'clKeyCancel') { $('clKeyForm').hidden = true; $('clKey').value = ''; } if (e.target?.id === 'clCpCancel') { $('clCompatForm').hidden = true; $('clCpKey').value = ''; } });
+// A3(신산님 2026-11-19 "새 세션 범위로 만들기"): Antigravity 계정 — 이 계정으로 만든 새 세션은 그 계정 폴더에 대화가 저장돼 계속 그 계정으로. 기존 대화는 PC 기본 로그인.
+let agFor = null, agPoll = null;
+const AG_FAIL = { timeout: '15분이 지나 취소됐어요', exited: '로그인 창이 닫혔어요', login_failed: '로그인하지 못했어요', engine_not_installed: '그 PC에 Antigravity가 없어요', save_failed: '저장하지 못했어요' };
+async function loadAgy() {
+  const r = await acRun('agy.accounts.get'); const box = $('agBox'); box.innerHTML = '';
+  if (r.status !== 200) { box.textContent = HOST_ERR[r.body.error] || r.body.error; return; }
+  const d = r.body;
+  box.append(el('div', '이어온에서 만드는 Antigravity 새 세션을 어느 계정으로 쓸지 정해요. 이 계정으로 만든 새 세션의 대화는 그 계정 폴더에 저장되어 계속 그 계정으로 이어져요. 그 PC에서 원래 쓰던 Antigravity 대화는 PC 기본 로그인 그대로예요. 로그인: 구독(그 PC에서 브라우저가 열려요) 또는 Gemini API 키(사용량만큼 요금).'));
+  const t = el('table'); t.className = 'list'; const tb = el('tbody'); t.append(tb); let waiting = false;
+  for (const a of [{ id: 'pc_default', label: 'PC 기본 로그인(그 PC의 Antigravity)', builtin: true, login: { state: 'idle' } }, ...d.accounts]) {
+    const tr = el('tr'); tr.append(el('td', a.label));
+    const st = a.builtin ? '그 PC의 Antigravity 로그인' : a.kind ? '로그인됨 · ' + ({ api: 'API 키', subscription: '구독' })[a.kind] : a.login.state === 'waiting' ? '로그인을 기다리는 중(그 PC의 브라우저에서 승인)' : a.login.state === 'failed' ? (AG_FAIL[a.login.error] || '로그인하지 못했어요') : '로그인 필요';
+    tr.append(el('td', st, a.builtin || a.kind ? 'ok' : 'warn'));
+    const td = el('td'); const act = (text, fn, primary) => { const b = el('button', text); b.type = 'button'; if (primary) b.className = 'primary'; b.onclick = fn; td.append(b); };
+    const err = (y) => { if (y.status !== 200) setStatus('err', AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); };
+    if (!a.builtin) {
+      if (a.login.state === 'waiting') { waiting = true; if (a.login.url) act('승인 창 열기', () => window.open(a.login.url, 'ieon_agy_login', 'width=520,height=760'), true); act('취소', async () => { err(await acRun('agy.accounts.cancel', { id: a.id })); loadAgy(); }); }
+      else if (!a.kind) { act('로그인(구독)', async () => { err(await acRun('agy.accounts.login', { id: a.id })); loadAgy(); }, true); act('API 키', () => { agFor = a.id; $('agKeyForm').hidden = false; $('agKey').value = ''; $('agKey').focus(); }); }
+      else act('로그아웃', async () => { if (!confirm(a.label + ' Antigravity 계정에서 로그아웃할까요? 이 계정으로 만든 새 세션은 다시 로그인할 때까지 보내지 않아요.')) return; err(await acRun('agy.accounts.logout', { id: a.id })); loadAgy(); });
+      act('지우기', async () => { if (!confirm(a.label + ' Antigravity 계정을 지울까요? 계정 폴더를 지우므로 이 계정으로 만든 새 세션의 대화도 함께 지워져 이어 쓸 수 없어요. 되돌릴 수 없어요.')) return; const y = await acRun('agy.accounts.delete', { id: a.id }); err(y); if (y.status === 200) setStatus('ok', 'Antigravity 계정을 지웠어요'); loadAgy(); });
+    }
+    tr.append(td); tb.append(tr);
+  }
+  box.append(t);
+  const add = el('form'); add.className = 'row'; const inp = el('input'); inp.placeholder = 'Antigravity 계정 이름표 (예: 개인, 회사)'; inp.maxLength = 40; inp.autocomplete = 'off'; inp.setAttribute('aria-label', 'Antigravity 계정 이름표');
+  const ab = el('button', 'Antigravity 계정 추가'); ab.className = 'primary'; add.append(inp, ab);
+  add.onsubmit = async (e) => { e.preventDefault(); const y = await acRun('agy.accounts.add', { label: inp.value.trim() }); if (y.status !== 201) return setStatus('err', AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); setStatus('ok', 'Antigravity 계정을 추가했어요. 로그인을 누르세요.'); loadAgy(); };
+  box.append(add);
+  const row = el('div'); row.className = 'row'; const sel = el('select'); sel.setAttribute('aria-label', '새 세션에 쓸 Antigravity 계정');
+  for (const [v, tx] of [['pc_default', 'PC 기본 로그인(그 PC의 Antigravity)'], ...d.accounts.map((a) => [a.id, '이어온 계정 ' + a.label + (a.kind ? '' : ' (로그인 안 됨)')])]) { const o = el('option', tx); o.value = v; sel.append(o); }
+  sel.value = d.defaultAccount;
+  sel.onchange = async () => { const y = await acRun('agy.accounts.use', { accountId: sel.value }); setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? '새 Antigravity 세션에 쓸 계정을 바꿨어요(이미 만든 새 세션은 만든 계정 그대로)' : (AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadAgy(); };
+  row.append(el('span', '새 세션에 쓸 Antigravity 계정'), sel); box.append(row);
+  clearTimeout(agPoll); if (waiting) agPoll = setTimeout(() => loadAgy().catch(() => {}), 3000);
+}
+document.addEventListener('submit', async (e) => {
+  if (e.target?.id !== 'agKeyForm') return; e.preventDefault();
+  const key = $('agKey').value.trim(); $('agKey').value = '';
+  const r = await acRun('agy.accounts.apikey', { id: agFor, key }); $('agKeyForm').hidden = true;
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'Gemini API 키를 넣었어요' : ({ bad_api_key: 'Gemini API 키 모양이 아니에요' })[r.body.error] || HOST_ERR[r.body.error] || r.body.error); loadAgy();
+});
+document.addEventListener('click', (e) => { if (e.target?.id === 'agKeyCancel') { $('agKeyForm').hidden = true; $('agKey').value = ''; } });
 async function useAccount(body) {
   const r = await acRun('accounts.use', body);
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '쓸 계정을 바꿨습니다' + devNote(r.body) : (AC_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error)); loadAccounts();

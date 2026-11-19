@@ -12,7 +12,10 @@ const isNotFound = (s) => /not\s*found|no\s+(such\s+)?(conversation|session)|unk
 // ACP 도구 종류 → 이어온 승인 카드 종류
 const KIND = { edit: 'file', delete: 'file', move: 'file', execute: 'command', fetch: 'permissions' };
 
-export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId, question, workMode = false, approve = null, signal = null, timeoutMs = 30 * 60_000, spawnImpl = spawn, log = () => {} }) {
+// A3: geminiDir(계정 로그인 폴더)·authMethod(그 폴더에서 인증)·newSession(session/new로 새 대화 — sessionId 없이)·mode(새 세션 권한에 맞는 방식)
+export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId = null, question, workMode = false, approve = null, signal = null, timeoutMs = 30 * 60_000, spawnImpl = spawn, log = () => {},
+  geminiDir = null, authMethod = null, newSession = false, mode = null }) {
+  if (geminiDir) args = [...args, '--gemini-dir', geminiDir, '--disable-telemetry'];
   return new Promise((resolve, reject) => {
     let child;
     try { child = spawnImpl(bin, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }); } catch { reject(new EngineError('engine_not_installed', 503)); return; }
@@ -74,9 +77,11 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId, question, wo
       const init = await call('initialize', { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false } });
       const caps = init?.agentCapabilities ?? {};
       const sc = caps.sessionCapabilities ?? caps.session_capabilities ?? {};
+      if (authMethod) await call('authenticate', { methodId: authMethod }).catch(() => { throw new EngineError('account_not_logged_in', 409); });
       let opened;
       try {
-        if (sc.resume) opened = await call('session/resume', { sessionId, cwd, mcpServers: [] });
+        if (newSession) { opened = await call('session/new', { cwd, mcpServers: [] }); sessionId = String(opened?.sessionId ?? ''); if (!sessionId) throw new EngineError('acp_no_session', 502); }
+        else if (sc.resume) opened = await call('session/resume', { sessionId, cwd, mcpServers: [] });
         else if (caps.loadSession || caps.load_session) opened = await call('session/load', { sessionId, cwd, mcpServers: [] });
         else throw new EngineError('acp_no_resume', 503);
       } catch (e) {
@@ -86,7 +91,8 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId, question, wo
       }
       // 질문만: 계획(plan) 방식이 있으면 그것으로(파일 수정·명령은 어차피 허락을 구하고 이어온이 거부)
       const modes = opened?.modes?.availableModes ?? [];
-      if (!workMode && modes.some((x) => x.id === 'plan') && opened?.modes?.currentModeId !== 'plan') await call('session/set_mode', { sessionId, modeId: 'plan' }).catch(() => {});
+      const want = mode ?? (workMode ? null : 'plan');
+      if (want && modes.some((x) => x.id === want) && opened?.modes?.currentModeId !== want) await call('session/set_mode', { sessionId, modeId: want }).catch(() => {});
       if (stopped) throw new StoppedError();
       prompted = true;
       const r = await call('session/prompt', { sessionId, prompt: [{ type: 'text', text: question }] }).catch((e) => {
@@ -96,7 +102,7 @@ export function acpTurn({ bin, args = ['acp'], env, cwd, sessionId, question, wo
       });
       if (r?.stopReason === 'cancelled' || stopped) throw new StoppedError();
       const note = denied.length ? `[이어온] 허락하지 않아 실행되지 않은 작업 ${denied.length}개:\n${denied.slice(0, 5).map((d) => `- ${d}`).join('\n')}` : '';
-      return { answer: [text.join('').trim(), note].filter(Boolean).join('\n\n'), stopReason: r?.stopReason ?? null };
+      return { answer: [text.join('').trim(), note].filter(Boolean).join('\n\n'), stopReason: r?.stopReason ?? null, sessionId };
     })().then((v) => finish(null, v), (e) => finish(e));
   });
 }
