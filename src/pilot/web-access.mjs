@@ -100,5 +100,6 @@ export function createWebAccess(raw, { fetchImpl = fetch, now = () => Date.now()
 // W3: /v1/pair/*(짝맺기 요청·결과 조회)는 관리자 승인과 6자리 코드가 있어야 끝나므로 예외로 두고 요청 횟수만 제한한다.
 export const isExemptPath = (path) => path === '/health' || path.startsWith('/v1/device/') || path.startsWith('/kakao/') || path.startsWith('/line/') || path.startsWith('/teams/')
   || path === '/v1/pair/start' || path === '/v1/pair/poll'
+  || path.startsWith('/install/') // 새 서버 설치(관리자가 만든 열쇠가 있을 때만 서버가 내줌)
   || path === '/terms' // M4: 이용 약관(가입 전에 읽어야 함, 정적 화면)
   || path === '/privacy'; // AP-5a: 스토어 심사·사용자가 볼 수 있어야 하는 개인정보 처리방침(정적 화면, 개인 정보 없음)

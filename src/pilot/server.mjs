@@ -427,6 +427,17 @@ export function createApp(config) {
   // W1: 이 시간 안에 답이 없으면 거부. 규칙 점검 7: 웹 설정(15분~24시간) → 설정 파일 → 15분
   const approvalTtl = () => { const m = store.getSetting('approvals.ttl')?.value?.minutes; return Number.isInteger(m) ? m * 60_000 : (config.approvalTtlMs ?? 15 * 60_000); };
   let webUrlSeen = null; // RC3: 마지막으로 본 공개 웹 주소(메신저 작업 열기 링크)
+  // 새 서버 설치 링크(관리자가 만든 열쇠 → 1시간, 메모리에만 — 허브를 다시 켜면 사라짐). 묶음은 허브 이미지 안 /app/ieon-gateway.tar.gz
+  const installLinks = new Map();
+  const installBundle = config.installBundle ?? '/app/ieon-gateway.tar.gz';
+  const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  const installScript = (base) => [
+    '#!/bin/sh', '# 이어온 서버 설치(허브에서 받기). 설치 폴더: $IEON_DIR(없으면 ~/ieon-gateway)', 'set -e',
+    `BASE=${shq(base)}`, 'DIR="${IEON_DIR:-$HOME/ieon-gateway}"',
+    'command -v curl >/dev/null 2>&1 || { echo "curl이 필요해요(sudo apt-get install -y curl)"; exit 1; }',
+    'echo "이어온 설치 파일을 받는 중... ($DIR)"', 'mkdir -p "$DIR"',
+    'curl -fsSL "$BASE/ieon-gateway.tar.gz" | tar -xz -C "$DIR"', 'cd "$DIR"',
+    '# 파이프로 받은 스크립트라 질문은 터미널에서 읽는다', 'if [ -r /dev/tty ]; then exec sh deploy/server/install.sh </dev/tty; else exec sh deploy/server/install.sh; fi', ''].join('\n');
   const approvalShowMs = config.approvalShowMs ?? 30 * 60_000; // RC1: 결정된 승인 카드를 대화에 남겨 두는 시간
   const cardsFor = (c, live, principal) => {
     const cards = [];
@@ -516,6 +527,20 @@ export function createApp(config) {
         }
       }
       if (req.method === 'GET' && path === '/health') return json(res, 200, { ok: true });
+      // 새 서버 설치(신산님 2026-11-19 "허브에서 설치 파일 받기"): 관리자가 만든 열쇠가 있을 때만 설치 스크립트·묶음을 내준다(접속 제한 밖에서도 — 새 서버는 허용 목록에 없음)
+      { const im = path.match(/^\/install\/([\w-]{20,40})\/(install\.sh|ieon-gateway\.tar\.gz)$/);
+        if (req.method === 'GET' && im) {
+          const link = installLinks.get(im[1]);
+          if (!link || link.expiresAt < Date.now()) return json(res, 404, { error: 'not_found' });
+          if (im[2] === 'install.sh') {
+            res.writeHead(200, { 'content-type': 'text/x-shellscript; charset=utf-8', 'cache-control': 'no-store' });
+            return res.end(installScript(`${link.base}/install/${im[1]}`));
+          }
+          if (!existsSync(installBundle)) return json(res, 404, { error: 'no_bundle' });
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'install_bundle' }) + '\n');
+          res.writeHead(200, { 'content-type': 'application/gzip', 'content-length': statSync(installBundle).size, 'cache-control': 'no-store' });
+          return createReadStream(installBundle).pipe(res);
+        } }
       // AP-5 앱 나눠 주기(구글 플레이 대신 이 허브에서): 판 정보·파일 받기. 앱 파일에는 비밀값이 없고 허브 없이는 못 쓰므로 접속 제한 없이 연다.
       if (req.method === 'GET' && (path === '/v1/app/version' || path === '/app' || path.startsWith('/download/'))) {
         const meta = appsMeta();
@@ -807,6 +832,17 @@ export function createApp(config) {
       // --- 봇 관리(웹 사용자만) ---
       if (path.startsWith('/v1/admin/') && !path.startsWith('/v1/admin/settings')) {
         // --- M2 사용자 목록·승인(관리자만 — 위에서 사용자는 /v1/admin/users를 못 씀). 이메일·상태·기기 수만, 대화 내용은 없음 ---
+        if (req.method === 'POST' && path === '/v1/admin/install-link') { // 새 서버 설치 명령(관리자만, 1시간)
+          const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() || 'http';
+          const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim();
+          const base = config.publicUrl ?? (/^[a-z0-9.:\[\]-]+$/i.test(host) ? `${proto}://${host}` : null);
+          if (!base) return json(res, 400, { error: 'no_public_url' });
+          for (const [k, v] of installLinks) if (v.expiresAt < Date.now()) installLinks.delete(k);
+          const token = randomBytes(18).toString('base64url'); const expiresAt = Date.now() + 3600_000;
+          installLinks.set(token, { base, expiresAt });
+          process.stderr.write(JSON.stringify({ ch: 'server', event: 'install_link' }) + '\n');
+          return json(res, 201, { command: `curl -fsSL ${base}/install/${token}/install.sh | sh`, expiresAt: new Date(expiresAt).toISOString(), bundle: existsSync(installBundle) });
+        }
         if (req.method === 'GET' && path === '/v1/admin/users') { // M4: 사람마다 오늘 질문 수·한도(내용은 없음)
           const since = kstDayStart(); const m = memberLimits();
           return json(res, 200, { users: store.listUsers().map((u) => ({ ...u, todayQuestions: store.userQuestionsSince(u.userId, since), limit: m.users?.[u.userId] !== undefined ? m.users[u.userId] : null, effectiveLimit: memberLimitOf(u.userId) })),
