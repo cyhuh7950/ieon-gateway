@@ -40,8 +40,13 @@ const DEVICE_FRESH_MS = 30000;
 // 대화 중심 새 화면(설계 UI_CHAT_FIRST U1)이 `/`, 예전 화면은 U8까지 `/classic`(결정 UD4).
 const WEB_PAGE = fileURLToPath(new URL('./web/app.html', import.meta.url));
 const WEB_SETTINGS = fileURLToPath(new URL('./web/settings.html', import.meta.url));
-const WEB_PRIVACY = fileURLToPath(new URL('./web/privacy.html', import.meta.url)); // AP-5a: 스토어용 개인정보 처리방침(누구나 열람)
-const WEB_TERMS = fileURLToPath(new URL('./web/terms.html', import.meta.url)); // M4: 이용 약관(누구나 열람, 가입할 때 동의)
+// AP-5a·M4: 개인정보 처리방침·이용 약관(누구나 열람). I18N-b-2: 언어마다 파일(privacy.<언어>.html, 한국어 원본은 privacy.html). ?lang= → 쿠키 → 브라우저 언어, 없는 언어는 영어 → 한국어
+const legalFile = (base, url, req) => {
+  const l = normLang(url.searchParams.get('lang')) ?? pickLang(req);
+  const at = (x) => fileURLToPath(new URL(`./web/${base}${x ? '.' + x : ''}.html`, import.meta.url));
+  for (const f of [l === 'ko' ? at(null) : at(l), at('en'), at(null)]) if (existsSync(f)) return f;
+  return at(null);
+};
 const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 // U7: 휴대폰 "홈 화면에 추가"·PC 앱 창용(PWA). 화면 코드는 그대로, 설치 정보와 아이콘만 준다. 오프라인 캐시(서비스 워커)는 두지 않는다
 // (대화는 늘 서버 상태가 기준이라 옛 화면을 보여 주면 오해가 생김).
@@ -598,12 +603,12 @@ export function createApp(config) {
       }
       // U8(UD4): 예전 화면(/classic)은 없앴다. 예전 주소로 오면 설정 화면으로 보낸다.
       if (req.method === 'GET' && path === '/terms') {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
-        return res.end(readFileSync(WEB_TERMS));
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache', vary: 'accept-language, cookie' });
+        return res.end(readFileSync(legalFile('terms', url, req)));
       }
       if (req.method === 'GET' && path === '/privacy') {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'max-age=3600' });
-        return res.end(readFileSync(WEB_PRIVACY));
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'max-age=3600', vary: 'accept-language, cookie' });
+        return res.end(readFileSync(legalFile('privacy', url, req)));
       }
       if (req.method === 'GET' && path === '/classic') { res.writeHead(302, { location: '/settings' }); return res.end(); }
       if (req.method === 'GET' && (path === '/' || path === '/settings')) {

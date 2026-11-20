@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- source: src/pilot/web/privacy.html @ ee3e10c -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ieon Privacy Policy</title>
+<style>
+  :root { --bg:#f3f5f7; --text:#1f2329; --muted:#5b6573; --line:#dfe3e8; --accent:#0f766e; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1214; --text:#e8ecef; --muted:#9aa6b1; --line:#2a3136; --accent:#2bb3a5; } }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.7 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Segoe UI",sans-serif; }
+  a.home { display:inline-flex; align-items:center; min-height:44px; margin-bottom:8px; font-weight:600; text-decoration:none; color:var(--accent); }
+  main { max-width:760px; margin:0 auto; padding:32px 20px 64px; }
+  h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:18px; margin:28px 0 8px; color:var(--accent); }
+  p, li { margin:6px 0; } .muted { color:var(--muted); font-size:14px; }
+  table { border-collapse:collapse; width:100%; font-size:15px; } th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  /* Phone: show the table one cell per line (so the first column isn't squeezed narrow) */
+  @media (max-width: 600px) {
+    table, tbody, tr, td { display:block; width:100%; } tr:first-child { display:none; }
+    tr { border:1px solid var(--line); border-radius:10px; margin:10px 0; padding:4px 0; } td { border:0; padding:4px 12px; }
+    td:first-child { font-weight:700; }
+  }
+</style>
+</head>
+<body>
+<main>
+<a class="home" href="/">← Back to Ieon</a>
+<h1>Ieon Privacy Policy</h1>
+<p class="muted">Effective 2026-11-19 (first published 2026-11-14) · Applies to: the Ieon App (Android and PC), the Ieon web screen, and use by signing up to someone else's hub</p>
+
+<h2>1. How does Ieon work?</h2>
+<p>Ieon is an app that connects to <b>an Ieon server you installed yourself</b> (your PC or your hub) and lets you converse with your AI work sessions (Codex, Claude Code, etc.) linked to that server. Questions and answers are stored <b>only on the server you connected</b> and are not sent to the developer of the Ieon App. Ieon has no advertising or usage analytics features. If you <b>sign up</b> to use an Ieon hub run by someone else, that hub's operator (the hub owner) manages the sign-up information below.</p>
+
+<h2>2. Information handled</h2>
+<table>
+  <tr><th>Information</th><th>Where is it?</th><th>Why is it needed?</th></tr>
+  <tr><td>Server address, device key</td><td>On your device (app-private storage). The server holds only a value transformed so the key can't be recognized (a hash)</td><td>To connect to your server</td></tr>
+  <tr><td>Device name, last used time</td><td>Your server</td><td>So you can identify the device in the "connected apps" list on the web screen and disconnect it</td></tr>
+  <tr><td>Questions and answers, approval records</td><td>Your server (approval records are kept for 180 days)</td><td>To continue conversations and to keep a record of whether actions were approved</td></tr>
+  <tr><td>Voice</td><td>Not stored</td><td>Voice input and read aloud use features built into the device. Depending on the device, audio may pass through the device maker's (Google, Microsoft, Apple) servers. Dictated text is sent as a question only when you tap Send.</td></tr>
+  <tr><td>Sign-up information (if you signed up to someone else's hub): email, a value transformed so the password can't be recognized (a hash), sign-up and approval status, when you agreed to the terms, number of questions sent today</td><td>That hub</td><td>To sign in, to let the hub owner approve and manage sign-ups, and to enforce the daily question limit. The hub owner sees only your email, status, number of PCs, and number of questions, and <b>cannot view conversation content on screen</b>. No emails are sent.</td></tr>
+  <tr><td>Notification address (if you turned on phone notifications)</td><td>Your server</td><td>To send "○○ replied" notifications. Because notifications pass through Google (Firebase) and browser notification servers, <b>question and answer content is not included</b>; only the AI staff name and fixed wording are sent.</td></tr>
+</table>
+
+<p><b>Children under 14 cannot sign up</b> to a hub run by someone else. That hub's admin cannot view members' conversation content on screen, but can technically access the server's data files.</p>
+
+<h2>3. Information provided to others</h2>
+<p>The developer of the Ieon App does not receive the information above, nor sell or transfer it to anyone else. The only exceptions are passing through the device maker's voice features and notification servers listed in the table above. Questions you send are delivered to the AI work sessions linked to your server (Codex, Claude Code, etc.) in accordance with those services' terms.</p>
+
+<h2>4. Permissions the app uses</h2>
+<p>It uses only internet (to connect to your server) and notifications. The Android app does not have microphone permission (for voice input, the device's dictation window does the recording). It does not use location, contacts, photos, or camera permissions.</p>
+
+<h2>5. Deletion</h2>
+<ul>
+  <li><b>Disconnect this device:</b> "Disconnect this device" at the bottom of the app's first screen — deletes this device's key from the server and also deletes the connection information saved in the app. You can also disconnect it in the web screen's Settings → Apps and devices → Connect Ieon App.</li>
+  <li><b>Delete conversation history:</b> ✎ at the top of a 1:1 conversation in the app, or Connection settings on the web screen → "Delete this conversation's server history" — deletes that conversation's questions and answers remaining on the server (session history on the AI service side is managed by that service).</li>
+  <li><b>Delete your sign-up (someone else's hub):</b> If you ask the hub owner to delete your account, your sign-up information on that hub and your Ieon records (conversation history, rooms, schedules, connected PCs, app connections) are all deleted. The original session history on your PC remains.</li>
+  <li><b>Retention period:</b> Questions and answers are kept on the server until you delete them or the account is deleted; approval records and work folder records are deleted after 180 days. Backups created by the server admin during updates may retain data for some time after deletion. Program records (logs) do not contain questions, answers, or secrets.</li>
+  <li><b>Delete everything:</b> Deleting your server (the Ieon program) and its data folder deletes all information. Deleting the app deletes the information on the device.</li>
+</ul>
+
+<h2>6. Changes</h2>
+<p>If this policy changes, we will announce it on this page and through in-app notices.</p>
+
+<h2>7. Contact</h2>
+<p>Ieon operator · Contact: <span id="contact">the contact listed in the store listing</span></p>
+</main>
+</body>
+</html>

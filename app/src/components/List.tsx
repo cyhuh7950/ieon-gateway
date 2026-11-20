@@ -1,4 +1,4 @@
-import { t } from "../lib/i18n";
+import { lang, t } from "../lib/i18n";
 import { LangSelect } from "./LangSelect";
 // 첫 화면: 방(여러 AI 직원)과 AI 직원(1:1) 목록. 한 화면에 함께, 새 소식이 오면 다시 불러온다.
 import { useCallback, useEffect, useState } from "react";
@@ -77,7 +77,7 @@ export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onTasks, on
       <footer className="foot muted">
         <span>{new URL(server).host}</span>
         <LangSelect />
-        <a className="link" href={server + "/privacy"} target="_blank" rel="noopener noreferrer">{t('app.list.9')}</a>
+        <a className="link" href={server + "/privacy?lang=" + lang} target="_blank" rel="noopener noreferrer">{t('app.list.9')}</a>
         {notify && <button className="link" onClick={notify.toggle} aria-pressed={notify.on} title={t('app.list.13')}>{notify.on ? t('app.list.19') : t('app.list.20')}</button>}
         <button className="link" onClick={async () => {
           if (!confirm(t('app.list.21'))) return;
