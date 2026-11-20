@@ -23,7 +23,7 @@ import { readDevice, setLive, upsertCodexThread, removeCodexThread, createLocalC
 import { cleanLabel } from './accounts.mjs';
 import { createDeviceAdmin, OPS, HUB_SELF_OPS } from './device-admin.mjs';
 import { WS_ENGINES } from './workspaces.mjs';
-import { validateSchedule, nextRun, localDay, describeSchedule, MAX_SCHEDULES } from './schedules.mjs';
+import { validateSchedule, nextRun, localDay, describeSchedule, scheduleWhen, MAX_SCHEDULES } from './schedules.mjs';
 import { createAdminQueue } from './admin-queue.mjs';
 import { readMode, writeMode, modeEffects } from './mode.mjs';
 import { EventEmitter } from 'node:events';
@@ -350,40 +350,42 @@ export function createApp(config) {
   // A1(ENGINE_ACCOUNTS EA10 최소 규칙): 이 대화의 질문이 어느 계정(접속)의 사용량으로 나가는지 늘 보이게 한다.
   // 계정 고르기(A2) 전에는 어떤 접속인지 사실대로 알린다 — PC 대화는 그 PC의 앱 로그인을 그대로 쓴다.
   const kindTag = (c) => { const k = accountKind(c); return k ? { kind: k } : {}; }; // SV3: 구독/API
+  // I18N-b: 서버가 만드는 이름표는 글(서버 언어)과 키·값을 같이 보낸다 — 화면·봇이 보는 사람 언어로 다시 바꿈
+  const lab = (key, vars) => ({ label: i18nT(key, vars), labelKey: key, ...(vars ? { labelVars: vars } : {}) });
   const accountOf = (c) => {
     // A2-d: 허브 새 세션도 허브에서 고른 이어온 계정이면 그 이름표(허브 연결부가 알려 줌)
     const hubMine = access && c.newSession && c.engine === 'codex_thread' ? health.get(c.hostId)?.codexDefault : null;
-    if (hubMine) return { mode: 'ieon_login', label: i18nT('server.account.ieon_hub', { name: hubMine }) };
-    if (c.engine === 'claude_cli' && health.get(c.hostId)?.claudeKind) return { mode: 'hub_login', label: i18nT('server.account.server_claude'), ...kindTag(c) }; // SV2
-    if (access && c.newSession && c.hostId === selfHostId()) return { mode: 'hub_login', label: i18nT(c.engine === 'codex_thread' ? 'server.account.hub_codex' : 'server.account.hub_claude') }; // PC·칸의 새 세션은 그곳의 계정(아래)
+    if (hubMine) return { mode: 'ieon_login', ...lab('server.account.ieon_hub', { name: hubMine }) };
+    if (c.engine === 'claude_cli' && health.get(c.hostId)?.claudeKind) return { mode: 'hub_login', ...lab('server.account.server_claude'), ...kindTag(c) }; // SV2
+    if (access && c.newSession && c.hostId === selfHostId()) return { mode: 'hub_login', ...lab(c.engine === 'codex_thread' ? 'server.account.hub_codex' : 'server.account.hub_claude') }; // PC·칸의 새 세션은 그곳의 계정(아래)
     // A2-b: PC의 이어온 전용 Claude 계정(대화별 → 기본). 채널 창은 사람이 연 창의 계정 — 새로 여는 창이 기본 계정을 씀
-    if (c.engine === 'claude_channel') { const d = health.get(c.hostId)?.claudeDefault; return { mode: 'pc_default', label: d ? i18nT('server.account.claude_window_default', { name: d }) : i18nT('server.account.claude_window') }; }
+    if (c.engine === 'claude_channel') { const d = health.get(c.hostId)?.claudeDefault; return { mode: 'pc_default', ...(d ? lab('server.account.claude_window_default', { name: d }) : lab('server.account.claude_window')) }; }
     if (c.engine === 'claude_cli') {
       const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
       const mine = h?.claudeAccounts?.[ref] ?? h?.claudeDefault;
-      if (mine) return { mode: 'ieon_login', label: i18nT('server.account.ieon', { name: mine }), ...kindTag(c) };
-      return { mode: 'pc_default', label: i18nT('server.account.pc_claude') };
+      if (mine) return { mode: 'ieon_login', ...lab('server.account.ieon', { name: mine }), ...kindTag(c) };
+      return { mode: 'pc_default', ...lab('server.account.pc_claude') };
     }
     // E1·E2 토큰 쪽: 지금은 그 PC의 앱 로그인(이어온 전용 계정은 A3)
     if (c.engine === 'agy_cli') { // A3: 이어온 계정으로 만든 새 세션은 그 계정(처음 질문 전이면 새 세션 기본)
       const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
       const mine = c.newSession ? (h?.agyAccounts?.[ref] ?? (ref.startsWith('pending:') ? h?.agyDefault : null)) : null;
-      if (mine) return { mode: 'ieon_login', label: i18nT('server.account.ieon', { name: mine }) }; // API 키·호환 주소 모두 있을 수 있어 종류는 붙이지 않음
-      return { mode: 'pc_default', label: i18nT('server.account.pc_agy') };
+      if (mine) return { mode: 'ieon_login', ...lab('server.account.ieon', { name: mine }) }; // API 키·호환 주소 모두 있을 수 있어 종류는 붙이지 않음
+      return { mode: 'pc_default', ...lab('server.account.pc_agy') };
     }
     if (c.engine === 'grok_cli') { // G1: 이어온 계정으로 만든 새 세션은 그 계정(처음 질문 전이면 새 세션 기본)
       const h = health.get(c.hostId); const ref = String(c.sessionRef ?? '').toLowerCase();
       const mine = c.newSession ? (h?.grokAccounts?.[ref] ?? (ref.startsWith('pending:') ? h?.grokDefault : null)) : null;
-      if (mine) return { mode: 'ieon_login', label: i18nT('server.account.ieon', { name: mine }), kind: 'api' };
-      return { mode: 'pc_default', label: i18nT('server.account.pc_grok') };
+      if (mine) return { mode: 'ieon_login', ...lab('server.account.ieon', { name: mine }), kind: 'api' };
+      return { mode: 'pc_default', ...lab('server.account.pc_grok') };
     }
-    if (c.connectMode === 'shared_server') return { mode: 'shared_server', label: i18nT('server.account.shared_server') };
+    if (c.connectMode === 'shared_server') return { mode: 'shared_server', ...lab('server.account.shared_server') };
     // A2: 연결부가 알려 준 이어온 전용 계정(대화별 → 새 세션은 기본)
     const h = health.get(c.hostId);
     const mine = c.newSession ? h?.codexDefault : h?.codexAccounts?.[String(c.sessionRef ?? '').toLowerCase()];
-    if (mine) return { mode: 'ieon_login', label: i18nT('server.account.ieon', { name: mine }), ...kindTag(c) };
-    if (health.get(c.hostId)?.boundary) return { mode: 'hub_login', label: i18nT('server.account.cell_codex'), ...kindTag(c) }; // 엔진 칸에는 Codex Desktop이 없음(2026-11-19 daon에서 발견)
-    return { mode: 'pc_default', label: i18nT('server.account.pc_codex'), ...kindTag(c) };
+    if (mine) return { mode: 'ieon_login', ...lab('server.account.ieon', { name: mine }), ...kindTag(c) };
+    if (health.get(c.hostId)?.boundary) return { mode: 'hub_login', ...lab('server.account.cell_codex'), ...kindTag(c) }; // 엔진 칸에는 Codex Desktop이 없음(2026-11-19 daon에서 발견)
+    return { mode: 'pc_default', ...lab('server.account.pc_codex'), ...kindTag(c) };
   };
   // SV3: 이 대화의 질문이 나가는 계정의 종류(구독/API). Codex 기존 대화·새 세션만 안다(그 밖은 null).
   const accountKind = (c) => {
@@ -505,7 +507,7 @@ export function createApp(config) {
   // 결과 불명·권한 확인 대기가 남아 있으면 멈춤(사람이 다시 켜야 함), 작업 모드 대화·하루 한도·보낼 수 없는 상태는 그 회차를 건너뜀(자동 재전송 없음).
   const schedNotices = []; // 끝난 예약 질문의 답(메신저 방에 알림). 메모리에만, 200개까지, GET /v1/schedules/notices?after=
   const runSchedules = (now = new Date()) => {
-    for (const n of store.takeScheduleResults()) schedNotices.push({ ...n, when: describeSchedule(n), at: now.toISOString() });
+    for (const n of store.takeScheduleResults()) schedNotices.push({ ...n, when: describeSchedule(n), ...scheduleWhen(n), at: now.toISOString() });
     if (schedNotices.length > 200) schedNotices.splice(0, schedNotices.length - 200);
     for (const s of store.dueSchedules(now.toISOString())) {
       const at = now.toISOString(); const day = localDay(now, s.tz); const next = s.kind === 'once' ? null : nextRun({ ...s, lastRunAt: at }, now);
@@ -1750,7 +1752,7 @@ export function createApp(config) {
       }
       // --- W3 예약 작업: 만들기·켜기(= 사람의 승인)·끄기·지우기는 주인의 웹 화면만, 보기는 주인 ---
       if (path === '/v1/schedules' || path.startsWith('/v1/schedules/')) {
-        const view = (s) => ({ ...s, when: describeSchedule(s), label: (() => { const c = store.conversations(principal).find((x) => x.conversationId === s.conversationId); return c ? labelOf(c) : null; })() });
+        const view = (s) => ({ ...s, when: describeSchedule(s), ...scheduleWhen(s), label: (() => { const c = store.conversations(principal).find((x) => x.conversationId === s.conversationId); return c ? labelOf(c) : null; })() });
         // 허브에 연결된 PC는 질문이 허브로 가므로 예약도 허브 화면에서 만든다(여기서 만들면 매번 건너뜀)
         if (req.method === 'GET' && path === '/v1/schedules') return json(res, 200, { schedules: store.schedules(principal).map(view), max: MAX_SCHEDULES, hubMode: hubModeOn(), hubUrl: hubModeOn() ? hubLink?.status().hubUrl ?? null : null });
         // 메신저 봇이 가져가 그 대화에 연결된 방에 답을 올림(볼 수 있는 대화만)

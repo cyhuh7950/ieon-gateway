@@ -138,6 +138,8 @@ import { createApp } from '../../src/pilot/server.mjs';
 import { createHash } from 'node:crypto';
 import { healthHeader } from '../../src/pilot/connector.mjs';
 import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
+// I18N-b: 이름표에 붙는 키(labelKey·labelVars)는 빼고 비교 — 키는 i18n-viewer 시험이 확인
+const noKey = (a) => a && Object.fromEntries(Object.entries(a).filter(([k]) => k !== "labelKey" && k !== "labelVars"));
 const SID = '0b0e0000-0000-4000-8000-0000000000a1';
 const SID2 = '0b0e0000-0000-4000-8000-0000000000a2';
 
@@ -195,7 +197,7 @@ test('표시: 연결부가 알려 준 Claude 계정이 대화 목록의 계정 �
   const health = { claudeAccounts: { [SID]: '회사' }, claudeAccountKinds: { [SID]: 'subscription' }, claudeDefault: '개인', claudeDefaultKind: 'api' };
   await fetch(base + '/v1/device/jobs', { headers: { authorization: 'Bearer pc', 'x-ieon-health': healthHeader({ codexShared: 'not_configured', claudeChannel: 'up', codexAccounts: {}, codexDefault: null, ...health }) } });
   const list = await fetch(base + '/v1/conversations', { headers: { authorization: 'Bearer web' } }).then((r) => r.json());
-  const acc = Object.fromEntries(list.conversations.map((c) => [c.conversationId, c.account]));
+  const acc = Object.fromEntries(list.conversations.map((c) => [c.conversationId, noKey(c.account)]));
   assert.deepEqual(acc.c_cl1, { mode: 'ieon_login', label: '이어온 계정 회사', kind: 'subscription' });
   assert.deepEqual(acc.c_cl2, { mode: 'ieon_login', label: '이어온 계정 개인', kind: 'api' });
   assert.match(acc.c_ch.label, /새로 여는 창은 이어온 계정 개인/);

@@ -6,12 +6,11 @@
 // - 처음에는 1:1 대화만(그룹·여러 사람 방은 안내만). 같은 이벤트가 다시 오면 한 번만 처리(webhookEventId).
 // - 토큰·채널 비밀 값·질문·답 원문은 기록하지 않는다(이벤트 종류만).
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { splitText, waitNotice } from './bridge.mjs';
+import { splitText, waitNotice, botT } from './bridge.mjs';
 import { t } from '../../i18n/index.mjs';
 
 const API = 'https://api.line.me';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const WAIT_NOTICE = waitNotice(); // 브리지의 중간 안내. 라인은 자체 "받았어요"로 대신한다.
 export const LINE_TEXT_MAX = 4800; // 라인 글 한 칸은 5000자까지
 const PER_CALL = 5; // 한 번에 보낼 수 있는 말풍선 수
 export const RECEIVED = t('messenger.line.received');
@@ -28,6 +27,8 @@ export function lineSignatureOk(raw, signature, channelSecret) {
 // opts: { relayUrl, relayToken, accessToken, channelSecret, onMessage, log, signal, fetchImpl?, replyWaitMs?, flushMs?, pollTimeoutMs? }
 export function runLine(opts) {
   const { relayUrl, relayToken, accessToken, channelSecret, onMessage, log, signal } = opts;
+  // 그 봇의 언어(opts.lang — 값 또는 함수), 없으면 서버 기본 언어. 브리지의 중간 안내는 자체 "받았어요"로 대신한다.
+  const T = botT(opts.lang);
   const f = opts.fetchImpl ?? fetch;
   const replyWait = opts.replyWaitMs ?? 20_000;
   const flushMs = opts.flushMs ?? 300;
@@ -49,7 +50,7 @@ export function runLine(opts) {
       return Boolean(r?.ok);
     };
     if (ev.source?.type !== 'user' || !ev.source.userId) {
-      if (reply.token) await useReply([ONLY_DIRECT]);
+      if (reply.token) await useReply([T('messenger.line.only_direct')]);
       return log({ platform: 'line', event: 'group_ignored' });
     }
     const user = ev.source.userId;
@@ -67,17 +68,17 @@ export function runLine(opts) {
     };
     const send = async (t) => {
       const s = String(t);
-      if (s.endsWith(WAIT_NOTICE)) return;
+      if (s.endsWith(waitNotice(T))) return;
       out.push(...splitText(s, LINE_TEXT_MAX));
       clearTimeout(timer); timer = setTimeout(flush, flushMs);
     };
     // 답이 늦으면 답장 표가 지나기 전에 "받았어요"로 쓰고, 실제 답은 보내기로.
-    const late = setTimeout(() => { if (reply.token && !reply.used && !out.length) useReply([RECEIVED]); }, replyWait);
+    const late = setTimeout(() => { if (reply.token && !reply.used && !out.length) useReply([T('messenger.line.received')]); }, replyWait);
     try {
       await onMessage({ platform: 'line', userId: user, chatId: user, isGroup: false, called: true, text: ev.message.text, ...(id ? { msgId: `ln-${id}` } : {}) }, send);
     } catch (e) {
       log({ platform: 'line', event: 'handle_error', error: String(e.message).slice(0, 80) });
-      out.push(t('messenger.handle_error'));
+      out.push(T('messenger.handle_error'));
     } finally {
       clearTimeout(late); clearTimeout(timer);
       await flush();

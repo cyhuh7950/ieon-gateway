@@ -115,21 +115,21 @@ export function workspaceLine(ws) {
 export function blockLevel(engine, { boundary = false, newSession = false, full = false } = {}) {
   if (engine === 'claude_cli') {
     return full
-      ? { write: 'organize', writeText: i18nT('server.ws.claude_full_write'), read: 'organize', readText: i18nT('server.ws.claude_full_read') }
-      : { write: 'blocked', writeText: i18nT('server.ws.claude_write'), read: 'blocked', readText: i18nT('server.ws.claude_read') };
+      ? { write: 'organize', writeText: i18nT('server.ws.claude_full_write'), writeKey: 'server.ws.claude_full_write', read: 'organize', readText: i18nT('server.ws.claude_full_read'), readKey: 'server.ws.claude_full_read' }
+      : { write: 'blocked', writeText: i18nT('server.ws.claude_write'), writeKey: 'server.ws.claude_write', read: 'blocked', readText: i18nT('server.ws.claude_read'), readKey: 'server.ws.claude_read' };
   }
   if (engine === 'codex_thread' && newSession) {
     return boundary
-      ? { write: 'limited', writeText: i18nT('server.ws.cell_write'), read: 'organize', readText: i18nT('server.ws.cell_read') }
-      : { write: full ? 'organize' : 'blocked', writeText: i18nT(full ? 'server.ws.codex_full_write' : 'server.ws.codex_new_write'), read: 'organize', readText: i18nT('server.ws.other_read') };
+      ? { write: 'limited', writeText: i18nT('server.ws.cell_write'), writeKey: 'server.ws.cell_write', read: 'organize', readText: i18nT('server.ws.cell_read'), readKey: 'server.ws.cell_read' }
+      : { write: full ? 'organize' : 'blocked', writeText: i18nT(full ? 'server.ws.codex_full_write' : 'server.ws.codex_new_write'), writeKey: full ? 'server.ws.codex_full_write' : 'server.ws.codex_new_write', read: 'organize', readText: i18nT('server.ws.other_read'), readKey: 'server.ws.other_read' };
   }
   if (engine === 'codex_thread') {
     return boundary
-      ? { write: 'limited', writeText: i18nT('server.ws.cell_codex_write'), read: 'organize', readText: i18nT('server.ws.cell_read') }
-      : { write: 'approval', writeText: i18nT('server.ws.codex_write'), read: 'organize', readText: i18nT('server.ws.other_read') };
+      ? { write: 'limited', writeText: i18nT('server.ws.cell_codex_write'), writeKey: 'server.ws.cell_codex_write', read: 'organize', readText: i18nT('server.ws.cell_read'), readKey: 'server.ws.cell_read' }
+      : { write: 'approval', writeText: i18nT('server.ws.codex_write'), writeKey: 'server.ws.codex_write', read: 'organize', readText: i18nT('server.ws.other_read'), readKey: 'server.ws.other_read' };
   }
-  if (engine === 'agy_cli') return { write: 'none', writeText: i18nT('server.ws.agy_write'), read: 'organize', readText: i18nT('server.ws.guide_only') };
-  return { write: 'organize', writeText: i18nT('server.ws.session_write'), read: 'organize', readText: i18nT('server.ws.guide_only') };
+  if (engine === 'agy_cli') return { write: 'none', writeText: i18nT('server.ws.agy_write'), writeKey: 'server.ws.agy_write', read: 'organize', readText: i18nT('server.ws.guide_only'), readKey: 'server.ws.guide_only' };
+  return { write: 'organize', writeText: i18nT('server.ws.session_write'), writeKey: 'server.ws.session_write', read: 'organize', readText: i18nT('server.ws.guide_only'), readKey: 'server.ws.guide_only' };
 }
 
 // 화면용: 폴더 목록 + 붙인 것(이름·권한·차단 수준). 폴더 경로는 그 기기 웹 화면에서만 보인다(설정 화면).

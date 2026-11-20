@@ -305,6 +305,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="bRole">{{settings.html_sch_q.2}}</label><select id="bRole"></select>
       <label for="bCalls">{{settings.html_gk_key_cancel.3}}</label><input type="text" id="bCalls" placeholder="{{settings.html_b_calls.1}}">
       <label for="bUsers">{{settings.html_join_name.3}}</label><input type="text" id="bUsers" placeholder="{{settings.html_b_users.1}}">
+      <label for="bLang">{{settings.bot_lang.label}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.bot_lang.tip}}" data-tip="{{settings.bot_lang.tip}}">i</span></label><select id="bLang"></select>
       <span>{{settings.html_join_ok.1}}</span><div id="bSessions"></div>
       <span>{{settings.html_join_no.1}}</span><label class="chk"><input type="checkbox" id="bEnabled"> {{settings.html_join_hub_only.1}}</label>
       <span>{{settings.html_join_hub_only.2}}</span><div id="bTokens"></div>
@@ -858,7 +859,7 @@ async function loadWorkspaces() {
     const tr = el('tr');
     tr.append(el('td', (c.staff?.name || c.label) + ' · ' + WS_ENGINE_TXT[c.engine] + (c.newSession ? t('settings.load_workspaces.7') : '')));
     tr.append(el('td', w ? [w.personal && t('settings.load_workspaces.8', { personal: w.personal }), ...(w.shared || []).map((s) => t('settings.load_workspaces.9', { name: s.name, write: (s.write ? t('settings.ws_editor.16') : t('settings.ws_editor.17')) }))].filter(Boolean).join(', ') : t('settings.load_workspaces.10'), w ? '' : 'muted'));
-    tr.append(el('td', w ? t('settings.load_workspaces.11', { split: lv.writeText.split(' — ')[0], split2: lv.readText.split(' — ')[0] }) : '—', w ? '' : 'muted'));
+    tr.append(el('td', w ? t('settings.load_workspaces.11', { split: tFrom(lv.writeText, lv.writeKey).split(' — ')[0], split2: tFrom(lv.readText, lv.readKey).split(' — ')[0] }) : '—', w ? '' : 'muted'));
     const td = el('td'); const b = el('button', t('settings.load_workspaces.12')); b.type = 'button'; b.onclick = () => wsEditor(c); td.append(b); tr.append(td); srows.push(tr);
   }
   sb.replaceChildren(...srows);
@@ -884,7 +885,7 @@ function wsEditor(c) {
     picks.set(f.id, s); row.append(el('label', f.name), s, el('span', f.path, 'muted')); box.append(row);
   }
   const lv = wsLevel(c);
-  box.append(el('div', t('settings.ws_editor.11', { write_text: lv.writeText, read_text: lv.readText }), 'muted'));
+  box.append(el('div', t('settings.ws_editor.11', { write_text: tFrom(lv.writeText, lv.writeKey), read_text: tFrom(lv.readText, lv.readKey) }), 'muted'));
   const act = el('div'); act.className = 'row';
   const save = el('button', t('settings.html_hub_link_box.2')); save.type = 'button'; save.className = 'primary';
   const cancel = el('button', t('settings.html_invite_copy.1')); cancel.type = 'button'; cancel.onclick = () => { box.hidden = true; };
@@ -932,12 +933,12 @@ async function loadSchedules() {
     const tr = el('tr');
     const st = s.pausedReason ? SCH_PAUSE[s.pausedReason] || t('settings.load_schedules.3') : !s.enabled ? t('settings.status_text.1') : t('settings.load_schedules.4', { digit: (s.nextRunAt ? new Date(s.nextRunAt).toLocaleString(t('common.intl_locale'), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—') });
     const last = s.lastResult ? t('settings.load_schedules.5', { last_result: (SCH_RES[s.lastResult] || s.lastResult) }) : '';
-    tr.append(el('td', s.label || s.conversationId), el('td', t('settings.load_schedules.6', { when: s.when, max_per_day: s.maxPerDay })), el('td', s.question.length > 40 ? s.question.slice(0, 40) + '…' : s.question), el('td', st + last));
+    tr.append(el('td', s.label || s.conversationId), el('td', t('settings.load_schedules.6', { when: whenText(s), max_per_day: s.maxPerDay })), el('td', s.question.length > 40 ? s.question.slice(0, 40) + '…' : s.question), el('td', st + last));
     const td = el('td');
     const tg = el('button', s.enabled && !s.pausedReason ? t('settings.load_schedules.7') : t('settings.load_schedules.8')); tg.type = 'button';
     tg.onclick = async () => {
       const on = !(s.enabled && !s.pausedReason);
-      if (on && !confirm(t('settings.load_schedules.9', { label: (s.label || ''), when: s.when, max_per_day: s.maxPerDay }))) return;
+      if (on && !confirm(t('settings.load_schedules.9', { label: (s.label || ''), when: whenText(s), max_per_day: s.maxPerDay }))) return;
       const y = await api('/v1/schedules/' + s.scheduleId, { method: 'PUT', body: JSON.stringify({ enabled: on }) });
       setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? (on ? t('settings.load_schedules.10') : t('settings.load_schedules.11')) : (SCH_ERR[y.body.error] || y.body.error)); loadSchedules();
     };
@@ -956,7 +957,7 @@ $('schAdd').onsubmit = async (e) => {
   if (!confirm(t('settings.load_schedules.18', { label, when, question: body.question.slice(0, 200), interval: (body.maxPerDay || (k === 'interval' ? 24 : 1)) }))) return;
   const r = await api('/v1/schedules', { method: 'POST', body: JSON.stringify(body) });
   if (r.status !== 201) return setStatus('err', SCH_ERR[r.body.error] || r.body.error);
-  $('schQ').value = ''; setStatus('ok', t('settings.load_schedules.19', { when: r.body.when })); loadSchedules();
+  $('schQ').value = ''; setStatus('ok', t('settings.load_schedules.19', { when: whenText(r.body) })); loadSchedules();
 };
 const CLS_ERR = { session_not_found: t('settings.cls_err.1'), no_working_directory: t('settings.cls_err.2'), claude_not_server: t('settings.cls_err.3') };
 let cxFor = null;
@@ -1338,7 +1339,7 @@ $('modeApply').onclick = async () => {
   const e = modeView?.effects?.[next];
   // 허브 화면에서 "이 PC에서만"으로 바꾸면 그 순간 허브 연결이 끊겨, 다시 바꾸려면 그 PC 화면에서 해야 한다
   const cut = pcTarget !== 'local' && next === 'pc' ? t('settings.load_mode.3') : '';
-  if (e && !confirm(t('settings.load_mode.4', { next: MODE_NAME[next], off: e.off.join(', '), on: e.on.join(', '), cut }))) return;
+  if (e && !confirm(t('settings.load_mode.4', { next: MODE_NAME[next], off: (e.offKeys ? e.offKeys.map((k) => t(k)) : e.off).join(', '), on: (e.onKeys ? e.onKeys.map((k) => t(k)) : e.on).join(', '), cut }))) return;
   const r = pcTarget === 'local' ? await api('/v1/admin/local/mode', { method: 'PUT', body: JSON.stringify({ mode: next }) }) : await devRun('mode.set', { mode: next });
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('settings.load_mode.5', { next: MODE_NAME[next], pc: (next === 'hub' ? (r.body.paired ? t('settings.render_tokens.9') : t('settings.render_tokens.10')) : t('settings.render_tokens.11')) }) : (MODE_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error));
   loadMode(); loadHubLink().catch(() => {});
@@ -1570,6 +1571,9 @@ function editBot(platform, botId, refresh) {
   if (refresh && same) return; // 주기 새로고침이 입력 중인 값을 덮어쓰지 않게 상태만 바꾼다
   $('bName').value = b.name; $('bRole').value = b.roleId || ''; $('bCalls').value = b.callNames.join(', '); $('bUsers').value = b.extraUsers.join(', ');
   $('bEnabled').checked = b.enabled;
+  // I18N-b: 봇 답 언어(비우면 서버 언어를 따름)
+  $('bLang').replaceChildren(Object.assign(el('option', t('settings.bot_lang.server')), { value: '' }), ...I18N.languages.map(([code, name]) => Object.assign(el('option', name), { value: code })));
+  $('bLang').value = b.lang || '';
   $('bSessions').innerHTML = '';
   if (botId === 'default') $('bSessions').append(tip(t('settings.edit_bot.1'), 'muted'));
   for (const s2 of adminSessions) {
@@ -1580,7 +1584,7 @@ function editBot(platform, botId, refresh) {
 $('botForm').onsubmit = async (e) => {
   e.preventDefault(); if (!editing) return;
   const body = { name: $('bName').value.trim(), roleId: $('bRole').value || null, callNames: split($('bCalls').value), extraUsers: split($('bUsers').value),
-    enabled: $('bEnabled').checked, sessions: [...$('bSessions').querySelectorAll('input:checked')].map((c) => c.value) };
+    enabled: $('bEnabled').checked, lang: $('bLang').value || null, sessions: [...$('bSessions').querySelectorAll('input:checked')].map((c) => c.value) };
   const r = await api('/v1/admin/bots/' + editing.platform + '/' + editing.botId, { method: 'PUT', body: JSON.stringify(body) });
   setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('settings.edit_bot.3') : (ADMIN_ERR[r.body.error] || r.body.error) + (r.body.callName ? ' (' + r.body.callName + ' → ' + r.body.botId + ')' : ''));
   if (r.status === 200) { editing = null; await loadAdmin(); editBot(r.body.platform, r.body.botId); }
@@ -1792,6 +1796,8 @@ async function boot() {
   loadAdmin().catch(() => {});
 }
 // 디자인 통일(2026-11-20): 되돌릴 수 없는 일 버튼은 danger 모양, 휴대폰 표 카드에는 칸 이름을 붙인다(DESIGN.md)
+// I18N-b: 예약 시각 — 서버가 보낸 키·값을 보는 사람 언어로(한 번 예약은 그 언어의 날짜 형식)
+const whenText = (s) => (s.whenKey === 'server.sched.once' && s.whenAt ? t(s.whenKey, { at: new Date(s.whenAt).toLocaleString(t('common.intl_locale'), { timeZone: s.whenTz || undefined }) }) : tFrom(s.when, s.whenKey, s.whenVars));
 const DANGER_BTN = new RegExp('^(' + t('settings.danger.start') + ')|(' + t('settings.danger.end') + ')$'); // 버튼 글이 이 낱말로 시작·끝나면 danger(언어마다 사전에)
 // 설명은 ⓘ 풍선 도움말로(2026-11-20 신산님) — 화면에 설명문을 쓰지 않는다
 function tip(tv) { const x = el('span', 'i', 'tip'); x.tabIndex = 0; x.setAttribute('role', 'note'); x.setAttribute('aria-label', tv); x.dataset.tip = tv; return x; }

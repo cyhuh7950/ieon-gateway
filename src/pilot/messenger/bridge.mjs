@@ -24,6 +24,15 @@ export function stripCallName(text, names, suffixes = tServer('messenger.call_su
 }
 
 // 브리지의 중간 안내("[이름] 접수됨 — …")에서 이름 뒤 부분. 카카오·라인은 이 안내를 따로 보내지 않는다.
+// 봇 언어용 t: lang은 값 또는 함수(웹에서 바꾸면 바로 반영). 없으면 서버 기본 언어
+export function botT(lang) {
+  const now = () => (typeof lang === 'function' ? lang() : lang) || null;
+  const pick = () => (now() ? makeT(now()) : tServer);
+  const t = (key, vars) => pick()(key, vars);
+  t.has = (key) => pick().has(key);
+  return t;
+}
+
 export const waitNotice = (tr = tServer) => tr('messenger.ask.received', { label: '\u0001' }).split('\u0001').pop().replace(/^[\])\s:：-]+/, '');
 
 export function splitText(text, max) {
@@ -45,8 +54,10 @@ export function createBridge(opts) {
   const rawApi = opts.api;
   opts = { ...opts, api: (req) => { const s = senderCtx.getStore(); return rawApi(s ? { ...req, headers: { ...(req.headers ?? {}), 'x-ieon-sender': s } } : req); } };
   // 봇 언어(I18N-b에서 봇마다 고름). 없으면 서버 기본 언어
-  const t = opts.lang ? makeT(opts.lang) : tServer;
-  const A = Object.fromEntries(['allow', 'deny', 'done', 'drop', 'stop', 'confirm'].map((k) => [k, t(`messenger.alias.${k}`)]));
+  const t = botT(opts.lang);
+  // 서버가 글과 키를 같이 보낸 이름표는 봇 언어로 다시 바꾼다(키가 없으면 글 그대로)
+  const accLabel = (a) => (a.labelKey ? t(a.labelKey, a.labelVars) : a.label);
+  const al = () => Object.fromEntries(['allow', 'deny', 'done', 'drop', 'stop', 'confirm'].map((k) => [k, t(`messenger.alias.${k}`)]));
   const ERR = (code, fallback = 'messenger.fail.send') => errText(t, code, { surface: 'messenger', fallback });
   const STATE = (s) => (t.has(`messenger.ns_state.${s}`) ? t(`messenger.ns_state.${s}`) : s);
   const KIND = (k, other = 'other') => t(`messenger.approval.kind.${['command', 'file', 'permissions'].includes(k) ? k : other}`);
@@ -130,7 +141,7 @@ export function createBridge(opts) {
     const where = `${c.host?.name ? t('messenger.describe.pc', { name: c.host.name }) : ''}${c.workMode ? t('messenger.describe.work_mode') : ''}`;
     // WS1-a: 작업 공간 한 줄(폴더 이름만, 전체 경로는 웹에서만)
     const ws = c.workspace ? [c.workspace.personal && t('messenger.ws.personal', { name: c.workspace.personal }), ...(c.workspace.shared ?? []).map((s) => t('messenger.ws.shared', { name: s.name, access: t(s.write ? 'messenger.ws.write' : 'messenger.ws.read') }))].filter(Boolean).join(', ') : '';
-    return `${i + 1}. ${c.label} — ${engine} · ${state}${where}${ns}${c.account?.label ? t('messenger.describe.account', { label: c.account.label }) : ''}${ws ? t('messenger.describe.workspace', { ws }) : ''}`;
+    return `${i + 1}. ${c.label} — ${engine} · ${state}${where}${ns}${c.account?.label ? t('messenger.describe.account', { label: accLabel(c.account) }) : ''}${ws ? t('messenger.describe.workspace', { ws }) : ''}`;
   };
 
   async function ask(m, conv, question, send) {
@@ -159,13 +170,13 @@ export function createBridge(opts) {
           const what = KIND(k.approvalKind);
           let n = k.n;
           if (!Number.isInteger(n)) { const list = roomApprovals.get(roomKey(m)) ?? []; n = (list.at(-1)?.n ?? 0) + 1; list.push({ n, approvalId: k.approvalId }); roomApprovals.set(roomKey(m), list.slice(-20)); }
-          await safeSend(m, send, t('messenger.approval.request', { label: conv.label, n, what, summary: k.summary, cwd: k.cwd ? t('messenger.approval.cwd', { cwd: k.cwd }) : '', allow: A.allow, deny: A.deny }));
+          await safeSend(m, send, t('messenger.approval.request', { label: conv.label, n, what, summary: k.summary, cwd: k.cwd ? t('messenger.approval.cwd', { cwd: k.cwd }) : '', allow: al().allow, deny: al().deny }));
         }
         // RC5: 사람에게 넘긴 일 — AI에게는 하지 말라고 전했고, 직접 처리했으면 /처리 n, 안 할 거면 /중단 n
         for (const k of cards.filter((x) => x.kind === 'handoff' && !announced.has(x.approvalId))) {
           announced.add(k.approvalId); told.add(k.approvalId);
           const what = KIND(k.approvalKind, 'other_handoff');
-          await safeSend(m, send, t('messenger.approval.handoff', { label: conv.label, n: k.n, what, summary: k.summary, cwd: k.cwd ? t('messenger.approval.cwd', { cwd: k.cwd }) : '', done: A.done, drop: A.drop }));
+          await safeSend(m, send, t('messenger.approval.handoff', { label: conv.label, n: k.n, what, summary: k.summary, cwd: k.cwd ? t('messenger.approval.cwd', { cwd: k.cwd }) : '', done: al().done, drop: al().drop }));
         }
         for (const k of cards.filter((x) => x.kind === 'approval_result' && x.requestId === r.body.requestId && EXEC.has(x.state) && !told.has(x.approvalId))) {
           told.add(k.approvalId);
@@ -175,7 +186,7 @@ export function createBridge(opts) {
       if (s.status === 'completed') return deliver(m, send, conv, r.body.requestId, s.answer);
       // A1: 한도는 어느 계정인지와 고를 수 있는 길을 함께(실행 안 됨이 확실 — 잠그지 않음, 자동으로 다시 보내지 않음).
       if (s.status === 'failed' && s.errorCode === 'usage_limit') {
-        return safeSend(m, send, t('messenger.ask.usage_limit', { label: conv.label, err: ERR('usage_limit'), account: conv.account?.label ?? t('messenger.unknown') }));
+        return safeSend(m, send, t('messenger.ask.usage_limit', { label: conv.label, err: ERR('usage_limit'), account: conv.account?.label ? accLabel(conv.account) : t('messenger.unknown') }));
       }
       if (s.status === 'failed') return safeSend(m, send, t('messenger.ask.failed', { label: conv.label, err: ERR(s.errorCode, 'messenger.fail.run') }));
       if (s.status === 'unknown') {
@@ -242,7 +253,7 @@ export function createBridge(opts) {
 
     if (/^\/(help|start)\b/.test(text)) {
       const head = bot.name ? `${bot.name}${bot.role ? ` · ${bot.role.name}${bot.role.description ? ` — ${bot.role.description}` : ''}` : ''}${bot.callNames?.length ? t('messenger.help.call', { name: bot.callNames[0] }) : ''}\n\n` : '';
-      return send(head + t('messenger.help.body', A));
+      return send(head + t('messenger.help.body', al()));
     }
     const create = text.match(/^\/new\s+(codex|claude|antigravity)\s+(\S+)(?:\s+(\S+))?\s*$/);
     if (create) {
@@ -270,11 +281,11 @@ export function createBridge(opts) {
       const r = await opts.api({ method: 'POST', path: `/v1/sessions/${c.conversationId}/${act[1]}` });
       return send(r.status === 200 ? t(act[1] === 'sleep' ? 'messenger.ns.slept' : 'messenger.ns.restored', { name: act[2] }) : nsFail(r));
     }
-    const close = text.match(new RegExp(`^/close\\s+(\\S+)(\\s+(?:${[A.confirm, 'confirm'].map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))?\\s*$`, 'i'));
+    const close = text.match(new RegExp(`^/close\\s+(\\S+)(\\s+(?:${[al().confirm, 'confirm'].map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))?\\s*$`, 'i'));
     if (close) {
       const c = byName(all, close[1]);
       if (!c) return send(t('messenger.ns.not_found', { name: close[1] }));
-      if (!close[2]) return send(t('messenger.close.confirm', { name: close[1], confirm: A.confirm }));
+      if (!close[2]) return send(t('messenger.close.confirm', { name: close[1], confirm: al().confirm }));
       const r = await opts.api({ method: 'DELETE', path: `/v1/sessions/${c.conversationId}`, body: { confirm: close[1] } });
       if (r.status !== 200) return send(nsFail(r));
       for (const [k, v] of Object.entries(rooms)) if (v === c.conversationId) delete rooms[k];
@@ -283,7 +294,7 @@ export function createBridge(opts) {
     }
     // W2: 승인 답(/허용 n, /거부 n — 영문 /allow n, /deny n). 주인만, 이 대화방에 알린 번호만.
     // RC5: /처리 n · /중단 n(영문 /done n · /drop n) — 사람에게 넘긴 일의 처리 기록
-    const ALIAS = { allow: [A.allow, 'allow'], deny: [A.deny, 'deny'], done: [A.done, 'done'], drop: [A.drop, 'drop'] };
+    const ALIAS = { allow: [al().allow, 'allow'], deny: [al().deny, 'deny'], done: [al().done, 'done'], drop: [al().drop, 'drop'] };
     const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const dec = text.match(new RegExp(`^/(${Object.values(ALIAS).flat().map(reEsc).join('|')})\\s+(\\d+)\\s*$`, 'i'));
     if (dec) {
@@ -296,10 +307,10 @@ export function createBridge(opts) {
       const decision = Object.keys(ALIAS).find((k) => ALIAS[k].some((w) => w.toLowerCase() === dec[1].toLowerCase())) ?? 'drop';
       const r = await opts.api({ method: 'POST', path: `/v1/approvals/${item.approvalId}`, body: { decision } });
       if (r.status === 200) return send(t('messenger.decide.ok', { what: t(['done', 'drop'].includes(decision) ? 'messenger.decide.what.handoff' : 'messenger.decide.what.approval'), n: item.n, result: t(`messenger.decide.result.${decision}`) }));
-      return send(r.body?.error === 'approval_closed' ? t('messenger.decide.closed', { n: item.n, status: t.has(`messenger.decide.status.${r.body.status}`) ? t(`messenger.decide.status.${r.body.status}`, A) : r.body.status }) : t('messenger.decide.failed', { error: r.body?.error }));
+      return send(r.body?.error === 'approval_closed' ? t('messenger.decide.closed', { n: item.n, status: t.has(`messenger.decide.status.${r.body.status}`) ? t(`messenger.decide.status.${r.body.status}`, al()) : r.body.status }) : t('messenger.decide.failed', { error: r.body?.error }));
     }
     // RC2: 이 대화방의 마지막 질문만 멈추기(/stop · /중지). 물어본 사람이나 주인만. 다른 대화방·다른 질문은 그대로.
-    if (new RegExp(`^/(stop|${A.stop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(\\s|$)`, 'i').test(text)) {
+    if (new RegExp(`^/(stop|${al().stop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(\\s|$)`, 'i').test(text)) {
       const la = lastAnswer.get(roomKey(m));
       if (!la) return send(t('messenger.stop.none'));
       if (la.askedBy !== String(m.userId) && !isOwner(m)) return send(t('messenger.stop.not_allowed'));
@@ -376,7 +387,8 @@ export function createBridge(opts) {
     for (const n of r.body.notices) {
       if (!(n.at > schedAfter)) continue; // 이미 올린 것(서버도 after로 거르지만 한 번 더)
       schedAfter = n.at;
-      const head = t('messenger.sched.head', { label: n.label, when: n.when });
+      const when = n.whenKey === 'server.sched.once' && n.whenAt ? t(n.whenKey, { at: new Date(n.whenAt).toLocaleString(t('common.intl_locale'), { timeZone: n.whenTz || undefined }) }) : n.whenKey ? t(n.whenKey, n.whenVars) : n.when;
+      const head = t('messenger.sched.head', { label: n.label, when });
       const text = n.status === 'completed' ? t('messenger.sched.completed', { head, answer: n.answer ?? t('messenger.no_answer_kept') })
         : ['unknown', 'cancelled', 'approval_required'].includes(n.status) ? t(`messenger.sched.${n.status}`, { head })
         : t('messenger.sched.failed', { head, err: ERR(n.errorCode, 'messenger.fail.run') });

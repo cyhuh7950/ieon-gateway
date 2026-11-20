@@ -50,7 +50,7 @@ test('역할·봇 저장: 규칙 검사, full 권한 거부, 부르는 이름 �
   assert.equal((await call('/v1/admin/bots/wechat/ieun01', { method: 'PUT', body: { name: 'x' } })).body.error, 'bad_platform');
   assert.equal((await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'nope' } })).body.error, 'unknown_role');
   const ok = await call('/v1/admin/bots/telegram/ieun01', { method: 'PUT', body: { name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'] } });
-  assert.deepEqual(ok.body, { platform: 'telegram', botId: 'ieun01', name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'], extraUsers: [], enabled: true, sessions: [] });
+  assert.deepEqual(ok.body, { platform: 'telegram', botId: 'ieun01', name: '리뷰 봇', roleId: 'review', callNames: ['리뷰', '리뷰봇'], extraUsers: [], enabled: true, lang: null, sessions: [] }); // I18N-b: lang null = 서버 기본 언어
   assert.deepEqual((await call('/v1/admin/bots/telegram/other', { method: 'PUT', body: { name: 'x', callNames: ['리 뷰'] } })).body,
     { error: 'call_name_taken', callName: '리뷰', botId: 'ieun01' });
   // 다른 메신저에서는 같은 부르는 이름을 써도 된다.

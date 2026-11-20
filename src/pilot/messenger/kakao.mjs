@@ -3,23 +3,19 @@
 // - 콜백은 1회용이고 유효 시간이 짧다(약 1분으로 알려져 있음, 실측 전). 그래서 브리지가 보내는 글을 모아 한 번에 보낸다.
 // - 제한 시간(callbackLimitMs) 안에 답이 안 끝나면 "오래 걸린다"는 안내로 콜백을 쓰고, 뒤늦은 답은 보관했다가 /last로 보낸다.
 import { callbackAllowed } from '../../relay/relay.mjs';
-import { splitText, waitNotice } from './bridge.mjs';
+import { splitText, waitNotice, botT } from './bridge.mjs';
 import { t } from '../../i18n/index.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-// 브리지의 중간 안내. 스킬 응답이 이미 "접수"를 알렸으므로 콜백에는 넣지 않는다.
-const WAIT_NOTICE = waitNotice();
-const SLOW = t('messenger.kakao.slow');
-const BUSY = t('messenger.kakao.busy');
 const BUBBLE = 1000; // simpleText 한 칸 글자 수 한도
 const MAX_OUTPUTS = 3; // 응답 하나의 말풍선 수 한도
 
 // 글을 카카오 응답(simpleText ≤1000자, 최대 3개)으로 만든다. 넘치면 마지막 칸에서 줄이고 알린다.
-export function kakaoBody(text) {
+export function kakaoBody(text, tr = t) {
   let parts = splitText(String(text), BUBBLE);
   if (parts.length > MAX_OUTPUTS) {
     parts = parts.slice(0, MAX_OUTPUTS);
-    const tail = t('messenger.kakao.cut');
+    const tail = tr('messenger.kakao.cut');
     parts[MAX_OUTPUTS - 1] = parts[MAX_OUTPUTS - 1].slice(0, BUBBLE - tail.length) + tail;
   }
   return { version: '2.0', template: { outputs: parts.map((t) => ({ simpleText: { text: t } })) } };
@@ -28,6 +24,8 @@ export function kakaoBody(text) {
 // opts: { relayUrl, token, onMessage, log, signal, postCallback?(url, body), callbackLimitMs?, pollTimeoutMs?, lateTtlMs? }
 export function runKakao(opts) {
   const { relayUrl, token, onMessage, log, signal } = opts;
+  // 그 봇의 언어(opts.lang — 값 또는 함수), 없으면 서버 기본 언어. 브리지의 중간 안내는 콜백에 넣지 않는다(스킬 응답이 이미 "접수"를 알림).
+  const T = botT(opts.lang);
   const limit = opts.callbackLimitMs ?? 55_000;
   const lateTtl = opts.lateTtlMs ?? 10 * 60_000;
   const post = opts.postCallback ?? (async (url, body) => {
@@ -59,16 +57,16 @@ export function runKakao(opts) {
       if (spent) return;
       spent = true;
       clearTimeout(timer);
-      const text = [...buf, ...(slow ? [SLOW] : [])].join('\n\n') || t('messenger.kakao.empty');
-      const ok = await post(item.callbackUrl, kakaoBody(text)).catch(() => false);
+      const text = [...buf, ...(slow ? [T('messenger.kakao.slow')] : [])].join('\n\n') || T('messenger.kakao.empty');
+      const ok = await post(item.callbackUrl, kakaoBody(text, T)).catch(() => false);
       if (!ok) { log({ platform: 'kakao', event: 'callback_failed' }); if (!slow) stash(user, text); }
     };
     const send = async (t) => {
-      if (String(t).endsWith(WAIT_NOTICE)) return;
+      if (String(t).endsWith(waitNotice(T))) return;
       if (spent) stash(user, String(t)); else buf.push(String(t));
     };
     if (item.text.trim() === '/last') {
-      buf.push(take(user) || (busy.get(user) ? BUSY : t('messenger.kakao.no_last')));
+      buf.push(take(user) || (busy.get(user) ? T('messenger.kakao.busy') : T('messenger.kakao.no_last')));
       return flush(false);
     }
     timer = setTimeout(() => flush(true), limit);
@@ -77,7 +75,7 @@ export function runKakao(opts) {
       await onMessage({ platform: 'kakao', userId: user, chatId: user, isGroup: false, called: true, text: item.text }, send);
     } catch (e) {
       log({ platform: 'kakao', event: 'handle_error', error: String(e.message).slice(0, 80) });
-      buf.push(t('messenger.handle_error'));
+      buf.push(T('messenger.handle_error'));
     } finally {
       busy.set(user, busy.get(user) - 1);
       if (!busy.get(user)) busy.delete(user);

@@ -101,6 +101,7 @@ export function pageScript(lang, namespaces) {
   const dicts = chain(lang, namespaces);
   return `<script>const I18N = ${escJson({ lang, languages: languages().map((l) => [l, loadDict(l)['common.lang_name'] || l]), dicts })};\nconst ieonFormat = ${ieonFormat.toString()};\n`
     + 'function t(key, vars) { return ieonFormat(I18N.dicts, key, vars, I18N.lang); }\n'
+    + 'function tFrom(text, key, vars) { return key ? t(key, vars) : text; }\n' // 서버가 글과 키를 같이 보낸 것: 키가 있으면 보는 사람 언어로
     + 'function setLang(l) { document.cookie = \'ieon_lang=\' + encodeURIComponent(l) + \'; path=/; max-age=31536000; samesite=lax\'; location.reload(); }</script>\n';
 }
 
@@ -114,7 +115,7 @@ export function fillPage(html, lang, namespaces) {
 }
 
 // 화면 파일마다 넣는 사전 묶음(서버와 시험이 같이 씀)
-export const PAGE_NAMESPACES = { 'app.html': ['common', 'errors', 'web'], 'settings.html': ['common', 'errors', 'web', 'settings'] };
+export const PAGE_NAMESPACES = { 'app.html': ['common', 'errors', 'web', 'server'], 'settings.html': ['common', 'errors', 'web', 'settings', 'server'] }; // server: 서버가 키로 보내는 이름표·안내
 
 // 페이지 원문에 언어(<html lang>)·고정 글({{키}})·사전을 넣는다.
 export function injectPage(html, lang, namespaces) {
