@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
@@ -44,7 +45,7 @@ test('올려 둔 앱이 없으면 빈 판 정보, /app은 404', async (t) => {
 
 test('설정 화면에 앱 받기, 정식 서명 키 파일은 git에 들어가지 않음', () => {
   const root = fileURLToPath(new URL('../../', import.meta.url));
-  const set = readFileSync(join(root, 'src/pilot/web/settings.html'), 'utf8');
+  const set = koView('settings.html');
   assert.ok(set.includes('id="appDl"') && set.includes("api('/v1/app/version')"));
   const gradle = readFileSync(join(root, 'app/android/app/build.gradle'), 'utf8');
   assert.ok(gradle.includes(".local/app-signing/keystore.properties") && !/storePassword\s+['"]/.test(gradle), '비밀번호를 빌드 파일에 적지 않음');

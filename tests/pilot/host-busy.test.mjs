@@ -41,6 +41,6 @@ test('한도 설정값 검사 · 화면·메신저·앱이 host_busy를 안내�
   assert.ok(KO['errors.host_busy'] && !/ERR_HARD = new Set\([^)]*'host_busy'/.test(app) && app.includes("'conversation_busy', 'host_busy', 'active_limit'"));
   assert.ok(read('src/pilot/server.mjs').includes("'active_limit', 'host_busy',"), '방에서도 다시 보내기');
   assert.ok(read('app/src/lib/api.ts').includes('"host_busy"') && read('app/src/lib/texts.ts').includes('host_busy:'));
-  const set = read('src/pilot/web/settings.html');
+  const set = koView('settings.html');
   assert.ok(set.includes('id="hlForm"') && set.includes("saveSetting('host-limit'"));
 });

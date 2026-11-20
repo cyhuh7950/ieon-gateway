@@ -14,6 +14,7 @@ import { codexThreadAdapter } from '../../src/pilot/adapters/codex-thread.mjs';
 import { buildAdapters } from '../../src/pilot/adapters/index.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
 import { HUB_SELF_OPS } from '../../src/pilot/device-admin.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const A = '11111111-2222-4333-8444-555555555555';
@@ -137,6 +138,6 @@ test('서버: 새 세션에도 공유 폴더 붙이기(개인 폴더는 거절),
   const conv = (await call('/v1/conversations')).body.conversations.find((c) => c.conversationId === conversationId);
   assert.deepEqual([conv.workspace.shared, conv.workspace.level.write], [[{ name: '공유', write: true }], 'blocked']);
   assert.ok(['workspace.get', 'workspace.folder.add', 'workspace.folder.delete'].every((o) => HUB_SELF_OPS.has(o)) && !HUB_SELF_OPS.has('workspace.attach'));
-  const set = readFileSync(join(ROOT, 'src/pilot/web/settings.html'), 'utf8');
+  const set = koView('settings.html');
   assert.ok(set.includes("['hub', '허브 자체(허브에서 만든 새 세션)']") && set.includes('공유 폴더만 붙일 수 있어요'));
 });

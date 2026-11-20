@@ -73,7 +73,7 @@ test('7: 작업 모드 차례는 승인 카드를 기다리는 동안 시간 제
 
 test('10: 지우기는 이름 입력 대신 확인 창(새 세션·기기)', () => {
   const app = koView('app.html');
-  const set = readFileSync(join(ROOT, 'src/pilot/web/settings.html'), 'utf8');
+  const set = koView('settings.html');
   assert.ok(!app.includes('을 입력하세요') && app.includes("JSON.stringify({ confirm: c.newSession.name })"));
   assert.ok(!set.includes('기기 이름 "') && set.includes("JSON.stringify({ confirm: d.name })"));
   assert.ok(set.includes('id="ttlForm"') && set.includes("saveSetting('approval-ttl'") && set.includes("saveSetting('login-days'"));

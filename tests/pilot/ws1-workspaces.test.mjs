@@ -15,6 +15,7 @@ import { codexWorkspaceDirs, withWorkspaceLine } from '../../src/pilot/adapters/
 import { codexThreadAdapter } from '../../src/pilot/adapters/codex-thread.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
 import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 const KO = loadDict('ko');
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -159,7 +160,7 @@ test('서버: 붙이기는 전용 주소로만(대화 주인·세션 확인 → 
 
 test('메신저 /status·설정 화면: 작업 공간은 폴더 이름만, 설정 화면에 작업 폴더 탭과 승인 확인', () => {
   assert.ok(KO['messenger.describe.workspace'].includes('작업 공간: {ws}'));
-  const set = readFileSync(join(ROOT, 'src/pilot/web/settings.html'), 'utf8');
+  const set = koView('settings.html');
   assert.ok(set.includes('data-atab="work" hidden aria-label="작업 폴더"') && set.includes("'/v1/admin/workspaces/attach'") && set.includes('승인할까요?'));
 });
 

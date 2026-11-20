@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { agyHomeOf, agyRunFor, readAgyCompat, saveAgyCompat } from '../../src/pilot/agy-accounts.mjs';
 import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const tmp = (t) => { const d = mkdtempSync(join(tmpdir(), 'ieon-agc-')); t.after(() => rmSync(d, { recursive: true, force: true })); return d; };
 const KEY = 'AIza' + 'k'.repeat(35);
@@ -39,6 +40,6 @@ test('기기 명령: 호환 주소 저장·보기(호스트·모델·형식, 키
   assert.deepEqual([r.status, r.body.accounts[0].kind, r.body.accounts[0].compat], [200, 'compat', { host: 'gw.example.com', models: ['m1'], wire: 'responses' }]);
   assert.ok(!JSON.stringify(r.body).includes(GW));
   assert.equal((await pc.run('agy.accounts.logout', { id })).body.accounts[0].kind, null);
-  const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
+  const SET = koView('settings.html');
   assert.ok(SET.includes('id="agCompatForm"') && SET.includes("acRun('agy.accounts.compat'"));
 });

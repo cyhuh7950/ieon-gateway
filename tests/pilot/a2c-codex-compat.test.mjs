@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COMPAT_ENV_KEY, codexEnvFor, codexHomeOf, readCodexCompat, removeCodexCompat, saveCodexCompat } from '../../src/pilot/accounts.mjs';
 import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const tmp = (t) => { const d = mkdtempSync(join(tmpdir(), 'ieon-a2cx-')); t.after(() => rmSync(d, { recursive: true, force: true })); return d; };
 const KEY = 'rk_' + 'z'.repeat(30);
@@ -53,6 +54,6 @@ test('기기 명령: 호환 주소 저장·보기(호스트·모델만, 키 없�
   const out = await pc.run('accounts.logout', { id });
   assert.equal(out.body.accounts.find((x) => x.id === id).kind, null);
   assert.ok(!existsSync(join(d, 'accounts', 'codex', id, 'compat-key')));
-  const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
+  const SET = koView('settings.html');
   assert.ok(SET.includes('id="acCompatForm"') && SET.includes("acRun('accounts.compat'") && SET.includes('Responses API'));
 });

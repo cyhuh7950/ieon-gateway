@@ -84,6 +84,6 @@ test('M4: 가입자 하루 질문 한도 — 기본·사람별(0은 한도 없�
 test('M4: 화면 — 가입 동의 칸·약관 링크, 관리자 한도 칸, 안내 문구', () => {
   const APP = koView('app.html');
   assert.ok(APP.includes('id="agree"') && APP.includes('href="/terms"') && APP.includes('agree: true') && KO['errors.member_limit']);
-  const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
+  const SET = koView('settings.html');
   assert.ok(SET.includes('id="muPerDay"') && SET.includes("'/v1/admin/settings/member-limits'"));
 });

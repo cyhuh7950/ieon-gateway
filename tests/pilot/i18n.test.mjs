@@ -17,8 +17,8 @@ const slots = (s) => [...String(s).matchAll(/\{(\w+)(?:\|[^{}]*)?\}/g)].map((m) 
 // 직접 쓴 문구 금지 대상(I18N-a에서 사전으로 옮긴 곳). 웹 화면·앱은 I18N-a-2~4에서 이 목록에 더한다.
 const NO_HARDCODE = ['src/pilot', 'src/relay', 'src/hub', 'src/engine', 'src/i18n'];
 const NO_HARDCODE_SKIP = [/^src\/pilot\/web\//];
-// 웹 화면: 옮긴 화면은 <script> 안 문자열과 화면 글(주석 밖) 모두 한국어 0. settings.html은 I18N-a-3에서 더한다.
-const NO_HARDCODE_PAGES = ['src/pilot/web/app.html'];
+// 웹 화면: 옮긴 화면은 <script> 안 문자열과 화면 글(주석 밖) 모두 한국어 0.
+const NO_HARDCODE_PAGES = ['src/pilot/web/app.html', 'src/pilot/web/settings.html'];
 // 허용 목록: 사람에게 보이는 화면 글이 아닌 것(파일 전체 또는 그 문자열만). 이유를 같이 적는다.
 const ALLOW = [
   { file: 'src/i18n/format.mjs', why: '한국어 조사 표(채우기 함수)' },
@@ -80,6 +80,14 @@ test('I18N 화면: 서버가 보내는 app.html은 고정 글 {{키}}가 모두 
   assert.match(page, /id="langSel"[^>]*aria-label="언어"/);
   assert.ok(page.includes("setLang(s.value)") && page.includes("t('common.speech_lang')") && page.includes("t('common.intl_locale')"));
   assert.ok(!/'ko-KR'/.test(page.split('const I18N')[1].split('</script>').slice(1).join('')), '화면 코드에 ko-KR 고정 없음');
+});
+
+test('I18N 화면: 서버가 보내는 settings.html도 고정 글이 모두 채워지고, 맨 위에 언어 고르기, 날짜는 화면 언어', () => {
+  const page = webPage('settings.html');
+  assert.doesNotMatch(page.replace(/<script>[\s\S]*?<\/script>/g, ''), /\{\{[a-z]/);
+  assert.match(page, /<header>[\s\S]*id="langSel"[^>]*aria-label="언어"[\s\S]*<\/header>/);
+  assert.ok(page.includes('setLang(s.value)') && !page.includes("'ko-KR'"));
+  assert.ok(page.includes("new RegExp('^(' + t('settings.danger.start')"), '되돌릴 수 없는 일 버튼 낱말도 사전에서');
 });
 
 test('I18N 오류 문구: 한 곳(errors)에서, 자리 전용 문구가 있으면 그것', () => {
