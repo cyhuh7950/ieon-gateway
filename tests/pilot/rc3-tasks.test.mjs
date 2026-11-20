@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createApp } from '../../src/pilot/server.mjs';
 import { createBridge } from '../../src/pilot/messenger/bridge.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
@@ -110,6 +111,6 @@ test('메신저: 접수 안내에 작업 보기 링크(서버가 줄 때만)', a
 });
 
 test('웹 화면: 작업 서랍·#task 링크·허용/거부·중지·대화로(PC형·허브형 같은 화면)', () => {
-  const html = readFileSync(new URL('../../src/pilot/web/app.html', import.meta.url), 'utf8');
-  for (const s of ['id="tasksBtn"', 'id="tasks"', "api('/v1/approvals')", "api('/v1/tasks?filter=active')", "'/v1/tasks/' + t.requestId", "'/stop'", '#task=', "select(t.conversationId)"]) assert.ok(html.includes(s), s);
+  const html = koView('app.html');
+  for (const s of ['id="tasksBtn"', 'id="tasks"', "api('/v1/approvals')", "api('/v1/tasks?filter=active')", "'/v1/tasks/' + tk.requestId", "'/stop'", '#task=', "select(tk.conversationId)"]) assert.ok(html.includes(s), s);
 });

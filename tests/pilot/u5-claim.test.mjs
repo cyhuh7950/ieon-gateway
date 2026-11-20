@@ -8,9 +8,10 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
 import { createBotRunner } from '../../src/pilot/messenger/runner.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
-const APP = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+const APP = koView('app.html');
 
 async function server(t, extra = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'ieon-u5-'));

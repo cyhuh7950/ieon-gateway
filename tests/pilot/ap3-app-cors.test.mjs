@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -93,7 +94,7 @@ test('AP-3b: 앱 열쇠로 방 만들기·글 보내기·AI 직원 이름 바꾸
 });
 
 test('V1 음성: 웹 화면에 말로 쓰기·읽어 주기·처음 안내, 받아쓴 글은 입력칸에만(바로 보내지 않음), 음성 승인 없음, 서버는 음성을 받지 않음', () => {
-  const A = readFileSync(join(root, 'src/pilot/web/app.html'), 'utf8');
+  const A = koView('app.html');
   assert.ok(A.includes('id="micBtn"') && A.includes('id="speakBtn"') && A.includes('id="voiceAsk"'));
   assert.ok(A.includes("rec.lang = 'ko-KR'"));
   const mic = A.slice(A.indexOf("$('micBtn').onclick"), A.indexOf("$('compose').onsubmit"));
@@ -107,7 +108,7 @@ test('V1 음성: 웹 화면에 말로 쓰기·읽어 주기·처음 안내, 받�
 });
 
 test('AP-4a 알림: 웹 화면은 새 소식으로 원문 없는 알림(켜기는 사용자가), 새 소식은 앞단이 모아 두지 않게, PC 앱은 알림만 허용', async (t) => {
-  const A = readFileSync(join(root, 'src/pilot/web/app.html'), 'utf8');
+  const A = koView('app.html');
   assert.ok(A.includes('id="notifyBtn"') && A.includes("new EventSource('/v1/events')"));
   const block = A.slice(A.indexOf('function noteFor(type, d)'), A.indexOf('let events = null'));
   assert.ok(block.includes("' 답했어요'") && !/answer|question|summary/.test(block), '알림에 원문 없음');

@@ -12,6 +12,7 @@ import { pollOnce } from '../../src/pilot/connector.mjs';
 import { codexThreadAdapter } from '../../src/pilot/adapters/codex-thread.mjs';
 import { EngineError } from '../../src/pilot/contracts.mjs';
 import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 const KO = loadDict('ko');
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -143,7 +144,7 @@ test('연결부: 질문의 작업 모드 표시를 어댑터에 넘기고 승인
 });
 
 test('화면: 연결 설정의 작업 모드(Codex 기존 대화만, 켤 때 확인), 대화 위쪽 표시, 작업 폴더 없음 안내', () => {
-  const A = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+  const A = koView('app.html');
   assert.ok(A.includes('id="pWork"') && A.includes('id="wmOn"') && A.includes('id="workChip"'));
   assert.ok(A.includes("$('pWork').hidden = false;"), 'E3: Codex·Antigravity 기존 대화만');
   assert.ok(A.includes("if (on && !confirm('작업 모드를 켤까요?"));

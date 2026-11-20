@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { ieonFormat } from '../../src/i18n/format.mjs';
 import { languages, loadDict, makeT, pickLang, injectPage, errText, BASE_LANG } from '../../src/i18n/index.mjs';
 import { jsStrings, HANGUL } from './i18n-scan.mjs';
+import { webPage } from './web-page.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
@@ -16,6 +17,8 @@ const slots = (s) => [...String(s).matchAll(/\{(\w+)(?:\|[^{}]*)?\}/g)].map((m) 
 // 직접 쓴 문구 금지 대상(I18N-a에서 사전으로 옮긴 곳). 웹 화면·앱은 I18N-a-2~4에서 이 목록에 더한다.
 const NO_HARDCODE = ['src/pilot', 'src/relay', 'src/hub', 'src/engine', 'src/i18n'];
 const NO_HARDCODE_SKIP = [/^src\/pilot\/web\//];
+// 웹 화면: 옮긴 화면은 <script> 안 문자열과 화면 글(주석 밖) 모두 한국어 0. settings.html은 I18N-a-3에서 더한다.
+const NO_HARDCODE_PAGES = ['src/pilot/web/app.html'];
 // 허용 목록: 사람에게 보이는 화면 글이 아닌 것(파일 전체 또는 그 문자열만). 이유를 같이 적는다.
 const ALLOW = [
   { file: 'src/i18n/format.mjs', why: '한국어 조사 표(채우기 함수)' },
@@ -36,7 +39,7 @@ function codeStrings() {
     else if (p.endsWith('.html')) {
       const html = readFileSync(p, 'utf8');
       for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) out.push(...jsStrings(m[1]));
-      for (const m of html.matchAll(/data-i18n(?:-attr)?="([^"]+)"/g)) for (const k of m[1].split(';')) out.push({ kind: 'str', text: k.includes(':') ? k.split(':')[1].trim() : k.trim() });
+      for (const m of html.matchAll(/\{\{([a-z][\w.]*)\}\}/g)) out.push({ kind: 'str', text: m[1] }); // 화면 고정 글
     }
   }
   return out;
@@ -68,6 +71,15 @@ test('I18N 언어 고르기: 쿠키 → 브라우저 언어 → 영어 → 한�
   assert.match(html, /const I18N = \{"lang":"ko"/);
   assert.match(html, /function t\(key, vars\)/);
   assert.doesNotMatch(html.split('const I18N')[1].split(';\n')[0], /<\//); // 사전 속 </script>가 화면을 끊지 않게
+});
+
+test('I18N 화면: 서버가 보내는 app.html은 고정 글 {{키}}가 모두 채워지고, 로그인 화면 아래 언어 고르기·날짜·음성은 화면 언어를 따름', () => {
+  const page = webPage('app.html');
+  assert.doesNotMatch(page.replace(/<script>[\s\S]*?<\/script>/g, ''), /\{\{[a-z]/);
+  assert.match(page, /<title>이어온<\/title>/);
+  assert.match(page, /id="langSel"[^>]*aria-label="언어"/);
+  assert.ok(page.includes("setLang(s.value)") && page.includes("t('common.speech_lang')") && page.includes("t('common.intl_locale')"));
+  assert.ok(!/'ko-KR'/.test(page.split('const I18N')[1].split('</script>').slice(1).join('')), '화면 코드에 ko-KR 고정 없음');
 });
 
 test('I18N 오류 문구: 한 곳(errors)에서, 자리 전용 문구가 있으면 그것', () => {
@@ -118,5 +130,15 @@ test('I18N 직접 쓴 문구 금지: 사전으로 옮긴 코드의 문자열 안
       for (const s of jsStrings(readFileSync(p, 'utf8'))) if (HANGUL.test(s.text) && !allowed(file, s.text)) found.push(`${file}:${s.line} ${s.text.slice(0, 60)}`);
     }
   }
-  assert.deepEqual(found, [], '문구는 locales/ko/*.json에 두고 t()로 부르세요');
+  for (const file of NO_HARDCODE_PAGES) {
+    const html = readFileSync(join(ROOT, file), 'utf8');
+    for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) {
+      const line0 = html.slice(0, m.index).split('\n').length - 1;
+      for (const s of jsStrings(m[1])) if (HANGUL.test(s.text) && !allowed(file, s.text)) found.push(`${file}:${line0 + s.line} ${s.text.slice(0, 60)}`);
+    }
+    const blank = (x) => x.replace(/[^\n]/g, '');
+    const outside = html.replace(/<script>[\s\S]*?<\/script>/g, blank).replace(/<!--[\s\S]*?-->/g, blank).replace(/\/\*[\s\S]*?\*\//g, blank);
+    outside.split('\n').forEach((ln, i) => { if (HANGUL.test(ln)) found.push(`${file}:${i + 1} ${ln.trim().slice(0, 60)}`); });
+  }
+  assert.deepEqual(found, [], '문구는 locales/ko/*.json에 두고 t()(스크립트)나 {{키}}(화면 글)로 부르세요');
 });

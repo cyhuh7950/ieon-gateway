@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>이어온</title>
+<title>{{web.html_top.1}}</title>
 <link rel="icon" href="/favicon.ico">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0f766e">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="이어온">
+<meta name="apple-mobile-web-app-title" content="{{web.html_top.1}}">
 <style>
 /* 대화 중심 화면(설계 UI_CHAT_FIRST U1). 서버 데이터는 모두 textContent로 넣는다(HTML 문자열로 넣지 않음). */
 :root {
@@ -178,6 +178,7 @@ details.adv[open] summary { margin-bottom:10px; }
 .card { width:min(420px,100%); background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; box-shadow:var(--shadow); }
 .card h1 { font-size:20px; margin:14px 0 6px; }
 .card input { width:100%; border:1px solid var(--border); background:var(--surface-alt); border-radius:10px; padding:10px 12px; margin-top:10px; }
+#langSel { display:block; margin:14px 0 0 auto; border:1px solid var(--border); background:var(--surface-alt); color:var(--text); border-radius:8px; padding:4px 8px; font:inherit; font-size:12px; }
 .card .primary { width:100%; border:0; border-radius:12px; padding:12px; background:var(--accent); color:var(--on-accent); font-weight:600; margin-top:16px; }
 
 @media (max-width: 760px) {
@@ -223,20 +224,21 @@ details.adv[open] summary { margin-bottom:10px; }
 <!-- 로그인·관리자 만들기(허브). 이 PC에서 연 화면은 자동 로그인 -->
 <section class="login" id="login" hidden>
   <form class="card" id="loginForm">
-    <div class="logo" aria-hidden="true">이</div>
-    <h1 id="loginTitle">로그인</h1>
+    <div class="logo" aria-hidden="true">{{web.html_login_form.1}}</div>
+    <h1 id="loginTitle">{{web.html_login_title.1}}</h1>
     <p class="muted small" id="loginHint"></p>
-    <input id="email" type="email" placeholder="이메일(관리자는 비워 두세요)" aria-label="이메일" autocomplete="username" hidden>
-    <input id="pw" type="password" placeholder="비밀번호" aria-label="비밀번호" autocomplete="current-password" required>
-    <input id="pw2" type="password" placeholder="비밀번호 다시" aria-label="비밀번호 다시" autocomplete="new-password" hidden>
-    <button class="primary" id="loginBtn">로그인</button>
-    <label class="small" id="agreeRow" hidden><input type="checkbox" id="agree"> <a href="/terms" target="_blank" rel="noopener">이용 약관</a>과 <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a>에 동의해요(가입 신청할 때)</label>
-    <button type="button" id="signupBtn" hidden>가입 신청</button>
+    <input id="email" type="email" placeholder="{{web.html_email.1}}" aria-label="{{web.html_email.2}}" autocomplete="username" hidden>
+    <input id="pw" type="password" placeholder="{{web.html_pw.1}}" aria-label="{{web.html_pw.1}}" autocomplete="current-password" required>
+    <input id="pw2" type="password" placeholder="{{web.html_pw2.1}}" aria-label="{{web.html_pw2.1}}" autocomplete="new-password" hidden>
+    <button class="primary" id="loginBtn">{{web.html_login_title.1}}</button>
+    <label class="small" id="agreeRow" hidden><input type="checkbox" id="agree"> <a href="/terms" target="_blank" rel="noopener">{{web.html_agree.1}}</a>{{web.html_agree.2}} <a href="/privacy" target="_blank" rel="noopener">{{web.html_agree.3}}</a>{{web.html_signup_btn.1}}</label>
+    <button type="button" id="signupBtn" hidden>{{web.html_pending_box.2}}</button>
+    <select id="langSel" class="small" aria-label="{{common.language}}"></select>
   </form>
   <div class="card" id="pendingBox" hidden role="status">
-    <div class="logo" aria-hidden="true">이</div>
-    <h1>승인을 기다려요 <span class="tip" tabindex="0" role="note" aria-label="가입 신청을 받았어요. 이 허브 관리자가 승인하면 쓸 수 있어요. 승인된 뒤 다시 들어와 주세요." data-tip="가입 신청을 받았어요. 이 허브 관리자가 승인하면 쓸 수 있어요. 승인된 뒤 다시 들어와 주세요.">i</span></h1>
-    <button type="button" id="pendingOut">로그아웃</button>
+    <div class="logo" aria-hidden="true">{{web.html_login_form.1}}</div>
+    <h1>{{web.html_pending_box.3}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_pending_box.1}}" data-tip="{{web.html_pending_box.1}}">i</span></h1>
+    <button type="button" id="pendingOut">{{web.html_pending_out.1}}</button>
   </div>
 </section>
 
@@ -244,14 +246,14 @@ details.adv[open] summary { margin-bottom:10px; }
 <!-- U8: 새 세션 만들기(예전 화면에서 옮김). 새 세션 기능이 켜져 있을 때만 왼쪽 위에 버튼이 보인다 -->
 <div class="scrim" id="newSess" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nsTitle">
-    <h2 id="nsTitle">새 세션 만들기 <span class="tip" tabindex="0" role="note" aria-label="이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만들어요. 첫 질문을 보내면 시작해요." data-tip="이어온이 새 Codex·Claude 세션과 전용 작업 폴더를 만들어요. 첫 질문을 보내면 시작해요.">i</span></h2>
+    <h2 id="nsTitle">{{web.html_ns_title.2}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_ns_title.1}}" data-tip="{{web.html_ns_title.1}}">i</span></h2>
     <form id="nsForm">
-      <label class="field">엔진<select id="nsEngine"><option value="codex">Codex</option><option value="claude">Claude</option><option value="antigravity">Antigravity</option><option value="grok">Grok</option></select></label>
-      <label class="field" id="nsHostRow" hidden>어디서<select id="nsHost"></select></label>
-      <label class="field">이름<input id="nsName" placeholder="영문·숫자·- 2~32자" maxlength="32" autocomplete="off" spellcheck="false" required></label>
-      <label class="field">권한<select id="nsProfile"><option value="workspace">작업 폴더 안 읽기·쓰기(기본)</option><option value="read_only">읽기 전용</option></select></label>
+      <label class="field">{{web.html_ns_title.3}}<select id="nsEngine"><option value="codex">Codex</option><option value="claude">Claude</option><option value="antigravity">Antigravity</option><option value="grok">Grok</option></select></label>
+      <label class="field" id="nsHostRow" hidden>{{web.html_ns_engine.1}}<select id="nsHost"></select></label>
+      <label class="field">{{web.html_ns_host_row.1}}<input id="nsName" placeholder="{{web.html_ns_name.1}}" maxlength="32" autocomplete="off" spellcheck="false" required></label>
+      <label class="field">{{web.html_ns_name.2}}<select id="nsProfile"><option value="workspace">{{web.html_ns_name.3}}</option><option value="read_only">{{web.html_ns_profile.1}}</option></select></label>
       <p class="muted small" id="nsLimits"></p>
-      <div class="mrow"><button class="primary">만들기</button><button type="button" id="nsClose">닫기</button></div>
+      <div class="mrow"><button class="primary">{{web.html_ns_limits.1}}</button><button type="button" id="nsClose">{{web.html_tasks_close.1}}</button></div>
     </form>
   </div>
 </div>
@@ -259,76 +261,76 @@ details.adv[open] summary { margin-bottom:10px; }
 <!-- AP-1 방 만들기·고치기: 이름·구성원(AI 직원)·대표·공통 안내 -->
 <div class="scrim" id="roomDlg" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rdTitle">
-    <h2 id="rdTitle">방 만들기 <span class="tip" tabindex="0" role="note" aria-label="여러 AI 직원을 한 방에 모아요. @이름으로 부른 직원이 답하고, 아무도 안 부르면 대표가 답해요. AI 직원끼리 스스로 부르지 않아요." data-tip="여러 AI 직원을 한 방에 모아요. @이름으로 부른 직원이 답하고, 아무도 안 부르면 대표가 답해요. AI 직원끼리 스스로 부르지 않아요.">i</span></h2>
-    <label class="small">방 이름 <input id="rdName" maxlength="30" autocomplete="off"></label>
-    <div class="small muted" style="margin-top:8px">구성원</div>
+    <h2 id="rdTitle">{{web.html_room_dlg.1}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_rd_title.1}}" data-tip="{{web.html_rd_title.1}}">i</span></h2>
+    <label class="small">{{web.html_rd_title.2}} <input id="rdName" maxlength="30" autocomplete="off"></label>
+    <div class="small muted" style="margin-top:8px">{{web.html_rd_title.3}}</div>
     <div id="rdMembers"></div>
-    <label class="small">대표 <select id="rdLead"></select></label>
-    <label class="small">공통 안내(이 방의 목적 — 각 질문 앞에 붙어요) <textarea id="rdGuide" rows="3" maxlength="1000"></textarea></label>
-    <div class="mrow"><button type="button" id="rdDelete" hidden>방 지우기</button><button type="button" id="rdCancel">취소</button><button type="button" class="primary" id="rdOk">저장</button></div>
+    <label class="small">{{web.html_rd_name.1}} <select id="rdLead"></select></label>
+    <label class="small">{{web.html_rd_name.2}} <textarea id="rdGuide" rows="3" maxlength="1000"></textarea></label>
+    <div class="mrow"><button type="button" id="rdDelete" hidden>{{web.html_rd_lead.1}}</button><button type="button" id="rdCancel">{{web.html_rd_guide.1}}</button><button type="button" class="primary" id="rdOk">{{web.html_rd_guide.2}}</button></div>
   </div>
 </div>
 
 <div class="scrim" id="connect" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="connTitle">
-    <h2 id="connTitle">이어 쓸 대화를 고르세요</h2>
-    <p class="muted small" style="margin:0" id="connDesc">이 PC에서 최근에 쓴 Codex 대화예요. 고르면 바로 연결돼요.</p>
+    <h2 id="connTitle">{{web.html_rd_ok.1}}</h2>
+    <p class="muted small" style="margin:0" id="connDesc">{{web.html_connect.1}}</p>
     <label class="field" id="connHostRow" hidden>PC<select id="connHost"></select></label>
     <div id="connList"></div>
-    <details class="adv" style="margin-top:14px"><summary>고급: 대화 ID 직접 넣기</summary>
+    <details class="adv" style="margin-top:14px"><summary>{{web.html_conn_desc.1}}</summary>
       <form id="connManual">
-        <label class="field">Codex 대화 ID<input id="connId" placeholder="01a1…-…" autocomplete="off" spellcheck="false"></label>
-        <label class="field">이름<input id="connName" maxlength="60" placeholder="목록에 보일 이름" autocomplete="off"></label>
-        <div class="mrow"><button class="primary">연결</button></div>
+        <label class="field">{{web.html_conn_host.1}}<input id="connId" placeholder="01a1…-…" autocomplete="off" spellcheck="false"></label>
+        <label class="field">{{web.html_ns_host_row.1}}<input id="connName" maxlength="60" placeholder="{{web.html_conn_name.1}}" autocomplete="off"></label>
+        <div class="mrow"><button class="primary">{{web.html_conn_id.1}}</button></div>
       </form>
     </details>
-    <div class="mrow"><button type="button" id="connClose">닫기</button></div>
+    <div class="mrow"><button type="button" id="connClose">{{web.html_tasks_close.1}}</button></div>
   </div>
 </div>
 
 <!-- U4 처음 설정: 연결한 대화가 없는 이 PC 화면에서 한 번. 꼭 할 일은 "대화 하나 고르기"뿐 -->
 <section class="setup" id="setup" hidden aria-labelledby="setupTitle">
   <div class="scard">
-    <div class="logo" aria-hidden="true">이</div>
+    <div class="logo" aria-hidden="true">{{web.html_login_form.1}}</div>
     <div id="s0" hidden>
-      <h1>어떻게 쓰실 건가요? <span class="tip" tabindex="0" role="note" aria-label="나중에 설정 → 이 PC → 사용 방식에서 바꿀 수 있어요." data-tip="나중에 설정 → 이 PC → 사용 방식에서 바꿀 수 있어요.">i</span></h1>
-      <button type="button" class="check pick" id="s0Pc"><div class="av" style="background:#2f6f5e" aria-hidden="true">PC</div><div><b>이 PC에서만</b><div class="small muted">가장 간단해요. 공개 서버 없이 이 PC 화면과 텔레그램·디스코드·슬랙으로 써요(카카오톡·라인은 공개 중계가 있을 때만)</div></div></button>
-      <button type="button" class="check pick" id="s0Hub"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>내 허브에 연결</b><div class="small muted">허브 주소(또는 허브에서 만든 PC 연결 링크)가 있어요. 질문·메신저·설정은 허브 화면에서 해요</div></div></button>
-      <div class="check" aria-disabled="true"><div class="av" style="background:#9aa3ad" aria-hidden="true">☁</div><div><b>이어온 공용 서비스</b><div class="small muted">공개 서버 없이 가입해서 쓰는 방식 — 준비 중이에요</div></div><span class="st">준비 중</span></div>
+      <h1>{{web.html_setup.1}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_s0.1}}" data-tip="{{web.html_s0.1}}">i</span></h1>
+      <button type="button" class="check pick" id="s0Pc"><div class="av" style="background:#2f6f5e" aria-hidden="true">PC</div><div><b>{{web.html_s0.2}}</b><div class="small muted">{{web.html_s0.3}}</div></div></button>
+      <button type="button" class="check pick" id="s0Hub"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>{{web.html_s0_pc.1}}</b><div class="small muted">{{web.html_s0_pc.2}}</div></div></button>
+      <div class="check" aria-disabled="true"><div class="av" style="background:#9aa3ad" aria-hidden="true">☁</div><div><b>{{web.html_s0_hub.1}}</b><div class="small muted">{{web.html_s0_hub.2}}</div></div><span class="st">{{web.html_s0_hub.3}}</span></div>
     </div>
     <div id="s1">
-      <h1 id="setupTitle">이어온을 시작해요 <span class="tip" tabindex="0" role="note" aria-label="쓰던 Codex 대화를 웹과 메신저에서 이어서 써요. 이 PC에서 필요한 것을 확인했어요." data-tip="쓰던 Codex 대화를 웹과 메신저에서 이어서 써요. 이 PC에서 필요한 것을 확인했어요.">i</span></h1>
-      <div class="check"><div class="av codex_thread" aria-hidden="true">Cx</div><div><b>Codex</b><div class="small muted" id="sCodexHint">확인 중…</div></div><span class="st" id="sCodex">…</span></div>
-      <div class="check"><div class="av claude_channel" aria-hidden="true">Cl</div><div><b>Claude Code</b><div class="small muted">채널 연결은 나중에 할 수 있어요</div></div><span class="st">나중에</span></div>
-      <button type="button" class="bigbtn" id="s1Next">계속</button>
+      <h1 id="setupTitle">{{web.html_s0_hub.4}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_setup_title.1}}" data-tip="{{web.html_setup_title.1}}">i</span></h1>
+      <div class="check"><div class="av codex_thread" aria-hidden="true">Cx</div><div><b>Codex</b><div class="small muted" id="sCodexHint">{{web.html_setup_title.2}}</div></div><span class="st" id="sCodex">…</span></div>
+      <div class="check"><div class="av claude_channel" aria-hidden="true">Cl</div><div><b>Claude Code</b><div class="small muted">{{web.html_setup_title.3}}</div></div><span class="st">{{web.html_s_codex_hint.1}}</span></div>
+      <button type="button" class="bigbtn" id="s1Next">{{web.html_s_codex.1}}</button>
     </div>
     <div id="s2" hidden>
-      <h1>이어 쓸 대화를 고르세요 <span class="tip" tabindex="0" role="note" aria-label="이 PC에서 최근에 쓴 Codex 대화예요. 고른 대화만 이어온이 다뤄요." data-tip="이 PC에서 최근에 쓴 Codex 대화예요. 고른 대화만 이어온이 다뤄요.">i</span> <span class="tip" tabindex="0" role="note" aria-label="목록에 없으면 나중에 &quot;＋ 대화 연결 → 고급&quot;에서 대화 ID를 넣을 수 있어요." data-tip="목록에 없으면 나중에 &quot;＋ 대화 연결 → 고급&quot;에서 대화 ID를 넣을 수 있어요.">i</span></h1>
+      <h1>{{web.html_rd_ok.1}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_s2.1}}" data-tip="{{web.html_s2.1}}">i</span> <span class="tip" tabindex="0" role="note" aria-label="{{web.html_s2.2}}" data-tip="{{web.html_s2.2}}">i</span></h1>
       <div id="sList"></div>
     </div>
     <div id="s3" hidden>
-      <h1>준비됐어요 <span class="tip" tabindex="0" role="note" aria-label="이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요." data-tip="이제 바로 질문할 수 있어요. 처음 보낼 때 AI가 답해도 되는지 한 번만 물어봐요. 아래는 나중에 해도 돼요.">i</span></h1>
-      <div class="check"><div class="av" style="background:#229ED9" aria-hidden="true">✈</div><div><b>메신저로도 쓰기</b><div class="small muted">텔레그램·디스코드·슬랙·카카오톡</div></div><button type="button" class="st linkbtn" id="sMsg">설정하기</button></div>
-      <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>밖에서도 쓰기(허브)</b><div class="small muted">PC가 꺼져 있을 때도 새 세션이 답해요</div></div><a class="st" href="/settings#apps">설정하기</a></div>
-      <button type="button" class="bigbtn" id="s3Open">대화 열기</button>
+      <h1>{{web.html_s2.3}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_s3.1}}" data-tip="{{web.html_s3.1}}">i</span></h1>
+      <div class="check"><div class="av" style="background:#229ED9" aria-hidden="true">✈</div><div><b>{{web.html_s2.4}}</b><div class="small muted">{{web.html_s2.5}}</div></div><button type="button" class="st linkbtn" id="sMsg">{{web.html_s3.2}}</button></div>
+      <div class="check"><div class="av" style="background:#5b6573" aria-hidden="true">⇄</div><div><b>{{web.html_s3.3}}</b><div class="small muted">{{web.html_s3.4}}</div></div><a class="st" href="/settings#apps">{{web.html_s3.2}}</a></div>
+      <button type="button" class="bigbtn" id="s3Open">{{web.html_s3.5}}</button>
     </div>
-    <div class="sfoot"><button type="button" class="linkbtn" id="sSkip">나중에 하기</button><div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div><span id="sStep">1 / 3</span></div>
+    <div class="sfoot"><button type="button" class="linkbtn" id="sSkip">{{web.html_s3.6}}</button><div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div><span id="sStep">1 / 3</span></div>
   </div>
 </section>
 
 <!-- U4 첫 질문 확인(UD1): AI 응답이 꺼져 있을 때 웹에서 처음 보낼 때 한 번 -->
 <div class="scrim" id="voiceAsk" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="vaTitle">
-    <h2 id="vaTitle">음성 쓰기 전에</h2>
-    <p class="muted" style="margin:6px 0 0">말로 묻기·답 읽어 주기는 이 브라우저·기기에 들어 있는 기능을 써요. 기기에 따라 음성이 기기 회사(구글·마이크로소프트·애플) 서버를 거칠 수 있어요. 이어온 서버에는 음성도, 받아쓴 글도 따로 저장하지 않아요. 허락(승인)은 말로 하지 않고 카드 버튼으로만 해요.</p>
-    <div class="mrow"><button type="button" id="vaCancel">그만두기</button><button type="button" class="primary" id="vaOk">확인</button></div>
+    <h2 id="vaTitle">{{web.html_s3_open.1}}</h2>
+    <p class="muted" style="margin:6px 0 0">{{web.html_s3_open.2}}</p>
+    <div class="mrow"><button type="button" id="vaCancel">{{web.html_s_step.1}}</button><button type="button" class="primary" id="vaOk">{{web.html_voice_ask.1}}</button></div>
   </div>
 </div>
 <div class="scrim" id="firstAsk" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="faTitle">
-    <h2 id="faTitle">AI가 이 질문에 답해요</h2>
-    <p class="muted" style="margin:6px 0 0">보내면 이 PC의 Codex·Claude가 같은 대화에서 이어서 답해요. 쓰는 만큼 사용량이 차감돼요. 위쪽 "AI 응답" 스위치로 언제든 끌 수 있어요.</p>
-    <div class="mrow"><button type="button" id="faCancel">취소</button><button type="button" class="primary" id="faOk">켜고 보내기</button></div>
+    <h2 id="faTitle">{{web.html_va_title.1}}</h2>
+    <p class="muted" style="margin:6px 0 0">{{web.html_va_title.2}}</p>
+    <div class="mrow"><button type="button" id="faCancel">{{web.html_rd_guide.1}}</button><button type="button" class="primary" id="faOk">{{web.html_va_ok.1}}</button></div>
   </div>
 </div>
 
@@ -336,7 +338,7 @@ details.adv[open] summary { margin-bottom:10px; }
 <div class="scrim" id="msg" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
     <div id="m1">
-      <h2 id="mTitle">어느 메신저로 쓸까요? <span class="tip" tabindex="0" role="note" aria-label="하나만 골라도 돼요. 나머지는 나중에 추가할 수 있어요." data-tip="하나만 골라도 돼요. 나머지는 나중에 추가할 수 있어요.">i</span></h2>
+      <h2 id="mTitle">{{web.html_fa_title.1}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_m_title.1}}" data-tip="{{web.html_m_title.1}}">i</span></h2>
       <div class="grid2" id="mPlats"></div>
     </div>
     <div id="m2" hidden>
@@ -344,132 +346,132 @@ details.adv[open] summary { margin-bottom:10px; }
       <ol class="guide" id="m2Guide"></ol>
       <div id="m2Fields"></div>
       <p class="small muted" id="m2Note"></p>
-      <div class="mrow"><button type="button" id="m2Back">뒤로</button><button type="button" class="primary" id="m2Next">연결</button></div>
+      <div class="mrow"><button type="button" id="m2Back">{{web.html_m1.1}}</button><button type="button" class="primary" id="m2Next">{{web.html_conn_id.1}}</button></div>
     </div>
     <div id="m3" hidden>
-      <h2>봇에게 이 숫자를 보내세요</h2>
+      <h2>{{web.html_m_title.2}}</h2>
       <p class="muted small" style="margin:0" id="m3Hint"></p>
       <div class="code" id="m3Code" aria-live="polite">······</div>
       <p class="small muted" style="text-align:center;margin:0" id="m3Wait"></p>
-      <div class="mrow"><button type="button" id="m3New">숫자 새로 받기</button></div>
+      <div class="mrow"><button type="button" id="m3New">{{web.html_m2_note.1}}</button></div>
     </div>
     <div id="m4" hidden>
-      <h2>연결됐어요</h2>
+      <h2>{{web.html_m2_back.1}}</h2>
       <p class="muted" id="m4Text" style="margin:6px 0 0"></p>
     </div>
-    <div class="mrow" style="justify-content:space-between"><a class="small" href="/settings#msg">고급: 봇 이름·여러 봇·허용 사용자</a><button type="button" id="mClose">닫기</button></div>
+    <div class="mrow" style="justify-content:space-between"><a class="small" href="/settings#msg">{{web.html_m3_hint.1}}</a><button type="button" id="mClose">{{web.html_tasks_close.1}}</button></div>
   </div>
 </div>
 
 <div class="app" id="app" hidden>
-  <aside class="side" aria-label="연결한 대화">
-    <div class="side-top"><div class="logo" aria-hidden="true">이</div><div><div class="name">이어온</div><div class="where" id="where"></div></div></div>
-    <button type="button" class="addbtn" id="addBtn">＋ 대화 연결</button>
-    <button type="button" class="addbtn" id="newSessBtn" hidden>＋ 새 세션</button>
-    <div class="denied" id="denied" hidden aria-label="메신저 허용 요청"></div>
+  <aside class="side" aria-label="{{web.html_app.1}}">
+    <div class="side-top"><div class="logo" aria-hidden="true">{{web.html_login_form.1}}</div><div><div class="name">{{web.html_top.1}}</div><div class="where" id="where"></div></div></div>
+    <button type="button" class="addbtn" id="addBtn">{{web.html_m4_text.1}}</button>
+    <button type="button" class="addbtn" id="newSessBtn" hidden>{{web.html_m4_text.2}}</button>
+    <div class="denied" id="denied" hidden aria-label="{{web.html_denied.1}}"></div>
     <a class="modenote" id="modeNote" href="/settings#pc" hidden></a>
     <div class="list" id="list"></div>
     <div class="side-bottom">
-      <button type="button" id="notifyBtn" aria-pressed="false" hidden title="이 탭을 보고 있지 않을 때 '○○가 답했어요' 알림(내용은 넣지 않음)"><span aria-hidden="true">🔕</span>알림</button>
-      <button type="button" id="tasksBtn" title="질문 하나하나의 진행·승인 대기·결과를 모아 봐요"><span aria-hidden="true">☰</span>작업<span class="badge" id="tasksBadge" hidden></span></button>
-      <button type="button" id="msgBtn"><span aria-hidden="true">✈</span>메신저</button>
-      <a href="/settings" id="settingsLink"><span aria-hidden="true">⚙</span>설정</a>
-      <button type="button" id="logoutBtn" hidden><span aria-hidden="true">⎋</span>로그아웃</button>
+      <button type="button" id="notifyBtn" aria-pressed="false" hidden title="{{web.html_notify_btn.1}}"><span aria-hidden="true">🔕</span>{{web.html_add_btn.1}}</button>
+      <button type="button" id="tasksBtn" title="{{web.html_tasks_btn.1}}"><span aria-hidden="true">☰</span>{{web.html_tasks.1}}<span class="badge" id="tasksBadge" hidden></span></button>
+      <button type="button" id="msgBtn"><span aria-hidden="true">✈</span>{{web.html_list.1}}</button>
+      <a href="/settings" id="settingsLink"><span aria-hidden="true">⚙</span>{{web.html_notify_btn.2}}</a>
+      <button type="button" id="logoutBtn" hidden><span aria-hidden="true">⎋</span>{{web.html_pending_out.1}}</button>
     </div>
   </aside>
 
-  <main class="chat" aria-label="대화">
+  <main class="chat" aria-label="{{web.html_logout_btn.1}}">
     <div class="head">
-      <button type="button" class="iconbtn back" id="backBtn" aria-label="대화 목록으로">←</button>
-      <h2 id="title">대화를 고르세요</h2>
+      <button type="button" class="iconbtn back" id="backBtn" aria-label="{{web.html_back_btn.1}}">←</button>
+      <h2 id="title">{{web.html_msg_btn.1}}</h2>
       <span class="chip" id="engineChip" hidden></span>
       <span class="chip" id="acctChip" hidden></span>
-      <span class="chip" id="workChip" hidden>작업 모드</span>
+      <span class="chip" id="workChip" hidden>{{web.html_logout_btn.2}}</span>
       <span class="chip" id="stateChip" hidden></span>
       <span class="spacer"></span>
-      <button type="button" class="switch" role="switch" aria-checked="false" id="liveSwitch" hidden><span class="knob"></span><span id="liveLabel">AI 응답 꺼짐</span></button>
-      <button type="button" class="iconbtn" id="speakBtn" aria-pressed="false" hidden title="새 답이 오면 소리로 읽어 줘요">🔈 읽어 주기</button>
-      <button type="button" class="iconbtn" id="panelBtn" aria-expanded="false" aria-label="연결 설정" hidden><span aria-hidden="true" class="ico">⋯</span><span class="lbl"> 연결 설정</span></button>
+      <button type="button" class="switch" role="switch" aria-checked="false" id="liveSwitch" hidden><span class="knob"></span><span id="liveLabel">{{web.html_title.1}}</span></button>
+      <button type="button" class="iconbtn" id="speakBtn" aria-pressed="false" hidden title="{{web.html_speak_btn.1}}">{{web.html_work_chip.1}}</button>
+      <button type="button" class="iconbtn" id="panelBtn" aria-expanded="false" aria-label="{{web.html_panel_btn.1}}" hidden><span aria-hidden="true" class="ico">⋯</span><span class="lbl"> {{web.html_panel_btn.1}}</span></button>
     </div>
-    <div class="cards" id="cards" aria-live="polite" aria-label="처리할 일"></div>
-    <div class="msgs" id="msgs" aria-live="polite"><div class="welcome" id="welcome">목록에서 대화를 고르면 이어서 질문할 수 있어요.</div></div>
+    <div class="cards" id="cards" aria-live="polite" aria-label="{{web.html_cards.1}}"></div>
+    <div class="msgs" id="msgs" aria-live="polite"><div class="welcome" id="welcome">{{web.html_speak_btn.2}}</div></div>
     <form class="compose" id="compose">
-      <button type="button" class="mic" id="micBtn" aria-label="말로 쓰기" title="말로 쓰기(받아쓴 글은 고친 뒤 보내요)" hidden>🎤</button>
-      <textarea id="question" rows="1" placeholder="메시지" aria-label="메시지" disabled></textarea>
-      <button id="send" disabled>보내기</button>
+      <button type="button" class="mic" id="micBtn" aria-label="{{web.html_mic_btn.1}}" title="{{web.html_mic_btn.2}}" hidden>🎤</button>
+      <textarea id="question" rows="1" placeholder="{{web.html_question.1}}" aria-label="{{web.html_question.1}}" disabled></textarea>
+      <button id="send" disabled>{{web.html_welcome.1}}</button>
     </form>
   </main>
 
-  <aside class="tasks" id="tasks" aria-label="작업" hidden>
-    <h3>작업 <button type="button" class="ghost" id="tasksClose" aria-label="닫기">✕</button></h3>
+  <aside class="tasks" id="tasks" aria-label="{{web.html_tasks.1}}" hidden>
+    <h3>{{web.html_tasks.1}} <button type="button" class="ghost" id="tasksClose" aria-label="{{web.html_tasks_close.1}}">✕</button></h3>
     <div id="taskBody"></div>
   </aside>
 
-  <aside class="panel" id="panel" aria-label="연결 설정" hidden>
-    <h3>연결 설정 <button type="button" class="ghost" id="panelClose" aria-label="닫기">✕</button></h3>
+  <aside class="panel" id="panel" aria-label="{{web.html_panel_btn.1}}" hidden>
+    <h3>{{web.html_panel_btn.1}} <button type="button" class="ghost" id="panelClose" aria-label="{{web.html_tasks_close.1}}">✕</button></h3>
     <dl class="kv">
-      <dt>엔진</dt><dd id="pEngine"></dd>
-      <dt>사용 계정</dt><dd id="pAccount"></dd>
-      <dt>잇는 방법</dt><dd id="pHow"></dd>
-      <dt>상태</dt><dd id="pState"></dd>
+      <dt>{{web.html_ns_title.3}}</dt><dd id="pEngine"></dd>
+      <dt>{{web.html_task_body.1}}</dt><dd id="pAccount"></dd>
+      <dt>{{web.html_panel.1}}</dt><dd id="pHow"></dd>
+      <dt>{{web.html_panel.2}}</dt><dd id="pState"></dd>
     </dl>
     <div class="sec" id="pWork" hidden>
-      <h4>작업 모드 <span class="tip" tabindex="0" role="note" aria-label="켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록)." data-tip="켜면 이 대화의 Codex가 파일을 고치거나 명령을 실행하려 할 때마다 대화 안에 [허용]/[거부] 카드가 떠요. 이번 한 번만 허용하고, 15분 안에 답하지 않으면 거부돼요. 쓰기는 이 대화의 작업 폴더 안만, 인터넷은 막혀요. 작업 폴더가 정해진 대화만 켤 수 있어요(설정 → PC 설정 → 허용 목록).">i</span></h4>
-      <label class="radio"><input type="checkbox" id="wmOn"> <span>작업 모드 켜기</span></label>
-      <details class="adv"><summary>사람이 직접 할 일 <span class="tip" tabindex="0" role="note" aria-label="여기에 맞는 일은 AI에게 묻지 않고 &quot;하지 마세요&quot;로 답한 뒤 사람에게 넘겨요(카드에 무엇을·어디서). 직접 처리했으면 &quot;직접 처리함&quot;을 눌러 기록해요." data-tip="여기에 맞는 일은 AI에게 묻지 않고 &quot;하지 마세요&quot;로 답한 뒤 사람에게 넘겨요(카드에 무엇을·어디서). 직접 처리했으면 &quot;직접 처리함&quot;을 눌러 기록해요.">i</span></summary>
-      <label class="radio"><input type="checkbox" id="hoCmd"> <span>모든 명령 실행</span></label>
-      <label class="radio"><input type="checkbox" id="hoFile"> <span>모든 파일 수정</span></label>
-      <label class="radio"><input type="checkbox" id="hoPerm"> <span>권한 추가 요청</span></label>
-      <label class="small">이 글자가 들어간 명령(쉼표로 여러 개, 예: git push, deploy, rm -rf)<input type="text" id="hoPat" maxlength="600"></label>
-      <button type="button" class="pbtn" id="hoSave">저장</button>
+      <h4>{{web.html_logout_btn.2}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_p_work.1}}" data-tip="{{web.html_p_work.1}}">i</span></h4>
+      <label class="radio"><input type="checkbox" id="wmOn"> <span>{{web.html_p_state.1}}</span></label>
+      <details class="adv"><summary>{{web.html_p_work.2}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_wm_on.1}}" data-tip="{{web.html_wm_on.1}}">i</span></summary>
+      <label class="radio"><input type="checkbox" id="hoCmd"> <span>{{web.html_p_work.3}}</span></label>
+      <label class="radio"><input type="checkbox" id="hoFile"> <span>{{web.html_p_work.4}}</span></label>
+      <label class="radio"><input type="checkbox" id="hoPerm"> <span>{{web.html_p_work.5}}</span></label>
+      <label class="small">{{web.html_p_work.6}}<input type="text" id="hoPat" maxlength="600"></label>
+      <button type="button" class="pbtn" id="hoSave">{{web.html_rd_guide.2}}</button>
       </details>
     </div>
     <div class="sec" id="pStaff">
-      <details class="adv"><summary>AI 직원 이름·역할 <span class="tip" tabindex="0" role="note" aria-label="방에서 @이름으로 불러요(빈칸 없이). 역할을 정하면 다음 질문 한 번에 역할 안내가 함께 가요." data-tip="방에서 @이름으로 불러요(빈칸 없이). 역할을 정하면 다음 질문 한 번에 역할 안내가 함께 가요.">i</span></summary>
-      <label class="small">이름 <input id="stName" maxlength="20" autocomplete="off"></label>
-      <label class="small">아이콘 <input id="stIcon" maxlength="2" style="width:3em" autocomplete="off"></label>
-      <label class="small">역할 <select id="stRole"><option value="">없음</option></select></label>
-      <button type="button" class="pbtn" id="stSave">저장</button>
+      <details class="adv"><summary>{{web.html_wm_on.2}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_p_staff.1}}" data-tip="{{web.html_p_staff.1}}">i</span></summary>
+      <label class="small">{{web.html_ns_host_row.1}} <input id="stName" maxlength="20" autocomplete="off"></label>
+      <label class="small">{{web.html_ho_cmd.1}} <input id="stIcon" maxlength="2" style="width:3em" autocomplete="off"></label>
+      <label class="small">{{web.html_ho_perm.1}} <select id="stRole"><option value="">{{web.html_ho_perm.2}}</option></select></label>
+      <button type="button" class="pbtn" id="stSave">{{web.html_rd_guide.2}}</button>
       </details>
     </div>
     <div class="sec" id="pData">
-      <h4>보관 기록 <span class="tip" tabindex="0" role="note" aria-label="이어온 서버(이 PC·허브)에 남은 이 대화의 질문·답만 지워요. 원래 Codex·Claude 세션 기록은 그대로예요. 처리 중일 때는 끝난 뒤 지우세요." data-tip="이어온 서버(이 PC·허브)에 남은 이 대화의 질문·답만 지워요. 원래 Codex·Claude 세션 기록은 그대로예요. 처리 중일 때는 끝난 뒤 지우세요.">i</span></h4>
-      <button type="button" class="pbtn danger" id="msgDel">이 대화의 서버 보관 기록 지우기</button>
+      <h4>{{web.html_ho_pat.1}} <span class="tip" tabindex="0" role="note" aria-label="{{web.html_p_data.1}}" data-tip="{{web.html_p_data.1}}">i</span></h4>
+      <button type="button" class="pbtn danger" id="msgDel">{{web.html_p_staff.2}}</button>
     </div>
     <div class="sec" id="pNew" hidden>
-      <h4>새 세션</h4>
+      <h4>{{web.html_p_staff.3}}</h4>
       <div id="pNewInfo" class="small"></div>
-      <button type="button" class="pbtn" id="nsSleep">잠재우기</button>
-      <button type="button" class="pbtn danger" id="nsDelete">삭제</button>
+      <button type="button" class="pbtn" id="nsSleep">{{web.html_st_name.1}}</button>
+      <button type="button" class="pbtn danger" id="nsDelete">{{web.html_st_icon.1}}</button>
     </div>
     <div class="sec">
-      <details class="adv" id="pAdv"><summary>고급</summary>
+      <details class="adv" id="pAdv"><summary>{{web.html_st_icon.2}}</summary>
         <div id="pMode" hidden>
-          <div class="small muted">Codex 연결 방식</div>
-          <label class="radio"><input type="radio" name="mode" value="alternate"> <span>번갈아 쓰기 <span class="muted small">(기본 · 보낼 때 Codex 앱에서 이 대화를 닫아 두기)</span></span></label>
-          <label class="radio"><input type="radio" name="mode" value="shared_server"> <span>동시 사용 <span class="muted small">(공유 서버와 TUI)</span></span></label>
+          <div class="small muted">{{web.html_st_role.1}}</div>
+          <label class="radio"><input type="radio" name="mode" value="alternate"> <span>{{web.html_st_save.1}} <span class="muted small">{{web.html_p_data.2}}</span></span></label>
+          <label class="radio"><input type="radio" name="mode" value="shared_server"> <span>{{web.html_p_data.3}} <span class="muted small">{{web.html_p_data.4}}</span></span></label>
         </div>
-        <dl class="kv small" style="margin-top:10px"><dt>대화 ID</dt><dd id="pId" class="small"></dd></dl>
+        <dl class="kv small" style="margin-top:10px"><dt>{{web.html_p_data.5}}</dt><dd id="pId" class="small"></dd></dl>
       </details>
     </div>
   </aside>
 </div>
 
 <script>
-const KIND_TXT = { api: ' · API 키', subscription: ' · 구독', compat: ' · 호환 주소' }; // SV3, A2-c
-const ENGINE = { codex_thread: 'Codex', claude_channel: 'Claude 채널', claude_cli: 'Claude', agy_cli: 'Antigravity', grok_cli: 'Grok' };
+const KIND_TXT = { api: t('web.kind_txt.1'), subscription: t('web.kind_txt.2'), compat: t('web.kind_txt.3') }; // SV3, A2-c
+const ENGINE = { codex_thread: 'Codex', claude_channel: t('web.engine.1'), claude_cli: 'Claude', agy_cli: 'Antigravity', grok_cli: 'Grok' };
 const AV = { codex_thread: 'Cx', claude_channel: 'Cl', claude_cli: 'Cl', agy_cli: 'Ag', grok_cli: 'Gk' };
-const HOW = { codex_thread: '보낼 때마다 같은 대화를 다시 열어 이어 씀', claude_channel: '실행 중인 세션에 직접 전달', claude_cli: '질문마다 같은 세션을 이어서 실행(서버 칸에서 사람이 그 폴더의 Claude를 열어 두면 보내지 않음)',
-  agy_cli: '질문마다 Antigravity CLI로 같은 대화를 이어 씀(읽기 전용, 다른 곳에서 쓰는 중이면 보내지 않음)', grok_cli: '질문마다 Grok CLI로 같은 세션을 이어 씀(읽기 전용, 보낼 때 다른 곳에서 열어 두지 마세요)' };
-const MODE = { alternate: '번갈아 쓰기', shared_server: '동시 사용' };
-const NS_STATE = { pending: '첫 질문 전', active: '깨어 있음', sleeping: '잠듦', archived: '보관됨' };
+const HOW = { codex_thread: t('web.how.1'), claude_channel: t('web.how.2'), claude_cli: t('web.how.3'),
+  agy_cli: t('web.how.4'), grok_cli: t('web.how.5') };
+const MODE = { alternate: t('web.html_st_save.1'), shared_server: t('web.html_p_data.3') };
+const NS_STATE = { pending: t('web.ns_state.1'), active: t('web.ns_state.2'), sleeping: t('web.ns_state.3'), archived: t('web.ns_state.4') };
 // I18N-a: 오류 문구는 사전 한 곳(locales/<언어>/errors.json — 웹·앱·메신저가 같이 씀). 여기에는 심각도만 둔다.
 const ERR_HARD = new Set(['session_load_failed', 'engine_not_installed', 'device_unavailable', 'shared_server_down', 'session_not_running', 'thread_not_allowed', 'shared_server_not_configured', 'profile_not_allowed', 'new_sessions_not_configured']);
 const ERR_CODES = [...new Set(I18N.dicts.flatMap((d) => Object.keys(d)))].filter((k) => /^errors\.[a-z_]+$/.test(k)).map((k) => k.slice(7));
 const ERR = Object.fromEntries(ERR_CODES.map((c) => [c, [ERR_HARD.has(c) ? 'err' : 'warn', t('errors.' + c)]]));
 const NS_ERR = Object.fromEntries([...new Set(I18N.dicts.flatMap((d) => Object.keys(d)))].filter((k) => /^errors\.ns\.[a-z_]+$/.test(k)).map((k) => [k.slice(10), t(k)]));
-const AUTH_ERR = { terms_required: '이용 약관과 개인정보 처리방침에 동의해 주세요', email_taken: '이미 신청한 이메일이에요 — 로그인해 보세요', bad_email: '이메일 모양이 맞지 않아요', signup_closed: '지금은 가입 신청을 받지 않아요', account_disabled: '쓸 수 없는 계정이에요(관리자에게 문의)', bad_password: '비밀번호가 맞지 않아요', weak_password: '비밀번호는 10자 이상으로 정하세요', locked: '여러 번 틀려 잠시 잠겼어요. 잠시 뒤 다시 하세요',
-  already_setup: '관리자가 이미 있어요. 로그인하세요', setup_required: '관리자를 먼저 만드세요', bad_origin: '이 화면에서 다시 시도하세요' };
+const AUTH_ERR = { terms_required: t('web.auth_err.1'), email_taken: t('web.auth_err.2'), bad_email: t('web.auth_err.3'), signup_closed: t('web.auth_err.4'), account_disabled: t('web.auth_err.5'), bad_password: t('web.auth_err.6'), weak_password: t('web.auth_err.7'), locked: t('web.auth_err.8'),
+  already_setup: t('web.auth_err.9'), setup_required: t('web.auth_err.10'), bad_origin: t('web.auth_err.11') };
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
@@ -479,7 +481,7 @@ let rooms = [], currentRoom = null, roomTimer = null; const roomSeen = new Map()
 async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
   $('newSessBtn').hidden = false; // 2026-11-20 신산님: 기능은 늘 보이고 누를 수 있음(못 쓰면 서버가 알려 줌)
-  if (r.status === 200) $('nsLimits').textContent = '지금 ' + r.body.sessions + '/' + r.body.maxSessions + '개 · Codex ' + r.body.perEngine.codex + '/' + r.body.maxPerEngine.codex + ' · Claude ' + r.body.perEngine.claude + '/' + r.body.maxPerEngine.claude + ' · Antigravity ' + (r.body.perEngine.antigravity ?? 0) + '/' + (r.body.maxPerEngine.antigravity ?? 0) + ' · Grok ' + (r.body.perEngine.grok ?? 0) + '/' + (r.body.maxPerEngine.grok ?? 0) + '. 명령 실행·인터넷(full) 권한은 설정 → 관리 → 대화 등록 → 새 세션에서 켜요.';
+  if (r.status === 200) $('nsLimits').textContent = t('web.load_limits.1', { sessions: r.body.sessions, max_sessions: r.body.maxSessions, codex: r.body.perEngine.codex, codex2: r.body.maxPerEngine.codex, claude: r.body.perEngine.claude, claude2: r.body.maxPerEngine.claude, antigravity: (r.body.perEngine.antigravity ?? 0), antigravity2: (r.body.maxPerEngine.antigravity ?? 0), grok: (r.body.perEngine.grok ?? 0), grok2: (r.body.maxPerEngine.grok ?? 0) });
 }
 // SV2: 허브에서는 새 세션을 만들 곳을 고른다 — 허브 자신(글로만 답해요) 또는 엔진 칸·PC(명령·파일 작업까지). 칸 Claude는 서버 Claude 로그인을 같이 씀.
 async function loadNsHosts() {
@@ -487,7 +489,7 @@ async function loadNsHosts() {
   const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).sort((a, b) => Number(Boolean(b.cell)) - Number(Boolean(a.cell))) : [];
   $('nsHostRow').hidden = false; const sel = $('nsHost'); const keep = sel.value; sel.replaceChildren();
   // 기본: 켜진 첫 엔진 칸(명령·파일 작업까지). 엔진 칸이 없으면 허브 자신(글로만 답해요)
-  for (const [v, t] of [['', '허브(글로만 답해요)'], ...list.map((d) => [d.hostId, (d.name || d.hostId) + (d.cell ? ' — 명령·파일 작업까지' : '') + (d.online ? '' : ' (꺼짐)')])]) { const o = el('option', t); o.value = v; sel.append(o); }
+  for (const [v, lbl] of [['', t('web.load_ns_hosts.1')], ...list.map((d) => [d.hostId, (d.name || d.hostId) + (d.cell ? t('web.load_ns_hosts.2') : '') + (d.online ? '' : t('web.load_ns_hosts.3'))])]) { const o = el('option', lbl); o.value = v; sel.append(o); }
   const def = list.find((d) => d.nsDefault)?.hostId ?? '';
   sel.value = [...sel.options].some((o) => o.value === keep) && keep ? keep : def;
 }
@@ -496,17 +498,17 @@ $('nsClose').onclick = () => { $('newSess').hidden = true; };
 $('nsForm').onsubmit = async (e) => {
   e.preventDefault();
   const r = await api('/v1/sessions', { method: 'POST', body: JSON.stringify({ engine: $('nsEngine').value, name: $('nsName').value.trim(), profile: $('nsProfile').value, ...($('nsHost').value ? { hostId: $('nsHost').value } : {}) }) });
-  if (r.status !== 201) return toast('err', '새 세션을 만들 수 없어요: ' + (NS_ERR[r.body.error] || r.body.error));
+  if (r.status !== 201) return toast('err', t('web.load_ns_hosts.4', { error: (NS_ERR[r.body.error] || r.body.error) }));
   $('nsName').value = ''; $('newSess').hidden = true;
   await loadLimits(); await select(r.body.conversationId);
-  toast('ok', '새 세션 "' + r.body.name + '"을 만들었어요. 첫 질문을 보내면 시작해요.');
+  toast('ok', t('web.load_ns_hosts.5', { name: r.body.name }));
 };
 
 function toast(kind, text) {
   clearTimeout(toastTimer);
-  const t = $('toast'); t.hidden = !text; if (!text) return;
-  t.className = 'toast ' + kind; t.textContent = text;
-  if (kind !== 'err') toastTimer = setTimeout(() => { t.hidden = true; }, 6000);
+  const box = $('toast'); box.hidden = !text; if (!text) return;
+  box.className = 'toast ' + kind; box.textContent = text;
+  if (kind !== 'err') toastTimer = setTimeout(() => { box.hidden = true; }, 6000);
 }
 const api = async (path, init = {}) => {
   const res = await fetch(path, { ...init, credentials: 'same-origin', headers: { 'content-type': 'application/json', ...(init.headers || {}) } });
@@ -526,19 +528,19 @@ function showLogin() {
   // M2: 허브에서 여러 사람 쓰기가 켜져 있으면 이메일 로그인·가입 신청(관리자는 이메일을 비우고 비밀번호만)
   const multi = !setup && authState?.mode === 'hub';
   $('email').hidden = !multi; $('signupBtn').hidden = !(multi && authState?.signupOpen); $('agreeRow').hidden = $('signupBtn').hidden; // M4: 약관 동의
-  $('loginTitle').textContent = setup ? '관리자 만들기' : '로그인';
-  $('loginHint').textContent = setup ? '처음 한 번 관리자 비밀번호(10자 이상)를 정해요. 다음부터 이 비밀번호로 들어와요.' : '';
+  $('loginTitle').textContent = setup ? t('web.show_login.1') : t('web.html_login_title.1');
+  $('loginHint').textContent = setup ? t('web.show_login.2') : '';
   $('pw2').hidden = !setup; $('pw2').required = Boolean(setup);
-  $('loginBtn').textContent = setup ? '만들기' : '로그인';
+  $('loginBtn').textContent = setup ? t('web.html_ns_limits.1') : t('web.html_login_title.1');
   $('pw').autocomplete = setup ? 'new-password' : 'current-password';
 }
 $('loginForm').onsubmit = async (e) => {
   e.preventDefault();
   const setup = authState?.setupRequired;
-  if (setup && $('pw').value !== $('pw2').value) return toast('err', '두 비밀번호가 달라요');
+  if (setup && $('pw').value !== $('pw2').value) return toast('err', t('web.show_login.3'));
   const email = $('email').hidden ? '' : $('email').value.trim();
   const r = await authPost(setup ? '/v1/auth/setup' : '/v1/auth/login', { password: $('pw').value, ...(email ? { email } : {}) });
-  if (r.status !== 200) return toast('err', AUTH_ERR[r.body.error] || r.body.error || '로그인하지 못했어요');
+  if (r.status !== 200) return toast('err', AUTH_ERR[r.body.error] || r.body.error || t('web.show_login.4'));
   $('pw').value = ''; $('pw2').value = ''; toast('', '');
   if (r.body.status === 'pending') return showPending();
   authState = { ...authState, setupRequired: false, loggedIn: true }; startApp();
@@ -547,11 +549,11 @@ $('logoutBtn').onclick = async () => { await authPost('/v1/auth/logout'); locati
 // M2 가입 신청: 이메일·비밀번호(10자 이상) → 승인 대기
 $('signupBtn').onclick = async () => {
   const email = $('email').value.trim(); const pw = $('pw').value;
-  if (!email) return toast('err', '가입 신청은 이메일과 비밀번호(10자 이상)를 넣어 주세요');
-  if (!$('agree').checked) return toast('err', '이용 약관과 개인정보 처리방침을 읽고 동의 칸을 눌러 주세요');
-  if (!confirm(email + '으로 가입을 신청할까요? 관리자가 승인하면 쓸 수 있어요.')) return;
+  if (!email) return toast('err', t('web.show_login.5'));
+  if (!$('agree').checked) return toast('err', t('web.show_login.6'));
+  if (!confirm(t('web.show_login.7', { email }))) return;
   const r = await authPost('/v1/auth/signup', { email, password: pw, agree: true });
-  if (r.status !== 201) return toast('err', AUTH_ERR[r.body.error] || r.body.error || '신청하지 못했어요');
+  if (r.status !== 201) return toast('err', AUTH_ERR[r.body.error] || r.body.error || t('web.show_login.8'));
   $('pw').value = ''; showPending();
 };
 
@@ -559,8 +561,8 @@ $('signupBtn').onclick = async () => {
 async function boot() {
   authState = await fetch('/v1/auth/state', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
   const hub = authState?.mode === 'hub';
-  document.title = '이어온 — ' + (hub ? '허브' : '이 PC');
-  $('where').textContent = hub ? '허브 · ' + location.host : '이 PC';
+  document.title = t('web.boot.1', { pc: (hub ? t('web.boot.4') : t('web.boot.3')) });
+  $('where').textContent = hub ? t('web.boot.2', { host: location.host }) : t('web.boot.3');
   $('settingsLink').href = hub ? '/settings#msg' : '/settings';
   $('logoutBtn').hidden = false;
   if (authState?.loggedIn && authState?.status === 'pending') return showPending();
@@ -584,13 +586,13 @@ async function startApp() {
 async function loadDevice() {
   const r = await api('/v1/admin/local/device').catch(() => ({ status: 0 }));
   device = r.status === 200 ? r.body : null;
-  $('liveSwitch').hidden = false; if (!device) $('liveLabel').textContent = 'AI 응답'; // 이 PC 화면이 아니면 상태를 모름(누르면 서버가 알려 줌)
-  if (device) { $('liveSwitch').setAttribute('aria-checked', String(device.live)); $('liveLabel').textContent = device.live ? 'AI 응답 켜짐' : 'AI 응답 꺼짐'; }
+  $('liveSwitch').hidden = false; if (!device) $('liveLabel').textContent = t('web.load_device.1'); // 이 PC 화면이 아니면 상태를 모름(누르면 서버가 알려 줌)
+  if (device) { $('liveSwitch').setAttribute('aria-checked', String(device.live)); $('liveLabel').textContent = device.live ? t('web.load_device.2') : t('web.html_title.1'); }
 }
 async function setLive(on, { confirmed = false } = {}) {
-  if (on && !confirmed && !confirm('AI 응답을 켜면 질문마다 Codex·Claude가 호출돼요. 켤까요?')) return false;
+  if (on && !confirmed && !confirm(t('web.set_live.1'))) return false;
   const r = await api('/v1/admin/local/device/live', { method: 'PUT', body: JSON.stringify({ live: on }) });
-  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'AI 응답을 ' + (on ? '켰어요' : '껐어요') : (r.body.error === 'local_only' ? '이 PC에서 연 화면에서만 바꿀 수 있어요' : '바꾸지 못했어요: ' + r.body.error));
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('web.set_live.2', { on: (on ? t('web.set_live.5') : t('web.set_live.6')) }) : (r.body.error === 'local_only' ? t('web.set_live.3') : t('web.set_live.4', { error: r.body.error })));
   await loadDevice(); await refresh();
   return r.status === 200;
 }
@@ -598,38 +600,38 @@ $('liveSwitch').onclick = () => setLive(!device?.live);
 
 // --- 대화 목록 ---
 function stateOf(c) {
-  if (hubMode) return ['warn', '허브에 연결됨 · 여기서는 못 보냄'];
-  if (!c.deviceOnline) return ['err', 'PC 연결 끊김'];
-  if (c.engineReady === false) return ['err', c.engine === 'claude_channel' ? 'Claude 세션 꺼짐' : '공유 서버 꺼짐'];
-  if (c.heldBy) return ['warn', '확인 필요'];
-  if (c.busy) return ['warn', '처리 중'];
-  if (c.newSession && c.newSession.state === 'sleeping') return ['', '잠듦 · 질문하면 깨어나요'];
-  return ['', '보낼 수 있음'];
+  if (hubMode) return ['warn', t('web.state_of.1')];
+  if (!c.deviceOnline) return ['err', t('web.state_of.2')];
+  if (c.engineReady === false) return ['err', c.engine === 'claude_channel' ? t('web.state_of.3') : t('web.state_of.4')];
+  if (c.heldBy) return ['warn', t('web.state_of.5')];
+  if (c.busy) return ['warn', t('web.state_of.6')];
+  if (c.newSession && c.newSession.state === 'sleeping') return ['', t('web.state_of.7')];
+  return ['', t('web.state_of.8')];
 }
 async function load() {
   const { body } = await api('/v1/conversations');
   convs = body.conversations; hubMode = body.hubMode === true;
   // M1: 이 PC의 사용 방식을 아직 고르지 않았으면 왼쪽 위에 한 줄 안내(허브 화면에는 mode 값이 없음)
-  if ('mode' in body) { $('modeNote').hidden = body.mode !== null; $('modeNote').textContent = '사용 방식을 정해 주세요 — ' + (hubMode ? '추천: 내 허브에 연결' : '추천: 이 PC에서만') + ' ›'; }
+  if ('mode' in body) { $('modeNote').hidden = body.mode !== null; $('modeNote').textContent = t('web.load.1', { pc: (hubMode ? t('web.load.12') : t('web.load.13')) }); }
   const list = $('list'); list.replaceChildren();
   // AP-1: 방(AI 직원 여러 명)
   rooms = (await api('/v1/rooms').catch(() => ({ body: { rooms: [] } }))).body?.rooms ?? [];
-  const rg = el('div', null, 'grp rooms'); rg.append(el('span', '방'));
-  const nr = el('button', '＋ 방'); nr.type = 'button'; nr.onclick = () => openRoomDlg(null); rg.append(nr); list.append(rg);
+  const rg = el('div', null, 'grp rooms'); rg.append(el('span', t('web.load.2')));
+  const nr = el('button', t('web.load.3')); nr.type = 'button'; nr.onclick = () => openRoomDlg(null); rg.append(nr); list.append(rg);
   for (const r of rooms) {
     const b = el('button', null, 'row'); b.type = 'button'; b.setAttribute('aria-current', String(currentRoom === r.roomId));
     const av = el('div', '👥', 'av'); av.setAttribute('aria-hidden', 'true');
     const box = el('div'); box.style.minWidth = '0';
-    box.append(el('div', r.name, 't'), el('div', 'AI 직원 ' + r.members.length + '명 · 대표 ' + (staffName(r.lead) || '—'), 's'));
+    box.append(el('div', r.name, 't'), el('div', t('web.load.4', { members: r.members.length, lead: (staffName(r.lead) || '—') }), 's'));
     b.append(av, box); b.onclick = () => selectRoom(r.roomId); list.append(b);
   }
   const live = convs.filter((c) => c.newSession?.state !== 'archived');
   const arch = convs.filter((c) => c.newSession?.state === 'archived');
-  list.append(el('div', 'AI 직원(대화)', 'grp')); // AP-1: 방 아래에 대화 목록(live 정의 뒤 — 앞에 두면 목록 전체가 멈춤, 2026-11-12 허브에서 발견)
-  if (!live.length) list.append(el('div', '연결한 대화가 없어요. 위의 "＋ 대화 연결"로 시작하세요.', 'empty'));
+  list.append(el('div', t('web.load.5'), 'grp')); // AP-1: 방 아래에 대화 목록(live 정의 뒤 — 앞에 두면 목록 전체가 멈춤, 2026-11-12 허브에서 발견)
+  if (!live.length) list.append(el('div', t('web.load.6'), 'empty'));
   // U6: 허브 화면은 PC별로 묶어 보인다(서버가 host를 줄 때만).
   const byHost = live.some((c) => c.host);
-  if (byHost) live.sort((a, b2) => String(a.host?.name).localeCompare(String(b2.host?.name), 'ko'));
+  if (byHost) live.sort((a, b2) => String(a.host?.name).localeCompare(String(b2.host?.name), I18N.lang));
   let lastHost = null;
   for (const c of live) {
     if (byHost && c.host?.id !== lastHost) { lastHost = c.host?.id; list.append(el('div', c.host?.name || 'PC', 'grp')); }
@@ -637,18 +639,18 @@ async function load() {
     const av = el('div', c.staff?.icon || AV[c.engine] || '?', 'av ' + c.engine); av.setAttribute('aria-hidden', 'true');
     const box = el('div'); box.style.minWidth = '0';
     const [k, s] = stateOf(c);
-    const t = el('div', c.label, 't');
-    if (c.attention > 0) { const n = el('span', String(c.attention), 'cnt'); n.setAttribute('aria-label', '처리할 일 ' + c.attention + '개'); t.append(n); }
-    box.append(t, el('div', '@' + (c.staff?.name ?? '') + (c.staff?.roleName ? ' · ' + c.staff.roleName : '') + ' · ' + (ENGINE[c.engine] || c.engine) + ' · ' + s, 's' + (k ? ' ' + k : '')));
+    const title = el('div', c.label, 't');
+    if (c.attention > 0) { const n = el('span', String(c.attention), 'cnt'); n.setAttribute('aria-label', t('web.load.7', { attention: c.attention })); title.append(n); }
+    box.append(title, el('div', '@' + (c.staff?.name ?? '') + (c.staff?.roleName ? ' · ' + c.staff.roleName : '') + ' · ' + (ENGINE[c.engine] || c.engine) + ' · ' + s, 's' + (k ? ' ' + k : '')));
     b.append(av, box); b.onclick = () => select(c.conversationId); list.append(b);
   }
   if (currentRoom && !rooms.some((r) => r.roomId === currentRoom)) { currentRoom = null; showEmpty(); }
   if (arch.length) {
-    const d = el('details', null, 'arch'); d.append(el('summary', '보관함 ' + arch.length));
+    const d = el('details', null, 'arch'); d.append(el('summary', t('web.load.8', { arch: arch.length })));
     for (const c of arch) {
-      const r = el('div', null, 'arow'); const btn = el('button', '꺼내기', 'pbtn'); btn.type = 'button';
+      const r = el('div', null, 'arow'); const btn = el('button', t('web.load.9'), 'pbtn'); btn.type = 'button';
       btn.onclick = async () => { const x = await api('/v1/sessions/' + c.conversationId + '/restore', { method: 'POST' });
-        toast(x.status === 200 ? 'ok' : 'err', x.status === 200 ? '"' + c.label + '"을 보관함에서 꺼냈어요' : '꺼낼 수 없어요: ' + x.body.error); load(); };
+        toast(x.status === 200 ? 'ok' : 'err', x.status === 200 ? t('web.load.10', { label: c.label }) : t('web.load.11', { error: x.body.error })); load(); };
       r.append(el('span', c.label), btn); d.append(r);
     }
     list.append(d);
@@ -657,8 +659,8 @@ async function load() {
   else if (current) { renderHead(); loadCards().catch(() => {}); }
 }
 function showEmpty() {
-  $('title').textContent = '대화를 고르세요'; $('engineChip').hidden = true; $('stateChip').hidden = true; $('panelBtn').hidden = true; setPanel(false);
-  $('msgs').replaceChildren(el('div', '왼쪽에서 대화를 고르면 이어서 질문할 수 있어요.', 'welcome'));
+  $('title').textContent = t('web.html_msg_btn.1'); $('engineChip').hidden = true; $('stateChip').hidden = true; $('panelBtn').hidden = true; setPanel(false);
+  $('msgs').replaceChildren(el('div', t('web.show_empty.1'), 'welcome'));
   $('question').disabled = true; $('send').disabled = true; $('app').classList.remove('in-chat');
 }
 
@@ -669,18 +671,18 @@ async function select(id) {
   await load();
   const { body } = await api('/v1/conversations/' + id + '/messages');
   const box = $('msgs'); box.replaceChildren();
-  if (!body.messages.length) box.append(el('div', '아직 이어온에서 주고받은 메시지가 없어요. 아래에 질문을 쓰면 같은 대화에서 이어서 답해요.', 'welcome'));
-  for (const m of body.messages) { box.append(el('div', m.question, 'bubble me')); box.append(el('div', m.answer ?? '(보관하지 않은 답변)', 'bubble ai')); }
+  if (!body.messages.length) box.append(el('div', t('web.select.1'), 'welcome'));
+  for (const m of body.messages) { box.append(el('div', m.question, 'bubble me')); box.append(el('div', m.answer ?? t('web.select.2'), 'bubble ai')); }
   renderHead(); box.scrollTop = box.scrollHeight;
   cardsKey = ''; await loadCards();
 }
 // --- U3 대화 연결 ---
-const CONN_ERR = { codex_unavailable: '이 PC의 Codex 목록을 불러오지 못했어요. Codex 앱이 설치·로그인돼 있는지 확인하세요.', excluded_session: '이 대화는 이어온에서 다룰 수 없어요.',
-  bad_session_ref: '대화 ID 형식이 아니에요(예: 01a18790-63c7-73e3-a60b-6ddb60fd5be8).', choose_host: '연결할 PC를 정할 수 없어요. 설정 → 관리 → 대화 등록에서 연결하세요.',
-  local_only: '이 PC에서 연 화면에서만 연결할 수 있어요.', no_connector_config: '이 PC의 연결부 설정이 없어요. 설치를 다시 실행하세요.',
-  device_offline: '그 PC가 꺼져 있어요. PC에서 이어온을 켠 뒤 다시 시도하세요.', device_no_response: '그 PC가 답하지 않아요. PC의 이어온이 켜져 있는지 확인하세요.',
-  device_admin_unknown: '그 PC가 처리했는지 확인하지 못했어요. 잠시 뒤 목록을 다시 열어 보세요.', unknown_host: '내 PC가 아니에요.', device_admin_busy: '그 PC가 다른 일을 처리 중이에요. 잠시 뒤 다시 시도하세요.' };
-const ago = (iso) => { if (!iso) return ''; const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.round(m / 60) + '시간 전' : Math.round(m / 1440) + '일 전'; };
+const CONN_ERR = { codex_unavailable: t('web.conn_err.1'), excluded_session: t('web.conn_err.2'),
+  bad_session_ref: t('web.conn_err.3'), choose_host: t('web.conn_err.4'),
+  local_only: t('web.conn_err.5'), no_connector_config: t('web.conn_err.6'),
+  device_offline: t('web.conn_err.7'), device_no_response: t('web.conn_err.8'),
+  device_admin_unknown: t('web.conn_err.9'), unknown_host: t('web.conn_err.10'), device_admin_busy: t('web.conn_err.11') };
+const ago = (iso) => { if (!iso) return ''; const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? t('web.ago.1') : m < 60 ? t('web.ago.2', { v: m }) : m < 1440 ? t('web.ago.3', { round: Math.round(m / 60) }) : t('web.ago.4', { round: Math.round(m / 1440) }); };
 // 허브 화면(가입자 포함, 2026-11-19): 내 PC를 고르면 허브가 그 PC에 목록을 물어 온다(PC가 허브로 연결하는 길 그대로). 이 PC 화면은 이 PC 목록.
 let connHostId = null;
 const threadsReq = () => connHostId ? api('/v1/admin/hosts/' + encodeURIComponent(connHostId) + '/run', { method: 'POST', body: JSON.stringify({ op: 'codex.threads' }) }) : api('/v1/admin/local/threads');
@@ -689,30 +691,30 @@ async function openConnect() {
   if (authState?.mode !== 'hub') { location.href = '/settings#reg'; return; } // hubMode는 "이 PC가 허브에 연결됨"이라 허브 화면 판정에 쓰지 않음(배포 뒤 실제 화면에서 찾음)
   const r = await api('/v1/admin/devices').catch(() => ({ status: 0 }));
   const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf && !d.cell) : [];
-  if (!list.length) { toast('err', '연결된 PC가 없어요. 설정 → 앱과 기기 → PC 연결 링크로 내 PC를 먼저 연결하세요.'); return; }
+  if (!list.length) { toast('err', t('web.open_connect.1')); return; }
   const sel = $('connHost'); sel.replaceChildren();
-  for (const d of list) { const o = el('option', (d.name || d.hostId) + (d.online ? '' : ' (꺼짐)')); o.value = d.hostId; sel.append(o); }
+  for (const d of list) { const o = el('option', (d.name || d.hostId) + (d.online ? '' : t('web.load_ns_hosts.3'))); o.value = d.hostId; sel.append(o); }
   sel.value = (list.find((d) => d.online) ?? list[0]).hostId; connHostId = sel.value;
   $('connHostRow').hidden = false;
-  $('connDesc').textContent = (list.length < 2 ? '"' + (list[0].name || list[0].hostId) + '"' : '고른 PC') + '에서 최근에 쓴 Codex 대화예요. 고르면 바로 연결돼요.';
+  $('connDesc').textContent = t('web.open_connect.3', { pc: (list.length < 2 ? '"' + (list[0].name || list[0].hostId) + '"' : t('web.open_connect.2')) });
   $('connect').hidden = false; loadThreads();
 }
 $('connHost').onchange = () => { connHostId = $('connHost').value; loadThreads(); };
 async function loadThreads(box = $('connList'), onPick = (body) => connect(body)) {
   const again = () => loadThreads(box, onPick);
-  box.replaceChildren(el('p', (connHostId ? 'PC' : '이 PC') + '의 대화를 찾는 중… (10초쯤 걸려요)', 'muted small'));
+  box.replaceChildren(el('p', t('web.load_threads.1', { pc: (connHostId ? 'PC' : t('web.boot.3')) }), 'muted small'));
   const r = await threadsReq().catch(() => null);
   box.replaceChildren();
   if (!r || r.status !== 200) {
-    box.append(el('p', CONN_ERR[r?.body?.error] || '대화 목록을 불러오지 못했어요.', 'muted small'));
-    box.append(btn('다시 시도', again)); return;
+    box.append(el('p', CONN_ERR[r?.body?.error] || t('web.load_threads.2'), 'muted small'));
+    box.append(btn(t('web.load_threads.3'), again)); return;
   }
-  if (!r.body.threads.length) { box.append(el('p', '이 PC에서 찾은 Codex 대화가 없어요. "고급"에서 대화 ID를 직접 넣을 수 있어요.', 'muted small')); return; }
+  if (!r.body.threads.length) { box.append(el('p', t('web.load_threads.4'), 'muted small')); return; }
   for (const th of r.body.threads) {
     const b = el('button', null, 'pick'); b.type = 'button'; b.disabled = th.connected;
     const av = el('div', 'Cx', 'av codex_thread'); av.setAttribute('aria-hidden', 'true');
-    const mid = el('div'); mid.style.minWidth = '0'; mid.append(el('div', th.title, 't'), el('div', th.workingDirectory || '작업 폴더 정보 없음', 's'));
-    b.append(av, mid, el('span', th.connected ? '연결됨' : ago(th.updatedAt), 'r'));
+    const mid = el('div'); mid.style.minWidth = '0'; mid.append(el('div', th.title, 't'), el('div', th.workingDirectory || t('web.load_threads.5'), 's'));
+    b.append(av, mid, el('span', th.connected ? t('web.load_threads.6') : ago(th.updatedAt), 'r'));
     b.onclick = () => onPick({ threadId: th.threadId, label: th.title, workingDirectory: th.workingDirectory });
     box.append(b);
   }
@@ -720,22 +722,22 @@ async function loadThreads(box = $('connList'), onPick = (body) => connect(body)
 async function connect(body, { open = true } = {}) {
   const r = connHostId ? await api('/v1/admin/hosts/' + encodeURIComponent(connHostId) + '/run', { method: 'POST', body: JSON.stringify({ op: 'codex.connect', args: body }) })
     : await api('/v1/admin/connections', { method: 'POST', body: JSON.stringify(body) });
-  if (r.status !== 200) { toast('err', CONN_ERR[r.body.error] || '연결하지 못했어요: ' + r.body.error); return null; }
+  if (r.status !== 200) { toast('err', CONN_ERR[r.body.error] || t('web.connect.1', { error: r.body.error })); return null; }
   $('connect').hidden = true; $('connId').value = ''; $('connName').value = '';
-  toast('ok', r.body.created ? '"' + body.label + '" 대화를 연결했어요' : '이미 연결된 대화예요');
+  toast('ok', r.body.created ? t('web.connect.2', { label: body.label }) : t('web.connect.3'));
   if (open) await select(r.body.conversationId);
   return r.body.conversationId;
 }
 
 // --- U5 메신저 연결 ---
 const PLAT_INFO = {
-  telegram: { name: '텔레그램', color: '#229ED9', mark: '✈', guide: ['텔레그램에서 @BotFather를 열어요', '/newbot을 보내고 봇 이름을 두 번 정해요', '받은 토큰을 아래 칸에 붙여 넣어요'] },
-  discord: { name: '디스코드', color: '#5865F2', mark: 'D', guide: ['discord.com/developers에서 New Application을 만들어요', 'Bot 메뉴에서 Reset Token → 토큰을 복사해요', '같은 화면에서 Message Content Intent를 켜요', 'OAuth2 링크로 봇을 서버에 초대해요(설명서 4.2)'] },
-  slack: { name: '슬랙', color: '#4A154B', mark: 'S', guide: ['api.slack.com/apps에서 "From an app manifest"로 앱을 만들어요(설명서 4.3의 manifest)', 'App-Level Token(xapp-…)과 Bot Token(xoxb-…)을 받아요', '두 토큰을 아래 칸에 붙여 넣어요'] },
-  line: { name: '라인', color: '#06C755', mark: 'L', guide: ['LINE Developers(developers.line.biz)에서 Messaging API 채널을 만들어요(라인 공식 계정이 함께 생겨요)', '채널 시크릿과 채널 액세스 토큰(장기)을 받아 아래 두 칸에 넣어요', 'Messaging API 설정의 Webhook URL에 아래 주소를 넣고 "Webhook 사용"을 켜요', '공식 계정 관리 화면의 응답 설정에서 자동 응답 메시지를 꺼요'] },
-  kakao: { name: '카카오톡', color: '#FEE500', ink: '#3a2f00', mark: 'K', guide: ['카카오 오픈빌더의 스킬 URL 칸에 아래 주소를 붙여 넣고 저장해요', '봇테스트나 채널 대화에서 봇에게 말을 걸 준비를 해요'] },
+  telegram: { name: t('web.plat_info.1'), color: '#229ED9', mark: '✈', guide: [t('web.plat_info.2'), t('web.plat_info.3'), t('web.plat_info.4')] },
+  discord: { name: t('web.plat_info.5'), color: '#5865F2', mark: 'D', guide: [t('web.plat_info.6'), t('web.plat_info.7'), t('web.plat_info.8'), t('web.plat_info.9')] },
+  slack: { name: t('web.plat_info.10'), color: '#4A154B', mark: 'S', guide: [t('web.plat_info.11'), t('web.plat_info.12'), t('web.plat_info.13')] },
+  line: { name: t('web.plat_info.14'), color: '#06C755', mark: 'L', guide: [t('web.plat_info.15'), t('web.plat_info.16'), t('web.plat_info.17'), t('web.plat_info.18')] },
+  kakao: { name: t('web.plat_info.19'), color: '#FEE500', ink: '#3a2f00', mark: 'K', guide: [t('web.plat_info.20'), t('web.plat_info.21')] },
 };
-const SEC_NAME = { TELEGRAM_BOT_TOKEN: '봇 토큰', DISCORD_BOT_TOKEN: '봇 토큰', SLACK_APP_TOKEN: '앱 토큰 (xapp-…)', SLACK_BOT_TOKEN: '봇 토큰 (xoxb-…)', LINE_CHANNEL_ACCESS_TOKEN: '채널 액세스 토큰', LINE_CHANNEL_SECRET: '채널 시크릿' };
+const SEC_NAME = { TELEGRAM_BOT_TOKEN: t('web.sec_name.1'), DISCORD_BOT_TOKEN: t('web.sec_name.1'), SLACK_APP_TOKEN: t('web.sec_name.2'), SLACK_BOT_TOKEN: t('web.sec_name.3'), LINE_CHANNEL_ACCESS_TOKEN: t('web.sec_name.4'), LINE_CHANNEL_SECRET: t('web.sec_name.5') };
 let msgPlat = null, msgTimer = null;
 const stopMsgTimer = () => { clearInterval(msgTimer); msgTimer = null; };
 function msgStep(n) { for (const i of [1, 2, 3, 4]) $('m' + i).hidden = i !== n; }
@@ -752,7 +754,7 @@ async function openMsg() {
     const b = bots.find((x) => x.platform === id && x.botId === 'default');
     // 꺼 둔 봇(예: 허브로 옮긴 봇)은 여기서 고를 수 없다 — 토큰을 넣으면 다른 곳과 겹칠 수 있음
     const off = b && b.enabled === false;
-    const st = off ? '꺼져 있음 · 다른 곳(허브 등)에서 쓰는 중일 수 있어요' : b?.status?.state === 'connected' ? '연결됨' + (b.status.username ? ' · ' + b.status.username : '') : b ? '설정 전' : '쓸 수 없음';
+    const st = off ? t('web.open_msg.1') : b?.status?.state === 'connected' ? t('web.open_msg.2', { username: (b.status.username ? ' · ' + b.status.username : '') }) : b ? t('web.open_msg.3') : t('web.open_msg.4');
     const btnEl = el('button', null, 'pick'); btnEl.type = 'button'; btnEl.disabled = !b || off;
     const av = el('div', info.mark, 'av'); av.style.background = info.color; if (info.ink) av.style.color = info.ink; av.setAttribute('aria-hidden', 'true');
     const mid = el('div'); mid.style.minWidth = '0'; mid.append(el('div', info.name, 't'), el('div', st, 's'));
@@ -761,42 +763,42 @@ async function openMsg() {
 }
 async function msgSetup(platform) {
   msgPlat = platform; const info = PLAT_INFO[platform]; msgStep(2);
-  $('m2Title').textContent = info.name + ' 연결';
+  $('m2Title').textContent = t('web.msg_setup.1', { name: info.name });
   $('m2Guide').replaceChildren(...info.guide.map((g) => el('li', g)));
   const fields = $('m2Fields'); fields.replaceChildren(); $('m2Note').textContent = '';
   if (platform === 'kakao') {
     const r = await api('/v1/admin/kakao/skill-url').catch(() => null);
-    if (r?.status !== 200) { fields.append(el('p', '이 화면에서는 카카오 스킬 URL을 만들 수 없어요. 고급 설정을 보세요.', 'muted small')); $('m2Next').hidden = true; return; }
-    const wrap = el('label', null, 'field'); wrap.append('스킬 URL');
+    if (r?.status !== 200) { fields.append(el('p', t('web.msg_setup.2'), 'muted small')); $('m2Next').hidden = true; return; }
+    const wrap = el('label', null, 'field'); wrap.append(t('web.msg_setup.3'));
     const inp = el('input'); inp.readOnly = true; inp.value = r.body.url; wrap.append(inp); fields.append(wrap);
-    fields.append(btn('복사', async () => { try { await navigator.clipboard.writeText(r.body.url); toast('ok', '복사했어요'); } catch { inp.select(); } }));
-    $('m2Note').textContent = '비밀 경로가 들어 있으니 다른 곳에 올리지 마세요. PC 화면과 허브 화면 중 마지막에 붙여 넣은 쪽이 답해요.';
-    $('m2Next').hidden = false; $('m2Next').textContent = '붙여 넣었어요'; return;
+    fields.append(btn(t('web.msg_setup.4'), async () => { try { await navigator.clipboard.writeText(r.body.url); toast('ok', t('web.msg_setup.5')); } catch { inp.select(); } }));
+    $('m2Note').textContent = t('web.msg_setup.6');
+    $('m2Next').hidden = false; $('m2Next').textContent = t('web.msg_setup.7'); return;
   }
   const r = await api('/v1/admin/secrets').catch(() => null);
   const names = r?.status === 200 ? r.body.names.filter((s) => s.platform === platform && s.botId === 'default' && !s.internal) : [];
   for (const s of names) {
-    const wrap = el('label', null, 'field'); wrap.append((SEC_NAME[s.name] || s.name) + (s.present ? ' — 저장돼 있음(바꿀 때만 입력)' : ''));
-    const inp = el('input'); inp.type = 'password'; inp.autocomplete = 'off'; inp.dataset.name = s.name; inp.placeholder = s.present ? '바꾸려면 새 토큰' : '붙여 넣기';
+    const wrap = el('label', null, 'field'); wrap.append((SEC_NAME[s.name] || s.name) + (s.present ? t('web.msg_setup.8') : ''));
+    const inp = el('input'); inp.type = 'password'; inp.autocomplete = 'off'; inp.dataset.name = s.name; inp.placeholder = s.present ? t('web.msg_setup.9') : t('web.msg_setup.10');
     wrap.append(inp); fields.append(wrap);
   }
-  $('m2Note').textContent = '토큰은 이 PC(또는 허브)에만 저장되고 다시 보이지 않아요. 같은 봇을 PC와 허브에 함께 켜지 마세요.';
-  $('m2Next').hidden = false; $('m2Next').textContent = '연결';
+  $('m2Note').textContent = t('web.msg_setup.11');
+  $('m2Next').hidden = false; $('m2Next').textContent = t('web.html_conn_id.1');
   // L1 라인: 라인이 우리 쪽으로 보내 주는 주소(webhook)를 함께 보여 준다. 공개 중계·허브가 없으면 만들 수 없다.
   if (platform === 'line') {
     const w = await api('/v1/admin/line/webhook-url').catch(() => null);
-    if (w?.status !== 200) { fields.append(el('p', '이 화면에서는 라인 webhook 주소를 만들 수 없어요. 라인은 공개 주소가 필요해 허브(또는 공개 중계)에서 연결해요.', 'muted small')); $('m2Next').hidden = true; return; }
+    if (w?.status !== 200) { fields.append(el('p', t('web.msg_setup.12'), 'muted small')); $('m2Next').hidden = true; return; }
     const wrap = el('label', null, 'field'); wrap.append('Webhook URL');
     const inp = el('input'); inp.readOnly = true; inp.value = w.body.url; wrap.append(inp); fields.append(wrap);
-    fields.append(btn('복사', async () => { try { await navigator.clipboard.writeText(w.body.url); toast('ok', '복사했어요'); } catch { inp.select(); } }));
-    $('m2Note').textContent += ' Webhook URL에는 비밀 경로가 들어 있으니 다른 곳에 올리지 마세요. 실제 답은 라인 "보내기"로 가서 공식 계정 요금제의 월 무료 건수에 들어가요.';
+    fields.append(btn(t('web.msg_setup.4'), async () => { try { await navigator.clipboard.writeText(w.body.url); toast('ok', t('web.msg_setup.5')); } catch { inp.select(); } }));
+    $('m2Note').textContent += t('web.msg_setup.13');
   }
 }
 $('m2Next').onclick = async () => {
   for (const inp of $('m2Fields').querySelectorAll('input[data-name]')) {
     const v = inp.value.trim(); if (!v) continue;
     const r = await api('/v1/admin/secrets/' + inp.dataset.name, { method: 'PUT', body: JSON.stringify({ value: v }) });
-    if (r.status !== 200) return toast('err', r.body.error === 'bad_secret_value' ? '토큰 형식이 맞지 않아요(앞뒤 공백·줄바꿈 없이)' : '저장하지 못했어요: ' + r.body.error);
+    if (r.status !== 200) return toast('err', r.body.error === 'bad_secret_value' ? t('web.msg_setup.14') : t('web.msg_setup.15', { error: r.body.error }));
     inp.value = '';
   }
   await msgClaim();
@@ -807,39 +809,39 @@ async function msgClaim() {
   $('m3Code').textContent = '······';
   // 토큰이 필요한 메신저는 봇이 연결될 때까지 기다린다(웹 저장 뒤 1분 안).
   if (msgPlat !== 'kakao') {
-    $('m3Hint').textContent = info.name + ' 봇을 연결하는 중이에요… (2분 안에)'; $('m3Wait').textContent = '';
-    const DETAIL = { bad_access_token: '토큰이 맞지 않아요(그 메신저가 거절함) — 토큰을 다시 발급해 넣어 보세요', unauthorized: '토큰이 맞지 않아요', relay_unauthorized: '중계 연결 열쇠가 맞지 않아요', relay_missing: '공개 중계(또는 허브)가 준비돼 있지 않아요', kakaoRelayUrl_missing: '공개 중계 주소가 없어요' };
+    $('m3Hint').textContent = t('web.msg_claim.1', { name: info.name }); $('m3Wait').textContent = '';
+    const DETAIL = { bad_access_token: t('web.msg_claim.2'), unauthorized: t('web.msg_claim.3'), relay_unauthorized: t('web.msg_claim.4'), relay_missing: t('web.msg_claim.5'), kakaoRelayUrl_missing: t('web.msg_claim.6') };
     const savedAt = Date.now();
     for (let i = 0; i < 40; i += 1) {
       const b = await botOf(msgPlat);
       const s = b?.status?.state;
       if (s === 'connected') break;
       // A1: 연결 실패 이유가 오면 바로 보여 준다(예: 라인이 토큰을 거절).
-      if (s === 'error' && b.status.detail && Date.parse(b.status.at) >= savedAt - 5000) { $('m3Hint').textContent = '봇이 연결되지 않았어요 — ' + (DETAIL[b.status.detail] || b.status.detail) + '. 뒤로 가서 토큰을 확인하세요.'; return; }
+      if (s === 'error' && b.status.detail && Date.parse(b.status.at) >= savedAt - 5000) { $('m3Hint').textContent = t('web.msg_claim.7', { detail: (DETAIL[b.status.detail] || b.status.detail) }); return; }
       // 저장 직후에는 봇이 다음 확인 주기(최대 1분)까지 예전 상태(토큰 없음)로 남아 있다 — 75초 동안은 기다린다.
-      if (s === 'relay_off') { $('m3Hint').textContent = '카카오톡·라인은 공개 중계(또는 허브)가 있어야 받을 수 있어요. 지금 이 PC는 공개 중계 없이 쓰는 중이라 이 메신저는 쓸 수 없어요(텔레그램·디스코드·슬랙은 그대로 돼요).'; return; }
+      if (s === 'relay_off') { $('m3Hint').textContent = t('web.msg_claim.8'); return; }
       if (s === 'token_missing' && Date.now() - savedAt < 75_000) { await new Promise((ok) => setTimeout(ok, 3000)); if ($('msg').hidden) return; continue; }
-      if (['token_missing', 'duplicate_token', 'conflict', 'error'].includes(s) && i > 3) { $('m3Hint').textContent = '봇이 연결되지 않았어요(' + ({ token_missing: '토큰 없음', duplicate_token: '토큰 중복', conflict: '다른 곳에서 같은 봇을 켜 둠', error: '연결 오류' })[s] + '). 뒤로 가서 토큰을 확인하세요.'; return; }
+      if (['token_missing', 'duplicate_token', 'conflict', 'error'].includes(s) && i > 3) { $('m3Hint').textContent = t('web.msg_claim.9', { error: ({ token_missing: t('web.msg_claim.20'), duplicate_token: t('web.msg_claim.21'), conflict: t('web.msg_claim.22'), error: t('web.msg_claim.23') })[s] }); return; }
       await new Promise((ok) => setTimeout(ok, 3000));
       if ($('msg').hidden) return;
     }
   }
   const b = await botOf(msgPlat);
   const r = await api('/v1/admin/messenger/claim', { method: 'POST', body: JSON.stringify({ platform: msgPlat, botId: 'default' }) });
-  if (r.status !== 200) { $('m3Hint').textContent = '숫자를 만들지 못했어요: ' + r.body.error; return; }
-  const who = b?.status?.username || info.name + ' 봇';
-  $('m3Hint').textContent = who + '에게 아래 숫자를 보내면, 보낸 사람이 이 봇의 주인으로 등록돼요.';
-  $('m3Code').textContent = r.body.code; $('m3Code').setAttribute('aria-label', '확인 숫자 ' + r.body.code.split('').join(' '));
-  $('m3Wait').textContent = '기다리는 중… (10분 안에)';
+  if (r.status !== 200) { $('m3Hint').textContent = t('web.msg_claim.10', { error: r.body.error }); return; }
+  const who = b?.status?.username || t('web.msg_claim.11', { name: info.name });
+  $('m3Hint').textContent = t('web.msg_claim.12', { who });
+  $('m3Code').textContent = r.body.code; $('m3Code').setAttribute('aria-label', t('web.msg_claim.13', { split: r.body.code.split('').join(' ') }));
+  $('m3Wait').textContent = t('web.msg_claim.14');
   msgTimer = setInterval(async () => {
     const s = await api('/v1/admin/messenger/claim?platform=' + encodeURIComponent(msgPlat) + '&botId=default').catch(() => null);
     const st = s?.body?.state;
     if (st === 'claimed') {
       stopMsgTimer(); msgStep(4);
-      $('m4Text').textContent = (s.body.name ? s.body.name + '님이' : '보낸 사람이') + ' ' + info.name + ' 봇의 주인으로 등록됐어요. 이제 봇에게 질문하면 연결한 대화가 답해요. 대화를 바꾸려면 메신저에서 /sessions를 보내세요.';
+      $('m4Text').textContent = t('web.msg_claim.17', { name: (s.body.name ? t('web.msg_claim.15', { name: s.body.name }) : t('web.msg_claim.16')), name2: info.name });
       loadDenied();
     } else if (st === 'expired' || st === 'locked') {
-      stopMsgTimer(); $('m3Wait').textContent = st === 'expired' ? '10분이 지나 숫자가 만료됐어요. 숫자를 새로 받으세요.' : '여러 번 틀려 막혔어요. 숫자를 새로 받으세요.';
+      stopMsgTimer(); $('m3Wait').textContent = st === 'expired' ? t('web.msg_claim.18') : t('web.msg_claim.19');
     }
   }, 3000);
 }
@@ -856,7 +858,7 @@ let setupConv = null;
 function setupStep(n) {
   for (const i of [0, 1, 2, 3]) $('s' + i).hidden = i !== n;
   [...document.querySelectorAll('#setup .dots i')].forEach((d, i) => d.classList.toggle('on', i === n - 1));
-  $('sStep').textContent = n === 0 ? '사용 방식' : n + ' / 3';
+  $('sStep').textContent = n === 0 ? t('web.setup_step.1') : n + ' / 3';
 }
 function closeSetup() { $('setup').hidden = true; try { localStorage.setItem('ieon_setup_done', '1'); } catch { /* 저장 못 해도 동작 */ } if (location.hash === '#setup') history.replaceState(null, '', location.pathname); }
 async function openSetup() {
@@ -864,11 +866,11 @@ async function openSetup() {
   // M1: 사용 방식을 아직 고르지 않았으면 0단계부터
   const md = await api('/v1/admin/local/mode').catch(() => null);
   setupStep(md?.status === 200 && !md.body.mode ? 0 : 1);
-  $('sCodex').textContent = '…'; $('sCodex').className = 'st'; $('sCodexHint').textContent = '확인 중…';
+  $('sCodex').textContent = '…'; $('sCodex').className = 'st'; $('sCodexHint').textContent = t('web.html_setup_title.2');
   const r = await api('/v1/admin/local/engines').catch(() => null);
   const ok = r?.status === 200 && r.body.codex.loggedIn;
-  $('sCodex').textContent = ok ? '✓ 준비됨' : '로그인 필요'; $('sCodex').className = 'st ' + (ok ? 'ok' : 'warn');
-  $('sCodexHint').textContent = ok ? '이 PC의 Codex에 로그인돼 있어요' : 'Codex 앱에서 로그인한 뒤 계속하세요(계속해도 돼요)';
+  $('sCodex').textContent = ok ? t('web.open_setup.1') : t('web.open_setup.2'); $('sCodex').className = 'st ' + (ok ? 'ok' : 'warn');
+  $('sCodexHint').textContent = ok ? t('web.open_setup.3') : t('web.open_setup.4');
 }
 $('s1Next').onclick = () => { setupStep(2); loadThreads($('sList'), async (body) => { const id = await connect(body, { open: false }); if (id) { setupConv = id; setupStep(3); } }); };
 $('s3Open').onclick = async () => { closeSetup(); await load(); if (setupConv) await select(setupConv); };
@@ -876,12 +878,12 @@ $('sSkip').onclick = async () => { if (!$('s0').hidden) await setMode('pc'); clo
 $('s0Pc').onclick = async () => { if (await setMode('pc')) setupStep(1); };
 $('s0Hub').onclick = async () => { if (await setMode('hub')) { closeSetup(); location.href = '/settings#apps'; } };
 // --- M1: 사용 방식(① 이 PC에서만 · ② 내 허브). 서버가 모드에 맞지 않는 기능을 켜지 않는다 ---
-const MODE_TXT_M = { pc: '이 PC에서만', hub: '내 허브에 연결' };
-const MODE_ERR = { requests_pending: '처리 중이거나 확인이 필요한 질문이 있어 지금은 바꿀 수 없어요. 정리한 뒤 다시 하세요', local_only: '이 PC에서 연 화면에서만 바꿀 수 있어요', bad_mode: '사용 방식이 맞지 않아요' };
+const MODE_TXT_M = { pc: t('web.html_s0.2'), hub: t('web.html_s0_pc.1') };
+const MODE_ERR = { requests_pending: t('web.mode_err.1'), local_only: t('web.set_live.3'), bad_mode: t('web.mode_err.2') };
 async function setMode(next) {
   const g = await api('/v1/admin/local/mode'); if (g.status !== 200) return false;
   const e = g.body.effects[next];
-  if (g.body.mode && g.body.mode !== next && !confirm(MODE_TXT_M[next] + '(으)로 바꿀까요?\n\n끕니다: ' + e.off.join(', ') + '\n켭니다: ' + e.on.join(', ') + '\n\n대화 기록·허용 목록·봇 설정은 지우지 않아요.')) return false;
+  if (g.body.mode && g.body.mode !== next && !confirm(t('web.set_mode.1', { next: MODE_TXT_M[next], off: e.off.join(', '), on: e.on.join(', ') }))) return false;
   const r = await api('/v1/admin/local/mode', { method: 'PUT', body: JSON.stringify({ mode: next }) });
   if (r.status !== 200) { alert(MODE_ERR[r.body.error] || r.body.error); return false; }
   return r.body;
@@ -892,13 +894,13 @@ $('addBtn').onclick = openConnect;
 $('connClose').onclick = () => { $('connect').hidden = true; };
 $('connect').addEventListener('click', (e) => { if (e.target === $('connect')) $('connect').hidden = true; });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('connect').hidden) $('connect').hidden = true; });
-$('connManual').onsubmit = (e) => { e.preventDefault(); connect({ threadId: $('connId').value.trim(), label: $('connName').value.trim() || '이름 없는 대화' }); };
+$('connManual').onsubmit = (e) => { e.preventDefault(); connect({ threadId: $('connId').value.trim(), label: $('connName').value.trim() || t('web.set_mode.2') }); };
 
 // --- U2 카드: 서버가 대화별로 모아 준 처리할 일 + 이번에 보내다 막힌 질문(다시 보내기) ---
 const BLOCKING = new Set(['hub_mode', 'device_offline', 'engine_off', 'held', 'archived']);
 let cards = [], cardsKey = '', retry = null; // retry: { conversationId, question, code }
 const done = []; // 누른 결과 기록 { conversationId, title, text, at } — 이 화면을 연 동안 그 대화의 카드 자리에 남는다
-const hhmm = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+const hhmm = () => new Date().toLocaleTimeString(t('common.intl_locale'), { hour: '2-digit', minute: '2-digit' });
 const record = (card, text) => {
   done.push({ conversationId: current, title: card.getAttribute('aria-label'), text, at: hhmm() });
   if (done.length > 20) done.shift();
@@ -914,96 +916,96 @@ function btn(label, fn) { const b = el('button', label); b.type = 'button'; b.on
 function cardView(k, c) {
   // W1: 엔진이 승인을 기다림 — 이번 한 번만 허용 또는 거부(항상 허용 없음). 15분 안에 답이 없으면 자동으로 거부돼요.
   if (k.kind === 'approval') {
-    const title = { command: '명령을 실행해도 될까요?', file: '파일을 고쳐도 될까요?', permissions: '권한을 더 써도 될까요?' }[k.approvalKind] || '허용할까요?';
+    const title = { command: t('web.card_view.1'), file: t('web.card_view.2'), permissions: t('web.card_view.3') }[k.approvalKind] || t('web.card_view.4');
     const left = Math.max(0, Math.round((Date.parse(k.expiresAt) - Date.now()) / 60000));
     let card;
     const decide = async (decision) => {
       const r = await api('/v1/approvals/' + k.approvalId, { method: 'POST', body: JSON.stringify({ decision }) });
-      if (r.status !== 200) return toast('err', r.body.error === 'approval_closed' ? '이미 끝난 요청이에요(' + ({ expired: '시간이 지나 거부됨', turn_ended: '차례가 끝나 거부됨', allowed: '허용됨', denied: '거부됨' }[r.body.status] || r.body.status) + ')' : '처리하지 못했어요: ' + r.body.error);
-      record(card, decision === 'allow' ? '허용함(이번 한 번)' : '거부함'); refresh();
+      if (r.status !== 200) return toast('err', r.body.error === 'approval_closed' ? t('web.card_view.5', { status: ({ expired: t('web.card_view.73'), turn_ended: t('web.card_view.74'), allowed: t('web.card_view.75'), denied: t('web.card_view.76') }[r.body.status] || r.body.status) }) : t('web.card_view.6', { error: r.body.error }));
+      record(card, decision === 'allow' ? t('web.card_view.7') : t('web.card_view.8')); refresh();
     };
     // RC1: 누가(AI 직원)·무엇을·어디서 하려는지와 승인 번호(메신저의 /허용 n 과 같은 번호)
-    card = makeCard('warn', (k.agent ? k.agent + ' — ' : '') + title, (k.n ? '승인 요청 ' + k.n + '  · ' : '') + (k.summary || '(내용 없음)') + (k.cwd ? '  · 작업 폴더 ' + k.cwd : '') + '  · ' + left + '분 안에 답하지 않으면 거부돼요', [btn('허용', () => decide('allow')), btn('거부', () => decide('deny'))]);
+    card = makeCard('warn', (k.agent ? k.agent + ' — ' : '') + title, t('web.card_view.12', { cwd: ((k.n ? t('web.card_view.9', { k: k.n }) : '') + (k.summary || t('web.card_view.10')) + (k.cwd ? t('web.card_view.11', { cwd: k.cwd }) : '')), left }), [btn(t('web.card_view.13'), () => decide('allow')), btn(t('web.card_view.14'), () => decide('deny'))]);
     return card;
   }
   // RC5: 사람에게 넘긴 일 — AI에게는 하지 말라고 전했고, 사람이 직접 처리했는지 기록
   if (k.kind === 'handoff') {
-    const what = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' }[k.approvalKind] || '요청';
+    const what = { command: t('web.card_view.15'), file: t('web.card_view.16'), permissions: t('web.card_view.17') }[k.approvalKind] || t('web.card_view.18');
     let card;
     const mark = async (decision) => {
       const r = await api('/v1/approvals/' + k.approvalId, { method: 'POST', body: JSON.stringify({ decision }) });
-      if (r.status !== 200) return toast('err', '처리하지 못했어요: ' + r.body.error);
-      record(card, decision === 'done' ? '직접 처리함' : '하지 않기로 함'); refresh();
+      if (r.status !== 200) return toast('err', t('web.card_view.6', { error: r.body.error }));
+      record(card, decision === 'done' ? t('web.card_view.19') : t('web.card_view.20')); refresh();
     };
-    card = makeCard('warn', (k.agent ? k.agent + ' — ' : '') + '사람이 직접 할 일' + (k.n ? ' ' + k.n : '') + ': ' + what,
-      (k.summary || '(내용 없음)') + (k.cwd ? '  · 작업 폴더 ' + k.cwd : '') + '  · AI에게는 "하지 마세요"로 답했어요. 필요하면 직접 처리한 뒤 기록하세요.',
-      [btn('직접 처리함', () => mark('done')), btn('하지 않음', () => mark('drop'))]);
+    card = makeCard('warn', t('web.card_view.21', { agent: (k.agent ? k.agent + ' — ' : ''), k: (k.n ? ' ' + k.n : ''), what }),
+      t('web.card_view.22', { cwd: ((k.summary || t('web.card_view.10')) + (k.cwd ? t('web.card_view.11', { cwd: k.cwd }) : '')) }),
+      [btn(t('web.card_view.19'), () => mark('done')), btn(t('web.card_view.23'), () => mark('drop'))]);
     return card;
   }
   // RC1: 결정한 뒤 — 같은 요청이 승인됨 → 실행 중 → 완료/실패/결과 불명으로 바뀐다(버튼 없음, 결정 뒤 30분 동안 보임)
   if (k.kind === 'approval_result') {
-    const what = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' }[k.approvalKind] || '요청';
+    const what = { command: t('web.card_view.15'), file: t('web.card_view.16'), permissions: t('web.card_view.17') }[k.approvalKind] || t('web.card_view.18');
     const st = {
-      approved: ['info', '승인됨 — 엔진에 전달하는 중'], running: ['info', '승인됨 — 실행 중'], completed: ['info', '실행 완료'],
-      failed: ['err', '실행 실패' + (Number.isInteger(k.exitCode) ? '(종료 코드 ' + k.exitCode + ')' : '')],
-      unknown: ['warn', '결과 불명 — 허용했지만 실행 결과를 확인하지 못했어요. 원래 세션에서 확인하세요(자동으로 다시 실행하지 않아요)'],
-      denied: ['info', '거부함 — 실행하지 않았어요'], expired: ['info', '시간이 지나 거부됨 — 실행하지 않았어요'], turn_ended: ['info', '차례가 끝나 거부됨 — 실행하지 않았어요'],
-      handoff_done: ['info', '사람이 직접 처리함'], handoff_dropped: ['info', '사람에게 넘겼고 하지 않기로 함'],
+      approved: ['info', t('web.card_view.24')], running: ['info', t('web.card_view.25')], completed: ['info', t('web.card_view.26')],
+      failed: ['err', t('web.card_view.27', { exit_code: (Number.isInteger(k.exitCode) ? t('web.card_view.77', { exit_code: k.exitCode }) : '') })],
+      unknown: ['warn', t('web.card_view.28')],
+      denied: ['info', t('web.card_view.29')], expired: ['info', t('web.card_view.30')], turn_ended: ['info', t('web.card_view.31')],
+      handoff_done: ['info', t('web.card_view.32')], handoff_dropped: ['info', t('web.card_view.33')],
     }[k.state] || ['info', k.state];
-    return makeCard(st[0], (k.agent ? k.agent + ' — ' : '') + (k.n ? '승인 요청 ' + k.n + ' · ' : '') + what + ': ' + st[1], (k.summary || '') + (k.cwd ? '  · 작업 폴더 ' + k.cwd : ''));
+    return makeCard(st[0], (k.agent ? k.agent + ' — ' : '') + (k.n ? t('web.card_view.34', { k: k.n }) : '') + what + ': ' + st[1], (k.summary || '') + (k.cwd ? t('web.card_view.11', { cwd: k.cwd }) : ''));
   }
   if (k.kind === 'hub_mode') {
     const acts = [];
-    if (/^https?:\/\//.test(k.hubUrl || '')) { const a = el('a', '허브 화면 열기'); a.href = k.hubUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; acts.push(a); }
-    return makeCard('warn', '이 PC는 허브에 연결돼 있어요', '여기서 보낸 질문은 처리하지 않아요. 허브 화면이나 허브에 연결된 메신저 봇에서 보내세요. 허브 연결을 끊으려면 설정 → 앱과 기기 → 허브 연결에서 "연결 끊기".', acts);
+    if (/^https?:\/\//.test(k.hubUrl || '')) { const a = el('a', t('web.card_view.35')); a.href = k.hubUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; acts.push(a); }
+    return makeCard('warn', t('web.card_view.36'), t('web.card_view.37'), acts);
   }
   // 디자인 통일(2026-11-20): 꺼짐 카드에는 다음 할 일과 [다시 확인]을 같이 둔다
-  const recheck = () => btn('다시 확인', async () => { await refresh(); const still = cards.some((x) => x.kind === k.kind); toast(still ? 'warn' : 'ok', still ? '아직 꺼져 있어요 — 위 안내대로 켠 뒤 다시 눌러 주세요' : '다시 연결됐어요'); });
-  if (k.kind === 'device_offline') return makeCard('err', 'PC 연결이 끊겼어요', '이 대화가 있는 PC가 꺼져 있거나 이어온이 멈췄어요. PC를 켜고, 그 PC의 이어온 화면에서 "연결됨"인지 확인하세요.', [recheck()]);
+  const recheck = () => btn(t('web.card_view.38'), async () => { await refresh(); const still = cards.some((x) => x.kind === k.kind); toast(still ? 'warn' : 'ok', still ? t('web.card_view.39') : t('web.card_view.40')); });
+  if (k.kind === 'device_offline') return makeCard('err', t('web.card_view.41'), t('web.card_view.42'), [recheck()]);
   if (k.kind === 'engine_off') return k.engine === 'claude_channel'
-    ? makeCard('err', 'Claude 세션이 꺼져 있어요', '이 대화는 Claude Code를 이어온 채널과 함께 켜 둔 동안만 받아요. 이 PC에서 Claude 채널 세션을 다시 켜세요(설명서 "Claude 채널 세션").', [recheck()])
-    : makeCard('err', '공유 서버가 꺼져 있어요', '동시 사용 모드는 공유 App Server가 켜져 있어야 해요. 연결 설정 → 고급에서 "번갈아 쓰기"로 바꿀 수도 있어요.', [recheck()]);
+    ? makeCard('err', t('web.card_view.43'), t('web.card_view.44'), [recheck()])
+    : makeCard('err', t('web.card_view.45'), t('web.card_view.46'), [recheck()]);
   if (k.kind === 'held') {
-    const text = k.status === 'approval_required' ? '원래 세션에서 권한 확인이 필요해 멈춘 질문이 있어요. 원래 앱에서 처리한 뒤 정리하세요. 자동으로 승인하지 않아요.'
-      : k.errorCode === 'turn_joined_by_other_input' ? '처리 중에 TUI 입력이 합류해 결과를 확정하지 못했어요. TUI에서 결과를 본 뒤 정리하세요. 자동으로 다시 보내지 않아요.'
-        : '결과를 확인하지 못한 질문이 있어요. 원래 앱에서 실행됐는지 확인한 뒤 정리하세요. 자동으로 다시 보내지 않아요.';
+    const text = k.status === 'approval_required' ? t('web.card_view.47')
+      : k.errorCode === 'turn_joined_by_other_input' ? t('web.card_view.48')
+        : t('web.card_view.49');
     // RC4: 그때 보낸 세션과 지금 세션 비교(원래 앱에서 확인할 때 참고 — 다르면 다른 대화를 보고 있는 것)
-    const rs = k.resume ? (k.resume.sameSession ? ' 그때 보낸 세션과 지금 이 대화의 세션이 같아요 — 원래 앱에서 이 세션을 열어 확인하세요.' : ' ⚠ 그때 보낸 세션과 지금 이 대화에 연결된 세션이 달라요(그 뒤 연결이 바뀜) — 그때 세션을 열어 확인하세요.') + (k.resume.historyKept ? '' : ' 이어온 보관 기록은 그 뒤 지워졌어요.') : '';
-    const card = makeCard('warn', '확인이 필요한 질문', text + rs, [btn('실행됐어요', () => review(card, k.requestId, true)), btn('실행되지 않았어요', () => review(card, k.requestId, false))]);
+    const rs = k.resume ? (k.resume.sameSession ? t('web.card_view.50') : t('web.card_view.51')) + (k.resume.historyKept ? '' : t('web.card_view.52')) : '';
+    const card = makeCard('warn', t('web.card_view.53'), text + rs, [btn(t('web.card_view.54'), () => review(card, k.requestId, true)), btn(t('web.card_view.55'), () => review(card, k.requestId, false))]);
     return card;
   }
   // SV3-b: API 계정 한도에 걸림(주인에게 보이는 카드)
-  if (k.kind === 'account_limit') { const a = el('a', '한도 보기·바꾸기'); a.href = '/settings#acct'; return makeCard('warn', '이 대화의 API 계정이 한도에 걸렸어요', (k.reason === 'per_day' ? '오늘 질문 ' + k.usage.todayQuestions + ' / ' + k.limit.perDay : '이번 달 토큰 ' + k.usage.monthTokens.toLocaleString('ko-KR') + ' / ' + k.limit.tokensPerMonth.toLocaleString('ko-KR')) + ' — 한도를 넘어 이 계정으로는 보내지 않아요(자동으로 다시 보내지 않음).', [a]); }
-  if (k.kind === 'text_only') return makeCard('info', '이 세션은 글로만 답해요', '허브가 직접 돌리는 새 세션은 서버 컨테이너 안이라 명령 실행·파일 작업이 되지 않아요. 그런 일은 서버의 엔진 칸("서버 · 이름") 대화에 맡기세요.');
+  if (k.kind === 'account_limit') { const a = el('a', t('web.card_view.56')); a.href = '/settings#acct'; return makeCard('warn', t('web.card_view.57'), t('web.card_view.60', { kr: (k.reason === 'per_day' ? t('web.card_view.58', { today_questions: k.usage.todayQuestions, per_day: k.limit.perDay }) : t('web.card_view.59', { kr: k.usage.monthTokens.toLocaleString(t('common.intl_locale')), kr2: k.limit.tokensPerMonth.toLocaleString(t('common.intl_locale')) })) }), [a]); }
+  if (k.kind === 'text_only') return makeCard('info', t('web.card_view.61'), t('web.card_view.62'));
   if (k.kind === 'hub_codex_login') {
-    const a = el('a', '로그인하러 가기'); a.href = '/settings#hubsec';
-    return makeCard('err', '허브의 Codex 로그인이 필요해요', '이 허브가 Codex에 로그인돼 있지 않아 새 Codex 세션이 답할 수 없어요. 설정 → 관리 → 허브 보안에서 로그인하세요(주소와 코드가 나와요).', [a]);
+    const a = el('a', t('web.card_view.63')); a.href = '/settings#hubsec';
+    return makeCard('err', t('web.card_view.64'), t('web.card_view.65'), [a]);
   }
   if (k.kind === 'archived') {
-    const card = makeCard('warn', '보관된 세션이에요', '꺼내면 다시 질문할 수 있어요.', [btn('꺼내기', async () => {
+    const card = makeCard('warn', t('web.card_view.66'), t('web.card_view.67'), [btn(t('web.load.9'), async () => {
       const r = await api('/v1/sessions/' + c.conversationId + '/restore', { method: 'POST' });
-      if (r.status !== 200) return toast('err', '꺼낼 수 없어요: ' + r.body.error);
-      record(card, '보관함에서 꺼냄'); refresh();
+      if (r.status !== 200) return toast('err', t('web.load.11', { error: r.body.error }));
+      record(card, t('web.card_view.68')); refresh();
     })]);
     return card;
   }
   if (k.kind === 'live_off') {
-    const card = makeCard('warn', 'AI 응답이 꺼져 있어요', '이 화면에서 질문을 보내면 켜도 되는지 한 번 물어봐요. 메신저에서 온 질문은 켜기 전에는 답하지 않아요.',
-      device ? [btn('AI 응답 켜기', async () => { if (await setLive(true)) record(card, 'AI 응답 켬'); })] : []);
+    const card = makeCard('warn', t('web.card_view.69'), t('web.card_view.70'),
+      device ? [btn(t('web.card_view.71'), async () => { if (await setLive(true)) record(card, t('web.card_view.72')); })] : []);
     return card;
   }
   return null;
 }
 function retryCard() {
   const { code, question } = retry;
-  const [kind, base] = ERR[code] || ['err', '보내지 못했어요: ' + code];
+  const [kind, base] = ERR[code] || ['err', t('web.retry_card.1', { code })];
   // A1: 한도는 어느 계정인지와 고를 수 있는 길을 함께(실행 안 됨이 확실하므로 다시 보내기는 누를 때만)
   const acct = conv()?.account?.label;
-  const text = code === 'usage_limit' ? base + ' 지금 쓰는 계정: ' + (acct ?? '알 수 없음') + '. 한도가 풀린 뒤 다시 보내거나, 등록해 둔 다른 계정으로 바꾸세요(설정 → 계정).' : base;
+  const text = code === 'usage_limit' ? t('web.retry_card.2', { base, acct: (acct ?? t('web.card_view.78')) }) : base;
   const acts = ['desktop_holds_thread', 'thread_busy', 'conversation_busy', 'host_busy', 'active_limit', 'usage_limit', 'session_in_use'].includes(code)
-    ? [btn('다시 보내기', () => { const q = retry.question; retry = null; renderCards(true); send(q); }), btn('닫기', () => { retry = null; renderCards(true); })]
-    : [btn('닫기', () => { retry = null; renderCards(true); })];
-  return makeCard(kind, '보내지 못한 질문', text + ' (질문: "' + (question.length > 40 ? question.slice(0, 40) + '…' : question) + '")', acts);
+    ? [btn(t('web.retry_card.3'), () => { const q = retry.question; retry = null; renderCards(true); send(q); }), btn(t('web.html_tasks_close.1'), () => { retry = null; renderCards(true); })]
+    : [btn(t('web.html_tasks_close.1'), () => { retry = null; renderCards(true); })];
+  return makeCard(kind, t('web.retry_card.4'), t('web.retry_card.5', { text, question: (question.length > 40 ? question.slice(0, 40) + '…' : question) }), acts);
 }
 // 같은 카드가 계속 다시 그려지지 않게, 내용이 바뀔 때만 그린다(누른 기록이 5초 새로고침에 지워지지 않게).
 function renderCards(force) {
@@ -1037,17 +1039,17 @@ function renderHead() {
   $('title').textContent = c.label;
   $('engineChip').hidden = false; $('engineChip').textContent = ENGINE[c.engine] || c.engine;
   // A1(EA10): 이 대화의 질문이 어느 계정(접속)의 사용량으로 나가는지 늘 보이게
-  $('acctChip').hidden = !c.account; $('acctChip').textContent = c.account ? '계정 · ' + c.account.label.split(' — ')[0] + (KIND_TXT[c.account.kind] ?? '') : ''; $('acctChip').title = c.account?.label ?? '';
+  $('acctChip').hidden = !c.account; $('acctChip').textContent = c.account ? t('web.render_head.1', { split: c.account.label.split(' — ')[0], kind: (KIND_TXT[c.account.kind] ?? '') }) : ''; $('acctChip').title = c.account?.label ?? '';
   $('stateChip').hidden = false; $('stateChip').textContent = stateOf(c)[1];
   $('workChip').hidden = c.workMode !== true;
   $('panelBtn').hidden = false;
-  $('question').placeholder = hubMode ? '허브 화면에서 보내세요' : matchMedia('(max-width: 760px)').matches ? '메시지' : c.label + '에게 메시지'; // 휴대폰에서는 짧게, 이 PC가 허브에 연결돼 있으면 보낼 곳을 알려 줌
+  $('question').placeholder = hubMode ? t('web.render_head.2') : matchMedia('(max-width: 760px)').matches ? t('web.html_question.1') : t('web.render_head.3', { label: c.label }); // 휴대폰에서는 짧게, 이 PC가 허브에 연결돼 있으면 보낼 곳을 알려 줌
   renderPanel(c); renderSendable();
 }
 async function review(card, requestId, executed) {
   const r = await api('/v1/requests/' + requestId + '/review', { method: 'POST', body: JSON.stringify({ executed }) });
-  if (r.status !== 200) return toast('err', '정리할 수 없어요: ' + r.body.error);
-  record(card, executed ? '실행된 것으로 정리함(받지 못한 답은 저장하지 않음)' : '실행되지 않은 것으로 정리함(필요하면 직접 다시 보내세요)');
+  if (r.status !== 200) return toast('err', t('web.review.1', { error: r.body.error }));
+  record(card, executed ? t('web.review.2') : t('web.review.3'));
   refresh();
 }
 async function refresh() { await load(); await loadCards(); }
@@ -1062,7 +1064,7 @@ const notifiedTags = new Set();
 function lsGetN(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function renderNotify() {
   const b = $('notifyBtn'); b.hidden = false; b.setAttribute('aria-pressed', String(notifyOnNow));
-  b.firstElementChild.textContent = notifyOnNow ? '🔔' : '🔕'; b.lastChild.textContent = notifyOnNow ? '알림 켜짐' : '알림';
+  b.firstElementChild.textContent = notifyOnNow ? '🔔' : '🔕'; b.lastChild.textContent = notifyOnNow ? t('web.render_notify.1') : t('web.html_add_btn.1');
 }
 // 웹 알림(탭을 닫아도): 알림을 켜면 서비스 워커로 이 브라우저를 서버에 등록한다. 안 되는 브라우저면 탭이 열려 있을 때만(아래 새 소식).
 const canWebPush = 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
@@ -1087,10 +1089,10 @@ async function webPushOnOff(on) {
 $('notifyBtn').onclick = async () => {
   if (notifyOnNow) notifyOnNow = false;
   else notifyOnNow = (Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission) === 'granted';
-  if (!notifyOnNow && Notification.permission === 'denied') toast('warn', '브라우저에서 이 사이트의 알림이 막혀 있어요. 주소창 왼쪽 자물쇠에서 알림을 허용하세요.');
+  if (!notifyOnNow && Notification.permission === 'denied') toast('warn', t('web.web_push_on_off.1'));
   try { localStorage.setItem('ieon.notify.v1', notifyOnNow ? '1' : '0'); } catch { /* 저장 안 됨 */ }
   webPushOn = await webPushOnOff(notifyOnNow);
-  if (notifyOnNow) toast('ok', webPushOn ? '알림을 켰어요 — 탭을 닫아도 와요' : '알림을 켰어요 — 이 탭이 열려 있을 때 와요');
+  if (notifyOnNow) toast('ok', webPushOn ? t('web.web_push_on_off.2') : t('web.web_push_on_off.3'));
   renderNotify();
 };
 renderNotify();
@@ -1098,16 +1100,16 @@ if (notifyOnNow) webPushOnOff(true).then((ok) => { webPushOn = ok; }); // 다시
 // 알림을 누르면(서비스 워커) 그 대화를 연다 — 이미 열린 탭이면 메시지로, 아니면 #conv= 주소로
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (m) => { if (m.data?.ieon === 'open' && m.data.conversationId) select(m.data.conversationId).catch(() => {}); });
 // 이름 뒤 "이/가"(받침 있는 한글이면 "이")
-function iga(name) { const c = name.charCodeAt(name.length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? name + '이' : name + '가'; }
+function iga(name) { const c = name.charCodeAt(name.length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? t('web.iga.1', { name }) : t('web.iga.2', { name }); }
 function noteFor(type, d) {
-  const who = (staffName(d.conversationId) || convs.find((c) => c.conversationId === d.conversationId)?.label || 'AI 직원');
+  const who = (staffName(d.conversationId) || convs.find((c) => c.conversationId === d.conversationId)?.label || t('web.note_for.1'));
   if (type === 'request' && d.requestId) {
-    if (d.status === 'completed') return { body: iga(who) + ' 답했어요', tag: 'r:' + d.requestId };
-    if (d.status === 'failed') return { body: who + '에게 보내지 못했어요', tag: 'r:' + d.requestId };
-    if (d.status === 'unknown') return { body: who + ' — 확인이 필요해요', tag: 'r:' + d.requestId };
+    if (d.status === 'completed') return { body: t('web.note_for.2', { who: iga(who) }), tag: 'r:' + d.requestId };
+    if (d.status === 'failed') return { body: t('web.note_for.3', { who }), tag: 'r:' + d.requestId };
+    if (d.status === 'unknown') return { body: t('web.note_for.4', { who }), tag: 'r:' + d.requestId };
     return null;
   }
-  if (type === 'approval' && d.approvalId && d.status === 'pending') return { body: iga(who) + ' 허락을 기다려요', tag: 'a:' + d.approvalId };
+  if (type === 'approval' && d.approvalId && d.status === 'pending') return { body: t('web.note_for.5', { who: iga(who) }), tag: 'a:' + d.approvalId };
   return null;
 }
 let events = null;
@@ -1119,7 +1121,7 @@ function startEvents() {
     if (!notifyOnNow || webPushOn || Notification.permission !== 'granted' || (document.visibilityState === 'visible' && document.hasFocus())) return; // 웹 알림이 켜져 있으면 서비스 워커가 띄움(겹치지 않게)
     const n = noteFor(type, d); if (!n || notifiedTags.has(n.tag)) return;
     notifiedTags.add(n.tag);
-    const x = new Notification('이어온', { body: n.body, tag: n.tag, icon: '/icon-192.png' });
+    const x = new Notification(t('web.html_top.1'), { body: n.body, tag: n.tag, icon: '/icon-192.png' });
     x.onclick = () => { window.focus(); if (convs.some((c) => c.conversationId === d.conversationId)) select(d.conversationId).catch(() => {}); x.close(); };
   };
   events.addEventListener('request', on('request'));
@@ -1143,14 +1145,14 @@ function voiceNotice() {
 }
 function speakText(text) {
   if (!canSpeak || !text) return;
-  const t = String(text).replace(/```[\s\S]*?```/g, ' 코드 생략. ').replace(/https?:\/\/\S+/g, ' 링크. ').replace(/[`*_#>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+  const said = String(text).replace(/```[\s\S]*?```/g, t('web.speak_text.1')).replace(/https?:\/\/\S+/g, t('web.speak_text.2')).replace(/[`*_#>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 4000);
   speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(t); u.lang = 'ko-KR';
-  const ko = speechSynthesis.getVoices().find((v) => /^ko/i.test(v.lang)); if (ko) u.voice = ko;
+  const u = new SpeechSynthesisUtterance(said); u.lang = t('common.speech_lang');
+  const vo = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(I18N.lang.toLowerCase())); if (vo) u.voice = vo;
   speechSynthesis.speak(u);
 }
 function voiceAuto(text) { if (voiceAutoOn) speakText(text); }
-function renderSpeak() { const b = $('speakBtn'); b.setAttribute('aria-pressed', String(voiceAutoOn)); const t = voiceAutoOn ? '읽어 주기 켜짐' : '읽어 주기'; b.setAttribute('aria-label', t); const ic = el('span', voiceAutoOn ? '🔊' : '🔈'); ic.setAttribute('aria-hidden', 'true'); b.replaceChildren(ic, el('span', ' ' + t, 'lbl')); }
+function renderSpeak() { const b = $('speakBtn'); b.setAttribute('aria-pressed', String(voiceAutoOn)); const lbl = voiceAutoOn ? t('web.render_speak.1') : t('web.render_speak.2'); b.setAttribute('aria-label', lbl); const ic = el('span', voiceAutoOn ? '🔊' : '🔈'); ic.setAttribute('aria-hidden', 'true'); b.replaceChildren(ic, el('span', ' ' + lbl, 'lbl')); }
 $('speakBtn').hidden = false; renderSpeak();
 $('speakBtn').onclick = async () => {
   if (!voiceAutoOn && !(await voiceNotice())) return;
@@ -1160,11 +1162,11 @@ $('speakBtn').onclick = async () => {
 $('micBtn').hidden = false;
 $('micBtn').onclick = async () => {
   if (!SRcls || qa.disabled || !(await voiceNotice())) return;
-  const rec = new SRcls(); rec.lang = 'ko-KR'; rec.interimResults = false; rec.maxAlternatives = 1;
+  const rec = new SRcls(); rec.lang = t('common.speech_lang'); rec.interimResults = false; rec.maxAlternatives = 1;
   let got = '';
   $('micBtn').classList.add('on');
   rec.onresult = (e) => { got = String(e.results?.[0]?.[0]?.transcript ?? ''); };
-  rec.onerror = (e) => { if (e.error !== 'aborted') toast('warn', e.error === 'not-allowed' ? '마이크를 쓸 수 없어요. 브라우저에서 마이크를 허용하세요.' : e.error === 'no-speech' ? '말소리를 듣지 못했어요. 다시 눌러 말해 주세요.' : '받아쓰기를 하지 못했어요.'); };
+  rec.onerror = (e) => { if (e.error !== 'aborted') toast('warn', e.error === 'not-allowed' ? t('web.render_speak.3') : e.error === 'no-speech' ? t('web.render_speak.4') : t('web.render_speak.5')); };
   rec.onend = () => { $('micBtn').classList.remove('on'); if (got) { qa.value = (qa.value.trim() ? qa.value.trim() + ' ' : '') + got.trim(); qa.dispatchEvent(new Event('input')); qa.focus(); } };
   rec.start();
 };
@@ -1196,17 +1198,17 @@ async function send(question) {
   pending = body.requestId;
   document.querySelectorAll('#msgs .welcome').forEach((w) => w.remove());
   $('msgs').append(el('div', question, 'bubble me'));
-  const steps = el('div', null, 'steps'); const s1 = el('span', '✓ 접수', 'done'); const s2 = el('span', '실행 중…'); steps.append(s1, s2);
+  const steps = el('div', null, 'steps'); const s1 = el('span', t('web.send.1'), 'done'); const s2 = el('span', t('web.send.2')); steps.append(s1, s2);
   // RC2: 이 질문만 멈추기 — 대기 중이면 바로 취소, 실행 중이면 엔진이 멈춘 것을 확인한 뒤 "중지됨"
-  const stopBtn = el('button', '중지', 'linkbtn'); stopBtn.type = 'button'; steps.append(stopBtn);
+  const stopBtn = el('button', t('web.send.3'), 'linkbtn'); stopBtn.type = 'button'; steps.append(stopBtn);
   const reqId = pending;
   stopBtn.onclick = async () => {
     stopBtn.disabled = true;
     const r = await api('/v1/requests/' + reqId + '/stop', { method: 'POST' });
-    if (r.status === 202) s2.textContent = '멈추는 중…';
-    else if (r.status !== 200) { stopBtn.disabled = false; s2.textContent = r.body?.error === 'stop_unsupported' ? '이 세션은 원래 창에서 멈추세요' : '멈출 수 없어요(이미 끝났을 수 있어요)'; }
+    if (r.status === 202) s2.textContent = t('web.send.4');
+    else if (r.status !== 200) { stopBtn.disabled = false; s2.textContent = r.body?.error === 'stop_unsupported' ? t('web.send.5') : t('web.send.6'); }
   };
-  const out = el('div', '답을 기다리는 중…', 'bubble ai wait');
+  const out = el('div', t('web.send.7'), 'bubble ai wait');
   $('msgs').append(steps, out); $('msgs').scrollTop = $('msgs').scrollHeight;
   renderHead();
   try {
@@ -1214,11 +1216,11 @@ async function send(question) {
       await new Promise((r) => setTimeout(r, 2000));
       const r = (await api('/v1/requests/' + pending)).body;
       if (r.status === 'running' || r.status === 'dispatching') loadCards().catch(() => {}); // W1: 처리 중에 온 승인 카드를 바로 보이게
-      if (r.status === 'completed') { s2.textContent = '✓ 완료'; s2.className = 'done'; out.textContent = r.answer ?? '(보관하지 않은 답변)'; out.classList.remove('wait'); voiceAuto(r.answer); break; }
-      if (r.status === 'failed') { out.remove(); s2.textContent = '보내지 못함'; retry = { conversationId: id, question, code: r.errorCode }; break; }
-      if (r.status === 'unknown') { out.remove(); s2.textContent = '확인 필요'; break; }
-      if (r.status === 'approval_required') { out.remove(); s2.textContent = '권한 확인 대기'; break; }
-      if (r.status === 'cancelled') { out.remove(); s2.textContent = '중지됨'; break; }
+      if (r.status === 'completed') { s2.textContent = t('web.send.8'); s2.className = 'done'; out.textContent = r.answer ?? t('web.select.2'); out.classList.remove('wait'); voiceAuto(r.answer); break; }
+      if (r.status === 'failed') { out.remove(); s2.textContent = t('web.send.9'); retry = { conversationId: id, question, code: r.errorCode }; break; }
+      if (r.status === 'unknown') { out.remove(); s2.textContent = t('web.state_of.5'); break; }
+      if (r.status === 'approval_required') { out.remove(); s2.textContent = t('web.send.10'); break; }
+      if (r.status === 'cancelled') { out.remove(); s2.textContent = t('web.send.11'); break; }
     }
   } finally { stopBtn.remove(); pending = null; if (current === id) await refresh(); }
 }
@@ -1236,7 +1238,7 @@ function renderPanel(c) {
   if (document.activeElement?.closest?.('#pStaff') == null) { $('stName').value = c.staff?.name ?? ''; $('stIcon').value = c.staff?.icon ?? ''; fillRoles(c.staff?.roleId ?? ''); }
   $('msgDel').disabled = c.busy || Boolean(pending); // AP-5a
   $('pEngine').textContent = ENGINE[c.engine] || c.engine;
-  $('pAccount').textContent = c.account ? c.account.label + (c.account.mode === 'pc_default' ? ' (이어온 전용 계정은 설정 → 계정)' : '') : '—';
+  $('pAccount').textContent = c.account ? c.account.label + (c.account.mode === 'pc_default' ? t('web.render_panel.1') : '') : '—';
   $('pHow').textContent = HOW[c.engine] || '';
   $('pState').textContent = stateOf(c)[1];
   $('pId').textContent = c.conversationId;
@@ -1244,38 +1246,38 @@ function renderPanel(c) {
   for (const r of document.getElementsByName('mode')) { r.checked = r.value === (c.connectMode || 'alternate'); r.disabled = c.busy || Boolean(pending); }
   $('pNew').hidden = false;
   if (c.newSession) {
-    $('pNewInfo').textContent = (NS_STATE[c.newSession.state] || c.newSession.state) + ' · 권한 ' + c.newSession.profile + (c.newSession.sessionId ? ' · 직접 열기 ID ' + c.newSession.sessionId : '');
+    $('pNewInfo').textContent = t('web.render_panel.2', { state: (NS_STATE[c.newSession.state] || c.newSession.state), profile: c.newSession.profile, session_id: (c.newSession.sessionId ? t('web.render_panel.7', { session_id: c.newSession.sessionId }) : '') });
     $('nsSleep').disabled = c.newSession.state !== 'active' || c.busy;
   }
 }
 for (const r of document.getElementsByName('mode')) {
   r.onchange = async () => {
     const x = await api('/v1/conversations/' + current + '/settings', { method: 'PUT', body: JSON.stringify({ connectMode: r.value }) });
-    if (x.status !== 200) { const [k, t] = ERR[x.body.error] || ['err', '바꾸지 못했어요: ' + x.body.error]; toast(k, t); }
-    else toast('ok', (MODE[r.value] || r.value) + '로 바꿨어요');
+    if (x.status !== 200) { const [k, msg] = ERR[x.body.error] || ['err', t('web.set_live.4', { error: x.body.error })]; toast(k, msg); }
+    else toast('ok', t('web.render_panel.3', { mode: (MODE[r.value] || r.value) }));
     load();
   };
 }
 $('nsSleep').onclick = async () => {
   const r = await api('/v1/sessions/' + current + '/sleep', { method: 'POST' });
-  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '잠재웠어요. 질문하면 다시 깨어나요' : (NS_ERR[r.body.error] || r.body.error)); load();
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('web.render_panel.4') : (NS_ERR[r.body.error] || r.body.error)); load();
 };
 $('nsDelete').onclick = async () => {
   const c = conv(); if (!c?.newSession) return;
   // 규칙 점검 10: 이름 입력 대신 확인 창 하나
-  if (!confirm('"' + c.newSession.name + '" 세션을 삭제할까요? 이어온 기록이 지워지고 되돌릴 수 없어요(원래 Codex·Claude 기록은 남아요).')) return;
+  if (!confirm(t('web.render_panel.5', { name: c.newSession.name }))) return;
   const r = await api('/v1/sessions/' + current, { method: 'DELETE', body: JSON.stringify({ confirm: c.newSession.name }) });
-  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '"' + c.newSession.name + '"을 삭제했어요' : (NS_ERR[r.body.error] || r.body.error)); load();
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('web.render_panel.6', { name: c.newSession.name }) : (NS_ERR[r.body.error] || r.body.error)); load();
 };
 
 // --- AP-1 AI 직원·방 ---
 const staffName = (id) => convs.find((c) => c.conversationId === id)?.staff?.name ?? null;
-const STAFF_ERR = { bad_staff_name: '이름은 빈칸 없이 1~20자(한글·영문·숫자·_·-)', staff_name_taken: '다른 AI 직원이 쓰는 이름이에요', bad_icon: '아이콘은 1~2글자(이모지 하나)', unknown_role: '없는 역할이에요',
-  bad_room_name: '방 이름을 1~30자로', bad_members: '구성원을 1~10명 고르세요', bad_lead: '대표는 구성원 중에서', too_long: '공통 안내가 너무 길어요', bad_handoff: '넘길 수 없어요(끝난 답만, 방 구성원에게만)' };
+const STAFF_ERR = { bad_staff_name: t('web.staff_err.1'), staff_name_taken: t('web.staff_err.2'), bad_icon: t('web.staff_err.3'), unknown_role: t('web.staff_err.4'),
+  bad_room_name: t('web.staff_err.5'), bad_members: t('web.staff_err.6'), bad_lead: t('web.staff_err.7'), too_long: t('web.staff_err.8'), bad_handoff: t('web.staff_err.9') };
 let roleList = null;
 async function fillRoles(sel) {
   if (!roleList) { const r = await api('/v1/admin/roles').catch(() => null); roleList = r?.status === 200 ? r.body.roles : []; }
-  const s = $('stRole'); s.replaceChildren(el('option', '없음')); s.firstChild.value = '';
+  const s = $('stRole'); s.replaceChildren(el('option', t('web.html_ho_perm.2'))); s.firstChild.value = '';
   for (const r of roleList) { const o = el('option', r.name); o.value = r.roleId; s.append(o); }
   s.value = sel;
 }
@@ -1289,32 +1291,32 @@ $('hoSave').onclick = async () => {
   const kinds = [['hoCmd', 'command'], ['hoFile', 'file'], ['hoPerm', 'permissions']].filter(([i]) => $(i).checked).map(([, k]) => k);
   const patterns = $('hoPat').value.split(',').map((s) => s.trim()).filter(Boolean);
   const r = await api('/v1/conversations/' + current + '/handoff', { method: 'PUT', body: JSON.stringify({ kinds, patterns }) });
-  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? (kinds.length || patterns.length ? '사람이 직접 할 일을 저장했어요' : '사람이 직접 할 일을 비웠어요') : ({ bad_patterns: '글자는 20개까지, 하나에 60자까지예요' }[r.body.error] || r.body.error));
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? (kinds.length || patterns.length ? t('web.load_handoff.1') : t('web.load_handoff.2')) : ({ bad_patterns: t('web.load_handoff.3') }[r.body.error] || r.body.error));
 };
 $('wmOn').onchange = async () => {
   const on = $('wmOn').checked;
-  if (on && !confirm('작업 모드를 켤까요? 이 대화의 Codex가 파일 수정·명령 실행을 하려 할 때마다 허용/거부 카드가 떠요. 허용한 것만 실행돼요.')) { $('wmOn').checked = false; return; }
+  if (on && !confirm(t('web.load_handoff.4'))) { $('wmOn').checked = false; return; }
   const r = await api('/v1/conversations/' + current + '/work-mode', { method: 'PUT', body: JSON.stringify({ on }) });
-  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? '작업 모드를 ' + (on ? '켰어요' : '껐어요') : ({ conversation_busy: '처리 중인 질문이 끝난 뒤 바꿀 수 있어요', work_mode_not_supported: '이 대화는 작업 모드를 쓸 수 없어요(지금은 Codex·Antigravity 기존 대화만)' }[r.body.error] || r.body.error));
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('web.load_handoff.5', { on: (on ? t('web.set_live.5') : t('web.set_live.6')) }) : ({ conversation_busy: t('web.load_handoff.6'), work_mode_not_supported: t('web.load_handoff.7') }[r.body.error] || r.body.error));
   load();
 };
 // AP-5a: 이 대화의 서버 보관 기록(질문·답 원문) 지우기 — 원래 엔진 세션 기록은 그대로
 $('msgDel').onclick = async () => {
   const id = current; if (!id) return;
-  if (!confirm('이 대화의 서버 보관 기록(질문·답)을 지울까요? 되돌릴 수 없어요. 원래 Codex·Claude 세션 기록은 그대로예요.')) return;
+  if (!confirm(t('web.load_handoff.8'))) return;
   const r = await api('/v1/conversations/' + id + '/messages', { method: 'DELETE' });
-  if (r.status !== 204) return toast('err', '지우지 못했어요: ' + (r.body?.error || r.status));
-  toast('ok', '이 대화의 서버 보관 기록을 지웠어요.');
+  if (r.status !== 204) return toast('err', t('web.load_handoff.9', { status: (r.body?.error || r.status) }));
+  toast('ok', t('web.load_handoff.10'));
   if (current === id) select(id).catch(() => {});
 };
 $('stSave').onclick = async () => {
   const r = await api('/v1/conversations/' + current + '/staff', { method: 'PUT', body: JSON.stringify({ name: $('stName').value.trim(), icon: $('stIcon').value.trim() || null, roleId: $('stRole').value || null }) });
-  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? 'AI 직원 정보를 저장했어요' : (STAFF_ERR[r.body.error] || r.body.error)); load();
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('web.load_handoff.11') : (STAFF_ERR[r.body.error] || r.body.error)); load();
 };
 let editingRoom = null;
 function openRoomDlg(room) {
   editingRoom = room;
-  $('rdTitle').textContent = room ? '방 고치기' : '방 만들기'; $('rdDelete').hidden = !room;
+  $('rdTitle').textContent = room ? t('web.open_room_dlg.1') : t('web.html_room_dlg.1'); $('rdDelete').hidden = !room;
   $('rdName').value = room?.name ?? ''; $('rdGuide').value = room?.guide ?? '';
   const box = $('rdMembers'); box.replaceChildren();
   const live = convs.filter((c) => c.newSession?.state !== 'archived');
@@ -1335,13 +1337,13 @@ $('rdOk').onclick = async () => {
   const body = { name: $('rdName').value.trim(), members: [...document.querySelectorAll('#rdMembers input:checked')].map((i) => i.value), lead: $('rdLead').value, guide: $('rdGuide').value.trim() };
   const r = await api(editingRoom ? '/v1/rooms/' + editingRoom.roomId : '/v1/rooms', { method: editingRoom ? 'PUT' : 'POST', body: JSON.stringify(body) });
   if (r.status !== 200 && r.status !== 201) return toast('err', STAFF_ERR[r.body.error] || r.body.error);
-  $('roomDlg').hidden = true; toast('ok', editingRoom ? '방을 고쳤어요' : '방을 만들었어요'); await load(); selectRoom(r.body.roomId);
+  $('roomDlg').hidden = true; toast('ok', editingRoom ? t('web.fill_lead.1') : t('web.fill_lead.2')); await load(); selectRoom(r.body.roomId);
 };
 $('rdDelete').onclick = async () => {
-  if (!editingRoom || !confirm('"' + editingRoom.name + '" 방을 지울까요? 방 기록만 지워지고 각 AI 직원의 대화는 그대로예요.')) return;
+  if (!editingRoom || !confirm(t('web.fill_lead.3', { name: editingRoom.name }))) return;
   await api('/v1/rooms/' + editingRoom.roomId, { method: 'DELETE' }); $('roomDlg').hidden = true; currentRoom = null; showEmpty(); load();
 };
-const ROOM_BUSY = { conversation_busy: '지금 다른 일 중이라 보내지 않았어요', host_busy: '그 PC·칸이 바빠 보내지 않았어요', device_unavailable: 'PC 연결이 끊겨 보내지 않았어요', session_not_running: 'Claude 세션이 꺼져 있어 보내지 않았어요', shared_server_down: '공유 서버가 꺼져 있어 보내지 않았어요', session_archived: '보관된 세션이라 보내지 않았어요', active_limit: '동시 처리 한도라 보내지 않았어요' };
+const ROOM_BUSY = { conversation_busy: t('web.room_busy.1'), host_busy: t('web.room_busy.2'), device_unavailable: t('web.room_busy.3'), session_not_running: t('web.room_busy.4'), shared_server_down: t('web.room_busy.5'), session_archived: t('web.room_busy.6'), active_limit: t('web.room_busy.7') };
 async function selectRoom(id) {
   currentRoom = id; current = null; clearTimeout(roomTimer); setPanel(false); $('app').classList.add('in-chat');
   $('cards').replaceChildren();
@@ -1349,9 +1351,9 @@ async function selectRoom(id) {
   const room = r.body;
   $('title').textContent = '👥 ' + room.name; for (const x of ['engineChip', 'acctChip', 'stateChip', 'panelBtn']) $(x).hidden = true;
   const box = $('msgs'); box.replaceChildren();
-  const bar = el('div', null, 'roombar'); const eb = el('button', '방 설정', 'pbtn'); eb.type = 'button'; eb.onclick = () => openRoomDlg(room); bar.append(eb); box.append(bar);
-  if (room.guide) box.append(el('div', '공통 안내: ' + room.guide, 'notice'));
-  if (!room.posts.length) box.append(el('div', '@이름으로 부른 AI 직원이 답해요. 아무도 안 부르면 대표 @' + (staffName(room.lead) || '') + '가 답해요.', 'welcome'));
+  const bar = el('div', null, 'roombar'); const eb = el('button', t('web.select_room.1'), 'pbtn'); eb.type = 'button'; eb.onclick = () => openRoomDlg(room); bar.append(eb); box.append(bar);
+  if (room.guide) box.append(el('div', t('web.select_room.2', { guide: room.guide }), 'notice'));
+  if (!room.posts.length) box.append(el('div', t('web.select_room.3', { lead: (staffName(room.lead) || '') }), 'welcome'));
   let waiting = false;
   // V1: 이 방을 연 뒤 새로 끝난 답만 자동으로 읽는다(처음 열 때 있던 답은 읽지 않음)
   const firstView = !roomSeen.has(id); const seen = roomSeen.get(id) ?? new Set(); roomSeen.set(id, seen);
@@ -1361,42 +1363,42 @@ async function selectRoom(id) {
   for (const p of room.posts) {
     if (p.kind === 'user') { box.append(el('div', p.text, 'bubble me')); continue; }
     const name = '@' + (staffName(p.conversationId) || p.conversationId);
-    if (p.kind === 'busy') { box.append(el('div', name + ' — ' + (ROOM_BUSY[p.code] || ERR[p.code]?.[1] || '보내지 못했어요: ' + p.code), 'notice')); retryBtn(box, room, p); continue; }
+    if (p.kind === 'busy') { box.append(el('div', name + ' — ' + (ROOM_BUSY[p.code] || ERR[p.code]?.[1] || t('web.retry_card.1', { code: p.code })), 'notice')); retryBtn(box, room, p); continue; }
     box.append(el('div', name, 'who'));
     if (p.status === 'completed') {
-      const b = el('div', p.answer ?? '(보관하지 않은 답변)', 'bubble ai'); box.append(b);
+      const b = el('div', p.answer ?? t('web.select.2'), 'bubble ai'); box.append(b);
       const others = room.members.filter((m) => m !== p.conversationId);
       if (others.length && p.answer) {
-        const h = el('div', null, 'hand'); const hb = el('button', '다른 AI 직원에게 넘기기', 'linkbtn'); hb.type = 'button';
+        const h = el('div', null, 'hand'); const hb = el('button', t('web.select_room.4'), 'linkbtn'); hb.type = 'button';
         hb.onclick = () => handoff(room, p, others); h.append(hb); box.append(h);
       }
-    } else if (['queued', 'dispatching', 'running'].includes(p.status)) { waiting = true; box.append(el('div', '답을 기다리는 중…', 'bubble ai wait')); }
-    else { box.append(el('div', p.status === 'failed' ? (ERR[p.errorCode]?.[1] || '보내지 못했어요: ' + p.errorCode) : '확인이 필요한 질문이에요(그 AI 직원 대화에서 정리하세요)', 'notice')); retryBtn(box, room, p); }
+    } else if (['queued', 'dispatching', 'running'].includes(p.status)) { waiting = true; box.append(el('div', t('web.send.7'), 'bubble ai wait')); }
+    else { box.append(el('div', p.status === 'failed' ? (ERR[p.errorCode]?.[1] || t('web.select_room.5', { error_code: p.errorCode })) : t('web.select_room.6'), 'notice')); retryBtn(box, room, p); }
   }
   box.scrollTop = box.scrollHeight;
-  $('question').placeholder = '@이름으로 부르기 — 안 부르면 대표 @' + (staffName(room.lead) || '') + '가 답해요';
+  $('question').placeholder = t('web.select_room.7', { lead: (staffName(room.lead) || '') });
   $('question').disabled = hubMode; $('send').disabled = hubMode;
   if (waiting) roomTimer = setTimeout(() => { if (currentRoom === id) selectRoom(id).catch(() => {}); }, 2500);
 }
 // 다시 보내기: 서버가 "보내지 않은 것이 확실"하다고 표시한 글에만, 누를 때만, 한 번만(자동으로 다시 보내지 않음)
 function retryBtn(box, room, p) {
   if (!p.canRetry) return;
-  const h = el('div', null, 'hand'); const b = el('button', '@' + (staffName(p.conversationId) || '') + '에게 다시 보내기', 'pbtn'); b.type = 'button';
+  const h = el('div', null, 'hand'); const b = el('button', t('web.retry_btn.1', { conversation_id: (staffName(p.conversationId) || '') }), 'pbtn'); b.type = 'button';
   b.onclick = async () => {
     b.disabled = true;
     const r = await api('/v1/rooms/' + room.roomId + '/retry', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ postId: p.postId }) });
-    if (r.status !== 202) { b.disabled = false; return toast('err', r.body.error === 'bad_retry' ? '다시 보낼 수 없는 글이에요' : (ERR[r.body.error]?.[1] || r.body.error)); }
+    if (r.status !== 202) { b.disabled = false; return toast('err', r.body.error === 'bad_retry' ? t('web.retry_btn.2') : (ERR[r.body.error]?.[1] || r.body.error)); }
     selectRoom(room.roomId);
   };
   h.append(b); box.append(h);
 }
 async function handoff(room, post, others) {
   const names = others.map((id) => '@' + staffName(id)).join(', ');
-  const who = prompt('누구에게 넘길까요? (' + names + ')', '@' + staffName(others[0]));
+  const who = prompt(t('web.handoff.1', { names }), '@' + staffName(others[0]));
   if (who === null) return;
   const to = others.find((id) => ('@' + staffName(id)).toLowerCase() === who.trim().toLowerCase() || String(staffName(id)).toLowerCase() === who.trim().toLowerCase());
-  if (!to) return toast('err', '방 구성원 이름을 넣으세요: ' + names);
-  const note = prompt('함께 보낼 말(비우면 "이 답을 보고 이어서 해 주세요")', '') ?? '';
+  if (!to) return toast('err', t('web.handoff.2', { names }));
+  const note = prompt(t('web.handoff.3'), '') ?? '';
   const r = await api('/v1/rooms/' + room.roomId + '/handoff', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ requestId: post.requestId, to, note }) });
   if (r.status !== 202) return toast('err', STAFF_ERR[r.body.error] || ERR[r.body.error]?.[1] || r.body.error);
   selectRoom(room.roomId);
@@ -1408,42 +1410,42 @@ async function sendRoom(text) {
     if (!(await setLive(true, { confirmed: true }))) { qa.value = text; return; }
   }
   const r = await api('/v1/rooms/' + id + '/posts', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ text }) });
-  if (r.status !== 202) { qa.value = text; return toast('err', ERR[r.body.error]?.[1] || '보내지 못했어요: ' + r.body.error); }
+  if (r.status !== 202) { qa.value = text; return toast('err', ERR[r.body.error]?.[1] || t('web.send_room.1', { error: r.body.error })); }
   selectRoom(id);
 }
 
-const PLAT = { telegram: '텔레그램', discord: '디스코드', slack: '슬랙', kakao: '카카오톡' };
+const PLAT = { telegram: t('web.plat_info.1'), discord: t('web.plat_info.5'), slack: t('web.plat_info.10'), kakao: t('web.plat_info.19') };
 const ignored = new Set();
 async function loadDenied() {
   const r = await api('/v1/admin/denied').catch(() => null);
   const list = r && r.status === 200 ? r.body.denied.filter((d) => !ignored.has(d.platform + ':' + d.botId + ':' + d.userId)) : [];
   const box = $('denied'); box.replaceChildren(); box.hidden = !list.length;
   if (!list.length) return;
-  box.append(el('b', '메신저에서 허용을 기다리는 사람 ' + list.length));
+  box.append(el('b', t('web.load_denied.1', { list: list.length })));
   for (const d of list.slice(0, 3)) {
     const row = el('div', null, 'drow');
     row.append(el('span', (PLAT[d.platform] || d.platform) + ' · ' + (d.name || d.userId)));
-    row.append(btn('허용', async () => {
+    row.append(btn(t('web.card_view.13'), async () => {
       const x = await api('/v1/admin/denied/allow', { method: 'POST', body: JSON.stringify({ platform: d.platform, botId: d.botId, userId: d.userId }) });
-      toast(x.status === 200 ? 'ok' : 'err', x.status === 200 ? (d.name || d.userId) + '님을 허용했어요. 메신저에서 다시 보내 보세요' : '허용하지 못했어요: ' + x.body.error); loadDenied();
+      toast(x.status === 200 ? 'ok' : 'err', x.status === 200 ? t('web.load_denied.2', { user_id: (d.name || d.userId) }) : t('web.load_denied.3', { error: x.body.error })); loadDenied();
     }));
-    row.append(btn('무시', () => { ignored.add(d.platform + ':' + d.botId + ':' + d.userId); loadDenied(); }));
+    row.append(btn(t('web.load_denied.4'), () => { ignored.add(d.platform + ':' + d.botId + ':' + d.userId); loadDenied(); }));
     box.append(row);
   }
-  if (list.length > 3) box.append(el('div', '외 ' + (list.length - 3) + '명 — 설정 → 메신저에서 볼 수 있어요'));
+  if (list.length > 3) box.append(el('div', t('web.load_denied.5', { list: (list.length - 3) })));
 }
 boot();
 setInterval(() => { if (!$('app').hidden && !pending) load().catch(() => {}); }, 5000);
 setInterval(() => { if (!$('app').hidden) { loadDevice().catch(() => {}); loadDenied().catch(() => {}); } }, 30000);
 // --- RC3 작업 화면: 질문(작업) 하나하나의 진행·승인 대기·결과를 모아 보고, 여기서 바로 허용·거부·중지 ---
-const TSTATE = { queued: '기다리는 중', dispatching: '보내는 중', running: '실행 중', completed: '완료', failed: '실패', cancelled: '중지됨', unknown: '확인 필요', approval_required: '권한 확인 대기' };
-const ASTATE = { handoff: '사람에게 넘김', handoff_done: '사람이 직접 처리함', handoff_dropped: '하지 않기로 함', pending: '승인 대기', approved: '승인됨', running: '실행 중', completed: '실행 완료', failed: '실행 실패', unknown: '결과 불명', denied: '거부함', expired: '시간 지남(거부)', turn_ended: '차례 끝(거부)' };
-const AKIND = { command: '명령 실행', file: '파일 수정', permissions: '권한 추가' };
+const TSTATE = { queued: t('web.tstate.1'), dispatching: t('web.tstate.2'), running: t('web.tstate.3'), completed: t('web.tstate.4'), failed: t('web.tstate.5'), cancelled: t('web.send.11'), unknown: t('web.state_of.5'), approval_required: t('web.send.10') };
+const ASTATE = { handoff: t('web.astate.1'), handoff_done: t('web.card_view.32'), handoff_dropped: t('web.card_view.20'), pending: t('web.astate.2'), approved: t('web.astate.3'), running: t('web.tstate.3'), completed: t('web.card_view.26'), failed: t('web.astate.4'), unknown: t('web.astate.5'), denied: t('web.card_view.8'), expired: t('web.astate.6'), turn_ended: t('web.astate.7') };
+const AKIND = { command: t('web.card_view.15'), file: t('web.card_view.16'), permissions: t('web.card_view.17') };
 let taskFocus = null; let taskTimer = null;
 // 2026-11-18 실측: 여러 갈래(링크 열기·4초 갱신·버튼 뒤)의 그리기가 겹쳐 쌓이고 매번 버튼을 새로 만들어, 누르는 사이 버튼이 바뀌어 클릭이 사라졌다.
 // → 마지막으로 시작한 그리기만 화면을 바꾸고(taskGen), 내용이 그대로면 다시 그리지 않는다(taskSig).
 let taskGen = 0; let taskSig = '';
-const when = (s) => (s ? new Date(s).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
+const when = (s) => (s ? new Date(s).toLocaleString(t('common.intl_locale'), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 async function updateTaskBadge(n) {
   if (n === undefined) {
     const [ap, act] = await Promise.all([api('/v1/approvals'), api('/v1/tasks?filter=active')]);
@@ -1470,76 +1472,78 @@ async function renderTasks({ force = false } = {}) {
   if (!force && sig === taskSig) { updateTaskBadge(aps.length + acts.length).catch(() => {}); schedule(); return; } // 그대로면 버튼·펼친 내용을 건드리지 않음
   taskSig = sig;
   const box = $('taskBody'); box.textContent = '';
-  box.append(el('h4', '승인 대기·사람이 직접 할 일 ' + aps.length));
-  if (!aps.length) box.append(el('p', '기다리는 승인이 없어요.', 'muted small'));
+  box.append(el('h4', t('web.render_tasks.1', { aps: aps.length })));
+  if (!aps.length) box.append(el('p', t('web.render_tasks.2'), 'muted small'));
   for (const a of aps) {
     const d = el('div', null, 'task');
-    const t1 = el('div', null, 't1'); t1.append(el('b', a.label), el('span', (a.handoff ? '사람이 직접 할 일 ' : '승인 요청 ') + (a.n ?? ''), 'st'), el('span', AKIND[a.kind] || a.kind, 'small'));
-    d.append(t1, el('div', a.summary + (a.cwd ? ' (작업 폴더 ' + a.cwd + ')' : ''), 't2'));
+    const t1 = el('div', null, 't1'); t1.append(el('b', a.label), el('span', (a.handoff ? t('web.render_tasks.3') : t('web.render_tasks.4')) + (a.n ?? ''), 'st'), el('span', AKIND[a.kind] || a.kind, 'small'));
+    d.append(t1, el('div', a.summary + (a.cwd ? t('web.render_tasks.5', { cwd: a.cwd }) : ''), 't2'));
     const ac = el('div', null, 'acts2');
-    for (const [label, decision] of a.handoff ? [['직접 처리함', 'done'], ['하지 않음', 'drop']] : [['허용(이번 한 번)', 'allow'], ['거부', 'deny']]) {
+    for (const [label, decision] of a.handoff ? [[t('web.card_view.19'), 'done'], [t('web.card_view.23'), 'drop']] : [[t('web.render_tasks.6'), 'allow'], [t('web.card_view.14'), 'deny']]) {
       const b = el('button', label, 'linkbtn'); b.type = 'button';
       b.onclick = async () => { b.disabled = true; const r = await api('/v1/approvals/' + a.approvalId, { method: 'POST', body: JSON.stringify({ decision }) });
-        if (r.status !== 200) { b.disabled = false; b.textContent = label + ' — 다시 눌러 주세요(' + (r.body?.error || r.status) + ')'; return; }
+        if (r.status !== 200) { b.disabled = false; b.textContent = t('web.render_tasks.7', { label, status: (r.body?.error || r.status) }); return; }
         await renderTasks({ force: true }); if (current === a.conversationId) loadCards().catch(() => {}); };
       ac.append(b);
     }
     d.append(ac); box.append(d);
   }
-  box.append(el('h4', '진행 중·확인 필요 ' + acts.length));
-  if (!acts.length) box.append(el('p', '진행 중인 질문이 없어요.', 'muted small'));
-  for (const t of acts) box.append(taskRow(t));
-  const recent = (all.body?.tasks ?? []).filter((t) => !acts.some((x) => x.requestId === t.requestId));
-  box.append(el('h4', '최근'));
-  if (!recent.length) box.append(el('p', '아직 질문이 없어요.', 'muted small'));
-  for (const t of recent) box.append(taskRow(t));
+  box.append(el('h4', t('web.render_tasks.8', { acts: acts.length })));
+  if (!acts.length) box.append(el('p', t('web.render_tasks.9'), 'muted small'));
+  for (const tk of acts) box.append(taskRow(tk));
+  const recent = (all.body?.tasks ?? []).filter((tk) => !acts.some((x) => x.requestId === tk.requestId));
+  box.append(el('h4', t('web.render_tasks.10')));
+  if (!recent.length) box.append(el('p', t('web.render_tasks.11'), 'muted small'));
+  for (const tk of recent) box.append(taskRow(tk));
   // 링크로 연 작업이 목록 밖(오래됨)이면 따로 맨 위에
-  if (taskFocus && ![...acts, ...recent].some((t) => t.requestId === taskFocus)) {
+  if (taskFocus && ![...acts, ...recent].some((tk) => tk.requestId === taskFocus)) {
     const r = await api('/v1/tasks/' + taskFocus);
-    box.prepend(r.status === 200 ? taskRow(r.body) : el('p', '이 작업을 볼 수 없어요(없거나 권한이 없어요).', 'notice'));
+    box.prepend(r.status === 200 ? taskRow(r.body) : el('p', t('web.render_tasks.12'), 'notice'));
   }
   if (gen !== taskGen) return;
   updateTaskBadge(aps.length + acts.length).catch(() => {});
   schedule();
 }
-function taskRow(t) {
+function taskRow(tk) {
   const d = el('div', null, 'task');
   const t1 = el('div', null, 't1');
-  t1.append(el('b', t.label), el('span', (t.stopRequested && ['dispatching', 'running'].includes(t.status) ? '멈추는 중' : TSTATE[t.status] || t.status), 'st'), el('span', when(t.createdAt), 'small muted'));
-  if (t.pendingApprovals) t1.append(el('span', '승인 대기 ' + t.pendingApprovals, 'st'));
-  d.append(t1, el('div', t.preview || '', 't2'));
+  t1.append(el('b', tk.label), el('span', (tk.stopRequested && ['dispatching', 'running'].includes(tk.status) ? t('web.task_row.1') : TSTATE[tk.status] || tk.status), 'st'), el('span', when(tk.createdAt), 'small muted'));
+  if (tk.pendingApprovals) t1.append(el('span', t('web.task_row.2', { pending_approvals: tk.pendingApprovals }), 'st'));
+  d.append(t1, el('div', tk.preview || '', 't2'));
   const ac = el('div', null, 'acts2');
   const more = el('div', null, 'more'); more.hidden = true;
-  const open = el('button', '자세히', 'linkbtn'); open.type = 'button';
+  const open = el('button', t('web.task_row.3'), 'linkbtn'); open.type = 'button';
   const show = async () => {
     more.hidden = !more.hidden; if (more.hidden) return;
-    const r = await api('/v1/tasks/' + t.requestId); more.textContent = '';
-    if (r.status !== 200) { more.append(el('p', '볼 수 없어요.', 'muted')); return; }
+    const r = await api('/v1/tasks/' + tk.requestId); more.textContent = '';
+    if (r.status !== 200) { more.append(el('p', t('web.task_row.4'), 'muted')); return; }
     const x = r.body; const dl = el('dl');
     const kv = (k, v) => { if (v) dl.append(el('dt', k), el('dd', v)); };
-    kv('질문', x.question); kv('상태', (TSTATE[x.status] || x.status) + (x.errorCode ? ' (' + (ERR[x.errorCode]?.[1] || x.errorCode) + ')' : ''));
-    kv('엔진', ENGINE[x.engine] || x.engine); kv('접수', when(x.createdAt)); kv('마지막 변경', when(x.updatedAt));
-    for (const a of x.approvals) kv('승인 요청 ' + (a.n ?? ''), (AKIND[a.kind] || a.kind) + ' — ' + a.summary + ' → ' + (ASTATE[a.state] || a.state) + (a.state === 'failed' && Number.isInteger(a.exitCode) ? ' (종료 코드 ' + a.exitCode + ')' : ''));
+    kv(t('web.task_row.5'), x.question); kv(t('web.html_panel.2'), (TSTATE[x.status] || x.status) + (x.errorCode ? ' (' + (ERR[x.errorCode]?.[1] || x.errorCode) + ')' : ''));
+    kv(t('web.html_ns_title.3'), ENGINE[x.engine] || x.engine); kv(t('web.task_row.6'), when(x.createdAt)); kv(t('web.task_row.7'), when(x.updatedAt));
+    for (const a of x.approvals) kv(t('web.task_row.8', { v: (a.n ?? '') }), (AKIND[a.kind] || a.kind) + ' — ' + a.summary + ' → ' + (ASTATE[a.state] || a.state) + (a.state === 'failed' && Number.isInteger(a.exitCode) ? t('web.task_row.9', { exit_code: a.exitCode }) : ''));
     if (x.resume?.known) { // RC4: 재개 확인
-      const r = x.resume; const VERD = { same: '같은 세션', needs_review: '같은 세션 — 확인 필요 질문이 막고 있음', mismatch: '⚠ 세션이 바뀜' };
-      kv('재개 확인', (VERD[r.verdict] || r.verdict) + ' · 그때 ' + (ENGINE[r.then.engine] || r.then.engine) + (r.sameEngine ? '' : ' → 지금 ' + (ENGINE[r.now.engine] || r.now.engine)) + (r.sameHost ? '' : ' · 다른 PC') + (r.historyKept ? '' : ' · 이어온 보관 기록은 그 뒤 지워짐') + (r.deviceOnline === false ? ' · 지금 PC 연결 끊김' : ''));
+      const r = x.resume; const VERD = { same: t('web.task_row.10'), needs_review: t('web.task_row.11'), mismatch: t('web.task_row.12') };
+      kv(t('web.task_row.13'), t('web.task_row.14', { verdict: (VERD[r.verdict] || r.verdict), engine: (ENGINE[r.then.engine] || r.then.engine), engine2: (r.sameEngine ? '' : t('web.task_row.19', { engine: (ENGINE[r.now.engine] || r.now.engine) })), pc: (r.sameHost ? '' : t('web.task_row.20')), history_kept: (r.historyKept ? '' : t('web.task_row.21')), pc2: (r.deviceOnline === false ? t('web.task_row.22') : '') }));
     }
-    kv('답', x.answer);
+    kv(t('web.task_row.15'), x.answer);
     more.append(dl);
   };
   open.onclick = show; ac.append(open);
-  if (t.canStop) {
-    const st = el('button', '중지', 'linkbtn'); st.type = 'button';
-    st.onclick = async () => { st.disabled = true; const r = await api('/v1/requests/' + t.requestId + '/stop', { method: 'POST' }); if (r.status >= 400) { st.textContent = r.body?.error === 'stop_unsupported' ? '원래 창에서 멈추세요' : '멈출 수 없어요'; return; } await renderTasks({ force: true }); };
+  if (tk.canStop) {
+    const st = el('button', t('web.send.3'), 'linkbtn'); st.type = 'button';
+    st.onclick = async () => { st.disabled = true; const r = await api('/v1/requests/' + tk.requestId + '/stop', { method: 'POST' }); if (r.status >= 400) { st.textContent = r.body?.error === 'stop_unsupported' ? t('web.task_row.16') : t('web.task_row.17'); return; } await renderTasks({ force: true }); };
     ac.append(st);
   }
-  const go = el('button', '대화로', 'linkbtn'); go.type = 'button';
-  go.onclick = () => { closeTasks(); select(t.conversationId).catch(() => {}); };
+  const go = el('button', t('web.task_row.18'), 'linkbtn'); go.type = 'button';
+  go.onclick = () => { closeTasks(); select(tk.conversationId).catch(() => {}); };
   ac.append(go);
   d.append(ac, more);
-  if (taskFocus === t.requestId) { d.style.outline = '2px solid var(--accent)'; show(); setTimeout(() => d.scrollIntoView({ block: 'nearest' }), 0); }
+  if (taskFocus === tk.requestId) { d.style.outline = '2px solid var(--accent)'; show(); setTimeout(() => d.scrollIntoView({ block: 'nearest' }), 0); }
   return d;
 }
+// I18N: 언어 고르기(로그인 화면 아래). 고르면 이 브라우저에 기억하고(쿠키 ieon_lang) 다시 불러온다.
+(() => { const s = $('langSel'); for (const [code, name] of I18N.languages) { const o = el('option', name); o.value = code; s.append(o); } s.value = I18N.lang; s.onchange = () => setLang(s.value); })();
 </script>
 </body>
 </html>

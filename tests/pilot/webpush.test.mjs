@@ -9,6 +9,7 @@ import { createECDH, createHmac, createDecipheriv, createHash, randomBytes, crea
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
 import { encryptWebPush, makeVapidKeys, vapidAuth, validateWebSub, createWebPusher } from '../../src/pilot/push.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const hmac = (k, d) => createHmac('sha256', k).update(d).digest();
@@ -110,7 +111,7 @@ test('서버: 웹 로그인만 구독, 답이 끝나면 그 주인의 구독으�
 });
 
 test('화면: 알림 켜면 서비스 워커로 구독, 알림을 누르면 그 대화(#conv=), 웹 알림이 켜져 있으면 탭 알림은 겹치지 않음', () => {
-  const app = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+  const app = koView('app.html');
   const sw = readFileSync(fileURLToPath(new URL('../../src/pilot/web/sw.js', import.meta.url)), 'utf8');
   assert.ok(app.includes("navigator.serviceWorker.register('/sw.js')") && app.includes("'/v1/webpush/subscription'") && app.includes('#conv='));
   assert.ok(app.includes('!notifyOnNow || webPushOn ||'));

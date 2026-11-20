@@ -5,11 +5,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { appServerTurn, approvalSummary, fileChangeSummary } from '../../src/pilot/adapters/codex-thread.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const T = '01a18790-0000-7000-8000-000000000001';
 
 test('작업 패널: 겹친 그리기는 마지막 것만, 내용이 그대로면 다시 그리지 않음(누르는 사이 버튼이 바뀌어 클릭이 사라지던 문제), 승인 실패는 버튼에 표시', () => {
-  const app = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+  const app = koView('app.html');
   assert.ok(app.includes('if (gen !== taskGen) return;') && app.includes('sig === taskSig') && app.includes("' — 다시 눌러 주세요('"));
 });
 

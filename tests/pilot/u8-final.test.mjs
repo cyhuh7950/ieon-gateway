@@ -7,11 +7,12 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = (p) => readFileSync(join(root, p), 'utf8');
 const sha = (s) => createHash('sha256').update(s).digest('hex');
-const APP = read('src/pilot/web/app.html');
+const APP = koView('app.html');
 
 // 예전 화면(2026-11-12 index.html) 대화 부분이 부르던 API. U6 점검표는 관리 부분만 봐서 "새 세션 만들기"가 빠졌다(U8에서 발견·추가).
 const OLD_CONV_APIS = ['/v1/auth/setup', '/v1/auth/login', '/v1/auth/logout', '/v1/auth/state', '/v1/auth/local', '/v1/sessions/limits', '/v1/conversations', '/v1/sessions/', '/v1/conversations/', '/v1/requests/'];

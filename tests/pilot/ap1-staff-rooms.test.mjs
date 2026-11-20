@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const T = (n) => `01a18790-0000-7000-8000-00000000000${n}`;
@@ -132,7 +133,7 @@ test('② 내 허브인 PC 서버는 방 글도 받지 않는다(이 PC 화면 �
 });
 
 test('화면: 왼쪽 방 목록·방 만들기 창·@이름 안내·사용 중 알림·넘기기 버튼(누를 때만), AI 직원 이름·역할·아이콘', () => {
-  const A = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+  const A = koView('app.html');
   assert.ok(A.includes('id="roomDlg"') && A.includes('id="rdMembers"') && A.includes('id="rdLead"') && A.includes('id="rdGuide"'));
   assert.ok(A.includes("nr.onclick = () => openRoomDlg(null)") && A.includes("b.onclick = () => selectRoom(r.roomId)"));
   assert.ok(A.includes("'@이름으로 부르기 — 안 부르면 대표 @'"));

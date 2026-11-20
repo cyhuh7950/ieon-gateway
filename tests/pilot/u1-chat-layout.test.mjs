@@ -7,10 +7,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
 import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 const KO = loadDict('ko');
 
 const web = (f) => readFileSync(fileURLToPath(new URL(`../../src/pilot/web/${f}`, import.meta.url)), 'utf8');
-const APP = web('app.html');
+const APP = koView('app.html');
 
 test('서버: `/`는 새 화면, 예전 주소 `/classic`은 설정 화면으로', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'ieon-u1-'));

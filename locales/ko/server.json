@@ -90,6 +90,5 @@
   "channel.instructions": "이어온(ieon) 연결부를 통해 사용자의 질문이 <channel source=\"ieon\" chat_id=\"ieon\" message_id=\"...\"> 태그로 들어온다.\n질문한 사람은 이 터미널이 아니라 이어온 화면을 본다. 답은 반드시 reply 도구로 보내고 reply_to에 그 message_id를 넣는다.\nreply 외의 도구 사용이나 파일 변경이 필요해 보이면 실행하지 말고, 그 사실을 reply로 알린다.",
   "channel.reply_desc": "이어온 질문에 답을 보낸다. reply_to에 질문의 message_id를 넣는다.",
   "channel.bad_reply_to": "reply_to가 이어온 질문 ID가 아님",
-  "channel.already_replied": "이미 답을 보낸 질문이라 다시 보내지 않음",
-  "intl_locale": "ko-KR"
+  "channel.already_replied": "이미 답을 보낸 질문이라 다시 보내지 않음"
 }

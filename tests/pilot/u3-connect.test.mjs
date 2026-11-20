@@ -8,11 +8,12 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
 import { listCodexThreads, safeThreads } from '../../src/pilot/codex-threads.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const WORK = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
 const FAKE = fileURLToPath(new URL('./fake-codex-app-server.mjs', import.meta.url));
-const APP = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+const APP = koView('app.html');
 const tmp = (t) => { const d = mkdtempSync(join(tmpdir(), 'ieon-u3-')); t.after(() => rmSync(d, { recursive: true, force: true })); return d; };
 
 test('목록 정리: 업무 대화(대소문자 무관)·형식이 틀린 ID·임시 대화를 빼고 제목·폴더·시각만', () => {

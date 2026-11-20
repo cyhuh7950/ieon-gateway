@@ -13,6 +13,7 @@ import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
 import { validateBinding } from '../../src/pilot/settings.mjs';
 import { probeLockAt } from '../../src/pilot/lock-probe.mjs';
 import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 const KO = loadDict('ko');
 
 const A = '9e943423-83d6-448a-aaf0-48b2121879e5';
@@ -87,7 +88,7 @@ test('허용 목록·세션 등록: 그 PC 설정(PC·허브 화면 같은 명�
 
 test('화면: PC 설정의 Antigravity·Grok 허용 목록, 세션 등록 엔진, 대화 화면 이름·안내·오류 문구', () => {
   const S = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
-  const P = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+  const P = koView('app.html');
   assert.ok(S.includes('id="cliAdd"') && S.includes('id="cliList"') && S.includes("devRun('device.cli.put'") && S.includes('<option value="agy_cli">Antigravity 대화</option>'));
   assert.ok(P.includes("agy_cli: 'Antigravity', grok_cli: 'Grok'") && KO['errors.session_in_use'] && KO['errors.session_load_failed']);
   assert.ok(/ERR_HARD = new Set\([^)]*'session_load_failed'/.test(P) && !/ERR_HARD = new Set\([^)]*'session_in_use'/.test(P));
