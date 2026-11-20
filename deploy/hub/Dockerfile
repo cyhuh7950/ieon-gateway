@@ -13,8 +13,10 @@ RUN npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.326 && npm
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \n  && (curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /usr/local/bin && /usr/local/bin/agy --version || echo "Antigravity 설치 실패 — 허브는 계속")
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+# I18N: 화면·봇·서버 글의 언어별 사전(없으면 문구 대신 키 이름이 나옴)
+COPY locales/ ./locales/
 # 신산님 2026-11-19 "허브에서 설치 파일 받기"(저장소는 비공개 그대로): 새 서버 설치 묶음. 관리자가 만든 1시간짜리 설치 링크로만 내준다(/install/<열쇠>/…).
 COPY deploy/ ./deploy/
-RUN tar -czf /app/ieon-gateway.tar.gz package.json package-lock.json src scripts deploy
+RUN tar -czf /app/ieon-gateway.tar.gz package.json package-lock.json src scripts deploy locales
 ENV NODE_ENV=production HOME=/data/home CODEX_HOME=/data/codex DISABLE_AUTOUPDATER=1
 CMD ["node", "src/hub/run.mjs", "/data"]

@@ -67,3 +67,10 @@ test('처리방침·약관: ?lang=en·영어 브라우저는 영어판, 한국�
     assert.match(en, /<html lang="en">/);
   }
 });
+
+test('배포 이미지에 사전이 들어감: 허브·엔진 칸 이미지와 새 서버 설치 묶음·카카오 중계 이미지(2026-11-20 배포 때 빠져 화면에 키 이름이 나왔음)', () => {
+  const hub = readFileSync(join(ROOT, 'deploy/hub/Dockerfile'), 'utf8');
+  assert.match(hub, /^COPY locales\/ \.\/locales\/$/m, '허브·엔진 칸 이미지');
+  assert.match(hub, /tar -czf \/app\/ieon-gateway\.tar\.gz [^\n]*\blocales\b/, '새 서버 설치 묶음');
+  assert.match(readFileSync(join(ROOT, 'deploy/relay/Dockerfile'), 'utf8'), /^COPY locales\/ \.\/locales\/$/m, '카카오 중계 이미지');
+});
