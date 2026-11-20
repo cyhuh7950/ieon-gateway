@@ -114,8 +114,9 @@ table.list tr.pick:hover { background:var(--surface-alt); }
 }
 /* 휴대폰 폭(대화 화면과 같은 760px): 누를 것 44px, 표는 한 줄에 한 카드로 쌓음(옆으로 밀지 않음) */
 @media (max-width:760px) {
-  header { padding:6px 12px; flex-wrap:nowrap; }
-  header h1 { white-space:nowrap; flex:none; } header a.back { white-space:nowrap; flex:none; }
+  header { padding:6px 12px; flex-wrap:nowrap; gap:8px; }
+  header .right { flex:0 1 auto; min-width:0; gap:6px; } #langSel { max-width:7.5em; padding:4px 6px; } header .right button { max-width:7.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } /* I18N: 언어 칸이 머리줄을 밀어내지 않게 */
+  header h1 { white-space:nowrap; flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; } header a.back { white-space:nowrap; flex:none; } /* I18N: 긴 언어는 제목이 줄어듦 */
   #modeTag { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   nav.atabs { -webkit-mask-image:linear-gradient(90deg,#000 85%,transparent); mask-image:linear-gradient(90deg,#000 85%,transparent); padding-right:24px; }
   nav.agrp button, details > summary { min-height:44px; }

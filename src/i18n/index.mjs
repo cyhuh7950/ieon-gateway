@@ -13,13 +13,30 @@ const cache = new Map();
 // 사전이 있는 언어(폴더 이름). 한국어가 늘 먼저.
 export function languages() {
   const all = existsSync(LOCALES_DIR) ? readdirSync(LOCALES_DIR, { withFileTypes: true }).filter((d) => d.isDirectory() && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(d.name)).map((d) => d.name) : [];
-  return [BASE_LANG, ...all.filter((l) => l !== BASE_LANG).sort()];
+  return [BASE_LANG, ...all.filter((l) => l !== BASE_LANG).sort(), ...(pseudoOn() ? [PSEUDO] : [])];
+}
+
+// 가짜 언어 xx(I18N 4절 — 화면 점검용, 평소에는 없음): IEON_PSEUDO_LOCALE=1일 때만. 영어 문구를 [!! … !!]로 감싸고 1.4배로 늘려
+// 넘침·잘린 버튼·사전에 없는 글(가짜 표시가 없는 글)을 찾는다. {자리}·HTML 태그·언어 값(날짜·음성·정규식·명령)은 그대로.
+export const PSEUDO = 'xx';
+const pseudoOn = () => process.env.IEON_PSEUDO_LOCALE === '1';
+const PSEUDO_KEEP = /^(common.(intl_locale|speech_lang)|settings.danger.|messenger.(alias.|call_suffixes))/;
+export function pseudoText(text) {
+  const s = String(text);
+  if (!s.trim()) return s;
+  const plain = s.replace(/{[^{}]*}|<[^>]*>/g, '').length;
+  return `[!! ${s}${'~'.repeat(Math.max(1, Math.round(plain * 0.4)))} !!]`;
+}
+function pseudoDict(namespaces) {
+  const en = loadDict('en', namespaces);
+  return Object.fromEntries(Object.entries(en).map(([k, v]) => [k, PSEUDO_KEEP.test(k) || k === 'common.lang_name' ? (k === 'common.lang_name' ? 'xx' : v) : pseudoText(v)]));
 }
 
 // 한 언어의 사전: 묶음 이름을 앞에 붙인 평평한 표 { 'errors.hub_mode': '…' }
 export function loadDict(lang, namespaces = null) {
   const key = `${lang}|${namespaces ? namespaces.join(',') : '*'}`;
   if (cache.has(key)) return cache.get(key);
+  if (lang === PSEUDO && pseudoOn()) { const d = pseudoDict(namespaces); cache.set(key, d); return d; }
   const dir = new URL(`../../locales/${lang}/`, import.meta.url);
   const out = {};
   if (/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(lang) && existsSync(dir)) {

@@ -60,6 +60,45 @@ node tools/video/build-intro.mjs
 - 배경음은 넣지 않았다(저작권 없는 음원을 고르면 `build-intro.mjs` 5단계에서 섞으면 됨).
 - 목소리를 신산님 목소리로 바꾸려면 `.local/video/voice/<장면>.wav`를 같은 이름으로 바꾸고 `build-intro.mjs`를 다시 실행(장면 길이가 목소리에 맞춰 바뀜).
 
+## 영어 소개 영상 만들기 (I18N I3 — 소개 영상만 영어)
+
+같은 도구에 `VIDEO_LANG=en`만 붙인다. 장면 말은 `intro-scenes.en.mjs`, 그림 장면의 화면 글은 `intro-text.en.js`(`intro.html`의 `L('한국어 원문')` → 영어), 작업 폴더는 `.local/video/en/`.
+
+```bash
+VIDEO_LANG=en VIDEO_PORT=28799 node tools/video/demo-server.mjs
+```
+(대화 이름·AI 직원·예시 답·서버 언어가 영어. 첫 줄의 `code`)
+
+```bash
+app/node_modules/electron/dist/electron.exe app/electron/main.cjs --remote-debugging-port=9333 --user-data-dir=.local/video/en/ud-app
+```
+
+```bash
+app/node_modules/electron/dist/electron.exe tools/video/viewer.cjs --remote-debugging-port=9335 --user-data-dir=.local/video/en/ud-web http://127.0.0.1:28799/
+```
+
+```bash
+VIDEO_LANG=en node tools/video/capture-intro.mjs <연결코드>
+```
+(앱은 `ieon_lang=en`, 웹은 쿠키 `ieon_lang=en`으로 영어 화면을 찍는다 → `.local/video/en/shots`)
+
+```bash
+node -e "import('./tools/video/intro-scenes.en.mjs').then(m=>require('fs').writeFileSync('.local/video/en/lines.json', JSON.stringify(m.SCENES.map(s=>({id:s.id,say:s.say})))))"
+```
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/video/tts.ps1 -List .local/video/en/lines.json -Out .local/video/en/voice -Culture en-US
+```
+(Windows 기본 영어 목소리 Zira)
+
+```bash
+VIDEO_LANG=en node tools/video/build-intro.mjs still
+VIDEO_LANG=en node tools/video/build-intro.mjs
+```
+→ `.local/video/en/Ieon_intro_en.mp4`, `.local/video/en/Ieon_intro_en.srt`
+
+- 화면 점검(가짜 언어): `VIDEO_LANG=xx node tools/video/demo-server.mjs`로 띄우면 서버가 가짜 언어 `xx`(모든 문구를 `[!! … !!]`로 1.4배)를 켠다. 화면 맨 위 언어 칸에서 `xx`를 고르면 넘침·잘린 버튼·사전에 없는 글을 찾을 수 있다(평소에는 없음 — `IEON_PSEUDO_LOCALE=1`일 때만).
+
 ## 사용법 영상(01~05) 만들기
 
 [docs/video/SCRIPT.md](../../docs/video/SCRIPT.md)의 01~05편. 소개 영상과 같은 도구에 아래만 더했다.
