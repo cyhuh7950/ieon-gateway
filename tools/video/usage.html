@@ -30,6 +30,18 @@
   .listen { position: absolute; left: 0; right: 0; bottom: 0; background: #f8fafc; color: #0f172a; border-radius: 34px 34px 0 0; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px 22px 34px; box-shadow: 0 -10px 30px rgba(0,0,0,.25); }
   .listen .mic { width: 84px; height: 84px; border-radius: 50%; background: #0f766e; color: #fff; display: grid; place-items: center; font-size: 40px; }
   .listen .said { font-size: 26px; min-height: 36px; text-align: center; }
+  /* 06 메신저 대화(텔레그램 모양을 단순하게 — 상표 로고 대신 글자 이름표) */
+  .chat { position: absolute; inset: 0; display: flex; flex-direction: column; background: #dfe7ec; color: #0f172a; font-size: 17px; }
+  .chat .hd { flex: none; height: 92px; padding: 40px 18px 0; background: #2b5278; color: #fff; display: flex; align-items: center; gap: 12px; }
+  .chat .hd .av { width: 40px; height: 40px; border-radius: 50%; background: #0f766e; display: grid; place-items: center; font-weight: 700; font-size: 18px; }
+  .chat .hd b { display: block; font-size: 18px; } .chat .hd small { font-size: 13px; color: #c7d7e8; }
+  .chat .ms { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 12px 12px; overflow: hidden; }
+  .chat .m { max-width: 86%; padding: 8px 12px; border-radius: 14px; line-height: 1.38; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; box-shadow: 0 1px 1px rgba(0,0,0,.12); position: relative; }
+  .chat .m.me { align-self: flex-end; background: #d9f4c7; border-bottom-right-radius: 4px; }
+  .chat .m.bot { align-self: flex-start; background: #fff; border-bottom-left-radius: 4px; }
+  .chat .m.hl { outline: 5px solid #f59e0b; box-shadow: 0 0 0 9px rgba(245,158,11,.25), 0 0 24px rgba(245,158,11,.5); }
+  .chat .in { flex: none; height: 62px; margin: 0 0 18px; padding: 0 16px; display: flex; align-items: center; background: #fff; color: #94a3b8; font-size: 17px; }
+  .plat { position: absolute; padding: 8px 20px; border-radius: 999px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); font-size: 26px; color: #e8eef5; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -112,6 +124,33 @@ const SCN = {
       el('said', sc.text.slice(0, Math.round(sc.text.length * p)), {}, L);
     } else if (sc.hl) ring(P.scr, sc.hl, P.k, prog(lt, sw * d + .2, sw * d + .6));
   },
+  chat(sc, lt, d) {
+    const f = lt / d; const hh = 820, w = 400;
+    // 숫자를 보낸 뒤 웹 화면(등록 완료)이 옆에 나타나는 장면: 휴대폰을 왼쪽으로
+    const side = sc.webAfter ? prog(lt, sc.webAfter[1] * d, sc.webAfter[1] * d + .6) : 0;
+    const fr = el('frame dev', '', { width: w + 28 + 'px', height: hh + 28 + 'px' });
+    const scr = el('scr', '', { width: w + 'px', height: hh + 'px' }, fr);
+    place(fr, lerp(CX, 470, side), 458, prog(lt, 0, .35));
+    const c = el('chat', '', {}, scr);
+    const peer = sc.peer === 'BotFather' ? ['B', 'BotFather', '봇'] : ['이', sc.peer, '봇'];
+    el('hd', `<div class="av">${peer[0]}</div><div><b>${peer[1]}</b><small>${peer[2]}</small></div>`, {}, c);
+    const ms = el('ms', '', {}, c);
+    sc.msgs.forEach(([who, text, at], i) => {
+      if (f < at) return;
+      const m = el('m ' + who, '', {}, ms); m.textContent = text;
+      const a = at === 0 ? 1 : prog(lt, at * d, at * d + .35);
+      m.style.opacity = a; m.style.transform = `translateY(${(1 - a) * 14}px)`;
+      if (sc.hlMsg === i && prog(lt, at * d + .5, at * d + .9) > .5) m.classList.add('hl');
+    });
+    el('in', '메시지', {}, c);
+    const tag = el('plat', '✈ 텔레그램 (휴대폰)'); place(tag, CX + 400, 110, prog(lt, .2, .6) * (1 - side));
+    if (sc.webAfter) {
+      const [sw, sh] = SIZE.web; const ww = 1080, k = ww / sw, h2 = sh * k + 40;
+      const b = el('frame brw', '<div class="url">127.0.0.1:28799</div>', { width: ww + 'px', height: h2 + 'px' });
+      el('scr', `<img src="${SHOT + sc.webAfter[0]}.png">`, { height: sh * k + 'px' }, b);
+      place(b, lerp(2100, 1240, side), 458, side);
+    }
+  },
   toast(sc, lt, d) {
     const [sw, sh] = SIZE.pc; const hh = 820, k = hh / sh, w = sw * k;
     // PC 바탕화면 + 이어온 PC 앱 창(최소화 → 알림)
@@ -139,7 +178,7 @@ window.render = (t) => {
   if (t >= sc.sayStart && t <= sc.sayStart + sc.sayDur + .25) el('sub', `<span>${sc.say}</span>`);
 };
 // 그림 미리 불러오기 — render.cjs가 시간표를 넣은 뒤 읽으므로 읽는 순간에 만든다
-Object.defineProperty(window, '__ready', { get: () => Promise.all([...new Set((window.__TIMELINE || []).flatMap((s) => (s.shots || []).map((x) => x[0])))]
+Object.defineProperty(window, '__ready', { get: () => Promise.all([...new Set((window.__TIMELINE || []).flatMap((s) => [...(s.shots || []).map((x) => x[0]), ...(s.webAfter ? [s.webAfter[0]] : [])]))]
   .map((n) => new Promise((r) => { const i = new Image(); i.onload = i.onerror = r; i.src = SHOT + n + '.png'; }))) });
 </script>
 </body>

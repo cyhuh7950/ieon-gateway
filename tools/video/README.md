@@ -99,9 +99,9 @@ VIDEO_LANG=en node tools/video/build-intro.mjs
 
 - 화면 점검(가짜 언어): `VIDEO_LANG=xx node tools/video/demo-server.mjs`로 띄우면 서버가 가짜 언어 `xx`(모든 문구를 `[!! … !!]`로 1.4배)를 켠다. 화면 맨 위 언어 칸에서 `xx`를 고르면 넘침·잘린 버튼·사전에 없는 글을 찾을 수 있다(평소에는 없음 — `IEON_PSEUDO_LOCALE=1`일 때만).
 
-## 사용법 영상(01~05) 만들기
+## 사용법 영상(01~06) 만들기
 
-[docs/video/SCRIPT.md](../../docs/video/SCRIPT.md)의 01~05편. 소개 영상과 같은 도구에 아래만 더했다.
+[docs/video/SCRIPT.md](../../docs/video/SCRIPT.md)의 01~06편. 소개 영상과 같은 도구에 아래만 더했다.
 
 | 파일 | 하는 일 |
 | --- | --- |
@@ -136,7 +136,9 @@ node tools/video/build-usage.mjs still
 ```bash
 node tools/video/build-usage.mjs
 ```
-→ `.local/video/이어온_사용법_01_웹질문.mp4` … `_05_음성알림지우기.mp4`와 같은 이름의 `.srt`. 한 편만: `node tools/video/build-usage.mjs 03`.
+→ `.local/video/이어온_사용법_01_웹질문.mp4` … `_06_메신저로일시키기.mp4`와 같은 이름의 `.srt`. 한 편만: `node tools/video/build-usage.mjs 03`.
+
+- **06 메신저로 일 시키기:** 웹 메신저 창만 찍으려면 `node tools/video/capture-usage.mjs messenger`(가짜 서버·웹 창만 켜 두면 됨). 가짜 서버에는 메신저 모듈·실제 봇이 없어, 캡처 도구가 그 창이 묻는 봇 상태·토큰 저장·확인 숫자만 화면 안에서 가짜로 돌려준다(아무 데도 보내지 않음, 토큰도 가짜). 텔레그램 대화는 `usage.html`의 `chat` 장면이 그린다 — 장면의 `msgs`는 `[보낸 쪽, 글, 나타나는 비율]`, 봇 글은 `locales/ko/messenger.json`과 같은 문장으로 맞춘다.
 
 - 확인 창(confirm·prompt)은 캡처에 찍히지 않아 캡처 도구가 미리 "예"로 답한다. 받아쓰기 창과 Windows 알림은 실제로 띄우지 않고 `usage.html`에서 그린다.
 - 목소리를 바꾸려면 `.local/video/usage-voice/<편>/<장면>.wav`를 같은 이름으로 바꾸고 `build-usage.mjs`를 다시 실행.

@@ -1,4 +1,4 @@
-// 사용법 영상(01~05) 실제 화면 캡처: 웹 화면 창(포트 9335) + 휴대폰 크기 PC 앱(포트 9333), 가짜 서버(VIDEO_SET=usage demo-server.mjs)
+// 사용법 영상(01~06) 실제 화면 캡처: 웹 화면 창(포트 9335) + 휴대폰 크기 PC 앱(포트 9333), 가짜 서버(VIDEO_SET=usage demo-server.mjs)
 // 사용: node tools/video/capture-usage.mjs [web|phone]  (비우면 둘 다, 웹 먼저 — 작업 모드·방이 웹에서 만들어진 뒤 휴대폰)
 // → .local/video/usage-shots/*.png. 확인 창(confirm·prompt)은 화면에 그릴 수 없어 미리 "예"로 답해 둔다(가짜 서버라 실제로 지워지거나 보내지는 것 없음).
 import { mkdirSync } from 'node:fs';
@@ -87,6 +87,39 @@ async function web() {
   w.close();
 }
 
+// 06 메신저로 일 시키기 — 웹의 메신저 창(실제 화면). 가짜 서버에는 메신저 모듈·실제 봇이 없으므로
+// 이 창이 묻는 봇 상태·토큰 저장·확인 숫자 응답만 화면 안에서 가짜로 돌려준다(아무 데도 보내지 않음, 토큰도 가짜).
+async function messenger() {
+  const w = await connect(9335);
+  await w.size(1440, 900, 4 / 3, false);
+  await w.eval(`location.href = '${BASE}/', 1`); await w.sleep(3000);
+  const shot = (n) => w.shot(`${OUT}/${n}.png`);
+  await w.eval(`(() => {
+    const real = window.fetch; let saved = false; window.__claimed = false;
+    const J = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
+    const bot = (platform, on) => ({ platform, botId: 'default', enabled: true, status: on ? { state: 'connected', username: '@my_ieon_bot' } : { state: 'token_missing' } });
+    window.fetch = async (u, init = {}) => {
+      const p = String(u); const m = (init.method || 'GET').toUpperCase();
+      if (p.startsWith('/v1/admin/bots')) return J({ bots: [bot('telegram', saved), bot('discord'), bot('slack'), bot('line'), bot('kakao')] });
+      if (p.startsWith('/v1/admin/secrets/')) { saved = true; return J({ ok: true }); }
+      if (p.startsWith('/v1/admin/secrets')) return J({ names: [{ name: 'TELEGRAM_BOT_TOKEN', platform: 'telegram', botId: 'default', present: false }] });
+      if (p.startsWith('/v1/admin/messenger/claim')) return m === 'POST' ? J({ code: '482913' }) : J(window.__claimed ? { state: 'claimed' } : { state: 'pending' });
+      return real(u, init);
+    };
+    return 1; })()`);
+  await shot('m06_btn');
+  await w.click('#msgBtn'); await w.sleep(1200);
+  await shot('m06_plats');
+  await must(clickText(w, '#mPlats button', '텔레그램'), '텔레그램'); await w.sleep(1000);
+  await w.type('#m2Fields input[data-name]', '7712345678:AAH-video-demo-token-not-real'); await w.sleep(300);
+  await shot('m06_token');
+  await w.click('#m2Next'); await w.sleep(4000);
+  await shot('m06_code');
+  await w.eval('window.__claimed = true, 1'); await w.sleep(4000);
+  await shot('m06_done');
+  w.close();
+}
+
 async function phone() {
   const p = await connect(9333);
   await p.size(390, 844, 3, false);
@@ -143,6 +176,10 @@ async function phone() {
   p.close();
 }
 
-if (which !== 'phone') await web();
-if (which !== 'web') await phone();
+if (which === 'messenger') await messenger();
+else {
+  if (which !== 'phone') await web();
+  if (which !== 'web') await phone();
+  if (which === 'all') await messenger();
+}
 console.log('usage shots done');
