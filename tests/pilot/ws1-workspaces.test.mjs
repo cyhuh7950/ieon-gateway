@@ -1,7 +1,7 @@
 // WS1-a 작업공간(신산님 2026-11-18 "WS1-a 진행", 설계 WORKSPACES 2절·3-1 실측): 그 PC의 폴더를 사람이 등록하고 AI 직원에 개인·공유(읽기/쓰기) 폴더를 붙인다.
 // 붙이지 않은 직원은 그대로(보존), 붙인 Codex 직원만 작업 폴더·writableRoots가 바뀜, 임시 폴더 아래·업무 대화·허용 목록 밖은 거절,
 // 붙이기는 전용 주소로만(기록 180일, 내용 없음), 메신저 /status는 폴더 이름만. 모델 0.
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,11 +23,14 @@ const T1 = '01a18790-0000-7000-8000-000000000001';
 const T2 = '01a18790-0000-7000-8000-000000000002';
 const WORK = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
 const sha = (s) => createHash('sha256').update(s).digest('hex');
-// 임시 폴더 아래는 등록이 거절되므로 시험 폴더는 저장소의 .local(git 무시) 아래에 둔다
-function dirs(t) {
+// 임시 폴더 아래는 등록이 거절되므로 시험 폴더는 저장소의 .local(git 무시) 아래에 둔다.
+// 지우기는 이 파일의 시험이 모두 끝난 뒤(각 시험의 서버·DB가 닫힌 뒤) — 시험마다 지우면 Windows에서 열린 p.db 때문에 실패해 폴더가 쌓였다(2026-11-20 저장소 정리).
+const made = [];
+after(() => { for (const d of made) { try { rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* Windows 잠금 */ } } });
+function dirs() {
   mkdirSync(join(ROOT, '.local'), { recursive: true });
   const d = mkdtempSync(join(ROOT, '.local', 'ws1-'));
-  t.after(() => { try { rmSync(d, { recursive: true, force: true }); } catch { /* Windows 잠금 */ } });
+  made.push(d);
   for (const n of ['staffA', 'shared', 'docs']) mkdirSync(join(d, n));
   return d;
 }
