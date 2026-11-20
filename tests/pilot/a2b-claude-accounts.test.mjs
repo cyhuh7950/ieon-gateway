@@ -105,7 +105,7 @@ test('기기 명령: Claude 계정 추가·로그인·코드·API 키·기본 �
   const server = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: join(d, 'shared') });
   assert.equal((await server.run('claude.accounts.add', { label: 'x' })).body.error, 'claude_shared_login');
   assert.equal((await server.run('claude.get')).body.pc, undefined);
-  const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
+  const SET = koView('settings.html');
   for (const op of Object.keys(OPS).filter((o) => o.startsWith('claude.accounts.'))) assert.ok(SET.includes(`Run('${op}'`), op);
 });
 
@@ -137,6 +137,7 @@ import { claudeAccountHealth, claudeAccountId } from '../../src/pilot/claude-acc
 import { createApp } from '../../src/pilot/server.mjs';
 import { createHash } from 'node:crypto';
 import { healthHeader } from '../../src/pilot/connector.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 const SID = '0b0e0000-0000-4000-8000-0000000000a1';
 const SID2 = '0b0e0000-0000-4000-8000-0000000000a2';
 

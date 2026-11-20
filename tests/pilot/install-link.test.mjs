@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createApp } from '../../src/pilot/server.mjs';
 import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 const KO = loadDict('ko');
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -39,7 +40,7 @@ test('설치 링크: 관리자만 만들고, 열쇠로 스크립트·묶음을 �
 test('묶음·화면: 허브 이미지가 설치 묶음을 만들고, 설정에 설치 명령 칸, 설치 끝 안내가 허브 명령을 가리킴', () => {
   const df = readFileSync(new URL('../../deploy/hub/Dockerfile', import.meta.url), 'utf8');
   assert.ok(df.includes('COPY deploy/ ./deploy/') && df.includes('tar -czf /app/ieon-gateway.tar.gz package.json package-lock.json src scripts deploy'));
-  const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
+  const SET = koView('settings.html');
   assert.ok(SET.includes('id="instBox"') && SET.includes("'/v1/admin/install-link'"));
   assert.ok(readFileSync(new URL('../../deploy/server/install.sh', import.meta.url), 'utf8').includes("허브 화면의 '서버 설치 명령'"));
 });

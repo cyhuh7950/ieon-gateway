@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { validateSchedule, nextRun, tzOffsetMs, localDay, describeSchedule } from '../../src/pilot/schedules.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const T1 = '01a18790-0000-7000-8000-000000000001';
@@ -108,6 +109,6 @@ test('서버: 주인 웹 화면만 만들기·켜기, 때가 되면 주인 이�
 });
 
 test('화면: 설정 → 대화에 예약 작업(만들 때·다시 켤 때 확인 창)', () => {
-  const set = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
+  const set = koView('settings.html');
   assert.ok(set.includes('aria-label="예약 작업"') && set.includes("api('/v1/schedules'") && set.includes('승인할까요?') && set.includes('다시 켭니다'));
 });

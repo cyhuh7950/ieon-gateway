@@ -60,7 +60,7 @@ test('새 세션 엔진·기기 명령·허브 자신 허용·화면 칸', async
   assert.equal((await pc.run('grok.accounts.use', { accountId: id })).body.defaultAccount, id);
   assert.equal((await pc.run('grok.accounts.logout', { id })).body.accounts[0].kind, null);
   assert.equal((await pc.run('grok.accounts.delete', { id })).body.accounts.length, 0);
-  const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
+  const SET = koView('settings.html');
   const APP = koView('app.html');
   assert.ok(SET.includes('id="gkBox"') && SET.includes("acRun('grok.accounts.get')") && SET.includes('id="nsGrok"') && SET.includes('name="rEng" value="grok"'));
   assert.ok(APP.includes('<option value="grok">'));

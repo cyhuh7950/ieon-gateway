@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initHubData, initFromEnv, parseList } from '../../scripts/hub-init.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -82,7 +83,7 @@ test('설치 스크립트·서버용 compose: 크기·포트·주소는 설치 �
   const ieun = read('deploy/hub/ieun.sh');
   assert.ok(ieun.includes('docker exec "$HUB_C" node src/hub/invite.mjs') && ieun.includes('HUB_C=${HUB_C:-ieun-relay}') && ieun.includes('export IEON_HUB_URL'));
   assert.ok(read('src/hub/run.mjs').includes('initFromEnv(data)'), '컨테이너 첫 실행에 처음 설정');
-  const set = read('src/pilot/web/settings.html');
+  const set = koView('settings.html');
   assert.ok(set.includes('id="pcLinkOff"') && set.includes("'/v1/admin/settings/install-kind'") && set.includes("authState?.installKind === 'server'"));
   assert.ok(existsSync(join(ROOT, 'scripts/hub-init.mjs')));
 });

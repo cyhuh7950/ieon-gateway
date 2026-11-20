@@ -55,6 +55,7 @@ const isPrim = (t) => t && ['str', 'tpl', 'num', 'ident', 're'].includes(t.type)
 function operandFwd(toks, k) {
   if (toks[k]?.type === 'punct' && (toks[k].v === '!' || toks[k].v === '-')) return null; // 단항 연산은 묶지 않음
   let j;
+  if (toks[k]?.type === 'ident' && toks[k].v === 'new') return operandFwd(toks, k + 1); // new X(…)는 통째로
   if (isPrim(toks[k])) j = k; else if (isOpen(toks[k]) && toks[k].match !== undefined) j = toks[k].match; else return null;
   for (;;) {
     const nx = toks[j + 1];
@@ -65,6 +66,10 @@ function operandFwd(toks, k) {
 }
 // 피연산자 하나의 시작(앞으로): k는 피연산자의 마지막 낱말
 function operandBack(toks, k) {
+  const j0 = operandBack0(toks, k);
+  return j0 !== null && toks[j0 - 1]?.type === 'ident' && toks[j0 - 1].v === 'new' ? j0 - 1 : j0; // new X(…)는 통째로
+}
+function operandBack0(toks, k) {
   let j = k;
   for (;;) {
     if (isClose(toks[j])) { j = toks[j].match; if (j === undefined) return null; if (toks[j].v === '{') return null; const pv = toks[j - 1]; if (pv && (isPrim(pv) || isClose(pv)) && toks[j].v !== '{') { j -= 1; continue; } if (pv?.type === 'punct' && pv.v === '?.') { j -= 2; continue; } return j; }
@@ -138,6 +143,18 @@ function convertScript(src, areaAt) {
   throw new Error('끝나지 않음');
 }
 
+// 화면 코드 안의 지역 이름 t(예: const t = el('table'))는 전역 t()와 겹치므로 tv로 바꾼다.
+// 아직 t('…')를 부르지 않는 화면에서만(이미 옮긴 화면은 그대로). x.t(속성)·{ t: … }(객체 키)는 건드리지 않음.
+function renameLocalT(src) {
+  if (/\bt\('[a-z]/.test(src)) return src;
+  const toks = lex(src);
+  const edits = toks.filter((tk, k) => tk.type === 'ident' && tk.v === 't'
+    && !(toks[k - 1]?.type === 'punct' && (toks[k - 1].v === '.' || toks[k - 1].v === '?.'))
+    && !(toks[k + 1]?.type === 'punct' && toks[k + 1].v === ':' && toks[k - 1]?.type === 'punct' && (toks[k - 1].v === '{' || toks[k - 1].v === ',')));
+  for (const e of edits.reverse()) src = src.slice(0, e.start) + 'tv' + src.slice(e.end);
+  return src;
+}
+
 // ---------- HTML ----------
 const unesc = (s) => s.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 function convertHtml(html) {
@@ -150,7 +167,7 @@ function convertHtml(html) {
   for (const seg of segs) {
     if (!seg.html) {
       if (seg.tag === 'script' && /^<script>/.test(seg.s)) {
-        const body = seg.s.slice('<script>'.length, -'</script>'.length);
+        const body = renameLocalT(seg.s.slice('<script>'.length, -'</script>'.length));
         const decls = [...body.matchAll(/^(?:async\s+)?function\s+([\w$]+)|^(?:const|let)\s+([\w$]+)\s*=/gm)].map((d) => [d.index, d[1] ?? d[2]]);
         const areaAt = (p) => { let a = 'script'; for (const [at, nm] of decls) { if (at <= p) a = nm; else break; } return a; };
         out.push('<script>' + convertScript(body, areaAt) + '</script>');

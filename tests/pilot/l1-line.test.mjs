@@ -149,7 +149,7 @@ test('실행기: 서명이 틀리면 버리고, 그룹·여러 사람 방은 안
 
 test('화면: 메신저 창에 라인(2칸·webhook 주소 복사), 설정 화면에 라인 봇 추가', () => {
   const web = (f) => readFileSync(fileURLToPath(new URL(`../../src/pilot/web/${f}`, import.meta.url)), 'utf8');
-  const APP = koView('app.html'); const SET = web('settings.html');
+  const APP = koView('app.html'); const SET = koView('settings.html');
   assert.ok(APP.includes("line: { name: '라인'") && APP.includes("LINE_CHANNEL_ACCESS_TOKEN: '채널 액세스 토큰', LINE_CHANNEL_SECRET: '채널 시크릿'"));
   assert.ok(APP.includes("api('/v1/admin/line/webhook-url')"));
   assert.ok(SET.includes('<option value="line">라인</option>'));

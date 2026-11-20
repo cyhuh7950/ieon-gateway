@@ -14,12 +14,13 @@ import { createDeviceAdmin, OPS } from '../../src/pilot/device-admin.mjs';
 import { createAdminQueue } from '../../src/pilot/admin-queue.mjs';
 import { createHubLink } from '../../src/pilot/hub-link.mjs';
 import { readMode, writeMode } from '../../src/pilot/mode.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const T1 = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const users = [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }];
 const HUB_ACCESS = { webAccess: { modes: ['ip_allowlist'], ipAllowlist: ['198.51.100.9'], trustedProxies: ['127.0.0.1'] } };
-const SET = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
+const SET = koView('settings.html');
 const fakeLogin = (env) => ({ env, state: 'idle', start() { this.state = 'waiting'; }, cancel() {}, view() { return { state: this.state, url: null, code: null }; }, async logout() { return true; } });
 
 async function setup(t, { adminTimeoutMs } = {}) {

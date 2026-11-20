@@ -102,7 +102,7 @@ test('바꾸기: 이 PC 화면만, 두 값만, 처리 중인 질문이 있으면
 });
 
 test('화면: 처음 설정 0단계(넘어가면 ①), 설정 → 이 PC → 사용 방식, 허브 화면에서도 바꾸기, 허브 연결 거부 안내', () => {
-  const A = koView('app.html'); const S = web('settings.html');
+  const A = koView('app.html'); const S = koView('settings.html');
   assert.ok(A.includes('id="s0"') && A.includes('id="s0Pc"') && A.includes('id="s0Hub"') && A.includes('준비 중'));
   assert.ok(A.includes("$('sSkip').onclick = async () => { if (!$('s0').hidden) await setMode('pc'); closeSetup(); }"), '고르지 않고 넘어가면 ①');
   assert.ok(A.includes("setupStep(md?.status === 200 && !md.body.mode ? 0 : 1)"));

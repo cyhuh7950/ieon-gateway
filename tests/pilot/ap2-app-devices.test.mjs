@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const T1 = '01a18790-0000-7000-8000-000000000001';
@@ -96,7 +97,7 @@ test('연결 코드 요청 횟수 제한(1분 10번), 화면: 내 프로그램 �
   let last;
   for (let i = 0; i < 11; i += 1) last = await s.call('/v1/app/pair', { method: 'POST', token: null, body: { code: '11111111' } });
   assert.equal(last.status, 429);
-  const S = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
+  const S = koView('settings.html');
   assert.ok(S.includes('id="adCode"') && S.includes('id="adList"') && S.includes("'/v1/admin/app-devices/code'") && S.includes('10분 동안 한 번만'));
 });
 

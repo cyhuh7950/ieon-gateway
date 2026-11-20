@@ -14,6 +14,7 @@ import { acpTurn } from '../../src/pilot/adapters/acp.mjs';
 import { cliOnceAdapter } from '../../src/pilot/adapters/cli-once.mjs';
 import { createDeviceAdmin, OPS } from '../../src/pilot/device-admin.mjs';
 import { loadNewSessionsConfig } from '../../src/pilot/new-sessions.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const tmp = (t) => { const d = mkdtempSync(join(tmpdir(), 'ieon-a3-')); t.after(() => rmSync(d, { recursive: true, force: true })); return d; };
 const KEY = 'AIza' + 'k'.repeat(35);
@@ -95,7 +96,7 @@ test('기기 명령: Antigravity 계정 추가·API 키·구독 로그인·기�
   assert.equal((await pc.run('agy.accounts.logout', { id })).body.accounts[0].kind, null);
   const del = await pc.run('agy.accounts.delete', { id });
   assert.deepEqual([del.body.accounts, del.body.defaultAccount, existsSync(home)], [[], 'pc_default', false]);
-  const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
+  const SET = koView('settings.html');
   for (const op of Object.keys(OPS).filter((o) => o.startsWith('agy.accounts.'))) assert.ok(SET.includes(`Run('${op}'`), op);
 });
 

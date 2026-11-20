@@ -12,6 +12,7 @@ import { createApp } from '../../src/pilot/server.mjs';
 import { createDeviceAdmin, API_KEY } from '../../src/pilot/device-admin.mjs';
 import { createCodexLogin } from '../../src/pilot/codex-login.mjs';
 import { createHubLink } from '../../src/pilot/hub-link.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const KEY = 'sk-test' + 'A'.repeat(40);
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -123,7 +124,7 @@ test('허브 화면 → PC·엔진 칸: 기본 로그인 API 키가 같은 결�
 });
 
 test('설정 화면: 기본 로그인 줄·API 키 칸(가려진 입력, 넣은 뒤 지움)·승인 창 열기(코드 자동 복사)', () => {
-  const SET = readFileSync(fileURLToPath(new URL('../../src/pilot/web/settings.html', import.meta.url)), 'utf8');
+  const SET = koView('settings.html');
   for (const s of ["id: 'pc_default'", 'id="acKeyForm"', 'type="password"', "acRun('accounts.apikey'", "$('acKey').value = ''", '승인 창 열기', 'navigator.clipboard.writeText(waiting.login.code)', "if (!a.builtin) act('지우기'"]) assert.ok(SET.includes(s), s);
 });
 
