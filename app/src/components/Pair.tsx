@@ -3,7 +3,7 @@ import { cleanCode, normalizeServer, pair, type Conn } from "../lib/api";
 import { platformName } from "../lib/storage";
 import { errText } from "../lib/texts";
 import { codeOf } from "./common";
-import { t } from "../lib/i18n";
+import { lang, t } from "../lib/i18n";
 import { LangSelect } from "./LangSelect";
 
 export function PairScreen({ lost, onDone }: { lost: boolean; onDone: (c: Conn) => Promise<void> }) {
@@ -32,7 +32,7 @@ export function PairScreen({ lost, onDone }: { lost: boolean; onDone: (c: Conn) 
         {err && <p className="err" role="alert">{err}</p>}
         <button className="primary" disabled={busy}>{busy ? t('app.pair.15') : t('app.pair.16')}</button>
       </form>
-      <a className="muted policy" href="https://ieun-gateway.sinsan.kr/privacy" target="_blank" rel="noopener noreferrer">{t('app.list.9')}</a>
+      <a className="muted policy" href={"https://ieun-gateway.sinsan.kr/privacy?lang=" + lang} target="_blank" rel="noopener noreferrer">{t('app.list.9')}</a>
       <LangSelect />
     </main>
   );

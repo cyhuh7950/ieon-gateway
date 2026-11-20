@@ -138,7 +138,7 @@ test('AP-5a: 앱이 스스로 이 기기 연결을 끊음(자기 열쇠만, 바�
   assert.equal((await fetch(s.base + '/v1/conversations', { headers: H(b) })).status, 200, '다른 기기는 그대로');
   const list = (await (await fetch(s.base + '/v1/admin/app-devices', { headers: H('web') })).json()).devices;
   assert.equal(list.filter((d) => !d.revokedAt).length, 1);
-  const p = await fetch(s.base + '/privacy');
+  const p = await fetch(s.base + '/privacy', { headers: { 'accept-language': 'ko-KR' } }); // 한국어 브라우저(언어가 없으면 영어판)
   assert.equal(p.status, 200);
   const html = await p.text();
   assert.ok(html.includes('개인정보 처리방침') && html.includes('마이크 권한을 갖지 않습니다') && html.includes('이 기기 연결 끊기'));

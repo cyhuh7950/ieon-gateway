@@ -33,7 +33,7 @@ async function hub(t) {
 test('M4: 약관·처리방침 화면은 접속 제한 밖에서도 열림, 가입은 동의해야 하고 동의한 때를 남김', async (t) => {
   const { app, base, browser } = await hub(t);
   for (const p of ['/terms', '/privacy']) {
-    const r = await fetch(base + p, { headers: { 'x-forwarded-for': '203.0.113.50' } }); // 허용 목록 밖
+    const r = await fetch(base + p, { headers: { 'x-forwarded-for': '203.0.113.50', 'accept-language': 'ko-KR' } }); // 허용 목록 밖, 한국어 브라우저
     assert.equal(r.status, 200, p); const html = await r.text();
     assert.ok(p === '/terms' ? html.includes('이용 약관') && html.includes('하루에 보낼 수 있는 질문 수') : html.includes('가입 정보'), p);
   }
