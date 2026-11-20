@@ -80,7 +80,7 @@ export function createBotRunner(opts) {
     const runner = opts.runners[b.platform];
     if (!runner) return 'platform_not_supported';
     const entry = { def: b, controller: new AbortController(), state: 'starting', username: null, canReadAll: null };
-    entry.bridge = createBridge({ ...opts.bridgeOpts, api: opts.apiFor(b.platform, b.botId), roomStore, botId: b.botId,
+    entry.bridge = createBridge({ ...opts.bridgeOpts, api: opts.apiFor(b.platform, b.botId), roomStore, botId: b.botId, lang: () => entry.def.lang, // I18N-b: 봇마다 답 언어
       push: (addr, text) => entry.push(addr, text), canPush: () => Boolean(entry.push), // 메신저가 먼저 보내기를 지원할 때만(카카오 없음)
       log: (e) => log({ botId: b.botId, ...e }), // 전달 실패·중복 메시지 기록(내용 없이)
       botInfo: () => ({ name: entry.def.name, callNames: entry.def.callNames ?? [], role: entry.def.role ?? null,
@@ -113,7 +113,7 @@ export function createBotRunner(opts) {
       if (['open_error', 'closed_fatal'].includes(e.event)) { entry.state = 'error'; entry.detail = /^[\w.:-]{1,40}$/.test(String(e.error ?? '')) ? String(e.error) : 'error'; report(); }
       log({ ...e, botId: b.botId });
     };
-    const handle = runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog,
+    const handle = runner({ ...b.tokens, settings: settings(), signal: entry.controller.signal, log: botLog, lang: () => entry.def.lang,
       onMessage: async (m, send) => {
         if (!entry.bridge.allowed(m)) await refreshAllowed();
         // U5: 화면의 6자리 숫자만 보낸 글은 먼저 주인 등록 숫자인지 확인한다(숫자는 기록하지 않음).

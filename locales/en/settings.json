@@ -844,5 +844,8 @@
   "danger.end": "Delete|Remove|Revoke|Disconnect|Forget",
   "server_lang.title": "Server language",
   "server_lang.tip": "Language for messenger bot replies, Kakao notices, headers added for the AI, and texts the server makes (such as account labels). Each person picks their own screen language at the top. The first value is the language of the PC or server it was installed on.",
-  "server_lang.saved": "Server language changed"
+  "server_lang.saved": "Server language changed",
+  "bot_lang.label": "Reply language",
+  "bot_lang.tip": "Language this bot uses for replies, help and approval prompts. Leave it empty to follow \"Server language\" in Admin. Questions and AI answers are not translated.",
+  "bot_lang.server": "Follow server language"
 }

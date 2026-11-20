@@ -16,6 +16,8 @@ import { createBotRunner } from '../../src/pilot/messenger/runner.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
 import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
 import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
+// I18N-b: 이름표에 붙는 키(labelKey·labelVars)는 빼고 비교 — 키는 i18n-viewer 시험이 확인
+const noKey = (a) => a && Object.fromEntries(Object.entries(a).filter(([k]) => k !== "labelKey" && k !== "labelVars"));
 const KO = loadDict('ko');
 
 const TID = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
@@ -45,7 +47,7 @@ test('서버: 대화 목록에 그 대화의 질문이 나가는 계정(접속)�
   const base = `http://127.0.0.1:${await app.listen(0)}`;
   t.after(async () => { await app.close(); rmSync(dir, { recursive: true, force: true }); });
   const list = (await fetch(`${base}/v1/conversations`, { headers: { authorization: 'Bearer web' } }).then((r) => r.json())).conversations;
-  const by = Object.fromEntries(list.map((c) => [c.conversationId, c.account]));
+  const by = Object.fromEntries(list.map((c) => [c.conversationId, noKey(c.account)]));
   assert.deepEqual(by.c_codex, { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정' });
   assert.deepEqual(by.c_claude, { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' });
 });

@@ -1,5 +1,5 @@
 // 접수·중복·세션 잠금·상태·receipt를 SQLite 단일 writer로 원자 저장한다.
-import { t as i18nT } from '../i18n/index.mjs';
+import { t as i18nT, normLang } from '../i18n/index.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { STATUS, RELEASING, EngineError, STOP_UNSUPPORTED } from './contracts.mjs';
@@ -120,6 +120,7 @@ export function openStore(path) {
   db.exec('CREATE TABLE IF NOT EXISTS users (user_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, pw_hash TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, decided_at TEXT)');
   // M4: 가입할 때 이용 약관·개인정보 처리방침에 동의한 때(예전 가입자는 빈칸)
   if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'terms_at')) db.exec('ALTER TABLE users ADD COLUMN terms_at TEXT');
+  if (!db.prepare('PRAGMA table_info(bots)').all().some((c) => c.name === 'lang')) db.exec('ALTER TABLE bots ADD COLUMN lang TEXT'); // I18N-b: 봇마다 답 언어(없으면 서버 기본 언어)
   // M2: PC 기기의 주인(연결을 승인한 사람). 예전 기기(빈칸)는 관리자 것
   if (!db.prepare('PRAGMA table_info(devices)').all().some((c) => c.name === 'owner_user_id')) db.exec('ALTER TABLE devices ADD COLUMN owner_user_id TEXT');
   db.exec('CREATE TABLE IF NOT EXISTS web_push_subs (endpoint TEXT PRIMARY KEY, user_id TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL)');
@@ -216,7 +217,7 @@ export function openStore(path) {
   const roleView = (r) => r && { roleId: r.role_id, name: r.name, description: r.description, engines: JSON.parse(r.engines),
     profiles: JSON.parse(r.profiles), aiGuide: r.ai_guide, defaultSession: r.default_session };
   const botView = (b) => b && { platform: b.platform, botId: b.bot_id, name: b.name, roleId: b.role_id,
-    callNames: JSON.parse(b.call_names), extraUsers: JSON.parse(b.extra_users), enabled: Boolean(b.enabled) };
+    callNames: JSON.parse(b.call_names), extraUsers: JSON.parse(b.extra_users), enabled: Boolean(b.enabled), lang: b.lang ?? null };
   // 보관하지 않은 새 세션 수(총수·엔진별).
   const activeCounts = (hostId) => {
     const rows = db.prepare("SELECT engine, COUNT(*) AS n FROM new_sessions WHERE host_id = ? AND state != 'archived' GROUP BY engine").all(hostId);
@@ -1100,10 +1101,13 @@ export function openStore(path) {
         if (clash) return { http: 409, code: 'call_name_taken', callName: clash, botId: other.bot_id };
       }
       const users = Array.isArray(b.extraUsers) ? b.extraUsers.map(String).filter((u) => /^[\w.:@-]{1,128}$/.test(u)) : []; // 카카오 사용자 ID는 66자
-      db.prepare(`INSERT INTO bots (platform, bot_id, name, role_id, call_names, extra_users, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)
+      // I18N-b: 봇 답 언어 — 안 보내면 지금 값 그대로, 빈 값이면 서버 기본 언어, 사전이 없는 언어는 거절
+      if (b.lang && !normLang(b.lang)) return { http: 400, code: 'bad_lang' };
+      const lang = b.lang === undefined ? (this.bot(b.platform, b.botId)?.lang ?? null) : (b.lang ? normLang(b.lang) : null);
+      db.prepare(`INSERT INTO bots (platform, bot_id, name, role_id, call_names, extra_users, enabled, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (platform, bot_id) DO UPDATE SET name = excluded.name, role_id = excluded.role_id, call_names = excluded.call_names,
-        extra_users = excluded.extra_users, enabled = excluded.enabled`)
-        .run(b.platform, b.botId, b.name.trim(), role, JSON.stringify(calls), JSON.stringify(users), b.enabled === false ? 0 : 1);
+        extra_users = excluded.extra_users, enabled = excluded.enabled, lang = excluded.lang`)
+        .run(b.platform, b.botId, b.name.trim(), role, JSON.stringify(calls), JSON.stringify(users), b.enabled === false ? 0 : 1, lang);
       return { http: 200, bot: this.bot(b.platform, b.botId) };
     },
     // 봇이 볼 수 있는 기존 세션(웹에서 고름). 목록 전체를 바꾼다. 없는 세션은 거절한다.

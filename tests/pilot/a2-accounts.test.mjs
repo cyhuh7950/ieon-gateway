@@ -14,6 +14,8 @@ import { codexAccountHealth, healthHeader, pollOnce } from '../../src/pilot/conn
 import { createApp } from '../../src/pilot/server.mjs';
 import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
 import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
+// I18N-b: 이름표에 붙는 키(labelKey·labelVars)는 빼고 비교 — 키는 i18n-viewer 시험이 확인
+const noKey = (a) => a && Object.fromEntries(Object.entries(a).filter(([k]) => k !== "labelKey" && k !== "labelVars"));
 const KO = loadDict('ko');
 
 const T1 = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
@@ -91,7 +93,7 @@ test('연결부 상태: 대화별 이어온 계정 이름표만 알리고(PC 기
       { conversationId: 'c2', ownerUserId: 'u_sinsan', appIds: ['app_web'], hostId: 'h_pc', engine: 'codex_thread', sessionRef: T2 }] });
   const base = `http://127.0.0.1:${await app.listen(0)}`;
   onClose(t, () => app.close());
-  const list = async () => Object.fromEntries((await fetch(base + '/v1/conversations', { headers: { authorization: 'Bearer web' } }).then((r) => r.json())).conversations.map((c) => [c.conversationId, c.account]));
+  const list = async () => Object.fromEntries((await fetch(base + '/v1/conversations', { headers: { authorization: 'Bearer web' } }).then((r) => r.json())).conversations.map((c) => [c.conversationId, noKey(c.account)]));
   assert.equal((await list()).c1.mode, 'pc_default', '알리기 전에는 PC 기본');
   // 실제 연결부 조회(pollOnce)로 보낸다 — 한글 이름표가 HTTP 헤더에서 깨지거나 조회 자체가 실패하지 않아야 한다.
   assert.equal(await pollOnce({ baseUrl: base, deviceToken: 'dev', adapters: {}, receipts: null,

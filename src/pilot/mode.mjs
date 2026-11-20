@@ -22,6 +22,8 @@ export function writeMode(path, mode) {
 
 // 바꿀 때 무엇이 꺼지고 켜지는지(화면이 확인 전에 보여 준다)
 export function modeEffects(from, to) {
-  if (to === 'hub') return { off: [i18nT('server.mode.off_hub.bots'), i18nT('server.mode.off_hub.kakao'), i18nT('server.mode.local_web')], on: [i18nT('server.mode.on_hub')] };
-  return { off: [i18nT('server.mode.off_pc')], on: [i18nT('server.mode.on_pc.bots'), i18nT('server.mode.local_web')] };
+  // I18N-b: 글(서버 언어)과 키를 같이 — 화면이 보는 사람 언어로 다시 바꿈
+  const both = (off, on) => ({ off: off.map((k) => i18nT(k)), on: on.map((k) => i18nT(k)), offKeys: off, onKeys: on });
+  if (to === 'hub') return both(['server.mode.off_hub.bots', 'server.mode.off_hub.kakao', 'server.mode.local_web'], ['server.mode.on_hub']);
+  return both(['server.mode.off_pc'], ['server.mode.on_pc.bots', 'server.mode.local_web']);
 }

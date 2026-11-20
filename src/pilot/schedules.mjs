@@ -64,6 +64,12 @@ export function nextRun(s, from = new Date()) {
   return new Date(cand + (off - tzOffsetMs(new Date(cand), s.tz))).toISOString();
 }
 
+// 사람이 읽는 말의 키·값(화면·봇이 보는 사람 언어로 바꿈). 한 번 예약은 시각(at)·시간대(tz)를 넘겨 그 언어 형식으로
+export function scheduleWhen(s) {
+  if (s.kind === 'daily') return { whenKey: 'server.sched.daily', whenVars: { time: s.spec.time } };
+  if (s.kind === 'interval') return s.spec.minutes % 60 === 0 ? { whenKey: 'server.sched.hours', whenVars: { n: s.spec.minutes / 60 } } : { whenKey: 'server.sched.minutes', whenVars: { n: s.spec.minutes } };
+  return { whenKey: 'server.sched.once', whenVars: {}, whenAt: s.spec.at, whenTz: s.tz };
+}
 // 사람이 읽는 말(화면·목록)
 export function describeSchedule(s) {
   if (s.kind === 'daily') return i18nT('server.sched.daily', { time: s.spec.time });
