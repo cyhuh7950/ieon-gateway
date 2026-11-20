@@ -67,5 +67,5 @@
 
 ## 9. 빌더에게 맡긴 것·확인할 것
 
-- TO_VERIFY(실제 시험 때): Realtime 모델 이름(`gpt-realtime-mini`가 없으면 설정에서 바꿈), 시스템 글을 넣고 `response.create`로 읽기, semantic_vad, 안드로이드 WebView WebRTC 마이크.
+- 실제 시험(2026-11-20, WORK_STATUS 0-320): 모델 `gpt-realtime-mini`·ask_session 그대로 전달·시스템 글 + `response.create`로 요약 읽기·말 없으면 끊기·시간 세기 PASS. 남은 확인: 실제 목소리 인식(semantic_vad)·소리 듣기, 안드로이드 WebView 마이크(사람).
 - 내 판단: 질문은 하나씩, 기다림 2초 조회, 요약 길이 1~3문장, 사용량은 앱이 보내는 30초 tick으로 셈(서버가 소리를 보지 않으므로 — 자기 앱이 보내는 값).
