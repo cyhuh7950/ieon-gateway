@@ -3,8 +3,9 @@
 
 This manual is for **following along from start to finish to check the Ieon App (Android and PC) and the new web features**. Just go in order, mark the **☐ Check** at the end of each step, and then report back using [9. Report your results](#9-report-your-results) at the end.
 
-- **The current version is 0.1.7** (updated 2026-11-19, below). This document was first written on 2026-11-14 for 0.1.1 (test version), and later versions' features have been added since (Tasks screen, stopping a request, resume check, hand-off-to-a-human cards, "busy" notices, file paths on approval cards, phone notifications). Current setup: hub `ieun-gateway.sinsan.kr`; this PC is running in **hub mode** (connected to the hub).
+- **The current version is 0.1.8** (updated 2026-11-20, below). This document was first written on 2026-11-14 for 0.1.1 (test version), and later versions' features have been added since (Tasks screen, stopping a request, resume check, hand-off-to-a-human cards, "busy" notices, file paths on approval cards, phone notifications). Current setup: hub `ieun-gateway.sinsan.kr`; this PC is running in **hub mode** (connected to the hub).
 - For feature descriptions only, see [BEGINNER_GUIDE](BEGINNER_GUIDE.md) 9-1 to 9-4; for the developer API, see [API_GUIDE](API_GUIDE.md) 7-1.
+- 2026-11-20: **0.1.8** — **English screens**: the app's text follows the device language (English if it is not Korean), and you can change it with the language picker under the pairing screen and the list. The PC app window title and menu, and dictation and read-aloud, follow too. Install over 0.1.7.
 - 2026-11-20: **0.1.7** — Fixed the settings tab name in the app's pairing screen instructions to **Settings → Apps and devices → Connect Ieon App** (no feature changes). If 0.1.6 is installed, download from the hub's `/app` and install over it (same official signature, so you don't need to uninstall).
 - Updated 2026-11-19: The app is now **0.1.7** (officially signed) and is **downloaded from the hub** (no store — section 1-2). **Phone notifications** that arrive even when the app is closed (section 8-7) now work. The iPhone app is on hold.
 
