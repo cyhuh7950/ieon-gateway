@@ -5,7 +5,7 @@ import { RETRYABLE, newKey, type Card, type Client, type Conversation } from "..
 import { ROOM_ERR, staffName } from "../lib/rooms";
 import { ENGINE, errText } from "../lib/texts";
 import { Avatar, BLOCKING, CardView, Composer, codeOf, type OnEvent } from "./common";
-import { MicButton, ReadButton, SpeakerToggle, useAutoRead, useVoice } from "./Voice";
+import { LiveBar, MicButton, ReadButton, SpeakerToggle, useAutoRead, useVoice } from "./Voice";
 
 type Item = { id: string; question: string; key: string; requestId?: string; state: "sending" | "queued" | "done" | "failed" | "unknown" | "rejected" | "stopped"; stopping?: boolean; answer?: string; errorCode?: string | null; retried?: boolean; voice?: boolean };
 
@@ -19,7 +19,8 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
   const [editing, setEditing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [byVoice, setByVoice] = useState(false); // 이번 입력에 말로 쓴 글이 들어갔는지(대화에 🎤 표시)
-  const v = useVoice();
+  const voiceAsk = useRef<(q: string) => Promise<string>>(async () => "");
+  const v = useVoice({ api, conversationId: id, ask: (q) => voiceAsk.current(q) }); // V2: 실시간 대화가 보낸 질문도 여기 쌓임
   const endRef = useRef<HTMLDivElement>(null);
   const itemsRef = useRef(items); itemsRef.current = items;
   const fail = useCallback((x: unknown) => { const c = codeOf(x); if (c === "unauthorized") onLost(); else setNote(errText(c)); }, [onLost]);
@@ -88,6 +89,14 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
     refresh(it.requestId);
   };
   const review = async (requestId: string, executed: boolean) => { try { await api.review(requestId, executed); } catch (x) { fail(x); } loadCards(); refresh(requestId); };
+  // V2 실시간 대화(가)의 ask_session: 일반 질문으로 보내고(🎤 표시) 요청 번호를 돌려준다. 처리 중이면 busy
+  voiceAsk.current = async (question: string) => {
+    if (itemsRef.current.some((x) => x.state === "sending" || x.state === "queued")) throw Object.assign(new Error("busy"), { code: "busy" });
+    const key = newKey();
+    setItems((xs) => [...xs, { id: key, key, question, state: "sending", voice: true }]);
+    try { const requestId = await api.ask(id, question, key); patch(key, { requestId, state: "queued" }); return requestId; }
+    catch (x) { const c = codeOf(x); patch(key, { state: "rejected", errorCode: c }); loadCards(); throw Object.assign(new Error(c), { code: c }); }
+  };
   useAutoRead(v, items.map((x) => ({ id: x.key, text: x.state === "done" ? x.answer : null })), loaded);
   const blocked = cards.some((c) => BLOCKING.has(c.kind)) || items.some((x) => x.state === "sending" || x.state === "queued");
 
@@ -126,6 +135,7 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
       </section>
       {v.hint && <p className="note info vhint" role="status">{v.hint} <button className="link" onClick={() => v.setHint("")}>{t('app.chat.7')}</button></p>}
       {v.notice}
+      <LiveBar v={v} />
       <Composer value={text} onChange={(x) => { setText(x); if (!x.trim()) setByVoice(false); }} disabled={blocked}
         left={<MicButton v={v} onText={(s) => { setText((x) => (x.trim() ? x.trim() + " " : "") + s); setByVoice(true); }} />} placeholder={blocked ? t('app.chat.20') : t('app.chat.21')}
         onSubmit={() => { const q = text.trim(); setText(""); setNote(""); send(q, newKey(), undefined, byVoice); setByVoice(false); }} />

@@ -436,6 +436,24 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     <div id="myMsgCodeBox" class="state warn" hidden role="alert"></div>
     <table class="list"><thead><tr><th>{{settings.html_add_platform.1}}</th><th>{{settings.html_cli_dir.4}}</th><th>{{settings.html_login_days.4}}</th><th></th></tr></thead><tbody id="myMsgRows"></tbody></table>
   </section>
+  <section class="atab" data-atab="acct" data-admin hidden aria-label="{{settings.voice.title}}" id="voSection">
+    <h2>{{settings.voice.title}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.voice.tip}}" data-tip="{{settings.voice.tip}}">i</span></h2>
+    <div class="row"><label for="voMode">{{settings.voice.mode}}</label><select id="voMode"><option value="device">{{settings.voice.mode_device}}</option><option value="openai_turn">{{settings.voice.mode_turn}}</option><option value="openai_live">{{settings.voice.mode_live}}</option></select>
+      <span class="tip" tabindex="0" role="note" aria-label="{{settings.voice.tip_mode}}" data-tip="{{settings.voice.tip_mode}}">i</span> <span id="voUsed" class="muted"></span></div>
+    <div class="row"><span id="voKeyState" class="muted"></span></div>
+    <form id="voKeyForm" class="row"><input id="voKey" type="password" placeholder="{{settings.voice.key_ph}}" autocomplete="off" aria-label="{{settings.voice.key}}"><button class="primary" type="submit">{{settings.voice.key_save}}</button><button type="button" id="voKeyDel">{{settings.voice.key_del}}</button></form>
+    <div class="row"><label for="voVoice">{{settings.voice.voice}}</label><select id="voVoice" style="flex:0 0 9em"></select>
+      <label for="voDaily">{{settings.voice.daily}}</label><input id="voDaily" type="number" min="1" max="1440" step="1" style="flex:0 0 5.5em">
+      <label for="voIdle">{{settings.voice.idle}}</label><input id="voIdle" type="number" min="15" max="600" step="5" style="flex:0 0 5.5em">
+      <label for="voMax">{{settings.voice.max}}</label><input id="voMax" type="number" min="1" max="60" step="1" style="flex:0 0 5.5em"></div>
+    <details class="fold"><summary>{{settings.voice.more}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.voice.tip_models}}" data-tip="{{settings.voice.tip_models}}">i</span></summary>
+      <div class="row"><label class="chk"><input type="checkbox" id="voMembers"> {{settings.voice.members}}</label>
+        <label for="voMemberMin">{{settings.voice.member_min}}</label><input id="voMemberMin" type="number" min="1" max="1440" step="1" style="flex:0 0 5.5em"></div>
+      <div class="row"><label for="voLiveModel">{{settings.voice.live_model}}</label><input id="voLiveModel" autocomplete="off" spellcheck="false">
+        <label for="voSttModel">{{settings.voice.stt_model}}</label><input id="voSttModel" autocomplete="off" spellcheck="false">
+        <label for="voTtsModel">{{settings.voice.tts_model}}</label><input id="voTtsModel" autocomplete="off" spellcheck="false"></div>
+    </details>
+  </section>
   <section class="atab" data-atab="acct" data-need="hub" hidden aria-label="{{settings.html_my_msg_rows.1}}" id="myPwSection">
     <h2>{{settings.html_my_msg_rows.1}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.html_my_pw_section.1}}" data-tip="{{settings.html_my_pw_section.1}}">i</span></h2>
     <form id="myPwForm" class="row">
@@ -576,6 +594,7 @@ async function loadSettings(force) {
   const ns = s.newSessions, e = ns.effective;
   $('hlPerHost').value = s.hostLimit?.perHost ?? 3; // SV4 동시 질문 수
   { const sel = $('srvLang'); sel.replaceChildren(...(s.serverLang?.languages ?? []).map(([code, name]) => Object.assign(el('option', name), { value: code }))); sel.value = s.serverLang?.lang ?? ''; } // I18N-b 서버 기본 언어
+  if (s.voiceOpenai) fillVoice(s.voiceOpenai); // V2 OpenAI 음성
   $('apTtl').value = s.approvalTtl?.minutes ?? 15; $('loginDays').value = s.loginDays?.days ?? 30; // 규칙 점검 7·10
   { const p = s.push || {}; $('pushState').textContent = (p.configured ? t('settings.load_settings.2', { project_id: p.projectId }) : t('settings.load_settings.3')) + ' · ' + (p.appFile ? t('settings.load_settings.4', { app_file_project: p.appFileProject }) : t('settings.load_settings.5'))
     + (p.configured && p.appFile && p.projectId !== p.appFileProject ? t('settings.load_settings.6') : ''); $('pushOff').hidden = false; } // AP-4b
@@ -616,6 +635,35 @@ $('nsForm').onsubmit = (e) => {
     permissions: { allowFullFromChat: $('nsFull').checked, ...($('nsDefault').value && ($('nsDefault').value !== 'full' || $('nsFull').checked) ? { default: $('nsDefault').value } : {}) } }, t('settings.ns_safe.5'));
 };
 $('hlForm').onsubmit = (e) => { e.preventDefault(); saveSetting('host-limit', { perHost: Number($('hlPerHost').value) }, t('settings.ns_safe.6')); };
+// --- V2 OpenAI 음성(설계 VOICE_LIVE): 바꾸면 바로 저장되고 다음 마이크부터 적용(키만 [저장]) ---
+const VO_VOICES = ['marin', 'cedar', 'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse'];
+const voErr = (e) => ([].concat(I18N.dicts).some((d) => typeof d['errors.' + e] === 'string') ? t('errors.' + e) : setErr(e));
+function fillVoice(v) {
+  $('voMode').value = v.mode;
+  const vs = $('voVoice'); if (!vs.options.length) vs.replaceChildren(...VO_VOICES.map((x) => Object.assign(el('option', x), { value: x })));
+  if (![...vs.options].some((o) => o.value === v.voice)) vs.append(Object.assign(el('option', v.voice), { value: v.voice }));
+  vs.value = v.voice;
+  $('voDaily').value = v.dailyMinutes; $('voIdle').value = v.idleSec; $('voMax').value = v.maxMinutes;
+  $('voMembers').checked = Boolean(v.members); $('voMemberMin').value = v.memberMinutes;
+  $('voLiveModel').value = v.liveModel; $('voSttModel').value = v.sttModel; $('voTtsModel').value = v.ttsModel;
+  $('voKeyState').textContent = v.configured ? t('settings.voice.key_set', { hint: v.keyHint }) : t('settings.voice.key_none');
+  $('voKeyDel').hidden = !v.configured;
+  $('voUsed').textContent = t('settings.voice.used', { min: Math.round((v.usedTodaySec || 0) / 60) });
+}
+async function saveVoice(body, ok) {
+  const r = await api('/v1/admin/settings/voice', { method: 'PUT', body: JSON.stringify(body) });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? ok : voErr(r.body.error));
+  if (r.status === 200 && r.body.voiceOpenai) fillVoice(r.body.voiceOpenai); else await loadSettings(true);
+  return r.status === 200;
+}
+const voNum = (id) => Number($(id).value);
+$('voMode').onchange = () => saveVoice({ mode: $('voMode').value }, t('settings.voice.saved'));
+$('voVoice').onchange = () => saveVoice({ voice: $('voVoice').value }, t('settings.voice.saved'));
+$('voMembers').onchange = () => saveVoice({ members: $('voMembers').checked }, t('settings.voice.saved'));
+for (const [id, k] of [['voDaily', 'dailyMinutes'], ['voIdle', 'idleSec'], ['voMax', 'maxMinutes'], ['voMemberMin', 'memberMinutes']]) $(id).onchange = () => saveVoice({ [k]: voNum(id) }, t('settings.voice.saved'));
+for (const [id, k] of [['voLiveModel', 'liveModel'], ['voSttModel', 'sttModel'], ['voTtsModel', 'ttsModel']]) $(id).onchange = () => saveVoice({ [k]: $(id).value.trim() }, t('settings.voice.saved'));
+$('voKeyForm').onsubmit = async (e) => { e.preventDefault(); const k = $('voKey').value.trim(); if (!k) return; if (await saveVoice({ apiKey: k }, t('settings.voice.key_saved'))) $('voKey').value = ''; };
+$('voKeyDel').onclick = () => { if (confirm(t('settings.voice.key_del_confirm'))) saveVoice({ apiKey: null }, t('settings.voice.key_deleted')); };
 $('langForm').onsubmit = (e) => { e.preventDefault(); saveSetting('lang', { lang: $('srvLang').value }, t('settings.server_lang.saved')); };
 $('ttlForm').onsubmit = async (e) => { e.preventDefault();
   await saveSetting('approval-ttl', { minutes: Number($('apTtl').value) }, t('settings.ns_safe.7'));

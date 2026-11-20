@@ -44,7 +44,7 @@ test('화면: 연결한 대화가 없는 이 PC 화면에서 처음 설정을 �
 });
 
 test('첫 질문 확인(UD1): AI 응답이 꺼져 있으면 보내기 전에 묻고, 켠 뒤에만 보낸다', () => {
-  const send = APP.slice(APP.indexOf('async function send(question)'), APP.indexOf('async function send(question)') + 700);
+  const send = APP.slice(APP.indexOf('async function send(question'), APP.indexOf('async function send(question') + 1000);
   const ask = send.indexOf('askFirst()'); const on = send.indexOf('setLive(true, { confirmed: true })'); const post = send.indexOf("/requests'");
   assert.ok(ask > 0 && on > ask && post > on, '확인 → 켜기 → 보내기 순서');
   assert.ok(send.includes("if (device && device.live === false)"), '이 PC 화면에서 꺼져 있을 때만 묻는다(허브·메신저는 서버 기준)');

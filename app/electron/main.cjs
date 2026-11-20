@@ -33,9 +33,10 @@ async function createWindow() {
   });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
   win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("app://ieon/")) e.preventDefault(); });
-  // 알림(AP-4a)만 허용 — 카메라·마이크 등 나머지는 거절
-  win.webContents.session.setPermissionRequestHandler((_w, perm, cb) => cb(perm === "notifications"));
-  win.webContents.session.setPermissionCheckHandler((_w, perm) => perm === "notifications");
+  // 알림(AP-4a)과 마이크(V2 OpenAI 음성 — 소리만, 카메라는 거절)만 허용
+  const micOnly = (d) => { const m = d?.mediaTypes ?? []; return m.length > 0 && m.every((x) => x === "audio"); };
+  win.webContents.session.setPermissionRequestHandler((_w, perm, cb, d) => cb(perm === "notifications" || (perm === "media" && micOnly(d))));
+  win.webContents.session.setPermissionCheckHandler((_w, perm, _o, d) => perm === "notifications" || (perm === "media" && d?.mediaType === "audio"));
   await win.loadURL("app://ieon/");
   return win;
 }

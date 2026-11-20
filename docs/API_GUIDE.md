@@ -360,6 +360,18 @@ Content-Type: application/json
 
 ## 8. 그 밖의 API
 
+**OpenAI 음성(V2, 웹·이어온 앱용 — 키는 설정 화면에서)**
+
+| 요청 | 하는 일 |
+| --- | --- |
+| `GET /v1/voice/config?lang=ko` | 지금 방식 `{ mode, live, turn, reason, remainingSec, … }`(키 원문 없음). 누를 때마다 읽으면 설정 변경이 바로 반영 |
+| `POST /v1/voice/live` `{ conversationId, lang }` | 실시간 대화 열쇠 `{ liveId, clientSecret(60초 안에 연결), callUrl, tickSec, idleSec, maxSec }` — 볼 수 있는 대화만 |
+| `POST /v1/voice/live/<liveId>/tick`·`/end` | 30초마다 시간 세기(`stop: true`면 끊기)·끝 |
+| `POST /v1/voice/transcribe?sec=3&lang=ko` | 본문 = 녹음 파일(15MB 이하) → `{ text }` |
+| `POST /v1/voice/speak` `{ text, lang }` | → mp3 |
+
+오류: `voice_no_key`·`voice_members_off`·`voice_limit`(429)·`voice_mode_off`·`voice_key_rejected`·`voice_openai_*`·`hub_mode`. 실시간 대화의 작업 질문은 위 4-2 질문 접수 API로 보낸다(대답은 세션).
+
 **질문 멈추기(RC2)**
 
 ```http

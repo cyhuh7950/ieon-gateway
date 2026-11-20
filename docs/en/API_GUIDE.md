@@ -361,6 +361,18 @@ This is the path the Ieon App (phone and PC, built in AP-3) uses. Regular extern
 
 ## 8. Other APIs
 
+**OpenAI voice (V2, for the web and the Ieon App — the key is set in Settings)**
+
+| Request | What it does |
+| --- | --- |
+| `GET /v1/voice/config?lang=en` | The current method `{ mode, live, turn, reason, remainingSec, … }` (no raw key). Read it on every tap so settings changes apply right away |
+| `POST /v1/voice/live` `{ conversationId, lang }` | Live conversation key `{ liveId, clientSecret (connect within 60 s), callUrl, tickSec, idleSec, maxSec }` — only for conversations you can see |
+| `POST /v1/voice/live/<liveId>/tick` / `/end` | Count time every 30 s (`stop: true` means hang up) / end |
+| `POST /v1/voice/transcribe?sec=3&lang=en` | Body = the recording (15 MB or less) → `{ text }` |
+| `POST /v1/voice/speak` `{ text, lang }` | → mp3 |
+
+Errors: `voice_no_key`, `voice_members_off`, `voice_limit` (429), `voice_mode_off`, `voice_key_rejected`, `voice_openai_*`, `hub_mode`. Work questions from a live conversation go through the question API in 4-2 above (the session answers).
+
 **Stop a question (RC2)**
 
 ```http

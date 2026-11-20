@@ -155,6 +155,16 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 .compose .mic { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:50%; width:46px; height:46px; padding:0; font-size:16px; }
 .compose .mic.on { border-color:var(--err); }
 #speakBtn[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+.compose .mic.live { border-color:var(--accent); color:var(--accent); }
+.livebar { position:fixed; left:50%; transform:translateX(-50%); bottom:84px; z-index:40; display:flex; align-items:center; gap:10px; max-width:min(560px, calc(100vw - 32px)); width:100%;
+  background:var(--surface); color:var(--text); border:1px solid var(--accent); border-radius:10px; padding:8px 12px; box-shadow:0 4px 16px rgba(0,0,0,.25); }
+.livebar .spacer { flex:1; }
+.livebar .dot { width:10px; height:10px; border-radius:50%; background:var(--accent); animation:livepulse 1.4s infinite; }
+.livebar button { min-height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-alt); color:var(--text); }
+.livebar button.danger { border-color:var(--err); color:var(--err); }
+.livebar button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+@keyframes livepulse { 50% { opacity:.3; } }
+@media (prefers-reduced-motion: reduce) { .livebar .dot { animation:none; } }
 
 .panel { width:320px; background:var(--surface); border-left:1px solid var(--border); overflow:auto; padding:16px 18px; }
 .panel h3 { font-size:14px; margin:0 0 12px; display:flex; justify-content:space-between; align-items:center; }
@@ -456,7 +466,15 @@ details.adv[open] summary { margin-bottom:10px; }
     </div>
   </aside>
 </div>
+<!-- V2 OpenAI 실시간 대화(가) 막대 -->
+<div class="livebar" id="liveBar" role="status" aria-live="polite" hidden>
+  <span class="dot" aria-hidden="true"></span><span id="liveState"></span><span class="muted" id="liveLeft"></span>
+  <span class="spacer"></span>
+  <button type="button" id="liveMute" aria-pressed="false">{{web.oai_voice.mute}}</button>
+  <button type="button" class="danger" id="liveEnd">{{web.oai_voice.hangup}}</button>
+</div>
 
+<script src="/voice-core.js"></script>
 <script>
 const KIND_TXT = { api: t('web.kind_txt.1'), subscription: t('web.kind_txt.2'), compat: t('web.kind_txt.3') }; // SV3, A2-c
 const ENGINE = { codex_thread: 'Codex', claude_channel: t('web.engine.1'), claude_cli: 'Claude', agy_cli: 'Antigravity', grok_cli: 'Grok' };
@@ -667,6 +685,7 @@ function showEmpty() {
 // --- 대화 ---
 const conv = () => convs.find((x) => x.conversationId === current);
 async function select(id) {
+  if (live && current !== id) live.hangup('user'); // V2: 다른 대화로 가면 실시간 대화를 끊음
   current = id; currentRoom = null; clearTimeout(roomTimer); $('app').classList.add('in-chat');
   await load();
   const { body } = await api('/v1/conversations/' + id + '/messages');
@@ -1151,17 +1170,96 @@ function speakText(text) {
   const vo = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(I18N.lang.toLowerCase())); if (vo) u.voice = vo;
   speechSynthesis.speak(u);
 }
-function voiceAuto(text) { if (voiceAutoOn) speakText(text); }
+// V2 OpenAI 음성(설계 VOICE_LIVE): 방식은 설정 화면에서 — 누를 때마다 서버에 물어 바로 적용(기기 내장·OpenAI 한 번씩·OpenAI 실시간)
+const VOICE_ERR = (code) => ([].concat(I18N.dicts).some((d) => typeof d['errors.' + code] === 'string') ? t('errors.' + code) : t('web.oai_voice.failed'));
+async function voiceCfg() { try { const r = await api('/v1/voice/config?lang=' + encodeURIComponent(I18N.lang)); return r.status === 200 ? r.body : null; } catch { return null; } }
+function voiceNoticeOpenai() {
+  if (lsGet('ieon.voice.openai.notice.v1') === '1') return Promise.resolve(true);
+  return new Promise((ok) => {
+    const title = $('vaTitle').textContent, body = $('vaTitle').nextElementSibling.textContent;
+    $('vaTitle').textContent = t('web.oai_voice.notice_title'); $('vaTitle').nextElementSibling.textContent = t('web.oai_voice.notice_body');
+    $('voiceAsk').hidden = false;
+    const done = (v) => { $('voiceAsk').hidden = true; $('vaTitle').textContent = title; $('vaTitle').nextElementSibling.textContent = body; $('vaOk').onclick = null; $('vaCancel').onclick = null; if (v) lsSet('ieon.voice.openai.notice.v1', '1'); ok(v); };
+    $('vaOk').onclick = () => done(true); $('vaCancel').onclick = () => done(false);
+  });
+}
+const speakable = (text) => String(text ?? '').replace(/```[\s\S]*?```/g, t('web.speak_text.1')).replace(/https?:\/\/\S+/g, t('web.speak_text.2')).replace(/[`*_#>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+// 나: OpenAI 목소리로 읽기(실패하면 기기 목소리)
+async function speakOpenai(text) {
+  const said = speakable(text); if (!said) return;
+  try {
+    const res = await fetch('/v1/voice/speak', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: said, lang: I18N.lang }) });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); toast('warn', VOICE_ERR(e.error)); speakText(text); return; }
+    if (canSpeak) speechSynthesis.cancel(); IeonVoiceCore.play(await res.arrayBuffer());
+  } catch { speakText(text); }
+}
+async function speakAny(text) { const c = await voiceCfg(); if (c?.turn) speakOpenai(text); else speakText(text); }
+let live = null; // 가: 지금 실시간 대화
+function voiceAuto(text) { if (voiceAutoOn && !live) speakAny(text); }
+function liveShow(state, info) {
+  const bar = $('liveBar'); bar.hidden = state === 'ended';
+  if (state !== 'ended') { $('liveState').textContent = t(`web.oai_voice.state.${state}`); if (info?.remainingSec != null) $('liveLeft').textContent = t('web.oai_voice.left', { min: Math.max(0, Math.ceil(info.remainingSec / 60)) }); }
+  $('micBtn').classList.toggle('live', state !== 'ended');
+}
+async function startLive() {
+  if (live) { live.hangup('user'); return; }
+  const id = current;
+  if (!id || !(await voiceNoticeOpenai())) return;
+  const vapi = {
+    live: async (conversationId, lang) => { const r = await api('/v1/voice/live', { method: 'POST', body: JSON.stringify({ conversationId, lang }) }); if (r.status !== 200) throw Object.assign(new Error(r.body.error), { code: r.body.error }); return r.body; },
+    tick: async (liveId) => (await api('/v1/voice/live/' + liveId + '/tick', { method: 'POST' })).body,
+    end: async (liveId) => api('/v1/voice/live/' + liveId + '/end', { method: 'POST' }),
+    ask: (question) => new Promise((ok, no) => { if (current !== id) return no(Object.assign(new Error('moved'), { code: 'moved' })); send(question, { onId: ok, onFail: (code) => no(Object.assign(new Error(code), { code })), voice: true }); }),
+    request: async (rid) => (await api('/v1/requests/' + rid)).body,
+    stop: async (rid) => api('/v1/requests/' + rid + '/stop', { method: 'POST' }),
+    approvals: async () => ((await api('/v1/approvals')).body?.approvals ?? []),
+  };
+  try {
+    liveShow('connecting');
+    live = await IeonVoiceCore.startLive({ api: vapi, conversationId: id, lang: I18N.lang, onState: liveShow,
+      onEnd: (why) => { live = null; $('liveMute').setAttribute('aria-pressed', 'false'); $('liveMute').textContent = t('web.oai_voice.mute'); if (why !== 'user') toast('warn', t(`web.oai_voice.ended.${why}`)); } });
+  } catch (e) { live = null; liveShow('ended'); toast('err', VOICE_ERR(e.code || e.message)); }
+}
+$('liveEnd').onclick = () => live?.hangup('user');
+$('liveMute').onclick = () => { if (!live) return; const on = $('liveMute').getAttribute('aria-pressed') !== 'true'; live.mute(on); $('liveMute').setAttribute('aria-pressed', String(on)); $('liveMute').textContent = on ? t('web.oai_voice.unmute') : t('web.oai_voice.mute'); };
+// 나: 녹음 한 번 → 받아쓰기 → 입력칸(고친 뒤 보냄)
+let turnRec = null;
+async function turnListen() {
+  if (turnRec) { const r = turnRec; turnRec = null; $('micBtn').classList.remove('on'); toast('ok', t('web.oai_voice.transcribing'));
+    const { blob, type, sec } = await r.stop();
+    try {
+      const res = await fetch('/v1/voice/transcribe?sec=' + sec + '&lang=' + encodeURIComponent(I18N.lang), { method: 'POST', credentials: 'same-origin', headers: { 'content-type': type }, body: blob });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) { toast('err', VOICE_ERR(b.error)); return; }
+      toast('', '');
+      if (b.text) { qa.value = (qa.value.trim() ? qa.value.trim() + ' ' : '') + b.text; qa.dispatchEvent(new Event('input')); qa.focus(); } else toast('warn', t('web.render_speak.4'));
+    } catch { toast('err', t('web.oai_voice.failed')); }
+    return;
+  }
+  if (!(await voiceNoticeOpenai())) return;
+  try { turnRec = await IeonVoiceCore.record(60); $('micBtn').classList.add('on'); toast('ok', t('web.oai_voice.recording')); turnRec.done.then(() => { if (turnRec) turnListen(); }); }
+  catch (e) { turnRec = null; toast('err', VOICE_ERR(e.code)); }
+}
 function renderSpeak() { const b = $('speakBtn'); b.setAttribute('aria-pressed', String(voiceAutoOn)); const lbl = voiceAutoOn ? t('web.render_speak.1') : t('web.render_speak.2'); b.setAttribute('aria-label', lbl); const ic = el('span', voiceAutoOn ? '🔊' : '🔈'); ic.setAttribute('aria-hidden', 'true'); b.replaceChildren(ic, el('span', ' ' + lbl, 'lbl')); }
 $('speakBtn').hidden = false; renderSpeak();
 $('speakBtn').onclick = async () => {
   if (!voiceAutoOn && !(await voiceNotice())) return;
   voiceAutoOn = !voiceAutoOn; lsSet('ieon.voice.auto.v1', voiceAutoOn ? '1' : '0'); renderSpeak();
   if (!voiceAutoOn && canSpeak) speechSynthesis.cancel();
+  if (!voiceAutoOn) IeonVoiceCore.stopPlay();
 };
 $('micBtn').hidden = false;
 $('micBtn').onclick = async () => {
-  if (!SRcls || qa.disabled || !(await voiceNotice())) return;
+  if (live || turnRec) { if (live) live.hangup('user'); else turnListen(); return; }
+  if (qa.disabled) return;
+  const vc = await voiceCfg();
+  if (vc && vc.mode !== 'device') {
+    if (vc.hubMode) { toast('warn', VOICE_ERR('hub_mode')); return; }
+    if (vc.reason) { toast('warn', VOICE_ERR(vc.reason)); return; }
+    if (vc.live) return startLive();
+    if (vc.turn) return turnListen();
+  }
+  if (!SRcls || !(await voiceNotice())) return;
   const rec = new SRcls(); rec.lang = t('common.speech_lang'); rec.interimResults = false; rec.maxAlternatives = 1;
   let got = '';
   $('micBtn').classList.add('on');
@@ -1186,18 +1284,20 @@ function askFirst() {
     $('faOk').onclick = () => done(true); $('faCancel').onclick = () => done(false);
   });
 }
-async function send(question) {
+// o(V2 실시간 대화): { onId(requestId), onFail(code), voice } — 음성 통역사가 보낸 질문도 화면에 평소처럼 쌓인다
+async function send(question, o = {}) {
   const id = current;
+  if (pending && o.voice) { o.onFail?.('busy'); return; }
   if (device && device.live === false) {
-    if (!(await askFirst())) { qa.value = question; return; }
-    if (!(await setLive(true, { confirmed: true }))) { qa.value = question; return; }
+    if (!(await askFirst())) { if (o.voice) o.onFail?.('cancelled'); else qa.value = question; return; }
+    if (!(await setLive(true, { confirmed: true }))) { if (o.voice) o.onFail?.('cancelled'); else qa.value = question; return; }
   }
   const { status, body } = await api('/v1/conversations/' + id + '/requests', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ question }) });
-  if (status !== 202) { retry = { conversationId: id, question, code: body.error }; renderCards(true); return; }
+  if (status !== 202) { o.onFail?.(body.error); retry = { conversationId: id, question, code: body.error }; renderCards(true); return; }
   retry = null;
-  pending = body.requestId;
+  pending = body.requestId; o.onId?.(body.requestId);
   document.querySelectorAll('#msgs .welcome').forEach((w) => w.remove());
-  $('msgs').append(el('div', question, 'bubble me'));
+  $('msgs').append(el('div', (o.voice ? '🎤 ' : '') + question, 'bubble me'));
   const steps = el('div', null, 'steps'); const s1 = el('span', t('web.send.1'), 'done'); const s2 = el('span', t('web.send.2')); steps.append(s1, s2);
   // RC2: 이 질문만 멈추기 — 대기 중이면 바로 취소, 실행 중이면 엔진이 멈춘 것을 확인한 뒤 "중지됨"
   const stopBtn = el('button', t('web.send.3'), 'linkbtn'); stopBtn.type = 'button'; steps.append(stopBtn);

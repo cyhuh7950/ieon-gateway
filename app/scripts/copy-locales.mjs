@@ -26,6 +26,9 @@ export function build() {
   }
   const fmt = readFileSync(`${ROOT}src/i18n/format.mjs`, 'utf8').replace(/\r\n/g, '\n');
   files['format.ts'] = '// 자동 생성(app/scripts/copy-locales.mjs) — 원본 src/i18n/format.mjs\n// @ts-nocheck\n' + fmt.replace(/^\/\/.*\n/gm, '');
+  // V2 OpenAI 음성 공통 코드(웹 대화 화면과 같은 파일)
+  const core = readFileSync(`${ROOT}src/pilot/web/voice-core.js`, 'utf8').replace(/\r\n/g, '\n');
+  files['voice-core.ts'] = '// 자동 생성(app/scripts/copy-locales.mjs) — 원본 src/pilot/web/voice-core.js\n// @ts-nocheck\n' + core + 'export default IeonVoiceCore;\n';
   const id = (l) => l.replace(/-/g, '_');
   files['index.ts'] = '// 자동 생성(app/scripts/copy-locales.mjs) — 원본 locales/<언어>/{common,errors,app}.json\n'
     + langs.map((l) => `import ${id(l)} from "./${l}.json";`).join('\n') + '\n'
