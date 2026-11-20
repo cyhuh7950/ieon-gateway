@@ -8,6 +8,15 @@ protocol.registerSchemesAsPrivileged([{ scheme: "app", privileges: { standard: t
 
 const OUT = path.join(__dirname, "..", "out");
 
+// I18N: 창 제목·메뉴는 PC 언어(app.getLocale())로 — 사전은 electron/locales.json(app/scripts/copy-locales.mjs가 만듦). 없는 언어는 영어 → 한국어.
+const LOCALES = require("./locales.json");
+let tr = (k) => k;
+function initLang() {
+  const loc = String(app.getLocale() || "").replace("_", "-");
+  const lang = LOCALES[loc] ? loc : LOCALES[loc.split("-")[0]] ? loc.split("-")[0] : LOCALES.en ? "en" : "ko";
+  tr = (k) => LOCALES[lang]?.[k] ?? LOCALES.en?.[k] ?? LOCALES.ko?.[k] ?? k;
+}
+
 function fileFor(url) {
   const u = new URL(url);
   let p = decodeURIComponent(u.pathname);
@@ -19,7 +28,7 @@ function fileFor(url) {
 
 async function createWindow() {
   const win = new BrowserWindow({
-    width: 480, height: 820, minWidth: 360, minHeight: 560, title: "이어온", backgroundColor: "#111417",
+    width: 480, height: 820, minWidth: 360, minHeight: 560, title: tr("common.product"), backgroundColor: "#111417",
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
@@ -35,10 +44,11 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.setAppUserModelId("kr.sinsan.ieon");
   app.whenReady().then(() => {
+    initLang();
     ipcMain.on("ieon:focus", () => { const w = BrowserWindow.getAllWindows()[0]; if (w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); } });
     protocol.handle("app", (req) => net.fetch(pathToFileURL(fileFor(req.url)).toString()));
     Menu.setApplicationMenu(Menu.buildFromTemplate([
-      { label: "이어온", submenu: [{ role: "reload", label: "새로 고침" }, { role: "toggleDevTools", label: "개발자 도구" }, { type: "separator" }, { role: "quit", label: "끝내기" }] },
+      { label: tr("common.product"), submenu: [{ role: "reload", label: tr("app.electron.reload") }, { role: "toggleDevTools", label: tr("app.electron.devtools") }, { type: "separator" }, { role: "quit", label: tr("app.electron.quit") }] },
     ]));
     return createWindow();
   });

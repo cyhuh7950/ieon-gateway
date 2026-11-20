@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 // AP-4b 휴대폰 알림(안드로이드, Firebase). 앱을 닫아도 서버가 "○○가 답했어요"를 보낸다 — 원문 없음(서버 push.mjs가 글을 정함).
 // 연결되면 한 번 알림 허용을 묻고, 받은 알림 주소(FCM 토큰)를 서버에 알린다. 알림을 누르면 그 대화를 연다.
 // 휴대폰 앱이 아니면(PC 앱·웹) 아무것도 하지 않는다(그쪽은 AP-4a 알림).
@@ -28,14 +29,14 @@ export async function startPush(sendToken: (token: string) => Promise<unknown>, 
       p = (await within(import("@capacitor/push-notifications"), ms, "load")).PushNotifications;
     }
     if (!p) return stop;
-    subs.push(await within(p.addListener("registration", (t) => { say("registered"); sendToken(t.value).then(() => say("token_sent")).catch((e) => say("send_error:" + msg(e))); }), ms, "listen"));
+    subs.push(await within(p.addListener("registration", (tv) => { say("registered"); sendToken(tv.value).then(() => say("token_sent")).catch((e) => say("send_error:" + msg(e))); }), ms, "listen"));
     subs.push(await within(p.addListener("registrationError", (e) => { say("register_error:" + msg((e as { error?: string })?.error ?? e)); }), ms, "listen"));
     subs.push(await within(p.addListener("pushNotificationActionPerformed", (a) => {
       const id = (a.notification?.data as Record<string, string> | undefined)?.conversationId;
       if (id) onOpen(id);
     }), ms, "listen"));
     // 안드로이드 8+: 알림 갈래(서버가 channel_id "ieon"으로 보냄)
-    await within(p.createChannel({ id: "ieon", name: "이어온", description: "AI 직원이 답했거나 허락을 기다릴 때", importance: 4 }), ms, "channel").catch((e) => say("channel_error:" + msg(e)));
+    await within(p.createChannel({ id: "ieon", name: t('common.product'), description: t('app.push.1'), importance: 4 }), ms, "channel").catch((e) => say("channel_error:" + msg(e)));
     let perm = await within(p.checkPermissions(), ms, "check");
     say("perm:" + perm.receive);
     if (perm.receive === "prompt" || perm.receive === "prompt-with-rationale") { perm = await within(p.requestPermissions(), 120_000, "ask"); say("asked:" + perm.receive); }

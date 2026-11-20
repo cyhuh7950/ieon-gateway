@@ -26,7 +26,7 @@ public class VoicePlugin extends Plugin {
   public void load() {
     tts = new TextToSpeech(getContext(), (status) -> {
       ttsReady = status == TextToSpeech.SUCCESS;
-      if (ttsReady) tts.setLanguage(Locale.KOREAN);
+      if (ttsReady) tts.setLanguage(Locale.getDefault()); // 읽을 때 화면 언어로 다시 정함(speak의 lang)
     });
   }
 
@@ -43,16 +43,19 @@ public class VoicePlugin extends Plugin {
   public void listen(PluginCall call) {
     Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
     i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-    i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR");
-    i.putExtra(RecognizerIntent.EXTRA_PROMPT, "말하면 글자로 바꿔요");
-    if (i.resolveActivity(getContext().getPackageManager()) == null) { call.reject("받아쓰기 기능이 없어요", "no_recognizer"); return; }
+    // I18N: 받아쓰기 언어와 안내 글은 화면이 넘김(화면 언어). 안 넘기면 기기 언어.
+    String lang = call.getString("lang");
+    String prompt = call.getString("prompt");
+    if (lang != null) i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
+    if (prompt != null) i.putExtra(RecognizerIntent.EXTRA_PROMPT, prompt);
+    if (i.resolveActivity(getContext().getPackageManager()) == null) { call.reject("no recognizer", "no_recognizer"); return; }
     startActivityForResult(call, i, "onListen");
   }
 
   @ActivityCallback
   private void onListen(PluginCall call, ActivityResult result) {
     if (call == null) return;
-    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) { call.reject("취소했어요", "cancelled"); return; }
+    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) { call.reject("cancelled", "cancelled"); return; }
     ArrayList<String> m = result.getData().getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
     JSObject r = new JSObject();
     r.put("text", m != null && !m.isEmpty() ? m.get(0) : "");
@@ -62,12 +65,14 @@ public class VoicePlugin extends Plugin {
   @PluginMethod
   public void speak(PluginCall call) {
     String text = call.getString("text", "");
-    if (!ttsReady) { call.reject("읽어 주기를 준비하지 못했어요", "no_tts"); return; }
+    if (!ttsReady) { call.reject("tts not ready", "no_tts"); return; }
+    String lang = call.getString("lang");
+    if (lang != null) tts.setLanguage(Locale.forLanguageTag(lang)); // I18N: 화면 언어로 읽기
     String id = "ieon-" + System.currentTimeMillis();
     tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
       @Override public void onStart(String u) {}
       @Override public void onDone(String u) { if (id.equals(u)) call.resolve(); }
-      @Override public void onError(String u) { if (id.equals(u)) call.reject("읽지 못했어요", "tts_error"); }
+      @Override public void onError(String u) { if (id.equals(u)) call.reject("tts error", "tts_error"); }
       @Override public void onStop(String u, boolean interrupted) { if (id.equals(u)) call.resolve(); }
     });
     tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id);

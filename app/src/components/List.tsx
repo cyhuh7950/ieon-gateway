@@ -1,3 +1,5 @@
+import { t } from "../lib/i18n";
+import { LangSelect } from "./LangSelect";
 // 첫 화면: 방(여러 AI 직원)과 AI 직원(1:1) 목록. 한 화면에 함께, 새 소식이 오면 다시 불러온다.
 import { useCallback, useEffect, useState } from "react";
 import type { Client, Conversation, Room } from "../lib/api";
@@ -6,11 +8,11 @@ import { CARD_TEXT, ENGINE, errText } from "../lib/texts";
 import { Avatar, codeOf, type OnEvent } from "./common";
 
 function stateOf(c: Conversation): [string, string] {
-  if (c.heldBy) return ["warn", "확인 필요"];
-  if (c.busy) return ["busy", "처리 중"];
-  if (!c.deviceOnline) return ["off", "PC 꺼짐"];
-  if (c.attention) return ["warn", `알림 ${c.attention}`];
-  return ["ok", "대기"];
+  if (c.heldBy) return ["warn", t('app.list.14')];
+  if (c.busy) return ["busy", t('app.list.15')];
+  if (!c.deviceOnline) return ["off", t('app.list.16')];
+  if (c.attention) return ["warn", t('app.list.1', { attention: c.attention })];
+  return ["ok", t('app.list.17')];
 }
 
 export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onTasks, onEvent, onForget, onLost, notify }: {
@@ -33,38 +35,38 @@ export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onTasks, on
   return (
     <main className="list">
       <header className="bar">
-        <h1>이어온</h1>
-        <button className="ghost" onClick={onTasks} aria-label="작업(진행·승인 대기·결과)">☰ 작업</button>
-        <button className="ghost" onClick={load} aria-label="새로 고침">↻</button>
+        <h1>{t('common.product')}</h1>
+        <button className="ghost" onClick={onTasks} aria-label={t('app.list.11')}>{t('app.list.2')}</button>
+        <button className="ghost" onClick={load} aria-label={t('app.list.12')}>↻</button>
       </header>
       {hubMode && <p className="note warn">{CARD_TEXT.hub_mode}</p>}
       {err && <p className="note err" role="alert">{err}</p>}
-      {list === null && !err && <p className="center muted">불러오는 중…</p>}
+      {list === null && !err && <p className="center muted">{t('app.list.3')}</p>}
       {list !== null && (
         <>
-          <div className="sec"><h2>방</h2>{list.length > 0 && <button className="small" onClick={onNewRoom}>+ 방 만들기</button>}</div>
-          {rooms.length === 0 && <p className="muted hint">여러 AI 직원을 한 방에 모아 @이름으로 부를 수 있어요.</p>}
+          <div className="sec"><h2>{t('app.list.4')}</h2>{list.length > 0 && <button className="small" onClick={onNewRoom}>{t('app.list.5')}</button>}</div>
+          {rooms.length === 0 && <p className="muted hint">{t('app.list.6')}</p>}
           <ul>
             {rooms.map((r) => (
               <li key={r.roomId}>
                 <button className="row" onClick={() => onRoom(r)}>
                   <span className="avatar room" aria-hidden>👥</span>
-                  <span className="who"><b>{r.name}</b><small>AI 직원 {r.members.length}명 · 대표 @{staffName(byId.get(r.lead)) || "—"}</small></span>
+                  <span className="who"><b>{r.name}</b><small>{t('app.list.7', { members: r.members.length, lead: staffName(byId.get(r.lead)) || "—" })}</small></span>
                 </button>
               </li>
             ))}
           </ul>
-          <div className="sec"><h2>AI 직원</h2></div>
-          {list.length === 0 && <p className="muted hint">아직 연결된 대화가 없어요. 웹 화면에서 대화를 연결하면 여기에 나와요.</p>}
+          <div className="sec"><h2>{t('app.notify.7')}</h2></div>
+          {list.length === 0 && <p className="muted hint">{t('app.list.8')}</p>}
           <ul>
             {list.map((c) => {
-              const [k, t] = stateOf(c);
+              const [k, tv] = stateOf(c);
               return (
                 <li key={c.conversationId}>
                   <button className="row" onClick={() => onOpen(c)}>
                     <Avatar c={c} />
-                    <span className="who"><b>{staffName(c)}</b><small>{[c.staff?.roleName, ENGINE[c.engine] ?? c.engine, c.host?.name, c.workMode ? "작업 모드" : null].filter(Boolean).join(" · ")}</small></span>
-                    <span className={"chip " + k}>{t}</span>
+                    <span className="who"><b>{staffName(c)}</b><small>{[c.staff?.roleName, ENGINE[c.engine] ?? c.engine, c.host?.name, c.workMode ? t('app.list.18') : null].filter(Boolean).join(" · ")}</small></span>
+                    <span className={"chip " + k}>{tv}</span>
                   </button>
                 </li>
               );
@@ -74,12 +76,13 @@ export function ListScreen({ api, server, onOpen, onRoom, onNewRoom, onTasks, on
       )}
       <footer className="foot muted">
         <span>{new URL(server).host}</span>
-        <a className="link" href={server + "/privacy"} target="_blank" rel="noopener noreferrer">개인정보 처리방침</a>
-        {notify && <button className="link" onClick={notify.toggle} aria-pressed={notify.on} title="창을 보고 있지 않을 때 '○○가 답했어요' 알림(내용은 넣지 않음)">{notify.on ? "🔔 알림 켜짐" : "🔕 알림 꺼짐"}</button>}
+        <LangSelect />
+        <a className="link" href={server + "/privacy"} target="_blank" rel="noopener noreferrer">{t('app.list.9')}</a>
+        {notify && <button className="link" onClick={notify.toggle} aria-pressed={notify.on} title={t('app.list.13')}>{notify.on ? t('app.list.19') : t('app.list.20')}</button>}
         <button className="link" onClick={async () => {
-          if (!confirm("이 기기 연결을 끊을까요?\n서버에서 이 기기의 열쇠를 지우고, 이 앱에 저장된 연결 정보도 지워요. 다시 쓰려면 새 연결 코드가 필요해요.\n대화 기록은 서버(내 PC·허브)에 그대로 남아요 — 지우려면 끊기 전에 대화 위쪽 ✎에서.")) return;
+          if (!confirm(t('app.list.21'))) return;
           const warn = await onForget(); if (warn) alert(warn);
-        }}>이 기기 연결 끊기</button>
+        }}>{t('app.list.10')}</button>
       </footer>
     </main>
   );

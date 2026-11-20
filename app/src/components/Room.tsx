@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 // 방: AI 직원 여러 명. @이름으로 부르고(안 부르면 대표), 사용 중이면 알림만(자동으로 기다렸다 보내지 않음),
 // 끝난 답은 사람이 눌러 다른 AI 직원에게 넘기고, 보내지 않은 게 확실한 글만 한 번 다시 보낸다. 허락 카드는 그 AI 직원 것을 방에서 바로.
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -35,15 +36,15 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
   const memberIds = useRef(new Set<string>()); memberIds.current = new Set(room?.members ?? []);
   useEffect(() => onEvent((e) => { if (memberIds.current.has(e.data?.conversationId) || e.data?.roomId === roomId) load(); }), [onEvent, load, roomId]);
   const waiting = Boolean(room?.posts.some((p) => p.kind === "ask" && WAITING.has(p.status ?? "")));
-  useEffect(() => { if (!waiting) return; const t = setInterval(load, 4000); return () => clearInterval(t); }, [waiting, load]);
+  useEffect(() => { if (!waiting) return; const tv = setInterval(load, 4000); return () => clearInterval(tv); }, [waiting, load]);
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [room?.posts.length, approvals.length]);
 
   useAutoRead(v, (room?.posts ?? []).filter((p) => p.kind === "ask").map((p) => ({ id: p.postId, text: p.status === "completed" ? p.answer : null })), Boolean(room));
   const apply = (posts: RoomPost[]) => setRoom((r) => (r ? { ...r, posts } : r));
   const post = async () => {
-    const t = text.trim();
+    const tv = text.trim();
     setSending(true); setNote("");
-    try { apply(await api.roomPost(roomId, t, newKey())); setText(""); } catch (x) { fail(x); } finally { setSending(false); }
+    try { apply(await api.roomPost(roomId, tv, newKey())); setText(""); } catch (x) { fail(x); } finally { setSending(false); }
   };
   const retry = async (p: RoomPost) => { try { apply(await api.roomRetry(roomId, p.postId, newKey())); } catch (x) { fail(x); } };
   const handoff = async (p: RoomPost, to: string, noteText: string) => {
@@ -51,7 +52,7 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
   };
   const decide = async (approvalId: string, d: "allow" | "deny" | "done" | "drop") => { try { await api.decide(approvalId, d); } catch (x) { fail(x); } load(); };
 
-  if (!room) return <main className="chat"><header className="bar"><button className="ghost" onClick={onBack} aria-label="목록으로">‹</button><span className="who"><b>방</b></span></header>{note ? <p className="note err">{note}</p> : <p className="center muted">불러오는 중…</p>}</main>;
+  if (!room) return <main className="chat"><header className="bar"><button className="ghost" onClick={onBack} aria-label={t('app.chat.12')}>‹</button><span className="who"><b>{t('app.list.4')}</b></span></header>{note ? <p className="note err">{note}</p> : <p className="center muted">{t('app.list.3')}</p>}</main>;
   const nameOf = (id: string | null) => "@" + (staffName(convs.find((c) => c.conversationId === id)) || id);
   const leadName = staffName(convs.find((c) => c.conversationId === room.lead));
   const targets = text.trim() ? mentionTargets(text, members, room.lead).map((id) => nameOf(id)).join(", ") : "";
@@ -59,31 +60,31 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
   return (
     <main className="chat">
       <header className="bar">
-        <button className="ghost" onClick={onBack} aria-label="목록으로">‹</button>
+        <button className="ghost" onClick={onBack} aria-label={t('app.chat.12')}>‹</button>
         <span className="avatar room" aria-hidden>👥</span>
-        <span className="who"><b>{room.name}</b><small>AI 직원 {room.members.length}명 · 대표 @{leadName}</small></span>
+        <span className="who"><b>{room.name}</b><small>{t('app.room.2', { members: room.members.length, lead_name: leadName })}</small></span>
         <SpeakerToggle v={v} />
-        <button className="ghost" onClick={() => onEdit(room, convs)} aria-label="방 설정">⚙</button>
+        <button className="ghost" onClick={() => onEdit(room, convs)} aria-label={t('app.room.11')}>⚙</button>
       </header>
       <section className="log" aria-live="polite">
-        {room.guide && <p className="note info">공통 안내: {room.guide}</p>}
-        {room.posts.length === 0 && <p className="center muted">@이름으로 부른 AI 직원이 답해요. 아무도 안 부르면 대표 @{leadName}가 답해요.</p>}
+        {room.guide && <p className="note info">{t('app.room.3', { guide: room.guide })}</p>}
+        {room.posts.length === 0 && <p className="center muted">{t('app.room.4', { lead_name: leadName })}</p>}
         {room.posts.map((p) => {
           if (p.kind === "user") return <p key={p.postId} className="bubble me">{p.text}</p>;
           const who = nameOf(p.conversationId);
-          const retryBtn = p.canRetry && <button className="small" onClick={() => retry(p)}>{who}에게 다시 보내기</button>;
+          const retryBtn = p.canRetry && <button className="small" onClick={() => retry(p)}>{t('app.room.5', { who })}</button>;
           if (p.kind === "busy") return <div key={p.postId} className="notice"><p>{who} — {ROOM_BUSY[p.code ?? ""] ?? errText(p.code)}</p>{retryBtn}</div>;
           const others = members.filter((m) => m.conversationId !== p.conversationId);
           return (
             <div key={p.postId} className="turn">
               <small className="whoTag">{who}</small>
-              {p.status === "completed" && <div className="ai-wrap"><p className="bubble ai">{p.answer ?? "(보관하지 않은 답)"}</p><ReadButton v={v} text={p.answer ?? ""} /></div>}
-              {WAITING.has(p.status ?? "") && <p className="bubble ai muted">{p.status === "approval_required" ? "허락을 기다리는 중…" : "답을 기다리는 중…"}</p>}
+              {p.status === "completed" && <div className="ai-wrap"><p className="bubble ai">{p.answer ?? t('app.room.14')}</p><ReadButton v={v} text={p.answer ?? ""} /></div>}
+              {WAITING.has(p.status ?? "") && <p className="bubble ai muted">{p.status === "approval_required" ? t('app.room.15') : t('app.chat.19')}</p>}
               {p.status === "failed" && <div className="notice"><p>{errText(p.errorCode)}</p>{retryBtn}</div>}
-              {p.status === "unknown" && <div className="notice"><p>결과를 확인할 수 없어요. {who} 1:1 대화의 확인 카드에서 정리하세요(자동으로 다시 보내지 않아요).</p></div>}
+              {p.status === "unknown" && <div className="notice"><p>{t('app.room.16', { who })}</p></div>}
               {p.status === "completed" && p.answer && others.length > 0 && (handing === p.postId
                 ? <Handoff others={others} onCancel={() => setHanding(null)} onSend={(to, n) => handoff(p, to, n)} />
-                : <button className="link left" onClick={() => setHanding(p.postId)}>다른 AI 직원에게 넘기기</button>)}
+                : <button className="link left" onClick={() => setHanding(p.postId)}>{t('app.room.6')}</button>)}
             </div>
           );
         })}
@@ -92,13 +93,13 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
         <div ref={endRef} />
       </section>
       {hubMode && <p className="note warn">{CARD_TEXT.hub_mode}</p>}
-      {v.hint && <p className="note info vhint" role="status">{v.hint} <button className="link" onClick={() => v.setHint("")}>닫기</button></p>}
+      {v.hint && <p className="note info vhint" role="status">{v.hint} <button className="link" onClick={() => v.setHint("")}>{t('app.chat.7')}</button></p>}
       {v.notice}
-      <div className="mentions" role="group" aria-label="부를 AI 직원">
-        {members.map((m) => <button key={m.conversationId} type="button" className="mchip" onClick={() => setText((t) => addMention(t, staffName(m)))}><Avatar c={m} small /> @{staffName(m)}</button>)}
+      <div className="mentions" role="group" aria-label={t('app.room.12')}>
+        {members.map((m) => <button key={m.conversationId} type="button" className="mchip" onClick={() => setText((tv) => addMention(tv, staffName(m)))}><Avatar c={m} small /> @{staffName(m)}</button>)}
       </div>
-      {targets && <small className="to muted">→ {targets}에게 보내요</small>}
-      <Composer value={text} onChange={setText} onSubmit={post} left={<MicButton v={v} onText={(s) => setText((x) => (x.trim() ? x.trim() + " " : "") + s)} />} disabled={sending || hubMode} placeholder={`@이름 (안 부르면 @${leadName})`} />
+      {targets && <small className="to muted">{t('app.room.7', { targets })}</small>}
+      <Composer value={text} onChange={setText} onSubmit={post} left={<MicButton v={v} onText={(s) => setText((x) => (x.trim() ? x.trim() + " " : "") + s)} />} disabled={sending || hubMode} placeholder={t('app.room.1', { lead_name: leadName })} />
     </main>
   );
 }
@@ -108,12 +109,12 @@ function Handoff({ others, onSend, onCancel }: { others: Conversation[]; onSend:
   const [note, setNote] = useState("");
   return (
     <div className="card">
-      <b>누구에게 넘길까요?</b>
+      <b>{t('app.room.8')}</b>
       <div className="mentions in">
         {others.map((m) => <button key={m.conversationId} type="button" className={"mchip" + (to === m.conversationId ? " on" : "")} aria-pressed={to === m.conversationId} onClick={() => setTo(m.conversationId)}><Avatar c={m} small /> @{staffName(m)}</button>)}
       </div>
-      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="함께 보낼 말(비우면 '이 답을 보고 이어서 해 주세요')" maxLength={1000} />
-      <div className="acts"><button className="primary" onClick={() => onSend(to, note)}>넘기기</button><button onClick={onCancel}>그만두기</button></div>
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('app.room.13')} maxLength={1000} />
+      <div className="acts"><button className="primary" onClick={() => onSend(to, note)}>{t('app.room.9')}</button><button onClick={onCancel}>{t('app.room.10')}</button></div>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { lang, t } from "./i18n";
 // V1 음성(기기 내장만, 키·비용 없음). 받아쓴 글은 입력칸에 넣어 고친 뒤 보낸다(바로 보내지 않음). 음성으로 승인하지 않는다.
 // - 안드로이드: 앱 안 IeonVoice(기기 받아쓰기 창 + TextToSpeech)
 // - PC 설치형(Electron): 읽어 주기는 Windows 목소리, 받아쓰기는 Windows 받아쓰기(Win+H) 안내 — Electron에는 내장 인식이 없다
@@ -7,8 +8,8 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 
 type Native = {
   available(): Promise<{ listen: boolean; speak: boolean }>;
-  listen(): Promise<{ text: string }>;
-  speak(o: { text: string }): Promise<void>;
+  listen(o: { lang: string; prompt: string }): Promise<{ text: string }>;
+  speak(o: { text: string; lang: string }): Promise<void>;
   stop(): Promise<void>;
 };
 const IeonVoice = registerPlugin<Native>("IeonVoice");
@@ -39,13 +40,13 @@ export class VoiceError extends Error { constructor(public code: string) { super
 // 한 번 말한 것을 글자로. 취소·실패는 VoiceError(cancelled | no_speech | not_allowed | failed)
 export async function listenOnce(kind = voiceKind()): Promise<string> {
   if (kind === "native") {
-    try { return (await IeonVoice.listen()).text.trim(); } catch (e: any) { throw new VoiceError(e?.code === "cancelled" ? "cancelled" : "failed"); }
+    try { return (await IeonVoice.listen({ lang: t('common.speech_lang'), prompt: t('app.voice.prompt') })).text.trim(); } catch (e: any) { throw new VoiceError(e?.code === "cancelled" ? "cancelled" : "failed"); }
   }
   const SR = g.SpeechRecognition || g.webkitSpeechRecognition;
   if (!SR) throw new VoiceError("failed");
   return new Promise((resolve, reject) => {
     const r = new SR();
-    r.lang = "ko-KR"; r.interimResults = false; r.maxAlternatives = 1;
+    r.lang = t('common.speech_lang'); r.interimResults = false; r.maxAlternatives = 1;
     let got = "";
     r.onresult = (e: any) => { got = String(e.results?.[0]?.[0]?.transcript ?? ""); };
     r.onerror = (e: any) => reject(new VoiceError(e.error === "not-allowed" ? "not_allowed" : e.error === "no-speech" ? "no_speech" : e.error === "aborted" ? "cancelled" : "failed"));
@@ -57,8 +58,8 @@ export async function listenOnce(kind = voiceKind()): Promise<string> {
 // 읽기 좋게: 코드 덩어리·링크 주소는 줄여 읽는다(화면 글은 그대로)
 export function speakable(text: string): string {
   return String(text ?? "")
-    .replace(/```[\s\S]*?```/g, " 코드 생략. ")
-    .replace(/https?:\/\/\S+/g, " 링크. ")
+    .replace(/```[\s\S]*?```/g, t('app.voice.1'))
+    .replace(/https?:\/\/\S+/g, t('app.voice.2'))
     .replace(/[`*_#>|]/g, "")
     .replace(/\s+/g, " ")
     .trim()
@@ -66,15 +67,15 @@ export function speakable(text: string): string {
 }
 
 export async function speak(text: string, kind = voiceKind()): Promise<void> {
-  const t = speakable(text);
-  if (!t) return;
-  if (kind === "native") { await IeonVoice.speak({ text: t }); return; }
+  const tv = speakable(text);
+  if (!tv) return;
+  if (kind === "native") { await IeonVoice.speak({ text: tv, lang: t('common.speech_lang') }); return; }
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(t);
-  u.lang = "ko-KR";
-  const ko = speechSynthesis.getVoices().find((v) => /^ko/i.test(v.lang));
-  if (ko) u.voice = ko;
+  const u = new SpeechSynthesisUtterance(tv);
+  u.lang = t('common.speech_lang');
+  const vo = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(lang.toLowerCase())); // 화면 언어의 목소리
+  if (vo) u.voice = vo;
   await new Promise<void>((res) => { u.onend = () => res(); u.onerror = () => res(); speechSynthesis.speak(u); });
 }
 
@@ -91,9 +92,9 @@ export const markNoticeSeen = () => ls()?.setItem(NOTICE, "1");
 export const autoRead = () => ls()?.getItem(AUTO) === "1";
 export const setAutoRead = (on: boolean) => ls()?.setItem(AUTO, on ? "1" : "0");
 
-export const VOICE_NOTICE = "말로 묻기·답 읽어 주기는 이 기기에 들어 있는 기능을 써요. 기기에 따라 음성이 기기 회사(구글·마이크로소프트·애플) 서버를 거칠 수 있어요. 이어온 서버에는 음성도, 받아쓴 글도 따로 저장하지 않아요. 허락(승인)은 말로 하지 않고 카드 버튼으로만 해요.";
+export const VOICE_NOTICE = t('app.voice.3');
 export const VOICE_ERR: Record<string, string> = {
-  not_allowed: "마이크를 쓸 수 없어요. 브라우저·기기 설정에서 마이크를 허용하세요.",
-  no_speech: "말소리를 듣지 못했어요. 다시 눌러 말해 주세요.",
-  failed: "받아쓰기를 하지 못했어요.",
+  not_allowed: t('app.voice.4'),
+  no_speech: t('app.voice.5'),
+  failed: t('app.voice.6'),
 };

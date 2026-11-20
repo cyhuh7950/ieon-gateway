@@ -28,7 +28,7 @@ const full = (k) => `${ns}.${k}`;
 function lex(src) {
   const toks = []; let i = 0; const n = src.length;
   const PUNCT = ['>>>=', '...', '===', '!==', '**=', '<<=', '>>=', '>>>', '&&=', '||=', '??=', '=>', '==', '!=', '<=', '>=', '&&', '||', '??', '?.', '++', '--', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '**', '<<', '>>'];
-  const regexOk = () => { const p = toks.at(-1); if (!p) return true; if (p.type === 'punct') return !/^[)\]}]$/.test(p.v); if (p.type === 'ident') return /^(return|typeof|case|do|else|in|of|new|delete|void|throw|yield|await|instanceof)$/.test(p.v); return false; };
+  const regexOk = () => { const p = toks.at(-1); if (!p) return true; if (p.type === 'punct') return p.v !== '<' && !/^[)\]}]$/.test(p.v); /* '<' 다음 '/'는 JSX 닫는 태그 */ if (p.type === 'ident') return /^(return|typeof|case|do|else|in|of|new|delete|void|throw|yield|await|instanceof)$/.test(p.v); return false; };
   while (i < n) {
     const c = src[i];
     if (/\s/.test(c)) { i++; continue; }
@@ -37,7 +37,7 @@ function lex(src) {
     const start = i;
     if (c === '"' || c === "'") { i++; while (src[i] !== c) { if (src[i] === '\\') i++; i++; } i++; toks.push({ type: 'str', start, end: i, v: src.slice(start, i) }); continue; }
     if (c === '`') { i++; let depth = 0; while (i < n) { if (src[i] === '\\') { i += 2; continue; } if (depth === 0 && src[i] === '`') break; if (src[i] === '$' && src[i + 1] === '{') { depth++; i += 2; continue; } if (depth && src[i] === '}') { depth--; i++; continue; } if (depth && (src[i] === "'" || src[i] === '"')) { const q = src[i]; i++; while (src[i] !== q) { if (src[i] === '\\') i++; i++; } } i++; } i++; toks.push({ type: 'tpl', start, end: i, v: src.slice(start, i) }); continue; }
-    if (c === '/' && regexOk()) { i++; let cls = false; while (i < n && src[i] !== '\n') { const d = src[i]; if (d === '\\') { i += 2; continue; } if (d === '[') cls = true; else if (d === ']') cls = false; else if (d === '/' && !cls) break; i++; } i++; while (/[a-z]/i.test(src[i] ?? '')) i++; toks.push({ type: 're', start, end: i, v: src.slice(start, i) }); continue; }
+    if (c === '/' && src[i + 1] !== '>' && regexOk()) { i++; let cls = false; while (i < n && src[i] !== '\n') { const d = src[i]; if (d === '\\') { i += 2; continue; } if (d === '[') cls = true; else if (d === ']') cls = false; else if (d === '/' && !cls) break; i++; } i++; while (/[a-z]/i.test(src[i] ?? '')) i++; toks.push({ type: 're', start, end: i, v: src.slice(start, i) }); continue; }
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1]))) { while (/[0-9a-zA-Z_.]/.test(src[i] ?? '')) i++; toks.push({ type: 'num', start, end: i, v: src.slice(start, i) }); continue; }
     if (/[A-Za-z_$\u0080-￿]/.test(c)) { while (/[A-Za-z0-9_$\u0080-￿]/.test(src[i] ?? '')) i++; toks.push({ type: 'ident', start, end: i, v: src.slice(start, i) }); continue; }
     const p = PUNCT.find((x) => src.startsWith(x, i)) ?? c; i += p.length;
@@ -146,13 +146,83 @@ function convertScript(src, areaAt) {
 // 화면 코드 안의 지역 이름 t(예: const t = el('table'))는 전역 t()와 겹치므로 tv로 바꾼다.
 // 아직 t('…')를 부르지 않는 화면에서만(이미 옮긴 화면은 그대로). x.t(속성)·{ t: … }(객체 키)는 건드리지 않음.
 function renameLocalT(src) {
-  if (/\bt\('[a-z]/.test(src)) return src;
+  if (/\bt\(['"][a-z]/.test(src)) return src;
   const toks = lex(src);
   const edits = toks.filter((tk, k) => tk.type === 'ident' && tk.v === 't'
     && !(toks[k - 1]?.type === 'punct' && (toks[k - 1].v === '.' || toks[k - 1].v === '?.'))
     && !(toks[k + 1]?.type === 'punct' && toks[k + 1].v === ':' && toks[k - 1]?.type === 'punct' && (toks[k - 1].v === '{' || toks[k - 1].v === ',')));
   for (const e of edits.reverse()) src = src.slice(0, e.start) + 'tv' + src.slice(e.end);
   return src;
+}
+
+// ---------- TS·TSX(이어온 앱) ----------
+// JSX 글 마디(>…<), JSX 속성 문자열(aria-label="…" 등 → {t()}), 템플릿 문자열(`…${x}…`), 보통 문자열을 t()로.
+const ATTR_BEFORE = /\b(?:aria-[a-z]+|placeholder|title|alt|label)=$/;
+function convertTs(src, areaAt) {
+  src = renameLocalT(src);
+  // 1) 템플릿 문자열
+  for (let pass = 0; pass < 10; pass++) {
+    const toks = lex(src); const edits = [];
+    for (const tk of toks) {
+      if (tk.type !== 'tpl' || !HANGUL.test(tk.v)) continue;
+      const body = tk.v.slice(1, -1); let text = ''; const vars = []; const used = new Set(); let i = 0; let ok = true;
+      while (i < body.length) {
+        if (body[i] === '\\') { text += evalStr('`' + body.slice(i, i + 2) + '`'); i += 2; continue; }
+        if (body[i] === '$' && body[i + 1] === '{') { let d = 1, j = i + 2; while (j < body.length && d) { if (body[j] === '{') d++; else if (body[j] === '}') d--; j++; } const ex = body.slice(i + 2, j - 1).trim(); if (/[`<]/.test(ex)) { ok = false; break; } const nm = nameOf(ex, used); vars.push([nm, ex]); text += `{${nm}}`; i = j; continue; }
+        if (body[i] === '{' || body[i] === '}') { ok = false; break; }
+        text += body[i]; i++;
+      }
+      if (!ok) continue;
+      const obj = vars.length ? `, { ${vars.map(([nm, ex]) => (nm === ex ? nm : `${nm}: ${ex}`)).join(', ')} }` : '';
+      edits.push({ start: tk.start, end: tk.end, text: `t('${full(keyFor(text, areaAt(tk.start)))}'${obj})` });
+    }
+    if (!edits.length) break;
+    for (const e of edits.reverse()) src = src.slice(0, e.start) + e.text + src.slice(e.end);
+  }
+  // 2) JSX 글 마디: '>' 다음부터 '<' 앞까지(중괄호 묶음은 건너뜀), 바깥에 한국어 낱말이 있으면
+  for (let pass = 0; pass < 20; pass++) {
+    const toks = lex(src); let done = false;
+    for (let k = 0; k < toks.length && !done; k++) {
+      if (!(toks[k].type === 'punct' && toks[k].v === '>')) continue;
+      let j = k + 1; const groups = []; let hasKo = false;
+      // 글 안의 괄호 (…)·[…]는 글로 본다. 짝이 바깥에 있는 닫는 괄호를 만나면 글 마디가 아님.
+      while (j < toks.length && !(toks[j].type === 'punct' && (toks[j].v === '<' || toks[j].v === '}' || toks[j].v === ')' || toks[j].v === ']' || toks[j].v === ';'))) {
+        if (toks[j].type === 'punct' && toks[j].v === '{' && toks[j].match !== undefined) { groups.push([j, toks[j].match]); j = toks[j].match + 1; continue; }
+        if (toks[j].type === 'punct' && (toks[j].v === '(' || toks[j].v === '[') && toks[j].match !== undefined) { for (let q = j; q <= toks[j].match; q++) if (toks[q].type === 'ident' && HANGUL.test(toks[q].v)) hasKo = true; j = toks[j].match + 1; continue; }
+        if (toks[j].type === 'ident' && HANGUL.test(toks[j].v)) hasKo = true;
+        j++;
+      }
+      if (!hasKo || !(toks[j]?.type === 'punct' && toks[j].v === '<')) continue;
+      const from = toks[k].end, to = toks[j].start;
+      const raw = src.slice(from, to);
+      const lead = raw.match(/^\s*/)[0], trail = raw.match(/\s*$/)[0];
+      const area = areaAt(from);
+      const elemInGroup = groups.some(([a, b]) => toks.slice(a, b).some((x) => x.type === 'punct' && x.v === '<'));
+      let rep;
+      if (!elemInGroup) {
+        let text = ''; const vars = []; const used = new Set(); let p = from + lead.length;
+        for (const [a, b] of groups) { text += src.slice(p, toks[a].start); const ex = src.slice(toks[a].end, toks[b].start).trim(); const nm = nameOf(ex, used); vars.push([nm, ex]); text += `{${nm}}`; p = toks[b].end; }
+        text += src.slice(p, to - trail.length);
+        text = text.replace(/\s+/g, ' ');
+        const obj = vars.length ? `, { ${vars.map(([nm, ex]) => (nm === ex ? nm : `${nm}: ${ex}`)).join(', ')} }` : '';
+        rep = `${lead}{t('${full(keyFor(text, area))}'${obj})}${trail}`;
+      } else {
+        // 요소가 든 묶음이 있으면 글 조각마다 따로
+        let out = ''; let p = from;
+        const piece = (s) => { const l = s.match(/^\s*/)[0], r = s.match(/\s*$/)[0]; const core = s.slice(l.length, s.length - r.length); return core && HANGUL.test(core) ? `${l}{t('${full(keyFor(core.replace(/\s+/g, ' '), area))}')}${r}` : s; };
+        for (const [a, b] of groups) { out += piece(src.slice(p, toks[a].start)) + src.slice(toks[a].start, toks[b].end); p = toks[b].end; }
+        out += piece(src.slice(p, to));
+        rep = out;
+      }
+      src = src.slice(0, from) + rep + src.slice(to); done = true;
+    }
+    if (!done) break;
+  }
+  // 3) JSX 속성 문자열은 {t()}로 감싸고, 4) 나머지 문자열·이어 붙인 문장은 화면과 같게
+  { const toks = lex(src); const edits = [];
+    for (const tk of toks) if (tk.type === 'str' && HANGUL.test(tk.v) && ATTR_BEFORE.test(src.slice(Math.max(0, tk.start - 30), tk.start))) edits.push({ start: tk.start, end: tk.end, text: `{t('${full(keyFor(evalStr(tk.v), areaAt(tk.start)))}')}` });
+    for (const e of edits.reverse()) src = src.slice(0, e.start) + e.text + src.slice(e.end); }
+  return convertScript(src, areaAt);
 }
 
 // ---------- HTML ----------
@@ -190,7 +260,18 @@ function convertHtml(html) {
 }
 
 const src = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
-const res = convertHtml(src);
+let res;
+if (/\.tsx?$/.test(file)) {
+  // 앱(TS·TSX): 자리 = 파일 이름. t를 쓰게 되면 app/src/lib/i18n에서 가져온다.
+  const base = snake(file.split(/[\\/]/).pop().replace(/\.tsx?$/, ''));
+  res = convertTs(src, () => base);
+  if (res !== src && /\bt\('/.test(res) && !/import \{[^}]*\bt\b[^}]*\} from "[^"]*i18n"/.test(res)) {
+    const dir = file.replace(/\\/g, '/').split('/src/')[1].split('/').slice(0, -1); // 예) ['components']
+    const rel = dir[0] === 'lib' ? './i18n' : '../'.repeat(dir.length) + 'lib/i18n';
+    const m = res.match(/^(?:"use client";\n)?(?:import [^\n]*\n)*/);
+    res = res.slice(0, m[0].length) + `import { t } from "${rel}";\n` + res.slice(m[0].length);
+  }
+} else res = convertHtml(src);
 writeFileSync(file, res);
 writeFileSync(dictPath, JSON.stringify(dict, null, 2) + '\n');
 console.log(`키 ${Object.keys(dict).length}개 → locales/ko/${ns}.json`);

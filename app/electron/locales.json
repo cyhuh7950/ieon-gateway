@@ -1,0 +1,8 @@
+{
+  "ko": {
+    "common.product": "이어온",
+    "app.electron.reload": "새로 고침",
+    "app.electron.devtools": "개발자 도구",
+    "app.electron.quit": "끝내기"
+  }
+}

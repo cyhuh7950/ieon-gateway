@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 // 기기 열쇠 보관: 휴대폰은 Capacitor Preferences(앱 전용 저장소), PC(Electron)·웹은 그 앱의 저장소(localStorage).
 // 열쇠 원문은 화면·로그에 다시 보이지 않는다.
 import { Capacitor } from "@capacitor/core";
@@ -30,5 +31,5 @@ export async function clearConn(): Promise<void> {
 export function platformName(): string {
   const w = globalThis as any;
   if (w.ieonDesktop) return "PC";
-  try { return Capacitor.getPlatform() === "android" ? "안드로이드" : Capacitor.getPlatform() === "ios" ? "아이폰" : "웹"; } catch { return "웹"; }
+  try { return Capacitor.getPlatform() === "android" ? t('app.storage.1') : Capacitor.getPlatform() === "ios" ? t('app.storage.2') : t('app.storage.3'); } catch { return t('app.storage.3'); }
 }

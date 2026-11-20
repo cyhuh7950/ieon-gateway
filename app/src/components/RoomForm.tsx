@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 // 방 만들기·고치기·지우기(방 기록만 지움 — 각 AI 직원 세션·1:1 기록은 그대로).
 import { useEffect, useState } from "react";
 import type { Client, Conversation, Room } from "../lib/api";
@@ -28,19 +29,19 @@ export function RoomForm({ api, room, convs: convs0, onBack, onSaved, onDeleted,
     try { onSaved(await api.saveRoom(room?.roomId ?? null, { name: name.trim(), members, lead, guide: guide.trim() })); } catch (x) { fail(x); } finally { setBusy(false); }
   };
   const remove = async () => {
-    if (!room || !confirm(`"${room.name}" 방을 지울까요? 방 기록만 지워지고 각 AI 직원 대화는 그대로예요.`)) return;
+    if (!room || !confirm(t('app.room_form.1', { name: room.name }))) return;
     try { await api.deleteRoom(room.roomId); onDeleted(); } catch (x) { fail(x); }
   };
   return (
     <main className="list">
       <header className="bar">
-        <button className="ghost" onClick={onBack} aria-label="뒤로">‹</button>
-        <h1>{room ? "방 설정" : "방 만들기"}</h1>
+        <button className="ghost" onClick={onBack} aria-label={t('app.room_form.4')}>‹</button>
+        <h1>{room ? t('app.room.11') : t('app.room_form.7')}</h1>
       </header>
       <form className="sheet page" onSubmit={save}>
-        <label>방 이름<input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="예: 개발팀" required /></label>
+        <label>{t('app.room_form.2')}<input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder={t('app.room_form.5')} required /></label>
         <fieldset>
-          <legend>AI 직원(1~10명)</legend>
+          <legend>{t('app.room_form.9')}</legend>
           {convs.map((c) => (
             <label key={c.conversationId} className="check">
               <input type="checkbox" checked={members.includes(c.conversationId)} onChange={() => toggle(c.conversationId)} />
@@ -48,15 +49,15 @@ export function RoomForm({ api, room, convs: convs0, onBack, onSaved, onDeleted,
             </label>
           ))}
         </fieldset>
-        <label>대표(아무도 안 부르면 답함)
+        <label>{t('app.room_form.10')}
           <select value={lead} onChange={(e) => setLead(e.target.value)} disabled={!members.length}>
             {members.map((id) => <option key={id} value={id}>@{staffName(convs.find((c) => c.conversationId === id))}</option>)}
           </select>
         </label>
-        <details open={Boolean(guide)}><summary>공통 안내(선택)</summary><textarea value={guide} onChange={(e) => setGuide(e.target.value)} maxLength={1000} rows={3} placeholder="이 방에서 보내는 질문마다 앞에 붙는 안내" /></details>
+        <details open={Boolean(guide)}><summary>{t('app.room_form.11')}</summary><textarea value={guide} onChange={(e) => setGuide(e.target.value)} maxLength={1000} rows={3} placeholder={t('app.room_form.6')} /></details>
         {err && <p className="err" role="alert">{err}</p>}
-        <button className="primary" disabled={busy || !members.length}>{room ? "저장" : "만들기"}</button>
-        {room && <button type="button" className="link danger" onClick={remove}>이 방 지우기</button>}
+        <button className="primary" disabled={busy || !members.length}>{room ? t('app.chat.10') : t('app.room_form.8')}</button>
+        {room && <button type="button" className="link danger" onClick={remove}>{t('app.room_form.3')}</button>}
       </form>
     </main>
   );

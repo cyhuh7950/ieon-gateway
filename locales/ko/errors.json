@@ -44,5 +44,16 @@
   "ns.conversation_busy": "처리 중이거나 확인 필요 질문이 있어요",
   "ns.confirm_mismatch": "이름 확인이 맞지 않아요",
   "ns.engine_not_allowed_for_role": "이 봇의 역할로는 그 엔진을 만들 수 없어요",
-  "ns.profile_not_allowed_for_role": "이 봇의 역할로는 그 권한을 고를 수 없어요"
+  "ns.profile_not_allowed_for_role": "이 봇의 역할로는 그 권한을 고를 수 없어요",
+  "app.network": "서버에 닿지 않았어요. 인터넷·서버 주소를 확인하세요.",
+  "app.unauthorized": "이 기기 연결이 끊겼어요. 웹 화면에서 새 연결 코드를 만들어 다시 연결하세요.",
+  "app.bad_code": "연결 코드가 맞지 않거나 이미 썼거나 10분이 지났어요. 웹 화면에서 새 코드를 만드세요.",
+  "app.rate_limited": "너무 여러 번 시도했어요. 1분 뒤 다시 하세요.",
+  "app.session_changed": "결과를 확인할 수 없어요(자동으로 다시 보내지 않아요). 확인 카드를 보세요.",
+  "app.approval_closed": "이미 결정됐거나 시간이 지난 승인이에요.",
+  "app.hub_mode": "이 PC는 허브에 연결돼 있어 여기서 보낸 질문은 처리하지 않아요. 허브 주소로 연결하세요.",
+  "app.live_disabled": "AI 응답이 꺼져 있어요. 웹 화면에서 켜세요.",
+  "app.session_archived": "보관된 세션이에요. 웹 화면에서 꺼낸 뒤 질문하세요.",
+  "app.unknown": "처리하지 못했어요({code}).",
+  "app.no_code": "알 수 없음"
 }
