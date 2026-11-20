@@ -1,4 +1,4 @@
-// 사용법 영상(01~05) 만들기: 목소리(tts.ps1) → 목소리 길이로 시간표 → usage.html 프레임 → 목소리 합치기 → MP4 + SRT
+// 사용법 영상(01~06) 만들기: 목소리(tts.ps1) → 목소리 길이로 시간표 → usage.html 프레임 → 목소리 합치기 → MP4 + SRT
 // 사용(저장소 맨 위에서): node tools/video/build-usage.mjs [01 02 …] [still]   (편 번호를 비우면 다섯 편 모두)
 //   먼저 할 일: 실제 화면 캡처(.local/video/usage-shots — capture-usage.mjs)
 //   목소리는 .local/video/usage-voice/<편>/<장면>.wav — 없을 때만 만든다(신산님 목소리로 바꾸려면 같은 이름으로 넣고 다시 실행)
