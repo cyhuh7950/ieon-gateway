@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { createApp } from '../../src/pilot/server.mjs';
 import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
 import { EXCLUDED_THREAD } from '../../src/pilot/lock-probe.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const T1 = '01a18790-0000-7000-8000-0000000000c1';
@@ -93,7 +94,7 @@ test('허브: 가입자가 내 PC의 Codex 대화를 골라 연결 → 내 대�
 });
 
 test('화면: 허브의 대화 연결은 내 PC를 골라 그 PC 목록·연결로(이 PC 화면은 그대로)', () => {
-  const html = readFileSync(new URL('../../src/pilot/web/app.html', import.meta.url), 'utf8');
+  const html = koView('app.html');
   assert.ok(html.includes('id="connHost"') && html.includes("op: 'codex.threads'") && html.includes("op: 'codex.connect'"));
   assert.ok(html.includes("api('/v1/admin/local/threads')") && html.includes("api('/v1/admin/connections'"), '이 PC 화면 연결은 그대로');
   assert.ok(!html.includes("location.href = '/settings#conv'; return; } // 허브 화면"), '허브에서 설정으로 보내지 않음');

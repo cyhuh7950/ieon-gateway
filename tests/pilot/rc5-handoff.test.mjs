@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { createApp } from '../../src/pilot/server.mjs';
 import { approver } from '../../src/pilot/connector.mjs';
 import { createBridge } from '../../src/pilot/messenger/bridge.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
@@ -114,6 +115,6 @@ test('메신저: 넘긴 일을 대화방에 알리고 /처리 n · /중단 n 으
 });
 
 test('웹 화면: 넘김 카드·규칙 칸·작업 서랍 버튼(PC형·허브형 같은 화면)', () => {
-  const html = readFileSync(new URL('../../src/pilot/web/app.html', import.meta.url), 'utf8');
+  const html = koView('app.html');
   for (const s of ["k.kind === 'handoff'", "mark('done')", "mark('drop')", 'id="hoCmd"', 'id="hoPat"', "'/handoff'", "[['직접 처리함', 'done'], ['하지 않음', 'drop']]", 'handoff_done']) assert.ok(html.includes(s), s);
 });

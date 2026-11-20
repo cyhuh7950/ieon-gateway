@@ -11,6 +11,7 @@ import { createApp } from '../../src/pilot/server.mjs';
 import { createRelay } from '../../src/relay/relay.mjs';
 import { lineSignatureOk, runLine, RECEIVED, ONLY_DIRECT } from '../../src/pilot/messenger/line.mjs';
 import { tokenEnvNames } from '../../src/pilot/bots.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const PC = 'line-relay-pc-token-0123456789';
 const SECRET = 'line-kakao-secret-0123456789abcdef';
@@ -148,7 +149,7 @@ test('실행기: 서명이 틀리면 버리고, 그룹·여러 사람 방은 안
 
 test('화면: 메신저 창에 라인(2칸·webhook 주소 복사), 설정 화면에 라인 봇 추가', () => {
   const web = (f) => readFileSync(fileURLToPath(new URL(`../../src/pilot/web/${f}`, import.meta.url)), 'utf8');
-  const APP = web('app.html'); const SET = web('settings.html');
+  const APP = koView('app.html'); const SET = web('settings.html');
   assert.ok(APP.includes("line: { name: '라인'") && APP.includes("LINE_CHANNEL_ACCESS_TOKEN: '채널 액세스 토큰', LINE_CHANNEL_SECRET: '채널 시크릿'"));
   assert.ok(APP.includes("api('/v1/admin/line/webhook-url')"));
   assert.ok(SET.includes('<option value="line">라인</option>'));

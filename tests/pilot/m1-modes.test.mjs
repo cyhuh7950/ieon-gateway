@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
 import { readMode, writeMode, modeEffects } from '../../src/pilot/mode.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const T1 = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -101,7 +102,7 @@ test('바꾸기: 이 PC 화면만, 두 값만, 처리 중인 질문이 있으면
 });
 
 test('화면: 처음 설정 0단계(넘어가면 ①), 설정 → 이 PC → 사용 방식, 허브 화면에서도 바꾸기, 허브 연결 거부 안내', () => {
-  const A = web('app.html'); const S = web('settings.html');
+  const A = koView('app.html'); const S = web('settings.html');
   assert.ok(A.includes('id="s0"') && A.includes('id="s0Pc"') && A.includes('id="s0Hub"') && A.includes('준비 중'));
   assert.ok(A.includes("$('sSkip').onclick = async () => { if (!$('s0').hidden) await setMode('pc'); closeSetup(); }"), '고르지 않고 넘어가면 ①');
   assert.ok(A.includes("setupStep(md?.status === 200 && !md.body.mode ? 0 : 1)"));

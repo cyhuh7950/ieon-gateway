@@ -15,6 +15,7 @@ import { createBridge } from '../../src/pilot/messenger/bridge.mjs';
 import { createBotRunner } from '../../src/pilot/messenger/runner.mjs';
 import { createApp } from '../../src/pilot/server.mjs';
 import { loadDict } from '../../src/i18n/index.mjs'; // I18N-a: 문구는 사전에
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 const KO = loadDict('ko');
 
 const TID = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
@@ -83,7 +84,7 @@ test('메신저 실행기: 연결 실패는 이유 코드와 함께 바로 보�
 });
 
 test('화면: 계정 표시·한도 카드(다시 보내기는 누를 때만)·메신저 창 기다림과 실패 이유', () => {
-  const APP = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+  const APP = koView('app.html');
   assert.ok(APP.includes('id="acctChip"') && APP.includes('id="pAccount"'), '대화 위쪽·연결 설정에 사용 계정');
   assert.equal(KO['errors.usage_limit'], '계정의 사용 한도에 걸려 실행되지 않았어요.');
   assert.ok(APP.includes("t('errors.' + c)") && !/ERR_HARD = new Set\([^)]*'usage_limit'/.test(APP), '한도는 경고(warn)');

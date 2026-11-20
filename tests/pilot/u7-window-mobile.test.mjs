@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../../src/pilot/server.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -45,7 +46,7 @@ test('두 화면 모두 홈 화면 추가 정보를 걸고, 오프라인 캐시(
 });
 
 test('휴대폰 폭: 새 화면 버튼 44px, 설정 화면은 표가 페이지를 넓히지 않고 입력칸·탭이 커진다', () => {
-  const app = read('src/pilot/web/app.html');
+  const app = koView('app.html');
   const mq = app.slice(app.indexOf('@media (max-width: 760px)'));
   assert.match(mq, /\.row, \.side-bottom a, \.side-bottom button, \.pbtn, \.back, \.switch, \.addbtn, \.acts a, \.acts button, \.modal button, \.linkbtn, #panelBtn \{ min-height:44px; \}/);
   assert.ok(app.includes('@media (display-mode: standalone)'), '홈 화면 앱에서 상태 표시줄에 가리지 않음');

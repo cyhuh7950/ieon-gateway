@@ -9,6 +9,7 @@ import { grokAccountHealth, grokHomeOf, grokRunFor } from '../../src/pilot/grok-
 import { cliOnceAdapter } from '../../src/pilot/adapters/cli-once.mjs';
 import { createDeviceAdmin, HUB_SELF_OPS, OPS } from '../../src/pilot/device-admin.mjs';
 import { loadNewSessionsConfig, NEW_ENGINES } from '../../src/pilot/new-sessions.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const tmp = (t) => { const d = mkdtempSync(join(tmpdir(), 'ieon-g1-')); t.after(() => rmSync(d, { recursive: true, force: true })); return d; };
 const KEY = 'xai-' + 'k'.repeat(40);
@@ -60,7 +61,7 @@ test('새 세션 엔진·기기 명령·허브 자신 허용·화면 칸', async
   assert.equal((await pc.run('grok.accounts.logout', { id })).body.accounts[0].kind, null);
   assert.equal((await pc.run('grok.accounts.delete', { id })).body.accounts.length, 0);
   const SET = readFileSync(new URL('../../src/pilot/web/settings.html', import.meta.url), 'utf8');
-  const APP = readFileSync(new URL('../../src/pilot/web/app.html', import.meta.url), 'utf8');
+  const APP = koView('app.html');
   assert.ok(SET.includes('id="gkBox"') && SET.includes("acRun('grok.accounts.get')") && SET.includes('id="nsGrok"') && SET.includes('name="rEng" value="grok"'));
   assert.ok(APP.includes('<option value="grok">'));
 });

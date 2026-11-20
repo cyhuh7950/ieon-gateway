@@ -87,19 +87,25 @@ const escJson = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 // 웹 화면에 넣는 부분: 사전(고른 언어·영어·한국어 순)과 t() — 따로 불러오지 않아 깜빡임이 없다.
 export function pageScript(lang, namespaces) {
   const dicts = chain(lang, namespaces);
-  return `<script>const I18N = ${escJson({ lang, languages: languages(), dicts })};\nconst ieonFormat = ${ieonFormat.toString()};\n`
+  return `<script>const I18N = ${escJson({ lang, languages: languages().map((l) => [l, loadDict(l)['common.lang_name'] || l]), dicts })};\nconst ieonFormat = ${ieonFormat.toString()};\n`
     + 'function t(key, vars) { return ieonFormat(I18N.dicts, key, vars, I18N.lang); }\n'
-    + 'function applyI18n(root) { (root || document).querySelectorAll(\'[data-i18n]\').forEach((e) => { e.textContent = t(e.dataset.i18n); });'
-    + ' (root || document).querySelectorAll(\'[data-i18n-attr]\').forEach((e) => { for (const p of e.dataset.i18nAttr.split(\';\')) { const [a, k] = p.split(\':\'); if (a && k) e.setAttribute(a.trim(), t(k.trim())); } }); }\n'
-    + 'function setLang(l) { document.cookie = \'ieon_lang=\' + encodeURIComponent(l) + \'; path=/; max-age=31536000; samesite=lax\'; location.reload(); }\n'
-    + 'document.addEventListener(\'DOMContentLoaded\', () => applyI18n());</script>\n';
+    + 'function setLang(l) { document.cookie = \'ieon_lang=\' + encodeURIComponent(l) + \'; path=/; max-age=31536000; samesite=lax\'; location.reload(); }</script>\n';
+}
+
+const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+// 화면의 고정 글 {{묶음.키}}를 고른 언어 문구로 채운다(<script>·<style> 안은 건드리지 않음).
+export function fillPage(html, lang, namespaces) {
+  const dicts = chain(lang, namespaces);
+  return html.split(/(<(?:script|style)\b[^>]*>[\s\S]*?<\/(?:script|style)>)/).map((part, i) => (i % 2 ? part
+    : part.replace(/\{\{([a-z][\w.]*)\}\}/g, (all, key) => escHtml(ieonFormat(dicts, key, null, lang))))).join('');
 }
 
 // 화면 파일마다 넣는 사전 묶음(서버와 시험이 같이 씀)
 export const PAGE_NAMESPACES = { 'app.html': ['common', 'errors', 'web'], 'settings.html': ['common', 'errors', 'web', 'settings'] };
 
-// 페이지 원문에 언어(<html lang>)와 사전을 넣는다.
+// 페이지 원문에 언어(<html lang>)·고정 글({{키}})·사전을 넣는다.
 export function injectPage(html, lang, namespaces) {
   const script = pageScript(lang, namespaces);
-  return html.replace(/<html lang="[^"]*">/, () => `<html lang="${lang}">`).replace('<head>', () => `<head>\n${script}`); // 함수로 넘겨 문구 속 $가 바뀌지 않게
+  return fillPage(html, lang, namespaces).replace(/<html lang="[^"]*">/, () => `<html lang="${lang}">`).replace('<head>', () => `<head>\n${script}`); // 함수로 넘겨 문구 속 $가 바뀌지 않게
 }

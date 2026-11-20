@@ -11,6 +11,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createApp } from '../../src/pilot/server.mjs';
 import { approver } from '../../src/pilot/connector.mjs';
 import { answerServerRequest } from '../../src/pilot/adapters/codex-thread.mjs';
+import { koView } from './web-page.mjs'; // I18N-a: 문구를 사전으로 옮긴 화면을 한국어 코드 모양으로 펼쳐 읽음
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 const T1 = '01a18790-0000-7000-8000-000000000001';
@@ -136,7 +137,7 @@ test('승인 기록은 180일 보관(서버 켤 때 지난 것 정리)', async (
 });
 
 test('화면: 승인 카드(허용·거부만, 남은 시간), 처리 중에도 카드를 바로 불러옴', () => {
-  const A = readFileSync(fileURLToPath(new URL('../../src/pilot/web/app.html', import.meta.url)), 'utf8');
+  const A = koView('app.html');
   assert.ok(A.includes("if (k.kind === 'approval')") && A.includes("btn('허용', () => decide('allow'))") && A.includes("btn('거부', () => decide('deny'))"));
   assert.ok(A.includes('분 안에 답하지 않으면 거부돼요') && !/항상 허용/.test(A.replace('항상 허용 없음', '')));
   assert.ok(A.includes("if (r.status === 'running' || r.status === 'dispatching') loadCards()"));

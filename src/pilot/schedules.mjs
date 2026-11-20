@@ -68,5 +68,5 @@ export function nextRun(s, from = new Date()) {
 export function describeSchedule(s) {
   if (s.kind === 'daily') return i18nT('server.sched.daily', { time: s.spec.time });
   if (s.kind === 'interval') return s.spec.minutes % 60 === 0 ? i18nT('server.sched.hours', { n: s.spec.minutes / 60 }) : i18nT('server.sched.minutes', { n: s.spec.minutes });
-  return i18nT('server.sched.once', { at: new Date(s.spec.at).toLocaleString(i18nT('server.intl_locale'), { timeZone: s.tz }) });
+  return i18nT('server.sched.once', { at: new Date(s.spec.at).toLocaleString(i18nT('common.intl_locale'), { timeZone: s.tz }) });
 }
