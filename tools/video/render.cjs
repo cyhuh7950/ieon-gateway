@@ -15,7 +15,7 @@ app.whenReady().then(async () => {
   const TL = JSON.parse(fs.readFileSync(tlFile, "utf8"));
   const total = TL[TL.length - 1].start + TL[TL.length - 1].dur;
   const win = new BrowserWindow({ width: 1920, height: 1080, useContentSize: true, show: false, webPreferences: { offscreen: true, backgroundThrottling: false } });
-  await win.loadFile(path.join(__dirname, process.env.VIDEO_HTML || "intro.html")); // 사용법 영상은 VIDEO_HTML=usage.html
+  await win.loadFile(path.join(__dirname, process.env.VIDEO_HTML || "intro.html"), { query: { lang: process.env.VIDEO_LANG || "ko" } }); // I18N: 화면 글 언어 // 사용법 영상은 VIDEO_HTML=usage.html
   await win.webContents.executeJavaScript(`window.__TIMELINE = ${JSON.stringify(TL)}; window.__ready.then(() => true)`);
   const dbg = win.webContents.debugger;
   dbg.attach("1.3");

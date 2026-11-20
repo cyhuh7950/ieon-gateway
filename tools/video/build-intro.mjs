@@ -1,11 +1,14 @@
 // 소개 영상 만들기: 목소리 길이로 시간표 → 그림 장면 프레임 → 목소리 합치기 → MP4 + SRT
 // 사용(저장소 맨 위에서): node tools/video/build-intro.mjs [still]
 //   먼저 할 일: 실제 화면 캡처(.local/video/shots — capture-intro.mjs), 목소리(.local/video/voice — tts.ps1)
+//   영어판(I18N I3): VIDEO_LANG=en — 장면 intro-scenes.en.mjs, 화면 글 intro-text.en.js, 작업 폴더 .local/video/en, 결과 Ieon_intro_en.mp4·.srt
 import { execFileSync, spawnSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { SCENES, FPS, LEAD, TAIL } from './intro-scenes.mjs';
+const LANG = process.env.VIDEO_LANG === 'en' ? 'en' : 'ko';
+const { SCENES, FPS, LEAD, TAIL } = await import(LANG === 'en' ? './intro-scenes.en.mjs' : './intro-scenes.mjs');
 
-const OUT = '.local/video';
+const OUT = LANG === 'en' ? '.local/video/en' : '.local/video';
+const NAME = LANG === 'en' ? 'Ieon_intro_en' : '이어온_소개';
 const ELECTRON = 'app/node_modules/electron/dist/electron.exe';
 mkdirSync(OUT, { recursive: true });
 const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString().trim());
@@ -44,8 +47,8 @@ execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex'
 
 // 4) 자막 파일(SRT) — 화면에는 이미 그려 넣었고, 따로도 준다
 const ts = (x) => { const ms = Math.round(x * 1000); const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60; return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`; };
-writeFileSync(`${OUT}/이어온_소개.srt`, TL.map((s, i) => `${i + 1}\n${ts(s.sayStart)} --> ${ts(s.sayStart + s.sayDur + 0.25)}\n${s.say}\n`).join('\n'), 'utf8');
+writeFileSync(`${OUT}/${NAME}.srt`, TL.map((s, i) => `${i + 1}\n${ts(s.sayStart)} --> ${ts(s.sayStart + s.sayDur + 0.25)}\n${s.say}\n`).join('\n'), 'utf8');
 
 // 5) 합치기
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-i', `${OUT}/intro_voice.wav`, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', `${OUT}/이어온_소개.mp4`]);
-console.log('완성:', `${OUT}/이어온_소개.mp4`, `(${total.toFixed(1)}초)`);
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-i', `${OUT}/intro_voice.wav`, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', `${OUT}/${NAME}.mp4`]);
+console.log('완성:', `${OUT}/${NAME}.mp4`, `(${total.toFixed(1)}초)`);
