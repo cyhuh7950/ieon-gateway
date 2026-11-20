@@ -4,5 +4,11 @@
     "app.electron.reload": "새로 고침",
     "app.electron.devtools": "개발자 도구",
     "app.electron.quit": "끝내기"
+  },
+  "en": {
+    "common.product": "Ieon",
+    "app.electron.reload": "Refresh",
+    "app.electron.devtools": "Developer tools",
+    "app.electron.quit": "Quit"
   }
 }

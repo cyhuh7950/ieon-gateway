@@ -42,7 +42,12 @@
       "createStartMenuShortcut": true,
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "multiLanguageInstaller": true,
+      "installerLanguages": [
+        "ko_KR",
+        "en_US"
+      ]
     }
   },
   "dependencies": {

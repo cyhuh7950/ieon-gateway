@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { ieonFormat } from '../../src/i18n/format.mjs';
 import { languages, loadDict, makeT, pickLang, injectPage, errText, BASE_LANG } from '../../src/i18n/index.mjs';
 import { jsStrings, jsxHangul, HANGUL } from './i18n-scan.mjs';
-import { build as buildAppLocales, OUT as APP_LOCALES, ELECTRON_OUT } from '../../app/scripts/copy-locales.mjs';
+import { build as buildAppLocales, OUT as APP_LOCALES, ELECTRON_OUT, ANDROID_RES } from '../../app/scripts/copy-locales.mjs';
 import { webPage } from './web-page.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -176,10 +176,12 @@ test('I18N 직접 쓴 문구 금지: 사전으로 옮긴 코드의 문자열 안
 });
 
 test('I18N 앱 사전: app/src/locales·app/electron/locales.json이 저장소 locales/와 같음(다르면 node app/scripts/copy-locales.mjs)', () => {
-  const { files, electron } = buildAppLocales();
-  for (const [f, s] of Object.entries(files)) assert.equal(readFileSync(APP_LOCALES + f, 'utf8').replace(/\r\n/g, '\n'), s, f);
+  const { files, electron, android } = buildAppLocales();
+  const read = (p) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+  for (const [f, s] of Object.entries(files)) assert.equal(read(APP_LOCALES + f), s, f);
   assert.deepEqual(readdirSync(APP_LOCALES).sort(), Object.keys(files).sort());
-  assert.equal(readFileSync(ELECTRON_OUT, 'utf8').replace(/\r\n/g, '\n'), electron);
+  assert.equal(read(ELECTRON_OUT), electron);
+  for (const [f, s] of Object.entries(android)) assert.equal(read(ANDROID_RES + f), s, f); // 안드로이드 앱 이름(values = 영어 기본, values-ko 등)
   const pkg = JSON.parse(readFileSync(join(ROOT, 'app/package.json'), 'utf8'));
   assert.equal(pkg.scripts.prebuild, 'node scripts/copy-locales.mjs', '빌드 전에 자동으로 복사');
 });

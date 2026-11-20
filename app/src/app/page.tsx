@@ -1,5 +1,5 @@
 "use client";
-import { t } from "../lib/i18n";
+import { lang, t } from "../lib/i18n";
 // 이어온 앱: 연결 → 목록(방·AI 직원) → 1:1 대화 / 방(AP-3b). 새 소식(SSE) 하나를 모든 화면이 나눠 쓴다.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { client, type Conn, type Conversation, type Room } from "../lib/api";
@@ -26,6 +26,7 @@ export default function Home() {
   const listeners = useRef(new Set<(e: ServerEvent) => void>());
 
   useEffect(() => { loadConn().then(setConn); }, []);
+  useEffect(() => { document.documentElement.lang = lang; document.title = t('common.product'); }, []); // I18N: 창 제목·문서 언어도 화면 언어로
   useEffect(() => {
     if (!conn) return;
     return subscribe(conn, (e) => listeners.current.forEach((f) => f(e)), { onState: (s) => setLost(s === "unauthorized") });
@@ -85,7 +86,8 @@ export default function Home() {
   }, [view.kind]);
   const toList = useCallback(() => { if (pushed.current) history.back(); else setView({ kind: "list" }); }, []);
 
-  if (conn === undefined) return <main className="center muted">{t('app.list.3')}</main>;
+  // I18N: 이 첫 화면은 빌드 때 원본 언어로 미리 그려지므로, 기기 언어가 다르면 글자만 바뀌는 것을 허용한다
+  if (conn === undefined) return <main className="center muted" suppressHydrationWarning>{t('app.list.3')}</main>;
   if (!conn || !api || lost) return <PairScreen lost={lost} onDone={async (c) => { await saveConn(c); setLost(false); setView({ kind: "list" }); setConn(c); }} />;
   // AP-5a: 서버에서 이 기기 열쇠를 지운 뒤 앱에 저장된 연결 정보도 지운다. 서버에 닿지 않으면 알려 주고 앱 쪽만 지운다.
   const forget = async (): Promise<string | null> => {

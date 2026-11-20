@@ -5,7 +5,7 @@
 // - 상태(토큰 있음·없음·중복·연결됨·실제 봇 이름)만 서버에 보고한다. 토큰 값은 보고·기록하지 않는다.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createBridge } from './bridge.mjs';
-import { t } from '../../i18n/index.mjs';
+import { t, setServerLang } from '../../i18n/index.mjs';
 import { DEFAULT_BOT, migrateRooms, resolveBotTokens } from '../bots.mjs';
 const RELAY_OFF = new Set(['kakaoRelayUrl_missing', 'relay_missing']);
 
@@ -35,7 +35,7 @@ export function createBotRunner(opts) {
   async function loadServerConfig() {
     try {
       const r = await opts.api({ method: 'GET', path: '/v1/messenger/config' });
-      if (r.status === 200) return { allowedUsers: r.body.allowedUsers ?? null, kakao: r.body.kakao ?? null, linkedUsers: r.body.linkedUsers ?? {} };
+      if (r.status === 200) { if (r.body.lang) setServerLang(r.body.lang); return { allowedUsers: r.body.allowedUsers ?? null, kakao: r.body.kakao ?? null, linkedUsers: r.body.linkedUsers ?? {} }; } // I18N-b: 서버 기본 언어를 봇 답에
     } catch { return serverCfg; }
     return { allowedUsers: null, kakao: null, linkedUsers: {} };
   }

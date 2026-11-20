@@ -115,7 +115,7 @@ test('허브 화면: 목록에 PC(기기 이름)가 붙고, 허브 Codex 로그�
 
 test('설정 화면: 예전 화면의 관리 항목이 모두 옮겨졌고(누락 0), 새 화면은 예전 화면 대신 설정으로 연결', async (t) => {
   const s = await plain(t);
-  const page = await fetch(`${s.pcUrl}/settings`);
+  const page = await fetch(`${s.pcUrl}/settings`, { headers: { "accept-language": "ko-KR" } }); // 브라우저 언어가 한국어인 화면
   assert.equal(page.status, 200);
   const SET = web('settings.html'); const APP = web('app.html');
   assert.equal(await page.text(), SET);

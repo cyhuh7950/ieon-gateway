@@ -1,7 +1,7 @@
 // S2.1 이어온 실증 서버(loopback 한정). 웹/외부 앱 API와 PC 연결부 API를 한 프로세스에서 제공한다.
 // 사용: node src/pilot/server.mjs <configPath>
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
-import { t as i18nT, pickLang, injectPage, PAGE_NAMESPACES } from '../i18n/index.mjs';
+import { t as i18nT, pickLang, injectPage, PAGE_NAMESPACES, initServerLang, serverLang, languages, loadDict, normLang } from '../i18n/index.mjs';
 import { createServer } from 'node:http';
 import { hostname } from 'node:os';
 import { existsSync, readFileSync, rmSync, chmodSync, writeFileSync, utimesSync, statSync, createReadStream } from 'node:fs';
@@ -89,6 +89,7 @@ export function createApp(config) {
     log: (e) => process.stderr.write(JSON.stringify(e) + '\n'),
   }) : null;
   const store = openStore(config.dbPath);
+  initServerLang(store.getSetting('lang')?.value?.lang); // I18N-b: 메신저 답·카카오 안내·AI 머리말·서버가 만드는 글의 언어
   if (access) accessInner = createWebAccess(mergeAccess(store.getSetting('security.webAccess')?.value));
   // W1: 웹 로그인(쿠키). 사용자는 토큰을 다루지 않는다.
   // SV4: 허브의 쓰임 — server(① 서버 설치형: PC 연결 화면 숨김, 엔진 칸은 그대로) | hub(② 허브형). 웹에서 바꾼 값 → 설치 때 값 → 지금 허브는 hub.
@@ -1435,6 +1436,7 @@ export function createApp(config) {
             multiUser: { enabled: auth.multiUser() }, // M2
             approvalTtl: { minutes: Math.round(approvalTtl() / 60_000), source: store.getSetting('approvals.ttl') ? 'web' : 'file' }, // 규칙 점검 7
             loginDays: { days: auth.loginDays(), source: store.getSetting('auth.loginDays') ? 'web' : 'file' }, // 규칙 점검 10
+            serverLang: { lang: serverLang(), source: store.getSetting('lang') ? 'web' : 'install', languages: languages().map((l) => [l, loadDict(l)['common.lang_name'] || l]) }, // I18N-b 서버 기본 언어
             // AP-4b 휴대폰 알림: 키는 있다/없다와 프로젝트 이름만(키 원문은 내보내지 않음)
             push: { configured: Boolean(store.getSetting('push.fcm')), projectId: store.getSetting('push.fcm')?.value?.projectId ?? null, appFile: Boolean(store.getSetting('push.googleServices')),
               appFileProject: store.getSetting('push.googleServices')?.value?.project_info?.project_id ?? null },
@@ -1448,6 +1450,10 @@ export function createApp(config) {
           if (b.perDay !== undefined) next.perDay = b.perDay || null;
           for (const [uid, v] of Object.entries(b.users ?? {})) { if (!/^u_[0-9a-f]{16}$/.test(uid) || !ok(v) || !store.user(uid)) return json(res, 400, { error: 'bad_limit' }); if (v === null) delete next.users[uid]; else next.users[uid] = v; }
           store.setSetting('member_limits', next); return json(res, 200, next);
+        }
+        if (req.method === 'PUT' && path === '/v1/admin/settings/lang') { // I18N-b: 서버 기본 언어(메신저 봇 답·카카오 안내·AI 머리말)
+          const b = await readJson(req); const l = normLang(b.lang); if (!l) return json(res, 400, { error: 'bad_lang' });
+          store.setSetting('lang', { lang: l }); initServerLang(l); return json(res, 200, view());
         }
         if (req.method === 'PUT' && path === '/v1/admin/settings/multi-user') { // M2: 여러 사람 쓰기(가입 신청 받기) 켜기·끄기
           const b = await readJson(req); if (typeof b.enabled !== 'boolean') return json(res, 400, { error: 'bad_multi_user' });
@@ -1478,7 +1484,7 @@ export function createApp(config) {
         // P1: 웹에서 바꾼 메신저 설정. 값이 null이면 메신저는 자기 config.json 값을 쓴다.
         if (req.method === 'GET' && path === '/v1/messenger/config') {
           return json(res, 200, { allowedUsers: store.getSetting('messenger.allowedUsers')?.value ?? null,
-            kakao: store.getSetting('messenger.kakao')?.value ?? null, linkedUsers: store.linkedSenders() }); // M3: 가입자에 연결된 메신저 계정(봇이 받아 줌)
+            kakao: store.getSetting('messenger.kakao')?.value ?? null, linkedUsers: store.linkedSenders(), lang: serverLang() }); // I18N-b: 봇 답 언어 // M3: 가입자에 연결된 메신저 계정(봇이 받아 줌)
         }
         if (req.method === 'GET' && path === '/v1/messenger/bots') {
           // M1: ② 내 허브면 이 PC의 봇(카카오 중계 포함)은 켜지 않는다 — 메신저가 1분 안에 모두 끈다(봇 설정은 지우지 않음)

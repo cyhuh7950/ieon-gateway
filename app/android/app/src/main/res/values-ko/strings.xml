@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- 자동 생성(app/scripts/copy-locales.mjs) -->
+<resources>
+    <string name="app_name">이어온</string>
+    <string name="title_activity_main">이어온</string>
+</resources>
