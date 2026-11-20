@@ -18,7 +18,7 @@ export function RoomScreen({ api, roomId, onBack, onEdit, onEvent, onLost }: { a
   const [handing, setHanding] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
-  const v = useVoice();
+  const v = useVoice({ api }); // V2: OpenAI 한 번씩 말하고 듣기도(실시간 대화는 1:1 대화에서)
   const fail = useCallback((x: unknown) => { const c = codeOf(x); if (c === "unauthorized") onLost(); else setNote(ROOM_ERR[c] ?? errText(c)); }, [onLost]);
 
   const load = useCallback(async () => {

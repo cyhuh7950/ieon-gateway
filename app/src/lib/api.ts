@@ -63,6 +63,9 @@ export type Card = { kind: string; approvalId?: string; approvalKind?: string; s
   resume?: { verdict: string; sameSession: boolean; historyKept: boolean } }; // RC4: 확인 필요 질문의 그때·지금 세션
 export type Message = { requestId: string; question: string; answer: string };
 export type RequestView = { requestId: string; status: string; errorCode: string | null; answer: string | null };
+// V2 OpenAI 음성
+export type VoiceConfig = { mode: "device" | "openai_turn" | "openai_live"; configured: boolean; live: boolean; turn: boolean; reason: string | null; remainingSec: number; hubMode?: boolean };
+export type LiveStart = { liveId: string; clientSecret: string; callUrl: string; tickSec: number; idleSec: number; maxSec: number; remainingSec: number };
 // RC3 작업 화면
 export type Task = { requestId: string; conversationId: string; label: string; icon: string | null; engine: string; status: string; errorCode: string | null;
   stopRequested: boolean; createdAt: string | null; updatedAt: string | null; canStop: boolean; pendingApprovals: number; preview: string };
@@ -122,6 +125,24 @@ export function client(conn: Conn, f: Fetch = fetch) {
       (await call(`/v1/rooms/${encodeURIComponent(roomId)}/retry`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ postId }) })).posts ?? [],
     roomHandoff: async (roomId: string, h: { requestId: string; to: string; note: string }, key: string): Promise<RoomPost[]> =>
       (await call(`/v1/rooms/${encodeURIComponent(roomId)}/handoff`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify(h) })).posts ?? [],
+    // V2 OpenAI 음성(설계 VOICE_LIVE): 방식은 서버 설정 — 누를 때마다 물어 바로 적용
+    voiceConfig: async (lang: string): Promise<VoiceConfig> => call(`/v1/voice/config?lang=${encodeURIComponent(lang)}`),
+    voiceLive: async (conversationId: string, lang: string): Promise<LiveStart> => call("/v1/voice/live", { method: "POST", body: JSON.stringify({ conversationId, lang }) }),
+    voiceTick: async (liveId: string): Promise<{ remainingSec: number; stop: boolean }> => call(`/v1/voice/live/${encodeURIComponent(liveId)}/tick`, { method: "POST", body: "{}" }),
+    voiceEnd: async (liveId: string) => call(`/v1/voice/live/${encodeURIComponent(liveId)}/end`, { method: "POST", body: "{}" }),
+    transcribe: async (audio: Blob, type: string, sec: number, lang: string): Promise<{ text: string }> => {
+      let res: Response;
+      try { res = await f(`${conn.server}/v1/voice/transcribe?sec=${sec}&lang=${encodeURIComponent(lang)}`, { method: "POST", headers: { authorization: "Bearer " + conn.token, "content-type": type }, body: audio }); }
+      catch { throw new ApiError(0, "network"); }
+      const b = await body(res); if (res.status >= 400) throw new ApiError(res.status, b?.error ?? "http_" + res.status); return b;
+    },
+    speak: async (text: string, lang: string): Promise<ArrayBuffer> => {
+      let res: Response;
+      try { res = await f(`${conn.server}/v1/voice/speak`, { method: "POST", headers: { authorization: "Bearer " + conn.token, "content-type": "application/json" }, body: JSON.stringify({ text, lang }) }); }
+      catch { throw new ApiError(0, "network"); }
+      if (res.status >= 400) { const b = await body(res); throw new ApiError(res.status, b?.error ?? "http_" + res.status); }
+      return res.arrayBuffer();
+    },
   };
 }
 export type Client = ReturnType<typeof client>;

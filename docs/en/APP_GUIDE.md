@@ -3,8 +3,9 @@
 
 This manual is for **following along from start to finish to check the Ieon App (Android and PC) and the new web features**. Just go in order, mark the **☐ Check** at the end of each step, and then report back using [9. Report your results](#9-report-your-results) at the end.
 
-- **The current version is 0.1.8** (updated 2026-11-20, below). This document was first written on 2026-11-14 for 0.1.1 (test version), and later versions' features have been added since (Tasks screen, stopping a request, resume check, hand-off-to-a-human cards, "busy" notices, file paths on approval cards, phone notifications). Current setup: hub `ieun-gateway.sinsan.kr`; this PC is running in **hub mode** (connected to the hub).
+- **The current version is 0.1.9** (updated 2026-11-20, below). This document was first written on 2026-11-14 for 0.1.1 (test version), and later versions' features have been added since (Tasks screen, stopping a request, resume check, hand-off-to-a-human cards, "busy" notices, file paths on approval cards, phone notifications). Current setup: hub `ieun-gateway.sinsan.kr`; this PC is running in **hub mode** (connected to the hub).
 - For feature descriptions only, see [BEGINNER_GUIDE](BEGINNER_GUIDE.md) 9-1 to 9-4; for the developer API, see [API_GUIDE](API_GUIDE.md) 7-1.
+- 2026-11-20: **0.1.9** — **OpenAI voice** (8-2): 🎤 works as OpenAI speak once then listen, or OpenAI live conversation, following the method chosen in Settings. Asks for microphone permission the first time. Install over 0.1.8.
 - 2026-11-20: **0.1.8** — **English screens**: the app's text follows the device language (English if it is not Korean), and you can change it with the language picker under the pairing screen and the list. The PC app window title and menu, and dictation and read-aloud, follow too. Install over 0.1.7.
 - 2026-11-20: **0.1.7** — Fixed the settings tab name in the app's pairing screen instructions to **Settings → Apps and devices → Connect Ieon App** (no feature changes). If 0.1.6 is installed, download from the hub's `/app` and install over it (same official signature, so you don't need to uninstall).
 - Updated 2026-11-19: The app is now **0.1.7** (officially signed) and is **downloaded from the hub** (no store — section 1-2). **Phone notifications** that arrive even when the app is closed (section 8-7) now work. The iPhone app is on hold.
@@ -215,6 +216,18 @@ The first time you use it, a **"Before using voice"** notice appears once → **
 
 - Approvals are never given by voice (card buttons only).
 - If there's no sound, check the device volume; on Android, check that Korean is available in Settings → Text-to-speech.
+
+**OpenAI voice (V2, 2026-11-20, app 0.1.9 and later; web after the hub is deployed):** On the web, go to **Settings → Accounts → OpenAI voice**, enter an **OpenAI API key** and pick a **Voice method** — it changes right away (the app and web re-read the setting every time you tap 🎤). The first time, a "Before using OpenAI voice" notice appears → **OK**. The phone app asks to **allow the microphone** the first time → allow.
+
+| Voice method | When you tap 🎤 | Hearing answers |
+| --- | --- | --- |
+| Built-in device (default) | As in the table above | Device voice |
+| OpenAI speak once, then listen | Recording starts (red outline) → tap 🎤 again when done → OpenAI turns it into text **in the input box** (edit, then send) | 🔊 and 🔈 Read use an OpenAI voice |
+| OpenAI live conversation | A **live bar** appears at the bottom (status, time left, [Mute], [Hang up]) → talk hands-free. For anything about the work, OpenAI sends it to that conversation's **work session as a question** (it shows up in the chat as a 🎤 question), and when the answer arrives it reads back a 1-3 sentence summary (the full answer is on screen) | Interpreter voice |
+
+- Live conversation works in one-to-one chats only (in rooms, use built-in or speak once). It hangs up on its own after silence (60 seconds by default), and when the daily max (30 minutes by default) or max per call (15 minutes by default) runs out. Tap 🎤 again or [Hang up] to end it right away.
+- When an approval card appears, it tells you to approve on the screen — approvals are still card buttons only.
+- If there's no key or today's time is used up, tapping 🎤 shows the reason below.
 
 ☐ Check 8-2: What I said on the phone went into the input box as text / new answers were read aloud.
 

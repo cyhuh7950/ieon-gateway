@@ -1,7 +1,8 @@
 // S2.1 이어온 실증 서버(loopback 한정). 웹/외부 앱 API와 PC 연결부 API를 한 프로세스에서 제공한다.
 // 사용: node src/pilot/server.mjs <configPath>
 // 토큰 원문은 설정에 두지 않고 sha256만 둔다. body·header의 user_id·thread·경로는 신뢰하지 않는다.
-import { t as i18nT, pickLang, injectPage, PAGE_NAMESPACES, initServerLang, serverLang, languages, loadDict, normLang } from '../i18n/index.mjs';
+import { t as i18nT, pickLang, injectPage, PAGE_NAMESPACES, initServerLang, serverLang, languages, loadDict, normLang, makeT } from '../i18n/index.mjs';
+import { createVoice } from './voice-openai.mjs';
 import { createServer } from 'node:http';
 import { hostname } from 'node:os';
 import { existsSync, readFileSync, rmSync, chmodSync, writeFileSync, utimesSync, statSync, createReadStream } from 'node:fs';
@@ -51,6 +52,7 @@ const WEB_ICON = fileURLToPath(new URL('./web/ieon.ico', import.meta.url));
 // U7: 휴대폰 "홈 화면에 추가"·PC 앱 창용(PWA). 화면 코드는 그대로, 설치 정보와 아이콘만 준다. 오프라인 캐시(서비스 워커)는 두지 않는다
 // (대화는 늘 서버 상태가 기준이라 옛 화면을 보여 주면 오해가 생김).
 const WEB_SW = fileURLToPath(new URL('./web/sw.js', import.meta.url)); // 웹 알림 전용 서비스 워커
+const WEB_VOICE = fileURLToPath(new URL('./web/voice-core.js', import.meta.url)); // V2 OpenAI 음성 공통 코드
 const WEB_PNG = { '/icon-192.png': fileURLToPath(new URL('./web/icon-192.png', import.meta.url)), '/icon-512.png': fileURLToPath(new URL('./web/icon-512.png', import.meta.url)) };
 const MANIFEST = JSON.stringify({ name: i18nT('common.product'), short_name: i18nT('common.product'), description: i18nT('common.product_tagline'), lang: i18nT.lang,
   start_url: '/', scope: '/', display: 'standalone', background_color: '#0f766e', theme_color: '#0f766e',
@@ -234,6 +236,9 @@ export function createApp(config) {
   const localDirect = (req) => !req.ieonPublic && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') && !req.headers['x-forwarded-for'];
   // 규칙 점검 4(2026-11-18 신산님): PC 설정 바꾸기는 로그인한 웹 화면이면 어디서나(휴대폰·Tailscale 포함). 전에는 이 PC에서 연 화면만(local_only).
   const webUser = (p) => p?.appId === 'app_web';
+  // V2 OpenAI 음성(설계 VOICE_LIVE): 설정은 요청마다 DB에서 다시 읽음(저장하면 바로 적용)
+  const voice = createVoice({ store, fetchImpl: config.voiceFetch, isAdmin: (p) => isAdminP(p), userKey: (p) => p?.userId ?? 'admin', lang: (p) => p?.lang ?? serverLang(),
+    t: (lang, key, vars) => makeT(lang)(key, vars), log: (event, extra) => process.stderr.write(JSON.stringify({ ch: 'server', event, ...extra }) + '\n') });
   // 기기 설정이 바뀌면 그 설정을 읽는 연결부를 다시 띄운다. 이 서버가 띄운 것이 아니면 다시 켜야 한다고 알린다.
   const applyDevice = async () => {
     let restarted = false;
@@ -596,6 +601,7 @@ export function createApp(config) {
         res.writeHead(200, { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': 'max-age=3600' });
         return res.end(MANIFEST);
       }
+      if (req.method === 'GET' && path === '/voice-core.js') { res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' }); return res.end(readFileSync(WEB_VOICE)); }
       if (req.method === 'GET' && path === '/sw.js') { res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' }); return res.end(readFileSync(WEB_SW)); }
       if (req.method === 'GET' && WEB_PNG[path]) {
         res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=86400' });
@@ -1445,6 +1451,7 @@ export function createApp(config) {
             loginDays: { days: auth.loginDays(), source: store.getSetting('auth.loginDays') ? 'web' : 'file' }, // 규칙 점검 10
             serverLang: { lang: serverLang(), source: store.getSetting('lang') ? 'web' : 'install', languages: languages().map((l) => [l, loadDict(l)['common.lang_name'] || l]) }, // I18N-b 서버 기본 언어
             // AP-4b 휴대폰 알림: 키는 있다/없다와 프로젝트 이름만(키 원문은 내보내지 않음)
+            voiceOpenai: voice.adminView(), // V2 OpenAI 음성(키 원문 없음 — 끝 4자만)
             push: { configured: Boolean(store.getSetting('push.fcm')), projectId: store.getSetting('push.fcm')?.value?.projectId ?? null, appFile: Boolean(store.getSetting('push.googleServices')),
               appFileProject: store.getSetting('push.googleServices')?.value?.project_info?.project_id ?? null },
           };
@@ -1461,6 +1468,10 @@ export function createApp(config) {
         if (req.method === 'PUT' && path === '/v1/admin/settings/lang') { // I18N-b: 서버 기본 언어(메신저 봇 답·카카오 안내·AI 머리말)
           const b = await readJson(req); const l = normLang(b.lang); if (!l) return json(res, 400, { error: 'bad_lang' });
           store.setSetting('lang', { lang: l }); initServerLang(l); return json(res, 200, view());
+        }
+        if (req.method === 'PUT' && path === '/v1/admin/settings/voice') { // V2: OpenAI 음성 키·방식·모델·목소리·한도(저장하면 바로 적용)
+          try { await voice.saveSettings(await readJson(req)); } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
+          return json(res, 200, view());
         }
         if (req.method === 'PUT' && path === '/v1/admin/settings/multi-user') { // M2: 여러 사람 쓰기(가입 신청 받기) 켜기·끄기
           const b = await readJson(req); if (typeof b.enabled !== 'boolean') return json(res, 400, { error: 'bad_multi_user' });
@@ -1742,6 +1753,34 @@ export function createApp(config) {
       if (req.method === 'PUT' && s) {
         const r = store.setConnectMode(principal, s[1], (await readJson(req)).connectMode);
         return r.http === 200 ? json(res, 200, { connectMode: r.connectMode }) : json(res, r.http, { error: r.code });
+      }
+      // --- V2 OpenAI 음성(설계 VOICE_LIVE): 방식 보기·실시간 열쇠·받아쓰기·읽기. 대답은 세션(질문은 일반 질문 API로) ---
+      if (path.startsWith('/v1/voice/')) {
+        const vp = { ...principal, lang: normLang(new URL(req.url, 'http://x').searchParams.get('lang')) ?? pickLang(req) };
+        if (req.method === 'GET' && path === '/v1/voice/config') return json(res, 200, { ...voice.config(vp), hubMode: hubModeOn() });
+        if (hubModeOn()) return json(res, 409, { error: 'hub_mode' }); // 허브에 연결된 PC는 질문처럼 허브 화면에서
+        try {
+          if (req.method === 'POST' && path === '/v1/voice/live') {
+            const b = await readJson(req); if (b.lang) vp.lang = normLang(b.lang) ?? vp.lang;
+            const conv = store.conversations(principal).find((c) => c.conversationId === String(b.conversationId ?? ''));
+            if (!conv) return json(res, 404, { error: 'not_found' });
+            return json(res, 200, await voice.startLive(vp, conv, labelOf(conv)));
+          }
+          const lv = path.match(/^\/v1\/voice\/live\/(lv_[0-9a-f]{16})\/(tick|end)$/);
+          if (req.method === 'POST' && lv) return json(res, 200, lv[2] === 'tick' ? voice.tickLive(vp, lv[1]) : voice.endLive(vp, lv[1]));
+          if (req.method === 'POST' && path === '/v1/voice/transcribe') {
+            const chunks = []; let n = 0;
+            for await (const c of req) { n += c.length; if (n > 15 * 1024 * 1024) return json(res, 413, { error: 'too_large' }); chunks.push(c); }
+            const sec = Number(new URL(req.url, 'http://x').searchParams.get('sec')) || 0;
+            return json(res, 200, await voice.transcribe(vp, Buffer.concat(chunks), String(req.headers['content-type'] ?? ''), sec));
+          }
+          if (req.method === 'POST' && path === '/v1/voice/speak') {
+            const b = await readJson(req); if (b.lang) vp.lang = normLang(b.lang) ?? vp.lang;
+            const mp3 = await voice.speak(vp, b.text);
+            res.writeHead(200, { 'content-type': 'audio/mpeg', 'cache-control': 'no-store', 'content-length': mp3.length }); return res.end(mp3);
+          }
+        } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
+        return json(res, 404, { error: 'not_found' });
       }
       let m = path.match(/^\/v1\/conversations\/([\w-]+)\/requests$/);
       if (req.method === 'POST' && m) {

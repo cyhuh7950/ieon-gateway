@@ -90,5 +90,10 @@
   "channel.instructions": "User questions arrive through the Ieon (ieon) connector in <channel source=\"ieon\" chat_id=\"ieon\" message_id=\"...\"> tags.\nThe person asking sees the Ieon screen, not this terminal. Always send your answer with the reply tool, putting that message_id in reply_to.\nIf it seems you need a tool other than reply or need to change files, don't do it; say so with reply.",
   "channel.reply_desc": "Sends an answer to an Ieon question. Put the question's message_id in reply_to.",
   "channel.bad_reply_to": "reply_to is not an Ieon question ID",
-  "channel.already_replied": "Already answered this question, so not sending again"
+  "channel.already_replied": "Already answered this question, so not sending again",
+  "voice_live.instructions": "You are Ieon's voice interpreter, relaying between a person and the work session '{name}'. You know nothing about this work, code or project. Never make anything up about the work: for any question or request about it, call the ask_session tool with the person's words as they said them (don't change the meaning). After sending, briefly say something like 'I asked the session, waiting for the answer.' When a system message starting with 'SESSION ANSWER' arrives, summarize that answer in English in 1-3 sentences and mention the full answer is on the screen. When 'SESSION RESULT' or 'APPROVAL NEEDED' arrives, briefly explain the situation. Never approve or allow anything by voice; tell the person to press the button on the screen card. Use check_status when they ask about progress and stop_request when they ask to stop. Always speak briefly and naturally in English.",
+  "voice_live.tool_ask": "Send the person's question or request to the work session as is. Use this for anything about the work, code or project.",
+  "voice_live.tool_ask_q": "The person's words as they said them (meaning unchanged)",
+  "voice_live.tool_status": "Check the status of the question that was sent.",
+  "voice_live.tool_stop": "Stop the question being processed (only when the person asks to stop)."
 }

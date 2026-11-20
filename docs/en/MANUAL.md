@@ -206,6 +206,10 @@ Only in "work mode", turned on per conversation, can Codex and Antigravity edit 
 
 **Antigravity (E3, 2026-11-19):** You can also turn on work mode for a connected Antigravity conversation in Connection settings. When on, the question is continued in the same conversation through Antigravity's ACP (`agy acp`), and every time Antigravity asks permission to edit files or run commands, the same [Allow]/[Deny] card appears (Allow = this time only; "always allow" is never chosen). When work mode is off, it runs once in plan (read-only) mode as before. If a person has that conversation open in Antigravity, it is not sent and shows "in use" as before. The approval round trip (allow and deny) was verified with real Antigravity (2026-11-19).
 
+### OpenAI voice (V2, 2026-11-20)
+
+In **Settings → Accounts → OpenAI voice** (admin), set the OpenAI API key, the voice method (built-in device, OpenAI speak once then listen, OpenAI live conversation), voice, daily max, hang up after silence and max per call, plus the folded **Members and models** (members can use it, member daily max, model names). Changes save right away and apply from the next 🎤 without a restart. A new key is saved only after OpenAI accepts it (a model list lookup — no charge), and only its last 4 characters are shown. **The conversation's work session always does the answering**; OpenAI only relays the words (in a live conversation, anything about the work goes to the session as a normal question and shows up in the chat as a 🎤 question). Nothing is approved by voice. How to use it: [APP_GUIDE 8-2](APP_GUIDE.md); design: [VOICE_LIVE](../design/VOICE_LIVE.md). Audio is not stored in Ieon or logged (it does go to OpenAI). On a PC connected to a hub, use it from the hub screen, like questions.
+
 ### Creating a new session
 
 A feature where Ieon creates a new Codex, Claude, or Antigravity session and a dedicated work folder (off by default). Turning it on, limits, sleep, archive, and default permissions are in **Settings → Admin → Register conversations → New session**; design is in [NEW_SESSIONS](../design/NEW_SESSIONS.md).
