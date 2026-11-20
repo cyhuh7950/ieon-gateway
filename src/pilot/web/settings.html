@@ -390,6 +390,11 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <label for="loginDays">{{settings.html_bd_label.1}}</label><input id="loginDays" type="number" min="1" max="90" style="width:6em">
       <button class="primary" type="submit">{{settings.html_hub_link_box.2}}</button>
     </form>
+    <h3>{{settings.server_lang.title}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.server_lang.tip}}" data-tip="{{settings.server_lang.tip}}">i</span></h3>
+    <form id="langForm" class="row">
+      <select id="srvLang" aria-label="{{settings.server_lang.title}}"></select>
+      <button class="primary" type="submit">{{settings.html_hub_link_box.2}}</button>
+    </form>
     </details>
   </section>
   <section class="atab" data-atab="work" hidden aria-label="{{settings.html_login_days.1}}">
@@ -568,6 +573,7 @@ async function loadSettings(force) {
   $('kkUrl').value = s.kakao.value?.relayUrl || ''; $('kkLimit').value = s.kakao.value?.callbackLimitMs ? s.kakao.value.callbackLimitMs / 1000 : '';
   const ns = s.newSessions, e = ns.effective;
   $('hlPerHost').value = s.hostLimit?.perHost ?? 3; // SV4 동시 질문 수
+  { const sel = $('srvLang'); sel.replaceChildren(...(s.serverLang?.languages ?? []).map(([code, name]) => Object.assign(el('option', name), { value: code }))); sel.value = s.serverLang?.lang ?? ''; } // I18N-b 서버 기본 언어
   $('apTtl').value = s.approvalTtl?.minutes ?? 15; $('loginDays').value = s.loginDays?.days ?? 30; // 규칙 점검 7·10
   { const p = s.push || {}; $('pushState').textContent = (p.configured ? t('settings.load_settings.2', { project_id: p.projectId }) : t('settings.load_settings.3')) + ' · ' + (p.appFile ? t('settings.load_settings.4', { app_file_project: p.appFileProject }) : t('settings.load_settings.5'))
     + (p.configured && p.appFile && p.projectId !== p.appFileProject ? t('settings.load_settings.6') : ''); $('pushOff').hidden = false; } // AP-4b
@@ -608,6 +614,7 @@ $('nsForm').onsubmit = (e) => {
     permissions: { allowFullFromChat: $('nsFull').checked, ...($('nsDefault').value && ($('nsDefault').value !== 'full' || $('nsFull').checked) ? { default: $('nsDefault').value } : {}) } }, t('settings.ns_safe.5'));
 };
 $('hlForm').onsubmit = (e) => { e.preventDefault(); saveSetting('host-limit', { perHost: Number($('hlPerHost').value) }, t('settings.ns_safe.6')); };
+$('langForm').onsubmit = (e) => { e.preventDefault(); saveSetting('lang', { lang: $('srvLang').value }, t('settings.server_lang.saved')); };
 $('ttlForm').onsubmit = async (e) => { e.preventDefault();
   await saveSetting('approval-ttl', { minutes: Number($('apTtl').value) }, t('settings.ns_safe.7'));
   await saveSetting('login-days', { days: Number($('loginDays').value) }, t('settings.ns_safe.8')); };
@@ -1144,7 +1151,7 @@ function renderClaudePc(pc) {
   add.onsubmit = async (e) => { e.preventDefault(); const y = await acRun('claude.accounts.add', { label: inp.value.trim() });
     if (y.status !== 201) return setStatus('err', AC_ERR[y.body.error] || CL_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); setStatus('ok', t('settings.render_claude_pc.16')); loadClaude(); };
   box.append(add);
-  const row = el('div'); row.className = 'row'; const sel = el('select'); sel.setAttribute('aria-label', t('settings.render_claude_pc.17'));
+  const row = el('div'); row.className = 'row'; const sel = el('select'); sel.id = 'clDefaultSel'; sel.setAttribute('aria-label', t('settings.render_claude_pc.17'));
   for (const [v, tx] of [['pc_default', t('settings.render_claude_pc.3')], ...pc.accounts.map((a) => [a.id, t('settings.render_claude_pc.18', { label: a.label, kind: (a.kind ? '' : t('settings.render_claude_pc.25')) })])]) { const o = el('option', tx); o.value = v; sel.append(o); }
   sel.value = pc.defaultAccount;
   sel.onchange = async () => { const y = await acRun('claude.accounts.use', { accountId: sel.value });
@@ -1793,7 +1800,7 @@ const setSum = (id, tv) => { const x = $(id); if (x && x.textContent !== tv) x.t
 const selText = (sel) => (sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : '');
 function decorate(root) {
   setSum('acSum', selText($('acDefault')) ? t('settings.decorate.1', { ac_default: selText($('acDefault')) }) : '');
-  setSum('clSum', selText(document.querySelector(t('settings.decorate.2'))) ? t('settings.decorate.3', { claude: selText(document.querySelector(t('settings.decorate.2'))) }) : '');
+  setSum('clSum', selText($('clDefaultSel')) ? t('settings.decorate.3', { claude: selText($('clDefaultSel')) }) : '');
   setSum('nsSum', $('nsOn') ? ($('nsOn').checked ? t('settings.decorate.4') : t('settings.decorate.5')) : '');
   for (const b of root.querySelectorAll('button:not(.primary):not(.danger)')) if (DANGER_BTN.test(b.textContent.trim())) b.classList.add('danger');
   for (const td of root.querySelectorAll('table.list td:not([data-short])')) { const v = td.textContent.trim(); if (td.children.length === 0 && /^[0-9a-f]{8}-[0-9a-f-]{20,}$/i.test(v)) { td.dataset.short = '1'; td.title = v; td.textContent = v.slice(0, 8) + '…'; } }

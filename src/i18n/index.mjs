@@ -61,6 +61,18 @@ export const t = (key, vars) => tServer(key, vars);
 t.has = (key) => tServer.has(key);
 Object.defineProperty(t, 'lang', { get: () => tServer.lang });
 
+// 이 PC·서버의 언어(사전이 있는 것만): 환경 변수 LC_ALL·LC_MESSAGES·LANG(예: ko_KR.UTF-8), Windows는 시스템 언어. C·POSIX·모르면 null
+export function detectOsLang() {
+  for (const v of [process.env.LC_ALL, process.env.LC_MESSAGES, process.env.LANG]) {
+    if (!v || /^(C|POSIX)(.|$)/i.test(v)) continue;
+    const l = normLang(String(v).split('.')[0]); if (l) return l;
+  }
+  if (process.platform === 'win32') { try { return normLang(Intl.DateTimeFormat().resolvedOptions().locale); } catch { /* 모름 */ } }
+  return null;
+}
+// 서버 기본 언어 정하기: 웹 설정에서 고른 것 → 설치 때 정한 IEON_LANG → 이 PC 언어 → 한국어
+export function initServerLang(saved) { setServerLang(normLang(saved) ?? normLang(process.env.IEON_LANG) ?? detectOsLang() ?? BASE_LANG); return serverLang(); }
+
 // 'en-US' → 'en'(사전이 있는 언어만). 없으면 null
 export function normLang(v) {
   if (!v) return null;

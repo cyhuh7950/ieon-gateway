@@ -14,15 +14,14 @@ const DEFAULTS = {
   callbackHosts: ['bot-api.kakao.com'],
 };
 
-// 카카오 안내 글: 중계 언어(cfg.lang, 없으면 서버 기본 언어 — IEON_LANG)
-let MSG = msgFor(serverLang());
+// 카카오 안내 글: 중계 언어(중계마다 cfg.lang, 없으면 서버 기본 언어)
 function msgFor(lang) {
   const t = makeT(lang);
   return { accepted: t('messenger.relay.accepted'), pcDown: t('messenger.relay.pc_down'), full: t('messenger.relay.full'), noCallback: t('messenger.relay.no_callback'), bad: t('messenger.relay.bad') };
 }
 
 const text = (t) => ({ version: '2.0', template: { outputs: [{ simpleText: { text: t } }] } });
-const accepted = () => ({ version: '2.0', useCallback: true, data: { text: MSG.accepted } });
+const accepted = (MSG) => ({ version: '2.0', useCallback: true, data: { text: MSG.accepted } });
 
 const safeEqual = (a, b) => {
   const x = createHash('sha256').update(String(a)).digest();
@@ -66,7 +65,7 @@ export function createRelay(cfg) {
   if (!cfg?.pcToken || String(cfg.pcToken).length < 16) throw new Error(makeT(serverLang())('server.relay.bad_pc_token'));
   if (!cfg.kakaoSecret || String(cfg.kakaoSecret).length < 16) throw new Error(makeT(serverLang())('server.relay.bad_kakao_secret'));
   const o = { ...DEFAULTS, ...cfg };
-  if (cfg.lang) MSG = msgFor(cfg.lang);
+  const msg = () => msgFor(o.lang ?? serverLang()); // 중계마다: cfg.lang, 없으면 서버 기본 언어(보낼 때마다 — 설정을 바꾸면 바로)
   const now = o.now ?? Date.now;
   const log = (e) => o.log?.({ ch: 'relay', at: new Date(now()).toISOString(), ...e });
   const queues = { kakao: [], line: [] }; // 메신저별 대기열. kakao: { id, channel, userKey, text, callbackUrl, at } / line: { id, channel, raw, signature, at }
@@ -103,19 +102,20 @@ export function createRelay(cfg) {
     const ur = body?.userRequest;
     const utterance = typeof ur?.utterance === 'string' ? ur.utterance.trim() : '';
     const userKey = typeof ur?.user?.id === 'string' ? ur.user.id : '';
+    const MSG = msg();
     if (!utterance || !userKey || utterance.length > o.maxText) return { status: 200, body: text(MSG.bad) };
     // PC가 꺼져 있으면 콜백 없이 응답 본문으로 바로 알린다(5초 제한).
     if (!pcAlive()) { log({ event: 'pc_down' }); return { status: 200, body: text(MSG.pcDown) }; }
     if (!ur.callbackUrl) return { status: 200, body: text(MSG.noCallback) };
     if (!callbackAllowed(ur.callbackUrl, o.callbackHosts)) { log({ event: 'callback_rejected' }); return { status: 200, body: text(MSG.bad) }; }
     const key = createHash('sha256').update(ur.callbackUrl).digest('hex');
-    if (seen.has(key)) { log({ event: 'duplicate' }); return { status: 200, body: accepted() }; }
+    if (seen.has(key)) { log({ event: 'duplicate' }); return { status: 200, body: accepted(MSG) }; }
     if (queue.length >= o.maxQueue) { log({ event: 'queue_full' }); return { status: 200, body: text(MSG.full) }; }
     seen.set(key, now());
     queue.push({ id: `k${now().toString(36)}${(seq++).toString(36)}`, channel: 'kakao', userKey, text: utterance, callbackUrl: ur.callbackUrl, at: now() });
     log({ event: 'queued', channel: 'kakao', depth: queue.length });
     flush();
-    return { status: 200, body: accepted() };
+    return { status: 200, body: accepted(MSG) };
   }
 
   // L1: 라인 webhook. 본문을 그대로 맡겨 두고 바로 200(라인은 빠른 응답을 기다린다). PC가 꺼져 있으면 답할 수단이 없어 버리고 기록만.
