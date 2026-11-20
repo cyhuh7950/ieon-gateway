@@ -41,4 +41,4 @@
 - Node.js 24 이상. 시험: `node --test --test-timeout=60000 tests/pilot/*.test.mjs tests/relay/*.test.mjs`, 앱: `cd app && npm test`.
 - 화면 글은 직접 쓰지 않고 사전(`locales/<언어>/*.json`)에 둡니다.
 - main에 직접 커밋하지 않습니다. `claude/<목적>`·`codex/<목적>` branch → push → `pr-request/<sha>/<branch>` 태그로 PR Broker가 검사·병합(AGENTS.md "기록과 Git").
-- 비공개 저장소입니다. 비밀값(키·토큰·비밀번호)은 코드·Git·로그에 넣지 않습니다.
+- 공개 저장소입니다. 비밀값(키·토큰·비밀번호)은 코드·Git·로그에 넣지 않습니다.

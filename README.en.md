@@ -39,4 +39,4 @@ Design, plan and status records are in Korean: [PRODUCT.md](PRODUCT.md), [docs/d
 - Node.js 24 or later. Tests: `node --test --test-timeout=60000 tests/pilot/*.test.mjs tests/relay/*.test.mjs`; app: `cd app && npm test`.
 - Screen text is not written in code; it lives in dictionaries (`locales/<language>/*.json`).
 - No direct commits to main. Use a `claude/<purpose>` or `codex/<purpose>` branch → push → a `pr-request/<sha>/<branch>` tag, and the PR Broker checks and merges it (AGENTS.md, "기록과 Git").
-- Private repository. Secrets (keys, tokens, passwords) never go into code, Git or logs.
+- Public repository. Secrets (keys, tokens, passwords) never go into code, Git or logs.
