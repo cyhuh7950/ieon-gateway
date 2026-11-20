@@ -5,7 +5,9 @@
   "description": "이어온 앱(휴대폰·PC) — 이어온 서버의 AI 직원과 대화",
   "main": "electron/main.cjs",
   "scripts": {
+    "predev": "node scripts/copy-locales.mjs",
     "dev": "next dev --port 3340",
+    "prebuild": "node scripts/copy-locales.mjs",
     "build": "next build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

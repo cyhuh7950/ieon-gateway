@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 // 1:1 대화: 기록·질문·답·카드(허락·확인 필요·상태)·다시 보내기, 머리에서 AI 직원 이름·아이콘 바꾸기(AP-3b).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RETRYABLE, newKey, type Card, type Client, type Conversation } from "../lib/api";
@@ -55,8 +56,8 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
     if (e.event === "approval" || e.data.status === "approval_required") loadCards();
   }), [onEvent, id, refresh, loadCards]);
   useEffect(() => {
-    const t = setInterval(() => { itemsRef.current.filter((x) => x.state === "queued" && x.requestId).forEach((x) => refresh(x.requestId!)); }, 5000);
-    return () => clearInterval(t);
+    const tv = setInterval(() => { itemsRef.current.filter((x) => x.state === "queued" && x.requestId).forEach((x) => refresh(x.requestId!)); }, 5000);
+    return () => clearInterval(tv);
   }, [refresh]);
 
   const send = async (question: string, key: string, existing?: Item, voice = existing?.voice ?? false) => {
@@ -83,7 +84,7 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
     if (!it.requestId) return;
     patch(it.key, { stopping: true });
     try { const s = await api.stop(it.requestId); if (s === "cancelled") patch(it.key, { state: "stopped" }); }
-    catch (x) { patch(it.key, { stopping: false }); const c = codeOf(x); setNote(c === "stop_unsupported" ? "이 세션은 원래 창에서 멈추세요" : c === "not_running" ? "이미 끝난 질문이에요" : errText(c)); }
+    catch (x) { patch(it.key, { stopping: false }); const c = codeOf(x); setNote(c === "stop_unsupported" ? t('app.chat.14') : c === "not_running" ? t('app.chat.15') : errText(c)); }
     refresh(it.requestId);
   };
   const review = async (requestId: string, executed: boolean) => { try { await api.review(requestId, executed); } catch (x) { fail(x); } loadCards(); refresh(requestId); };
@@ -93,28 +94,28 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
   return (
     <main className="chat">
       <header className="bar">
-        <button className="ghost" onClick={onBack} aria-label="목록으로">‹</button>
+        <button className="ghost" onClick={onBack} aria-label={t('app.chat.12')}>‹</button>
         <Avatar c={conv} />
         <span className="who"><b>{staffName(conv)}</b><small>{[conv.staff?.roleName, ENGINE[conv.engine] ?? conv.engine].filter(Boolean).join(" · ")}</small></span>
         <SpeakerToggle v={v} />
-        <button className="ghost" onClick={() => setEditing((x) => !x)} aria-label="이름·아이콘 바꾸기" aria-expanded={editing}>✎</button>
+        <button className="ghost" onClick={() => setEditing((x) => !x)} aria-label={t('app.chat.13')} aria-expanded={editing}>✎</button>
       </header>
       {editing && <StaffForm api={api} conv={conv} onDone={(c) => { setConv(c); setEditing(false); }} onLost={onLost}
         busy={items.some((x) => x.state === "sending" || x.state === "queued")} onCleared={() => { setItems([]); setEditing(false); }} />}
       <section className="log" aria-live="polite">
-        {items.length === 0 && <p className="center muted">{blocked ? "아직 주고받은 말이 없어요." : "아직 주고받은 말이 없어요. 아래에 질문을 쓰세요."}</p>}
+        {items.length === 0 && <p className="center muted">{blocked ? t('app.chat.16') : t('app.chat.17')}</p>}
         {items.map((it) => (
           <div key={it.id} className="turn">
-            <p className="bubble me">{it.voice && <span className="via">🎤 음성</span>}{it.question}</p>
-            {it.state === "sending" && <p className="bubble ai muted">보내는 중…</p>}
-            {it.state === "queued" && <div className="ai-wrap"><p className="bubble ai muted">{it.stopping ? "멈추는 중…" : "답을 기다리는 중…"}</p>{!it.stopping && <button className="small" onClick={() => stop(it)}>중지</button>}</div>}
-            {it.state === "stopped" && <p className="bubble ai muted">중지됨 — 이 질문만 멈췄어요</p>}
+            <p className="bubble me">{it.voice && <span className="via">{t('app.chat.2')}</span>}{it.question}</p>
+            {it.state === "sending" && <p className="bubble ai muted">{t('app.chat.3')}</p>}
+            {it.state === "queued" && <div className="ai-wrap"><p className="bubble ai muted">{it.stopping ? t('app.chat.18') : t('app.chat.19')}</p>{!it.stopping && <button className="small" onClick={() => stop(it)}>{t('app.chat.4')}</button>}</div>}
+            {it.state === "stopped" && <p className="bubble ai muted">{t('app.chat.5')}</p>}
             {it.state === "done" && <div className="ai-wrap"><p className="bubble ai">{it.answer}</p><ReadButton v={v} text={it.answer ?? ""} /></div>}
-            {it.state === "unknown" && <p className="bubble ai warn">결과를 확인할 수 없어요. 아래 확인 카드에서 실행됐는지 알려 주세요(자동으로 다시 보내지 않아요).</p>}
+            {it.state === "unknown" && <p className="bubble ai warn">{t('app.chat.23')}</p>}
             {(it.state === "failed" || it.state === "rejected") && (
               <div className="bubble ai err">
                 <p>{errText(it.errorCode)}</p>
-                {RETRYABLE.has(it.errorCode ?? "") && !it.retried && <button className="small" onClick={() => retry(it)}>다시 보내기</button>}
+                {RETRYABLE.has(it.errorCode ?? "") && !it.retried && <button className="small" onClick={() => retry(it)}>{t('app.chat.6')}</button>}
               </div>
             )}
           </div>
@@ -123,10 +124,10 @@ export function ChatScreen({ api, conv: conv0, onBack, onEvent, onLost }: { api:
         {note && <p className="note err" role="alert">{note}</p>}
         <div ref={endRef} />
       </section>
-      {v.hint && <p className="note info vhint" role="status">{v.hint} <button className="link" onClick={() => v.setHint("")}>닫기</button></p>}
+      {v.hint && <p className="note info vhint" role="status">{v.hint} <button className="link" onClick={() => v.setHint("")}>{t('app.chat.7')}</button></p>}
       {v.notice}
       <Composer value={text} onChange={(x) => { setText(x); if (!x.trim()) setByVoice(false); }} disabled={blocked}
-        left={<MicButton v={v} onText={(s) => { setText((x) => (x.trim() ? x.trim() + " " : "") + s); setByVoice(true); }} />} placeholder={blocked ? "지금은 보낼 수 없어요" : "질문 쓰기"}
+        left={<MicButton v={v} onText={(s) => { setText((x) => (x.trim() ? x.trim() + " " : "") + s); setByVoice(true); }} />} placeholder={blocked ? t('app.chat.20') : t('app.chat.21')}
         onSubmit={() => { const q = text.trim(); setText(""); setNote(""); send(q, newKey(), undefined, byVoice); setByVoice(false); }} />
     </main>
   );
@@ -149,16 +150,16 @@ function StaffForm({ api, conv, onDone, onLost, busy: working, onCleared }: { ap
   return (
     <form className="sheet" onSubmit={save}>
       <div className="grid2">
-        <label>이름(@이름)<input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} required /></label>
-        <label>아이콘<input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🛠" className="icon-in" /></label>
+        <label>{t('app.chat.24')}<input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} required /></label>
+        <label>{t('app.chat.8')}<input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="🛠" className="icon-in" /></label>
       </div>
-      <small className="muted">역할{conv.staff?.roleName ? `(지금: ${conv.staff.roleName})` : ""}은 웹 화면에서 정해요.</small>
+      <small className="muted">{t('app.chat.9', { role_name: conv.staff?.roleName ? t('app.chat.1', { role_name: conv.staff.roleName }) : "" })}</small>
       {err && <p className="err" role="alert">{err}</p>}
-      <button className="primary" disabled={busy}>저장</button>
+      <button className="primary" disabled={busy}>{t('app.chat.10')}</button>
       <button type="button" className="link danger" disabled={working} onClick={async () => {
-        if (!confirm("이 대화의 서버 보관 기록(질문·답)을 지울까요? 되돌릴 수 없어요. 원래 Codex·Claude 세션 기록은 그대로예요.")) return;
+        if (!confirm(t('app.chat.22'))) return;
         try { await api.deleteMessages(conv.conversationId); onCleared(); } catch (x) { const c = codeOf(x); if (c === "unauthorized") onLost(); else setErr(errText(c)); }
-      }}>이 대화의 서버 보관 기록 지우기</button>
+      }}>{t('app.chat.11')}</button>
     </form>
   );
 }

@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 // 방에서 @이름 다루기(서버 mentionsOf와 같은 규칙: 이름은 글자·숫자·_·- 1~20자, 대소문자 무시). 아무도 안 부르면 대표가 답한다.
 import type { Conversation } from "./api";
 
@@ -13,31 +14,31 @@ export function mentionTargets(text: string, members: Conversation[], lead: stri
 export function addMention(text: string, name: string): string {
   const tag = "@" + name;
   if (new RegExp(`(^|\\s)${tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`, "iu").test(text)) return text;
-  const t = text.replace(/\s+$/, "");
-  return (t ? t + " " : "") + tag + " ";
+  const tv = text.replace(/\s+$/, "");
+  return (tv ? tv + " " : "") + tag + " ";
 }
 
 export const WAITING = new Set(["queued", "dispatching", "running", "approval_required"]);
 
 // 방에서 보내지 않은 이유(웹 화면 ROOM_BUSY와 같은 뜻)
 export const ROOM_BUSY: Record<string, string> = {
-  conversation_busy: "지금 다른 일 중이라 보내지 않았어요",
-  host_busy: "그 PC·칸이 바빠 보내지 않았어요",
-  device_unavailable: "PC 연결이 끊겨 보내지 않았어요",
-  session_not_running: "Claude 세션이 꺼져 있어 보내지 않았어요",
-  shared_server_down: "공유 서버가 꺼져 있어 보내지 않았어요",
-  session_archived: "보관된 세션이라 보내지 않았어요",
-  active_limit: "동시 처리 한도라 보내지 않았어요",
+  conversation_busy: t('app.rooms.1'),
+  host_busy: t('app.rooms.2'),
+  device_unavailable: t('app.rooms.3'),
+  session_not_running: t('app.rooms.4'),
+  shared_server_down: t('app.rooms.5'),
+  session_archived: t('app.rooms.6'),
+  active_limit: t('app.rooms.7'),
 };
 
 export const ROOM_ERR: Record<string, string> = {
-  bad_room_name: "방 이름은 1~30자로 정하세요.",
-  bad_members: "AI 직원을 1~10명 고르세요.",
-  bad_lead: "대표는 고른 AI 직원 중에서 정하세요.",
-  too_long: "공통 안내가 너무 길어요(1000자까지).",
-  bad_handoff: "넘길 수 없어요(끝난 답만, 방의 다른 AI 직원에게만).",
-  bad_retry: "다시 보낼 수 없는 글이에요.",
-  bad_staff_name: "이름은 빈칸 없이 글자·숫자·_·- 1~20자로 정하세요(@이름으로 부를 수 있게).",
-  staff_name_taken: "같은 이름의 AI 직원이 이미 있어요.",
-  bad_icon: "아이콘은 이모지나 글자 하나로 정하세요.",
+  bad_room_name: t('app.rooms.8'),
+  bad_members: t('app.rooms.9'),
+  bad_lead: t('app.rooms.10'),
+  too_long: t('app.rooms.11'),
+  bad_handoff: t('app.rooms.12'),
+  bad_retry: t('app.rooms.13'),
+  bad_staff_name: t('app.rooms.14'),
+  staff_name_taken: t('app.rooms.15'),
+  bad_icon: t('app.rooms.16'),
 };

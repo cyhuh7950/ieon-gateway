@@ -6,7 +6,8 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ieonFormat } from '../../src/i18n/format.mjs';
 import { languages, loadDict, makeT, pickLang, injectPage, errText, BASE_LANG } from '../../src/i18n/index.mjs';
-import { jsStrings, HANGUL } from './i18n-scan.mjs';
+import { jsStrings, jsxHangul, HANGUL } from './i18n-scan.mjs';
+import { build as buildAppLocales, OUT as APP_LOCALES, ELECTRON_OUT } from '../../app/scripts/copy-locales.mjs';
 import { webPage } from './web-page.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -14,7 +15,7 @@ const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return
 const rel = (p) => relative(ROOT, p).split(sep).join('/');
 const slots = (s) => [...String(s).matchAll(/\{(\w+)(?:\|[^{}]*)?\}/g)].map((m) => m[1]).sort();
 
-// 직접 쓴 문구 금지 대상(I18N-a에서 사전으로 옮긴 곳). 웹 화면·앱은 I18N-a-2~4에서 이 목록에 더한다.
+// 직접 쓴 문구 금지 대상(I18N-a에서 사전으로 옮긴 곳). 웹 화면은 NO_HARDCODE_PAGES, 앱은 APP_CODE.
 const NO_HARDCODE = ['src/pilot', 'src/relay', 'src/hub', 'src/engine', 'src/i18n'];
 const NO_HARDCODE_SKIP = [/^src\/pilot\/web\//];
 // 웹 화면: 옮긴 화면은 <script> 안 문자열과 화면 글(주석 밖) 모두 한국어 0.
@@ -31,9 +32,13 @@ const ALLOW = [
 ];
 const allowed = (file, text) => ALLOW.some((a) => a.file === file && (!a.text || text.includes(a.text)));
 
-// 코드 속 문자열(키를 부르는 곳 찾기): src의 .mjs와 웹 화면의 <script>
+// 이어온 앱(I18N-a-4): 화면 코드(app/src, 복사한 사전 app/src/locales 제외)와 PC 앱 메인(app/electron)
+const APP_CODE = () => [...walk(join(ROOT, 'app/src')), ...walk(join(ROOT, 'app/electron'))].filter((p) => /\.(tsx?|cjs)$/.test(p) && !rel(p).startsWith('app/src/locales/'));
+
+// 코드 속 문자열(키를 부르는 곳 찾기): src의 .mjs와 웹 화면의 <script>, 이어온 앱 코드
 function codeStrings() {
   const out = [];
+  for (const p of APP_CODE()) out.push(...jsStrings(readFileSync(p, 'utf8')));
   for (const p of walk(join(ROOT, 'src'))) {
     if (p.endsWith('.mjs')) out.push(...jsStrings(readFileSync(p, 'utf8')));
     else if (p.endsWith('.html')) {
@@ -129,6 +134,19 @@ test('I18N 안 쓰는 키: 사전의 키는 모두 코드에서 부른다(글자
   assert.deepEqual(unused, []);
 });
 
+test('I18N 없는 키: 코드가 부르는 키(글자 그대로)는 모두 한국어 사전에 있다', () => {
+  const ko = loadDict(BASE_LANG);
+  const files = [...APP_CODE(), ...walk(join(ROOT, 'src')).filter((p) => /\.(mjs|html)$/.test(p))];
+  const used = new Set();
+  for (const p of files) {
+    const s = readFileSync(p, 'utf8');
+    for (const m of s.matchAll(/\b(?:t|i18nT|tServer|tr)\(\s*['"]([a-z][\w.]*\w)['"]/g)) used.add(m[1]); // t('키'), 서버 i18nT('키'), PC 앱 tr("키")
+    for (const m of s.matchAll(/\{\{([a-z][\w.]*)\}\}/g)) used.add(m[1]);
+  }
+  const missing = [...used].filter((k) => !(k in ko));
+  assert.deepEqual(missing, []);
+});
+
 test('I18N 직접 쓴 문구 금지: 사전으로 옮긴 코드의 문자열 안 한국어 0(주석·시험·사전·허용 목록 제외)', () => {
   const found = [];
   for (const dir of NO_HARDCODE) {
@@ -148,5 +166,20 @@ test('I18N 직접 쓴 문구 금지: 사전으로 옮긴 코드의 문자열 안
     const outside = html.replace(/<script>[\s\S]*?<\/script>/g, blank).replace(/<!--[\s\S]*?-->/g, blank).replace(/\/\*[\s\S]*?\*\//g, blank);
     outside.split('\n').forEach((ln, i) => { if (HANGUL.test(ln)) found.push(`${file}:${i + 1} ${ln.trim().slice(0, 60)}`); });
   }
-  assert.deepEqual(found, [], '문구는 locales/ko/*.json에 두고 t()(스크립트)나 {{키}}(화면 글)로 부르세요');
+  // 이어온 앱: 문자열과 JSX 글 모두
+  for (const p of APP_CODE()) {
+    const file = rel(p); const src = readFileSync(p, 'utf8');
+    for (const s of jsStrings(src)) if (HANGUL.test(s.text) && !allowed(file, s.text)) found.push(`${file}:${s.line} ${s.text.slice(0, 60)}`);
+    for (const s of jsxHangul(src)) found.push(`${file}:${s.line} ${s.text.slice(0, 60)}`);
+  }
+  assert.deepEqual(found, [], '문구는 locales/ko/*.json에 두고 t()(스크립트·앱)나 {{키}}(화면 글)로 부르세요');
+});
+
+test('I18N 앱 사전: app/src/locales·app/electron/locales.json이 저장소 locales/와 같음(다르면 node app/scripts/copy-locales.mjs)', () => {
+  const { files, electron } = buildAppLocales();
+  for (const [f, s] of Object.entries(files)) assert.equal(readFileSync(APP_LOCALES + f, 'utf8').replace(/\r\n/g, '\n'), s, f);
+  assert.deepEqual(readdirSync(APP_LOCALES).sort(), Object.keys(files).sort());
+  assert.equal(readFileSync(ELECTRON_OUT, 'utf8').replace(/\r\n/g, '\n'), electron);
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'app/package.json'), 'utf8'));
+  assert.equal(pkg.scripts.prebuild, 'node scripts/copy-locales.mjs', '빌드 전에 자동으로 복사');
 });

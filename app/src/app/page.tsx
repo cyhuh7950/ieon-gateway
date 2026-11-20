@@ -1,4 +1,5 @@
 "use client";
+import { t } from "../lib/i18n";
 // 이어온 앱: 연결 → 목록(방·AI 직원) → 1:1 대화 / 방(AP-3b). 새 소식(SSE) 하나를 모든 화면이 나눠 쓴다.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { client, type Conn, type Conversation, type Room } from "../lib/api";
@@ -56,7 +57,7 @@ export default function Home() {
   useEffect(() => {
     if (!api) return;
     let stop = () => {};
-    startPush((t) => api.pushToken(t), async (id) => {
+    startPush((tv) => api.pushToken(tv), async (id) => {
       let c = names.current.get(id);
       if (!c) { try { (await api.conversations()).conversations.forEach((x) => names.current.set(x.conversationId, x)); c = names.current.get(id); } catch { /* 목록 그대로 */ } }
       if (c) setView({ kind: "chat", conv: c });
@@ -84,12 +85,12 @@ export default function Home() {
   }, [view.kind]);
   const toList = useCallback(() => { if (pushed.current) history.back(); else setView({ kind: "list" }); }, []);
 
-  if (conn === undefined) return <main className="center muted">불러오는 중…</main>;
+  if (conn === undefined) return <main className="center muted">{t('app.list.3')}</main>;
   if (!conn || !api || lost) return <PairScreen lost={lost} onDone={async (c) => { await saveConn(c); setLost(false); setView({ kind: "list" }); setConn(c); }} />;
   // AP-5a: 서버에서 이 기기 열쇠를 지운 뒤 앱에 저장된 연결 정보도 지운다. 서버에 닿지 않으면 알려 주고 앱 쪽만 지운다.
   const forget = async (): Promise<string | null> => {
     let warn: string | null = null;
-    try { await api.forget(); } catch (x) { const c = codeOf(x); if (c !== "unauthorized") warn = "서버에 닿지 않아 서버 쪽 연결은 남아 있어요. 웹 화면 설정 → 앱과 기기 → 이어온 앱 연결에서 끊어 주세요."; }
+    try { await api.forget(); } catch (x) { const c = codeOf(x); if (c !== "unauthorized") warn = t('app.page.2'); }
     await clearConn(); setView({ kind: "list" }); setConn(null);
     return warn;
   };
@@ -101,7 +102,7 @@ export default function Home() {
     case "roomForm": return <RoomForm api={api} room={view.room} convs={view.convs} onLost={onLost}
       onBack={() => setView(view.room ? { kind: "room", roomId: view.room.roomId } : { kind: "list" })}
       onSaved={(r) => setView({ kind: "room", roomId: r.roomId })} onDeleted={toList} />;
-    default: return <>{update && <a className="update-bar" href={update.url}>새 판 {update.version}이 있어요 — 받기</a>}<ListScreen api={api} server={conn.server} onOpen={(conv) => setView({ kind: "chat", conv })} onRoom={(r) => setView({ kind: "room", roomId: r.roomId })}
+    default: return <>{update && <a className="update-bar" href={update.url}>{t('app.page.1', { version: update.version })}</a>}<ListScreen api={api} server={conn.server} onOpen={(conv) => setView({ kind: "chat", conv })} onRoom={(r) => setView({ kind: "room", roomId: r.roomId })}
       onNewRoom={() => setView({ kind: "roomForm", room: null, convs: null })} onTasks={() => setView({ kind: "tasks" })} onEvent={onEvent} onForget={forget} onLost={onLost} notify={canNotify ? { on: notify, toggle: toggleNotify } : null} /></>;
   }
 }

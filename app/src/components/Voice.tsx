@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 // V1 음성 화면 부품: 🎤(말로 쓰기 → 입력칸), 🔊(새 답 자동으로 읽어 주기, 기본 꺼짐), 답마다 🔈 읽기, 처음 한 번 안내.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { VOICE_ERR, VOICE_NOTICE, VoiceError, autoRead, listenOnce, markNoticeSeen, noticeSeen, setAutoRead, speak, stopSpeaking, voiceSupport, type Voice } from "../lib/voice";
@@ -17,7 +18,7 @@ export function useVoice() {
   const listen = useCallback(async (): Promise<string | null> => {
     if (!support?.listen) return null;
     if (!(await ensureNotice())) return null;
-    if (support.listen === "hint") { setHint("입력칸을 누른 뒤 키보드의 Windows 키 + H를 누르고 말하세요(Windows 받아쓰기)."); return null; }
+    if (support.listen === "hint") { setHint(t('app.voice.13')); return null; }
     setHint(""); setListening(true);
     try { return await listenOnce(support.kind); }
     catch (e) { const c = e instanceof VoiceError ? e.code : "failed"; if (c !== "cancelled") setHint(VOICE_ERR[c] ?? VOICE_ERR.failed); return null; }
@@ -50,27 +51,27 @@ export function useAutoRead(v: VoiceApi, answers: { id: string; text: string | n
 
 export function SpeakerToggle({ v }: { v: VoiceApi }) {
   if (!v.support?.speak) return null;
-  return <button className={"ghost" + (v.auto ? " on" : "")} onClick={v.toggleAuto} aria-pressed={v.auto} aria-label={v.auto ? "새 답 읽어 주기 끄기" : "새 답 읽어 주기 켜기"} title="새 답 읽어 주기">{v.auto ? "🔊" : "🔈"}</button>;
+  return <button className={"ghost" + (v.auto ? " on" : "")} onClick={v.toggleAuto} aria-pressed={v.auto} aria-label={v.auto ? t('app.voice.14') : t('app.voice.15')} title={t('app.voice.10')}>{v.auto ? "🔊" : "🔈"}</button>;
 }
 
 export function ReadButton({ v, text }: { v: VoiceApi; text: string }) {
   if (!v.support?.speak || !text) return null;
-  return <button className="read" onClick={() => v.read(text)} aria-label="이 답 읽어 주기">🔈 읽기</button>;
+  return <button className="read" onClick={() => v.read(text)} aria-label={t('app.voice.11')}>{t('app.voice.7')}</button>;
 }
 
-export function MicButton({ v, onText }: { v: VoiceApi; onText: (t: string) => void }) {
+export function MicButton({ v, onText }: { v: VoiceApi; onText: (tv: string) => void }) {
   if (!v.support?.listen) return null;
-  return <button type="button" className={"mic" + (v.listening ? " on" : "")} disabled={v.listening} aria-label="말로 쓰기"
-    onClick={async () => { const t = await v.listen(); if (t) onText(t); }}>🎤</button>;
+  return <button type="button" className={"mic" + (v.listening ? " on" : "")} disabled={v.listening} aria-label={t('app.voice.12')}
+    onClick={async () => { const tv = await v.listen(); if (tv) onText(tv); }}>🎤</button>;
 }
 
 function NoticeDialog({ onAnswer }: { onAnswer: (ok: boolean) => void }) {
   return (
     <div className="dim" role="dialog" aria-modal="true" aria-labelledby="vnT">
       <div className="dialog">
-        <b id="vnT">음성 쓰기 전에</b>
+        <b id="vnT">{t('app.voice.8')}</b>
         <p>{VOICE_NOTICE}</p>
-        <div className="acts"><button className="primary" onClick={() => onAnswer(true)}>확인</button><button onClick={() => onAnswer(false)}>그만두기</button></div>
+        <div className="acts"><button className="primary" onClick={() => onAnswer(true)}>{t('app.voice.9')}</button><button onClick={() => onAnswer(false)}>{t('app.room.10')}</button></div>
       </div>
     </div>
   );
