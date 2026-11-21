@@ -34,7 +34,7 @@
 - **이 PC(Windows):** `pwsh scripts/ieon.ps1 start | stop | status` — 자세한 것은 설명서 2절.
 - **허브(서버, Docker):** [deploy/hub](deploy/hub/) — 배포 순서는 [OPERATIONS](docs/OPERATIONS.md).
 - **새 서버 설치:** 허브 화면 **설정 → 관리 → 허브 보안 → 새 서버에 설치**의 명령 한 줄(또는 `sh deploy/server/install.sh`).
-- **이어온 앱:** 허브의 `/app`에서 받기. 빌드는 [app/](app/) (`npm run package:android:release`, `npm run package:desktop`).
+- **이어온 앱 받기:** [GitHub 내려받기(Releases)](https://github.com/cyhuh7950/ieon-gateway/releases/latest) — 안드로이드 `ieon-android-*.apk`, Windows 설치 파일 `ieon-setup-*.exe`. 허브의 `/app`에서도 받을 수 있습니다. 빌드는 [app/](app/) (`npm run package:android:release`, `npm run package:desktop`).
 
 ## 개발
 
