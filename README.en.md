@@ -32,7 +32,7 @@ Design, plan and status records are in Korean: [PRODUCT.md](PRODUCT.md), [docs/d
 - **This PC (Windows):** `pwsh scripts/ieon.ps1 start | stop | status` — see section 2 of the manual.
 - **Hub (server, Docker):** [deploy/hub](deploy/hub/) — deployment steps are in [OPERATIONS](docs/en/OPERATIONS.md).
 - **Install on a new server:** the one-line command at **Settings → Admin → Hub security → Install on a new server** in the hub screen (or `sh deploy/server/install.sh`).
-- **Ieon App:** download from `/app` on your hub. Build from [app/](app/) (`npm run package:android:release`, `npm run package:desktop`).
+- **Get the Ieon App:** [GitHub downloads (Releases)](https://github.com/cyhuh7950/ieon-gateway/releases/latest) — Android `ieon-android-*.apk`, Windows installer `ieon-setup-*.exe`. You can also download it from `/app` on your hub. Build from [app/](app/) (`npm run package:android:release`, `npm run package:desktop`).
 
 ## Development
 
