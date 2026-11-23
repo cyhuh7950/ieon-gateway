@@ -183,7 +183,7 @@
   "app.room.1": "@이름 (안 부르면 @{lead_name})",
   "app.room.2": "AI 직원 {members}명 · 대표 @{lead_name}",
   "app.room.3": "공통 안내: {guide}",
-  "app.room.4": "@이름으로 부른 AI 직원이 답해요. 아무도 안 부르면 대표 @{lead_name}가 답해요.",
+  "app.room.4": "@이름으로 부른 AI 직원이 답해요. 아무도 안 부르면 대표(@{lead_name})가 답해요.",
   "app.room.5": "{who}에게 다시 보내기",
   "app.room.6": "다른 AI 직원에게 넘기기",
   "app.room.7": "→ {targets}에게 보내요",

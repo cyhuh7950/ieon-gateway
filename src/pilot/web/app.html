@@ -640,7 +640,7 @@ function stateOf(c) {
   if (!c.deviceOnline) return ['err', t('web.state_of.2')];
   if (c.engineReady === false) return ['err', c.engine === 'claude_channel' ? t('web.state_of.3') : t('web.state_of.4')];
   if (c.heldBy) return ['warn', t('web.state_of.5')];
-  if (c.busy) return ['warn', t('web.state_of.6')];
+  if (c.busy || (pending && c.conversationId === current)) return ['warn', t('web.state_of.6')]; // 2026-11-23 시험: 이 화면에서 보낸 질문이 처리 중(승인 대기 포함)인데 "보낼 수 있음"으로 보이던 것
   if (c.newSession && c.newSession.state === 'sleeping') return ['', t('web.state_of.7')];
   return ['', t('web.state_of.8')];
 }
@@ -1342,7 +1342,7 @@ async function send(question, o = {}) {
   const { status, body } = await api('/v1/conversations/' + id + '/requests', { method: 'POST', headers: { 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ question }) });
   if (status !== 202) { o.onFail?.(body.error); retry = { conversationId: id, question, code: body.error }; renderCards(true); return; }
   retry = null;
-  pending = body.requestId; o.onId?.(body.requestId);
+  pending = body.requestId; o.onId?.(body.requestId); renderHead();
   document.querySelectorAll('#msgs .welcome').forEach((w) => w.remove());
   $('msgs').append(el('div', (o.voice ? '🎤 ' : '') + question, 'bubble me'));
   const steps = el('div', null, 'steps'); const s1 = el('span', t('web.send.1'), 'done'); const s2 = el('span', t('web.send.2')); steps.append(s1, s2);
