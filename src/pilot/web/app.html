@@ -1222,9 +1222,32 @@ async function startLive() {
 }
 $('liveEnd').onclick = () => live?.hangup('user');
 $('liveMute').onclick = () => { if (!live) return; const on = $('liveMute').getAttribute('aria-pressed') !== 'true'; live.mute(on); $('liveMute').setAttribute('aria-pressed', String(on)); $('liveMute').textContent = on ? t('web.oai_voice.unmute') : t('web.oai_voice.mute'); };
-// 나: 녹음 한 번 → 받아쓰기 → 입력칸(고친 뒤 보냄)
+// 나: 말하는 동안 실시간 받아쓰기(gpt-live-transcribe) → 입력칸에 바로(고친 뒤 보냄). 실시간에 못 붙으면 녹음 한 번 → 받아쓰기
 let turnRec = null;
-async function turnListen() {
+async function turnListen(vc) {
+  if (turnRec?.live) {
+    const r = turnRec; turnRec = null; $('micBtn').classList.remove('on');
+    try { const { text } = await r.stop(); toast('', ''); if (!text) toast('warn', t('web.render_speak.4')); else { qa.value = (r.base ? r.base + ' ' : '') + text; qa.dispatchEvent(new Event('input')); qa.focus(); } }
+    catch (e) { toast('err', VOICE_ERR(e.code || e.message)); }
+    return;
+  }
+  if (!turnRec && vc?.dictate) {
+    if (!(await voiceNoticeOpenai())) return;
+    const base = qa.value.trim();
+    const dapi = {
+      dictate: async (lang) => { const r = await api('/v1/voice/dictate', { method: 'POST', body: JSON.stringify({ lang }) }); if (r.status !== 200) throw Object.assign(new Error(r.body.error), { code: r.body.error }); return r.body; },
+      end: async (id) => api('/v1/voice/live/' + id + '/end', { method: 'POST' }),
+    };
+    try {
+      const d = await IeonVoiceCore.dictate({ api: dapi, lang: I18N.lang, onText: (txt) => { qa.value = (base ? base + ' ' : '') + txt; qa.dispatchEvent(new Event('input')); } });
+      turnRec = { live: true, base, stop: d.stop }; $('micBtn').classList.add('on'); toast('ok', t('web.oai_voice.recording'));
+      d.done.then(() => { if (turnRec?.stop === d.stop) turnListen(); });
+      return;
+    } catch (e) {
+      if (e.code === 'voice_mic' || /^voice_(limit|no_key|members_off|key_rejected|mode_off)$/.test(e.code || '')) { toast('err', VOICE_ERR(e.code)); return; }
+      // 실시간 연결이 안 되면 아래 예전 방식(녹음 한 번)으로
+    }
+  }
   if (turnRec) { const r = turnRec; turnRec = null; $('micBtn').classList.remove('on'); toast('ok', t('web.oai_voice.transcribing'));
     const { blob, type, sec } = await r.stop();
     try {
@@ -1236,7 +1259,7 @@ async function turnListen() {
     } catch { toast('err', t('web.oai_voice.failed')); }
     return;
   }
-  if (!(await voiceNoticeOpenai())) return;
+  if (!vc?.dictate && !(await voiceNoticeOpenai())) return;
   try { turnRec = await IeonVoiceCore.record(60); $('micBtn').classList.add('on'); toast('ok', t('web.oai_voice.recording')); turnRec.done.then(() => { if (turnRec) turnListen(); }); }
   catch (e) { turnRec = null; toast('err', VOICE_ERR(e.code)); }
 }
@@ -1257,7 +1280,7 @@ $('micBtn').onclick = async () => {
     if (vc.hubMode) { toast('warn', VOICE_ERR('hub_mode')); return; }
     if (vc.reason) { toast('warn', VOICE_ERR(vc.reason)); return; }
     if (vc.live) return startLive();
-    if (vc.turn) return turnListen();
+    if (vc.turn) return turnListen(vc);
   }
   if (!SRcls || !(await voiceNotice())) return;
   const rec = new SRcls(); rec.lang = t('common.speech_lang'); rec.interimResults = false; rec.maxAlternatives = 1;

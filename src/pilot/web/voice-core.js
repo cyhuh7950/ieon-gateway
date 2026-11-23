@@ -1,7 +1,7 @@
 // V2 OpenAI 음성 공통 코드(설계 docs/design/VOICE_LIVE.md) — 웹 대화 화면(/voice-core.js)과 이어온 앱(app/scripts/copy-locales.mjs가
 // app/src/lib/voice-core.ts로 복사)이 같이 쓴다. 화면 글은 여기 없다(상태 코드만 알리고 화면이 사전으로 보여 줌).
 // 가(live): OpenAI Realtime에 WebRTC로 바로 붙고, 작업 이야기는 ask_session 도구로 이어온 질문 API에 넘긴다(대답은 세션).
-// 나(turn): 녹음 한 번 → 서버 받아쓰기, 답 글 → 서버 목소리(mp3) 재생.
+// 나(turn): 말하는 동안 실시간 받아쓰기(gpt-live-transcribe, 안 되면 녹음 한 번 → 서버 받아쓰기), 답 글 → 서버 목소리(WAV) 재생.
 // 소리·글은 어디에도 저장하지 않는다. 음성으로 승인하지 않는다(승인은 화면 카드).
 const IeonVoiceCore = (() => {
   const DONE = ['completed', 'failed', 'unknown', 'cancelled', 'approval_required'];
@@ -108,7 +108,57 @@ const IeonVoiceCore = (() => {
     return { hangup, mute: (on) => { track.enabled = !on; }, info: () => ({ remainingSec, pending: Boolean(pending), maxSec: s.maxSec }) };
   }
 
-  // 나 — 녹음 한 번. stop()을 부르거나 maxSec이 지나면 끝. → { blob, type, sec }
+  // 나 — 실시간 받아쓰기(gpt-live-transcribe, 2026-11-23). 말하는 동안 글이 onText(지금까지 글)로 들어온다.
+  // stop()을 부르면 마지막 소리까지 받아 { text, sec }. maxSec이 지나면 done이 끝나므로 부른 쪽이 stop()한다(record와 같은 모양).
+  // o: { api: { dictate(lang) → { dictateId, clientSecret, callUrl, maxSec }, end(dictateId) }, lang, onText(text) }
+  async function dictate(o) {
+    let mic; try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch { throw err('voice_mic'); }
+    let s; try { s = await o.api.dictate(o.lang); } catch (e) { mic.getTracks().forEach((t) => t.stop()); throw e; }
+    const pc = new RTCPeerConnection();
+    pc.addTrack(mic.getAudioTracks()[0], mic);
+    const dc = pc.createDataChannel('oai-events');
+    const order = [], finals = new Map(); let partial = '', closed = false, waiting = null, failed = null;
+    const text = () => [...order.map((id) => finals.get(id) ?? ''), partial].join(' ').replace(/\s+/g, ' ').trim();
+    const show = () => { try { o.onText?.(text()); } catch { /* 화면 오류 무시 */ } };
+    const keep = (id) => { if (id && !order.includes(id)) order.push(id); };
+    dc.onmessage = (m) => {
+      let ev; try { ev = JSON.parse(m.data); } catch { return; }
+      if (ev.type === 'input_audio_buffer.committed') keep(ev.item_id);
+      else if (ev.type === 'conversation.item.input_audio_transcription.delta') { partial += ev.delta || ''; show(); }
+      else if (ev.type === 'conversation.item.input_audio_transcription.completed') { keep(ev.item_id); finals.set(ev.item_id, String(ev.transcript ?? '').trim()); partial = ''; show(); waiting?.(); }
+      else if (ev.type === 'conversation.item.input_audio_transcription.failed' || ev.type === 'error') { failed = ev.error?.code || 'voice_openai_failed'; waiting?.(); }
+    };
+    const started = Date.now(); let limit = null;
+    async function close() {
+      if (closed) return; closed = true; clearTimeout(limit);
+      try { dc.close(); } catch { /* 이미 닫힘 */ }
+      try { pc.close(); } catch { /* 이미 닫힘 */ }
+      mic.getTracks().forEach((t) => t.stop());
+      try { await o.api.end(s.dictateId); } catch { /* 서버가 나중에 정리 */ }
+    }
+    try {
+      const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+      const r = await fetch(s.callUrl, { method: 'POST', body: offer.sdp, headers: { authorization: 'Bearer ' + s.clientSecret, 'content-type': 'application/sdp' } });
+      if (!r.ok) throw err(r.status === 401 ? 'voice_key_rejected' : 'voice_connect_failed');
+      await pc.setRemoteDescription({ type: 'answer', sdp: await r.text() });
+    } catch (e) { await close(); throw e.code ? e : err('voice_connect_failed'); }
+    let hitLimit; const done = new Promise((r) => { hitLimit = r; });
+    limit = setTimeout(() => hitLimit(), (s.maxSec || 60) * 1000);
+    async function stop() {
+      if (closed) return { text: text(), sec: Math.round((Date.now() - started) / 1000) };
+      await sleep(400); // 아직 오는 중인 마지막 소리
+      const got = new Promise((r) => { waiting = r; setTimeout(r, 8000); });
+      if (dc.readyState === 'open') dc.send(JSON.stringify({ type: 'input_audio_buffer.commit' })); else waiting();
+      await got; waiting = null;
+      const out = { text: text(), sec: Math.round((Date.now() - started) / 1000) };
+      await close();
+      if (!out.text && failed && failed !== 'input_audio_buffer_commit_empty') throw err(failed);
+      return out;
+    }
+    return { stop, done };
+  }
+
+  // 나 — 녹음 한 번(예전 방식 — 실시간 받아쓰기를 못 쓸 때). stop()을 부르거나 maxSec이 지나면 끝. → { blob, type, sec }
   async function record(maxSec = 60) {
     let mic; try { mic = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { throw err('voice_mic'); }
     const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find((x) => window.MediaRecorder?.isTypeSupported?.(x)) || '';
@@ -133,6 +183,6 @@ const IeonVoiceCore = (() => {
   }
   function stopPlay() { if (playing) { try { playing.pause(); } catch { /* 없음 */ } playing = null; } }
 
-  return { startLive, record, play, stopPlay };
+  return { startLive, dictate, record, play, stopPlay };
 })();
 if (typeof window !== 'undefined') window.IeonVoiceCore = IeonVoiceCore;

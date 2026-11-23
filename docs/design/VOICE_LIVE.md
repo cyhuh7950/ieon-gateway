@@ -48,7 +48,8 @@
 
 ## 6. 나 — 한 번씩 말하고 듣기
 
-- 받아쓰기: 앱·웹이 MediaRecorder로 녹음(최대 60초) → `POST /v1/voice/transcribe`(소리 파일 본문, 15MB 이하) → 서버가 OpenAI `/v1/audio/transcriptions`(설정 모델, 기본 `gpt-transcribe` — 언어는 모델이 스스로 알아냄, 옛 모델이면 보는 사람 언어를 힌트로) → `{ text }` → 입력칸.
+- 실시간 받아쓰기(2026-11-23 신산님 "실시간 녹음 받아쓰기도 gpt-live-transcribe로"): 마이크를 누르면 `POST /v1/voice/dictate` → 서버가 받아쓰기 전용 실시간 열쇠(`/realtime/client_secrets`, `session.type: transcription`, 모델 `dictateModel` 기본 `gpt-live-transcribe`, `languages: [보는 사람 언어]`, `delay: low`, `turn_detection: null` — 이 모델은 자동 끊김을 지원하지 않음, 60초 안에 연결) → 앱·웹이 WebRTC로 OpenAI에 바로 붙어 마이크 소리를 보내고 `conversation.item.input_audio_transcription.delta`로 말하는 동안 글을 받음(웹은 입력칸, 앱은 안내 줄에 바로 보임) → 다시 누르면 `input_audio_buffer.commit` → `…completed`의 마지막 글을 입력칸에 → 끝(`/v1/voice/live/<dc_…>/end`)에서 쓴 시간을 셈(최대 60초). 실시간 연결이 안 되면 아래 녹음 한 번 방식으로.
+- 받아쓰기(녹음 한 번 — 실시간에 못 붙을 때와 예전 앱 0.1.9): 앱·웹이 MediaRecorder로 녹음(최대 60초) → `POST /v1/voice/transcribe`(소리 파일 본문, 15MB 이하) → 서버가 OpenAI `/v1/audio/transcriptions`(설정 모델, 기본 `gpt-transcribe` — 언어는 모델이 스스로 알아냄, 옛 모델이면 보는 사람 언어를 힌트로) → `{ text }` → 입력칸.
 - 읽기: `POST /v1/voice/speak { text }`(4000자 이하, 앱이 읽기 좋게 줄인 글) → 서버가 OpenAI 실시간 연결(WebSocket `wss://api.openai.com/v1/realtime`, 기본 `gpt-realtime-2.1-mini`, 설정 목소리)을 한 번 열어 "글을 그대로 읽어 줘"로 소리(PCM 24kHz)만 받고 닫음 → WAV → 재생. 실패하면 기기 목소리로. (2026-11-23 전환: `/v1/audio/speech`와 `gpt-4o-mini-tts`는 2027-01-06 종료, 새 모델은 그 길을 지원하지 않음)
 - 사용량: 받아쓰기 한 번 = 녹음 초, 읽기 한 번 = 글자 수/15초로 오늘 사용에 더함(같은 하루 한도).
 

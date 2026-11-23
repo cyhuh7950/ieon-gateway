@@ -9,6 +9,7 @@ export const VOICES = ['marin', 'cedar', 'alloy', 'ash', 'ballad', 'coral', 'ech
 // gpt-realtime-mini 2027-01-20, gpt-4o-mini-transcribe·whisper-1 2027-02-26. 읽기는 새 모델이 /audio/speech를 지원하지 않아 실시간 연결로 만든다.
 export const DEFAULTS = Object.freeze({
   mode: 'device', liveModel: 'gpt-realtime-2.1-mini', voice: 'marin', sttModel: 'gpt-transcribe', ttsModel: 'gpt-realtime-2.1-mini',
+  dictateModel: 'gpt-live-transcribe', // 나의 실시간 받아쓰기(말하는 동안 글). sttModel은 예전 앱(0.1.9)의 녹음 파일 받아쓰기용
   dailyMinutes: 30, idleSec: 60, maxMinutes: 15, members: false, memberMinutes: 10,
 });
 // 끝나는 모델 이름 → 대신 쓸 이름. 저장된 설정(기본값보다 우선)에 옛 이름이 있어도 읽을 때 바꾼다.
@@ -33,7 +34,7 @@ export function validateVoiceSettings(body, cur = {}) {
   const b = body && typeof body === 'object' ? body : fail('bad_voice');
   const next = { ...DEFAULTS, ...cur };
   if (b.mode !== undefined) { if (!VOICE_MODES.includes(b.mode)) fail('bad_voice_mode'); next.mode = b.mode; }
-  for (const k of ['liveModel', 'sttModel', 'ttsModel']) if (b[k] !== undefined) { if (!MODEL.test(String(b[k]))) fail('bad_voice_model'); next[k] = String(b[k]); }
+  for (const k of ['liveModel', 'sttModel', 'ttsModel', 'dictateModel']) if (b[k] !== undefined) { if (!MODEL.test(String(b[k]))) fail('bad_voice_model'); next[k] = String(b[k]); }
   if (b.voice !== undefined) { if (!MODEL.test(String(b.voice))) fail('bad_voice_voice'); next.voice = String(b.voice); }
   if (b.dailyMinutes !== undefined) { if (!int(b.dailyMinutes, 1, 1440)) fail('bad_voice_limit'); next.dailyMinutes = b.dailyMinutes; }
   if (b.memberMinutes !== undefined) { if (!int(b.memberMinutes, 1, 1440)) fail('bad_voice_limit'); next.memberMinutes = b.memberMinutes; }
@@ -92,7 +93,7 @@ export function createVoice(opts) {
   function config(p) {
     const s = settings();
     const reason = s.mode === 'device' ? null : why(s, p);
-    return { mode: s.mode, configured: Boolean(s.apiKey), live: s.mode === 'openai_live' && !reason, turn: s.mode === 'openai_turn' && !reason,
+    return { mode: s.mode, configured: Boolean(s.apiKey), live: s.mode === 'openai_live' && !reason, turn: s.mode === 'openai_turn' && !reason, dictate: s.mode === 'openai_turn' && !reason,
       reason, remainingSec: remaining(s, p), idleSec: s.idleSec, maxSec: s.maxMinutes * 60, voice: s.voice };
   }
 
@@ -139,6 +140,25 @@ export function createVoice(opts) {
     lives.set(liveId, { user: opts.userKey(p), conversationId: conv.conversationId, startedAt: now(), lastTick: now(), maxAt: now() + maxSec * 1000 });
     log('voice_live_start', {});
     return { liveId, clientSecret: d.value, expiresAt: d.expires_at ?? null, model: s.liveModel, callUrl: `${OPENAI}/realtime/calls`, tickSec: 30, idleSec: s.idleSec, maxSec, remainingSec: remaining(s, p) };
+  }
+  // 나: 실시간 받아쓰기 열쇠(60초 안에 연결). 받아쓰기 전용 세션(type transcription) — 말하는 동안 글이 오고, 앱이 commit하면 마지막 글.
+  // gpt-live-transcribe는 자동 끊김(VAD)을 지원하지 않아 turn_detection: null, 한 언어 힌트 대신 languages.
+  async function startDictate(p) {
+    const s = settings();
+    if (s.mode !== 'openai_turn') fail('voice_mode_off', 409);
+    const r0 = why(s, p); if (r0) fail(r0, r0 === 'voice_limit' ? 429 : 409);
+    const lang = String(opts.lang(p) || '').slice(0, 2);
+    const transcription = { model: s.dictateModel, ...(/^[a-z]{2}$/.test(lang) ? { languages: [lang] } : {}), ...(/live-transcribe/.test(s.dictateModel) ? { delay: 'low' } : {}) };
+    const body = { expires_after: { anchor: 'created_at', seconds: 60 }, session: { type: 'transcription', audio: { input: { transcription, turn_detection: null } } } };
+    let r; try { r = await fetchImpl(`${OPENAI}/realtime/client_secrets`, { method: 'POST', headers: { ...authed(s, p), 'content-type': 'application/json' }, body: JSON.stringify(body) }); } catch { fail('voice_openai_unreachable', 502); }
+    if (!r.ok) openaiError(r);
+    const d = await r.json();
+    if (!d?.value) fail('voice_openai_failed', 502);
+    const dictateId = 'dc_' + randomBytes(8).toString('hex');
+    const maxSec = Math.min(60, remaining(s, p));
+    lives.set(dictateId, { user: opts.userKey(p), kind: 'dictate', startedAt: now(), lastTick: now(), maxAt: now() + maxSec * 1000 });
+    log('voice_dictate_start', {});
+    return { dictateId, clientSecret: d.value, expiresAt: d.expires_at ?? null, model: s.dictateModel, callUrl: `${OPENAI}/realtime/calls`, maxSec, remainingSec: remaining(s, p) };
   }
   const liveOf = (p, id) => { const l = lives.get(id); if (!l || l.user !== opts.userKey(p)) fail('not_found', 404); return l; };
   // 30초마다: 지난 tick부터 흐른 시간을 오늘 사용에 더하고, 한도·최대 길이면 stop
@@ -221,5 +241,5 @@ export function createVoice(opts) {
     return wav;
   }
 
-  return { settings, adminView, config, saveSettings, startLive, tickLive, endLive, transcribe, speak, _lives: lives };
+  return { settings, adminView, config, saveSettings, startLive, startDictate, tickLive, endLive, transcribe, speak, _lives: lives };
 }

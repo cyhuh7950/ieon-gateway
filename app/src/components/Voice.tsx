@@ -23,6 +23,7 @@ export function useVoice(o: Opts = {}) {
   const [live, setLive] = useState<LiveState>(null);
   const liveRef = useRef<{ hangup: (why?: string) => Promise<void>; mute: (on: boolean) => void } | null>(null);
   const recRef = useRef<{ stop: () => Promise<{ blob: Blob; type: string; sec: number }>; done: Promise<unknown> } | null>(null);
+  const dictRef = useRef<{ stop: () => Promise<{ text: string; sec: number }> } | null>(null);
   const [muted, setMuted] = useState(false);
   const optsRef = useRef(o); optsRef.current = o;
   useEffect(() => { voiceSupport().then(setSupport); setAuto(autoRead()); return () => { stopSpeaking(); IeonVoiceCore.stopPlay(); liveRef.current?.hangup("user"); }; }, []);
@@ -54,15 +55,30 @@ export function useVoice(o: Opts = {}) {
     } catch (e) { liveRef.current = null; setLive(null); setHint(errText(codeOf(e))); }
   }, [ensureNotice]);
 
-  // 나: 녹음 한 번 → 서버 받아쓰기 → 글자
-  const turnListen = useCallback(async (): Promise<string | null> => {
+  // 나: 말하는 동안 실시간 받아쓰기(gpt-live-transcribe — 글이 안내 줄에 바로 보임), 다시 누르면 입력칸으로. 실시간에 못 붙으면 녹음 한 번 → 서버 받아쓰기
+  const turnListen = useCallback(async (c?: VoiceConfig | null): Promise<string | null> => {
     const api = optsRef.current.api!;
+    if (dictRef.current) {
+      const d = dictRef.current; dictRef.current = null; setListening(false);
+      try { const { text } = await d.stop(); setHint(text ? "" : VOICE_ERR.no_speech); return text || null; }
+      catch (e) { setHint(errText(codeOf(e))); return null; }
+    }
     if (recRef.current) {
       const r = recRef.current; recRef.current = null; setListening(false); setHint(t("app.oai_voice.transcribing"));
       try { const { blob, type, sec } = await r.stop(); const { text } = await api.transcribe(blob, type, sec, lang); setHint(text ? "" : VOICE_ERR.no_speech); return text || null; }
       catch (e) { setHint(errText(codeOf(e))); return null; }
     }
     if (!(await ensureNotice(true))) return null;
+    if (c?.dictate) {
+      try {
+        const d = await IeonVoiceCore.dictate({ lang, api: { dictate: (l: string) => api.voiceDictate(l), end: (id: string) => api.voiceEnd(id) }, onText: (txt: string) => setHint(txt) });
+        dictRef.current = d; setListening(true); setHint(t("app.oai_voice.recording")); return null;
+      } catch (e) {
+        const code = codeOf(e);
+        if (code === "voice_mic" || /^voice_(limit|no_key|members_off|key_rejected|mode_off)$/.test(code)) { setHint(errText(code)); return null; }
+        // 실시간 연결이 안 되면 아래 예전 방식(녹음 한 번)으로
+      }
+    }
     try { recRef.current = (await IeonVoiceCore.record(60)) as unknown as typeof recRef.current; setListening(true); setHint(t("app.oai_voice.recording")); }
     catch (e) { recRef.current = null; setHint(errText(codeOf(e))); }
     return null;
@@ -70,13 +86,13 @@ export function useVoice(o: Opts = {}) {
 
   const listen = useCallback(async (): Promise<string | null> => {
     if (liveRef.current) { await liveRef.current.hangup("user"); return null; }
-    if (recRef.current) return turnListen();
+    if (recRef.current || dictRef.current) return turnListen();
     const c = await config();
     if (c && c.mode !== "device") {
       if (c.hubMode) { setHint(errText("hub_mode")); return null; }
       if (c.reason) { setHint(errText(c.reason)); return null; }
       if (c.live) { await startLive(); return null; }
-      if (c.turn) return turnListen();
+      if (c.turn) return turnListen(c);
     }
     if (!support?.listen) return null;
     if (!(await ensureNotice())) return null;

@@ -142,6 +142,26 @@ test('V2 모델 전환: 저장된 옛 모델 이름(기본값보다 우선)도 �
   assert.equal((await v.saveSettings({ ttsModel: 'gpt-4o-mini-tts' })).ttsModel, 'gpt-realtime-2.1-mini', '옛 이름을 넣어도 새 이름으로 저장');
 });
 
+test('V2 나 실시간 받아쓰기: gpt-live-transcribe 받아쓰기 전용 열쇠(언어·지연·자동 끊김 없음), 방식이 다르면 거절, 끝내면 쓴 시간을 셈', async () => {
+  const { f, calls } = fakeOpenai(); const store = memStore(); let now = Date.parse('2026-11-23T03:00:00Z');
+  const v = createVoice({ store, fetchImpl: f, now: () => now, isAdmin: () => true, userKey: () => 'admin', lang: () => 'ko', t: (l, k) => k });
+  await v.saveSettings({ apiKey: KEY, mode: 'openai_live' });
+  await assert.rejects(v.startDictate({}), /voice_mode_off/, '실시간 대화 방식에서는 거절(그쪽은 통역사가 들음)');
+  assert.equal(v.config({}).dictate, false);
+  await v.saveSettings({ mode: 'openai_turn' });
+  assert.equal(v.config({}).dictate, true, '한 번씩 방식이면 실시간 받아쓰기');
+  const d = await v.startDictate({});
+  assert.match(d.dictateId, /^dc_[0-9a-f]{16}$/); assert.equal(d.clientSecret, 'ek_test_secret'); assert.equal(d.model, 'gpt-live-transcribe'); assert.equal(d.callUrl, 'https://api.openai.com/v1/realtime/calls'); assert.equal(d.maxSec, 60);
+  const body = JSON.parse(calls.filter((x) => x.url.endsWith('/realtime/client_secrets')).at(-1).init.body);
+  assert.equal(body.session.type, 'transcription');
+  assert.deepEqual(body.session.audio.input, { transcription: { model: 'gpt-live-transcribe', languages: ['ko'], delay: 'low' }, turn_detection: null }, '한 언어 힌트(language) 대신 languages, 자동 끊김 없음');
+  now += 12_000; assert.deepEqual(v.endLive({}, d.dictateId), { ok: true });
+  assert.equal(v.adminView().usedTodaySec, 12, '받아쓴 시간만큼');
+  await v.saveSettings({ dictateModel: 'gpt-transcribe' });
+  await v.startDictate({});
+  assert.deepEqual(JSON.parse(calls.filter((x) => x.url.endsWith('/realtime/client_secrets')).at(-1).init.body).session.audio.input.transcription, { model: 'gpt-transcribe', languages: ['ko'] }, '지연 설정은 live-transcribe에만');
+});
+
 test('V2 나 읽기 실패: 키 거절·끊김·소리 없음은 이유로 알려 주고 사용 시간을 세지 않음', async () => {
   for (const [mode, key, err] of [['ok', 'sk-other' + 'z'.repeat(40), /voice_key_rejected/], ['drop', KEY, /voice_openai_unreachable/], ['empty', KEY, /voice_openai_failed/]]) {
     const store = memStore(); store.setSetting('voice.openai', { mode: 'openai_turn', apiKey: key });
@@ -176,7 +196,11 @@ test('V2 서버: 설정 API로 바꾸면 바로 /v1/voice/config에 반영, 실�
   assert.equal((await call('/v1/voice/transcribe?sec=2', { method: 'POST', raw: Buffer.from('abc'), type: 'audio/webm' })).body.error, 'voice_mode_off', '실시간 방식이면 받아쓰기 거절');
   await call('/v1/admin/settings/voice', { method: 'PUT', body: { mode: 'openai_turn' } });
   assert.equal((await call('/v1/voice/config')).body.turn, true, '저장하면 바로 적용');
-  assert.equal((await call('/v1/voice/transcribe?sec=2&lang=ko', { method: 'POST', raw: Buffer.from('abc'), type: 'audio/webm' })).body.text, '안녕하세요');
+  assert.equal((await call('/v1/voice/transcribe?sec=2&lang=ko', { method: 'POST', raw: Buffer.from('abc'), type: 'audio/webm' })).body.text, '안녕하세요', '예전 앱(0.1.9)의 녹음 파일 받아쓰기도 그대로');
+  assert.equal((await call('/v1/voice/config')).body.dictate, true);
+  const dc = await call('/v1/voice/dictate', { method: 'POST', body: { lang: 'en' } });
+  assert.equal(dc.status, 200); assert.match(dc.body.dictateId, /^dc_/); assert.equal(dc.body.model, 'gpt-live-transcribe'); assert.ok(!JSON.stringify(dc.body).includes(KEY));
+  assert.equal((await call(`/v1/voice/live/${dc.body.dictateId}/end`, { method: 'POST', body: {} })).body.ok, true);
   const sp = await call('/v1/voice/speak', { method: 'POST', body: { text: '읽어 줘' } });
   assert.equal(sp.ct, 'audio/wav'); assert.equal(sp.body.subarray(0, 4).toString('latin1'), 'RIFF'); assert.deepEqual([...sp.body.subarray(44)], [1, 2, 3, 4]);
   assert.equal((await call('/v1/admin/settings/voice', { method: 'PUT', body: { apiKey: null } })).body.voiceOpenai.configured, false);
@@ -185,7 +209,8 @@ test('V2 서버: 설정 API로 바꾸면 바로 /v1/voice/config에 반영, 실�
 
 test('V2 화면·앱: 같은 공통 코드(가 도구·나 녹음), 설정 화면 칸, 마이크 버튼이 방식을 따름, 음성 승인 없음', () => {
   const core = readFileSync(join(root, 'src/pilot/web/voice-core.js'), 'utf8');
-  for (const s of ['ask_session', 'check_status', 'stop_request', "createDataChannel('oai-events')", 'response.function_call_arguments.done', 'APPROVAL NEEDED', 'Never approve by voice', 'MediaRecorder'])
+  for (const s of ['ask_session', 'check_status', 'stop_request', "createDataChannel('oai-events')", 'response.function_call_arguments.done', 'APPROVAL NEEDED', 'Never approve by voice', 'MediaRecorder',
+    'conversation.item.input_audio_transcription.delta', 'conversation.item.input_audio_transcription.completed', 'input_audio_buffer.commit'])
     assert.ok(core.includes(s), s);
   assert.ok(!/decide|\/v1\/approvals\/[^']/.test(core), '공통 코드는 승인하지 않음(승인 대기만 봄)');
   const copied = build().files['voice-core.ts'];
@@ -196,9 +221,11 @@ test('V2 화면·앱: 같은 공통 코드(가 도구·나 녹음), 설정 화�
   const A = readFileSync(join(root, 'src/pilot/web/app.html'), 'utf8');
   assert.ok(A.includes('<script src="/voice-core.js"></script>'));
   const mic = A.slice(A.indexOf("$('micBtn').onclick"), A.indexOf("$('compose').onsubmit"));
-  assert.ok(mic.includes('await voiceCfg()') && mic.includes('startLive()') && mic.includes('turnListen()'), '누를 때마다 방식을 물음');
+  assert.ok(mic.includes('await voiceCfg()') && mic.includes('startLive()') && mic.includes('turnListen(vc)'), '누를 때마다 방식을 물음');
+  assert.ok(A.includes("IeonVoiceCore.dictate(") && A.includes("'/v1/voice/dictate'") && A.includes('IeonVoiceCore.record(60)'), '웹: 실시간 받아쓰기, 못 붙으면 녹음 한 번');
   const V = readFileSync(join(root, 'app/src/components/Voice.tsx'), 'utf8');
   assert.ok(V.includes('import IeonVoiceCore from "../locales/voice-core"') && V.includes('api.voiceConfig(lang)'));
+  assert.ok(V.includes('IeonVoiceCore.dictate(') && V.includes('api.voiceDictate(l)') && V.includes('turnListen(c)'), '앱: 실시간 받아쓰기');
   const C = readFileSync(join(root, 'app/src/components/Chat.tsx'), 'utf8');
   assert.ok(C.includes('useVoice({ api, conversationId: id, ask:') && C.includes('<LiveBar v={v} />'));
 });

@@ -1766,7 +1766,12 @@ export function createApp(config) {
             if (!conv) return json(res, 404, { error: 'not_found' });
             return json(res, 200, await voice.startLive(vp, conv, labelOf(conv)));
           }
-          const lv = path.match(/^\/v1\/voice\/live\/(lv_[0-9a-f]{16})\/(tick|end)$/);
+          // 나: 실시간 받아쓰기(gpt-live-transcribe) 열쇠 — 앱·웹이 OpenAI에 바로 붙어 말하는 동안 글을 받는다. 끝은 아래 /end(dc_ 아이디)
+          if (req.method === 'POST' && path === '/v1/voice/dictate') {
+            const b = await readJson(req); if (b.lang) vp.lang = normLang(b.lang) ?? vp.lang;
+            return json(res, 200, await voice.startDictate(vp));
+          }
+          const lv = path.match(/^\/v1\/voice\/live\/((?:lv|dc)_[0-9a-f]{16})\/(tick|end)$/);
           if (req.method === 'POST' && lv) return json(res, 200, lv[2] === 'tick' ? voice.tickLive(vp, lv[1]) : voice.endLive(vp, lv[1]));
           if (req.method === 'POST' && path === '/v1/voice/transcribe') {
             const chunks = []; let n = 0;

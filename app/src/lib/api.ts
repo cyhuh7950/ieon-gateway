@@ -64,7 +64,7 @@ export type Card = { kind: string; approvalId?: string; approvalKind?: string; s
 export type Message = { requestId: string; question: string; answer: string };
 export type RequestView = { requestId: string; status: string; errorCode: string | null; answer: string | null };
 // V2 OpenAI 음성
-export type VoiceConfig = { mode: "device" | "openai_turn" | "openai_live"; configured: boolean; live: boolean; turn: boolean; reason: string | null; remainingSec: number; hubMode?: boolean };
+export type VoiceConfig = { mode: "device" | "openai_turn" | "openai_live"; configured: boolean; live: boolean; turn: boolean; dictate?: boolean; reason: string | null; remainingSec: number; hubMode?: boolean };
 export type LiveStart = { liveId: string; clientSecret: string; callUrl: string; tickSec: number; idleSec: number; maxSec: number; remainingSec: number };
 // RC3 작업 화면
 export type Task = { requestId: string; conversationId: string; label: string; icon: string | null; engine: string; status: string; errorCode: string | null;
@@ -129,6 +129,8 @@ export function client(conn: Conn, f: Fetch = fetch) {
     voiceConfig: async (lang: string): Promise<VoiceConfig> => call(`/v1/voice/config?lang=${encodeURIComponent(lang)}`),
     voiceLive: async (conversationId: string, lang: string): Promise<LiveStart> => call("/v1/voice/live", { method: "POST", body: JSON.stringify({ conversationId, lang }) }),
     voiceTick: async (liveId: string): Promise<{ remainingSec: number; stop: boolean }> => call(`/v1/voice/live/${encodeURIComponent(liveId)}/tick`, { method: "POST", body: "{}" }),
+    // 나: 실시간 받아쓰기(gpt-live-transcribe) 열쇠 — 끝은 voiceEnd(dictateId)
+    voiceDictate: async (lang: string): Promise<{ dictateId: string; clientSecret: string; callUrl: string; maxSec: number }> => call("/v1/voice/dictate", { method: "POST", body: JSON.stringify({ lang }) }),
     voiceEnd: async (liveId: string) => call(`/v1/voice/live/${encodeURIComponent(liveId)}/end`, { method: "POST", body: "{}" }),
     transcribe: async (audio: Blob, type: string, sec: number, lang: string): Promise<{ text: string }> => {
       let res: Response;
