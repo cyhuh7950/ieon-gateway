@@ -219,6 +219,7 @@ details.adv[open] summary { margin-bottom:10px; }
   #panelBtn { flex:none; }
   #speakBtn .lbl, #panelBtn .lbl, #liveLabel { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   .switch { padding:4px; }
+  .switch[aria-checked="mixed"] { display:none; } /* 허브 화면 휴대폰: 글자가 숨겨져 빈 상자가 되던 안내 전용 스위치(2026-11-23 시험) */
   .iconbtn, .back, #speakBtn { min-width:44px; min-height:44px; }
   .grp.rooms button { min-width:44px; min-height:44px; }
   /* U7: 손가락으로 누르기 쉽게(44px 이상), 창은 화면 폭에 맞춤 */

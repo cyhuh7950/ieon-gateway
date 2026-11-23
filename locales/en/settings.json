@@ -95,6 +95,8 @@
   "html_sch_max.2": "Max times per day",
   "html_sch_q.1": "Question to send",
   "html_sch_q.2": "Roles",
+  "role_prof.workspace": "Read/write in work folder",
+  "role_prof.read_only": "Read only",
   "html_r_id.1": "Lowercase letters, numbers, - (e.g. review)",
   "html_r_guide.1": "Added before the first question of new sessions created by this role's bot",
   "html_r_new.1": "Messenger connection",

@@ -95,6 +95,8 @@
   "html_sch_max.2": "하루 최대 횟수",
   "html_sch_q.1": "보낼 질문",
   "html_sch_q.2": "역할",
+  "role_prof.workspace": "작업 폴더 안 읽기·쓰기",
+  "role_prof.read_only": "읽기 전용",
   "html_r_id.1": "영문 소문자·숫자·- (예: review)",
   "html_r_guide.1": "이 역할 봇에서 만든 새 세션의 첫 질문 앞에 붙습니다",
   "html_r_new.1": "메신저 연결",
