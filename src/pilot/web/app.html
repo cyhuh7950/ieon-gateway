@@ -507,7 +507,8 @@ async function loadLimits() {
 }
 // SV2: 허브에서는 새 세션을 만들 곳을 고른다 — 허브 자신(글로만 답해요) 또는 엔진 칸·PC(명령·파일 작업까지). 칸 Claude는 서버 Claude 로그인을 같이 씀.
 async function loadNsHosts() {
-  const r = hubMode ? await api('/v1/admin/devices').catch(() => ({ status: 0 })) : { status: 0 };
+  // 2026-11-23 가입자 시험: 허브 화면인지는 authState.mode로 본다(hubMode는 "이 PC가 허브에 연결됨" — 허브 화면에서는 늘 거짓이라 기기 목록을 못 불렀음)
+  const r = authState?.mode === 'hub' ? await api('/v1/admin/devices').catch(() => ({ status: 0 })) : { status: 0 };
   const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).sort((a, b) => Number(Boolean(b.cell)) - Number(Boolean(a.cell))) : [];
   $('nsHostRow').hidden = false; const sel = $('nsHost'); const keep = sel.value; sel.replaceChildren();
   // 기본: 켜진 첫 엔진 칸(명령·파일 작업까지). 엔진 칸이 없으면 허브 자신(글로만 답해요)
@@ -565,7 +566,7 @@ $('loginForm').onsubmit = async (e) => {
   if (r.status !== 200) return toast('err', AUTH_ERR[r.body.error] || r.body.error || t('web.show_login.4'));
   $('pw').value = ''; $('pw2').value = ''; toast('', '');
   if (r.body.status === 'pending') return showPending();
-  authState = { ...authState, setupRequired: false, loggedIn: true }; startApp();
+  authState = await fetch('/v1/auth/state', { credentials: 'same-origin' }).then((x) => x.json()).catch(() => ({ ...authState, setupRequired: false, loggedIn: true })); setWhere(); startApp();
 };
 $('logoutBtn').onclick = async () => { await authPost('/v1/auth/logout'); location.reload(); };
 // M2 가입 신청: 이메일·비밀번호(10자 이상) → 승인 대기
@@ -579,12 +580,15 @@ $('signupBtn').onclick = async () => {
   $('pw').value = ''; showPending();
 };
 
+// 누구로 로그인했는지(2026-11-23 신산님 "누구로 접속했는지 알 수가 없고"): 허브에서는 가입자 이메일 또는 관리자
+function setWhere() { const hub = authState?.mode === 'hub'; $('where').textContent = hub ? t('web.boot.2', { host: location.host }) + (authState?.loggedIn ? ' · ' + (authState.email || t('web.boot.admin')) : '') : t('web.boot.3'); }
 // --- 시작 ---
 async function boot() {
   authState = await fetch('/v1/auth/state', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
   const hub = authState?.mode === 'hub';
   document.title = t('web.boot.1', { pc: (hub ? t('web.boot.4') : t('web.boot.3')) });
-  $('where').textContent = hub ? t('web.boot.2', { host: location.host }) : t('web.boot.3');
+  // 누구로 로그인했는지(2026-11-23 신산님 "누구로 접속했는지 알 수가 없고"): 허브에서는 가입자 이메일 또는 관리자
+  setWhere();
   $('settingsLink').href = hub ? '/settings#msg' : '/settings';
   $('logoutBtn').hidden = false;
   if (authState?.loggedIn && authState?.status === 'pending') return showPending();
