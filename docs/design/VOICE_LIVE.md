@@ -48,13 +48,13 @@
 
 ## 6. 나 — 한 번씩 말하고 듣기
 
-- 받아쓰기: 앱·웹이 MediaRecorder로 녹음(최대 60초) → `POST /v1/voice/transcribe`(소리 파일 본문, 15MB 이하) → 서버가 OpenAI `/v1/audio/transcriptions`(설정 모델, 기본 `gpt-4o-mini-transcribe`, 언어=보는 사람 언어) → `{ text }` → 입력칸.
-- 읽기: `POST /v1/voice/speak { text }`(4000자 이하, 앱이 읽기 좋게 줄인 글) → 서버가 OpenAI `/v1/audio/speech`(기본 `gpt-4o-mini-tts`, 설정 목소리) → mp3 → 재생. 실패하면 기기 목소리로.
+- 받아쓰기: 앱·웹이 MediaRecorder로 녹음(최대 60초) → `POST /v1/voice/transcribe`(소리 파일 본문, 15MB 이하) → 서버가 OpenAI `/v1/audio/transcriptions`(설정 모델, 기본 `gpt-transcribe` — 언어는 모델이 스스로 알아냄, 옛 모델이면 보는 사람 언어를 힌트로) → `{ text }` → 입력칸.
+- 읽기: `POST /v1/voice/speak { text }`(4000자 이하, 앱이 읽기 좋게 줄인 글) → 서버가 OpenAI 실시간 연결(WebSocket `wss://api.openai.com/v1/realtime`, 기본 `gpt-realtime-2.1-mini`, 설정 목소리)을 한 번 열어 "글을 그대로 읽어 줘"로 소리(PCM 24kHz)만 받고 닫음 → WAV → 재생. 실패하면 기기 목소리로. (2026-11-23 전환: `/v1/audio/speech`와 `gpt-4o-mini-tts`는 2027-01-06 종료, 새 모델은 그 길을 지원하지 않음)
 - 사용량: 받아쓰기 한 번 = 녹음 초, 읽기 한 번 = 글자 수/15초로 오늘 사용에 더함(같은 하루 한도).
 
 ## 7. 설정(설정 → 내 설정 → 계정 → "OpenAI 음성")
 
-관리자만 바꿈. 칸: OpenAI API 키(넣기·바꾸기·지우기, 저장 뒤엔 끝 4자만), 음성 방식(기기 내장·OpenAI 한 번씩·OpenAI 실시간), 실시간 모델(기본 `gpt-realtime-mini`), 목소리(기본 `marin`), 받아쓰기·읽기 모델(접어 둠), 하루 최대(분, 기본 30), 말 없으면 끊기(초, 기본 60), 한 번 최대(분, 기본 15), 가입자도 쓰기(기본 끔)·가입자 하루 최대(분, 기본 10), 오늘 쓴 시간. 키를 새로 넣으면 OpenAI 모델 목록(무료 조회)으로 확인해 틀리면 저장하지 않음. 저장은 DB 설정(`voice.openai`, push 키와 같은 방식) — 다음 요청부터 바로 적용. 키는 응답·로그·화면에 다시 나가지 않는다.
+관리자만 바꿈. 칸: OpenAI API 키(넣기·바꾸기·지우기, 저장 뒤엔 끝 4자만), 음성 방식(기기 내장·OpenAI 한 번씩·OpenAI 실시간), 실시간 모델(기본 `gpt-realtime-2.1-mini`), 목소리(기본 `marin`), 받아쓰기·읽기 모델(접어 둠), 하루 최대(분, 기본 30), 말 없으면 끊기(초, 기본 60), 한 번 최대(분, 기본 15), 가입자도 쓰기(기본 끔)·가입자 하루 최대(분, 기본 10), 오늘 쓴 시간. 키를 새로 넣으면 OpenAI 모델 목록(무료 조회)으로 확인해 틀리면 저장하지 않음. 저장은 DB 설정(`voice.openai`, push 키와 같은 방식) — 다음 요청부터 바로 적용. 키는 응답·로그·화면에 다시 나가지 않는다.
 
 `GET /v1/voice/config`(로그인한 사람) → `{ mode, configured, live, turn, remainingSec, reason }` — 앱·웹이 마이크를 누를 때마다 읽어 방식을 정함(설정을 바꾸면 바로).
 
@@ -67,5 +67,6 @@
 
 ## 9. 빌더에게 맡긴 것·확인할 것
 
+- **모델 전환(2026-11-23, WORK_STATUS 0-324):** OpenAI 종료 일정 — `gpt-4o-mini-tts` 2027-01-06, `gpt-realtime-mini` 2027-01-20, `gpt-4o-mini-transcribe` 2027-02-26. 기본값을 `gpt-realtime-2.1-mini`·`gpt-transcribe`로 바꾸고, 이미 저장된 설정(모델 이름까지 저장돼 기본값보다 우선)의 옛 이름도 읽을 때·저장할 때 새 이름으로 바꾼다(`upgradeModels`). 새 모델로 실제 호출 시험은 아직(승인 필요).
 - 실제 시험(2026-11-20, WORK_STATUS 0-320): 모델 `gpt-realtime-mini`·ask_session 그대로 전달·시스템 글 + `response.create`로 요약 읽기·말 없으면 끊기·시간 세기 PASS. 남은 확인: 실제 목소리 인식(semantic_vad)·소리 듣기, 안드로이드 WebView 마이크(사람).
 - 내 판단: 질문은 하나씩, 기다림 2초 조회, 요약 길이 1~3문장, 사용량은 앱이 보내는 30초 tick으로 셈(서버가 소리를 보지 않으므로 — 자기 앱이 보내는 값).

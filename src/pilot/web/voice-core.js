@@ -120,11 +120,12 @@ const IeonVoiceCore = (() => {
     const timer = setTimeout(() => { if (rec.state !== 'inactive') rec.stop(); }, maxSec * 1000);
     return { stop: () => { clearTimeout(timer); if (rec.state !== 'inactive') rec.stop(); return done; }, done };
   }
-  // 나 — mp3 재생. 끝나면 resolve. 돌려준 stop()으로 멈춤
+  // 나 — 서버 목소리 재생(WAV, 예전 서버는 mp3). 끝나면 resolve. 돌려준 stop()으로 멈춤
   let playing = null;
   function play(buf) {
     stopPlay();
-    const url = URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' }));
+    const riff = buf && buf.byteLength >= 4 && String.fromCharCode(...new Uint8Array(buf, 0, 4)) === 'RIFF';
+    const url = URL.createObjectURL(new Blob([buf], { type: riff ? 'audio/wav' : 'audio/mpeg' }));
     const a = new Audio(url); playing = a;
     const done = new Promise((resolve) => { a.onended = a.onerror = () => { URL.revokeObjectURL(url); if (playing === a) playing = null; resolve(); }; });
     a.play().catch(() => {});
