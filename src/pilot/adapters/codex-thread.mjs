@@ -3,7 +3,9 @@
 // - shared_server: 공유 App Server에 붙어 thread가 idle일 때만 turn/start (X2에서 확인한 방식)
 // 기본은 live 실행 차단이다. allowlist 밖 thread·업무 대화는 거부한다. override를 넘기지 않는다.
 import { t as i18nT } from '../../i18n/index.mjs';
-import { mkdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join as joinPath } from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { checkNewSession } from '../new-sessions.mjs';
@@ -422,14 +424,21 @@ function wsTransport(endpoint, token, WS = globalThis.WebSocket) {
 // 그 서버들을 켜지 않는다(--config mcp_servers.<이름>.enabled=false). 사용자 Codex 앱 설정은 바꾸지 않음. 작업 모드는 그대로.
 const MCP_TTL_MS = 10 * 60_000;
 const mcpCache = new Map(); // CODEX_HOME → { names, at }
-export function listMcpNames(env, { now = Date.now(), run = execFile } = {}) {
+// 설정 파일(config.toml)에 직접 적힌 서버 이름. 앱 플러그인이 넣는 서버(예: cua_repl)에 enabled=false만 주면 Codex가 설정을 읽지 못해
+// 시작조차 하지 않는다(2026-11-23 실측 "invalid transport in mcp_servers.cua_repl") — 그래서 여기 있는 것만 끈다.
+export function configMcpNames(env) {
+  const file = joinPath(env?.CODEX_HOME || joinPath(homedir(), '.codex'), 'config.toml');
+  if (!existsSync(file)) return new Set();
+  return new Set([...readFileSync(file, 'utf8').matchAll(/^\s*\[mcp_servers\.(?:"([^"]+)"|([\w-]+))\]\s*$/gm)].map((m) => m[1] ?? m[2]));
+}
+export function listMcpNames(env, { now = Date.now(), run = execFile, inConfig = configMcpNames } = {}) {
   const key = env?.CODEX_HOME ?? '';
   const hit = mcpCache.get(key);
   if (hit && now - hit.at < MCP_TTL_MS) return Promise.resolve(hit.names);
   return new Promise((resolve) => {
     run(process.execPath, [require0.resolve('@openai/codex/bin/codex.js'), 'mcp', 'list', '--json'], { env: env ?? process.env, timeout: 15_000, windowsHide: true, maxBuffer: 4 << 20 }, (err, stdout) => {
       let names = [];
-      try { names = err ? [] : JSON.parse(String(stdout)).filter((s) => s && s.enabled !== false && /^[\w.-]{1,64}$/.test(String(s.name))).map((s) => String(s.name)); } catch { names = []; }
+      try { const own = inConfig(env); names = err ? [] : JSON.parse(String(stdout)).filter((s) => s && s.enabled !== false && /^[\w-]{1,64}$/.test(String(s.name)) && own.has(String(s.name))).map((s) => String(s.name)); } catch { names = []; }
       mcpCache.set(key, { names, at: now });
       resolve(names); // 못 읽으면 지금처럼(아무것도 끄지 않음)
     });
