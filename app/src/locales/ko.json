@@ -7,6 +7,7 @@
   "common.intl_locale": "ko-KR",
   "common.speech_lang": "ko-KR",
   "errors.usage_limit": "계정의 사용 한도에 걸려 실행되지 않았어요.",
+  "errors.model_not_supported": "그 PC의 Codex 기본 모델을 지금 로그인(ChatGPT 구독)으로는 쓸 수 없어 실행되지 않았어요. 설정 → 이 PC(허브 화면은 PC 설정) → 「이어온이 쓸 Codex 모델」에 쓸 수 있는 모델을 넣으세요.",
   "errors.account_limit_reached": "이 AI 직원이 쓰는 API 계정이 정해 둔 한도에 걸렸어요 — 한도를 바꾸려면 이어온 화면 설정 → 계정(자동으로 다시 보내지 않아요)",
   "errors.service_needs_api_key": "이 봇은 주인 말고 다른 사람도 받는 서비스용이라 API 키 계정이 필요해요 — 이어온 화면 설정 → 계정에서 그 PC·칸의 [API 키]를 한 번 넣으면 바로 돼요(주인은 웹에서 그대로 쓸 수 있어요)",
   "errors.session_in_use": "그 세션을 다른 곳(앱·터미널·다른 실행)에서 쓰는 중이라 보내지 않았어요. 끝난 뒤 다시 보내세요.",

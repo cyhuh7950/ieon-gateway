@@ -31,6 +31,7 @@ export function readDevice(path) {
     live: c.live === true,
     codexThreads: allow.map((threadId) => ({ threadId, mode: c.codex?.modes?.[threadId] ?? 'alternate', workingDirectory: c.codex?.workingDirectories?.[threadId] ?? null })),
     sharedServer: Boolean(c.codex?.shared?.endpoint),
+    codexModel: c.codex?.model ?? null, // 2026-11-23 인수 시험: 이어온이 쓸 Codex 모델(비우면 그 PC의 Codex 기본 모델)
     claudeChannel: Boolean(c.claude?.baseUrl),
     // E1·E2: Antigravity·Grok 세션 허용 목록(세션 쪽). 계정(토큰 쪽)은 지금 PC 기본 로그인
     cliSessions: Object.entries(c.cliEngines ?? {}).flatMap(([engine, e]) => (e.allowlist ?? []).map((id) => ({ engine, sessionId: id, workingDirectory: e.workingDirectories?.[id] ?? null }))),
@@ -168,6 +169,16 @@ export function useGrokAccount(path, { accountId }) {
   const c = read(path);
   if (accountId !== PC_DEFAULT && !grokAccounts(c).some((a) => a.id === accountId)) fail('bad_account');
   c.grokAccounts ??= {}; if (accountId === PC_DEFAULT) delete c.grokAccounts.defaultAccount; else c.grokAccounts.defaultAccount = accountId;
+  write(path, c);
+}
+
+// 2026-11-23 인수 시험(신산님 ①): Codex 앱이 기본 모델을 지금 로그인으로 못 쓰는 모델로 바꾸면 이어온 질문이 모두 막혔음 —
+// 이어온이 쓸 모델을 따로 정한다. 비우면 그 PC의 Codex 기본 모델(config.toml)을 따른다.
+export function setCodexModel(path, model) {
+  const m = String(model ?? '').trim();
+  if (m && !/^[A-Za-z0-9][\w.:-]{0,63}$/.test(m)) fail('bad_model');
+  const c = read(path); c.codex = c.codex ?? {};
+  if (m) c.codex.model = m; else delete c.codex.model;
   write(path, c);
 }
 

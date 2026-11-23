@@ -7,6 +7,7 @@
   "common.intl_locale": "en-US",
   "common.speech_lang": "en-US",
   "errors.usage_limit": "Not run because the account hit its usage limit.",
+  "errors.model_not_supported": "Not run because that PC's default Codex model can't be used with the current sign-in (ChatGPT subscription). Enter a usable model in Settings → This PC (PC settings on the hub screen) → “Codex model for Ieon”.",
   "errors.account_limit_reached": "The API account this AI staff member uses hit its set limit — to change the limit, go to Settings → Account on the Ieon screen (it won't be resent automatically)",
   "errors.service_needs_api_key": "This bot serves people other than the owner, so it needs an API key account — add an [API key] for that PC/cell once in Settings → Account on the Ieon screen and it works right away (the owner can keep using it on the web)",
   "errors.session_in_use": "Not sent because that session is in use elsewhere (app, terminal, or another run). Send it again when it's done.",

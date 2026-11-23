@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { codexThreadAdapter, isUsageLimit } from '../../src/pilot/adapters/codex-thread.mjs';
+import { codexThreadAdapter, isUsageLimit, isModelUnsupported } from '../../src/pilot/adapters/codex-thread.mjs';
 import { EngineError } from '../../src/pilot/contracts.mjs';
 import { createBridge } from '../../src/pilot/messenger/bridge.mjs';
 import { createBotRunner } from '../../src/pilot/messenger/runner.mjs';
@@ -36,6 +36,15 @@ test('Codex: 사용 한도로 답을 만들기 전에 끝나면 usage_limit(실�
   await assert.rejects(run(adapter(sdkWith([{ type: 'turn.failed', error: { message: 'stream disconnected' } }]))), (e) => !(e instanceof EngineError));
   assert.equal(isUsageLimit('usage_limit_exceeded'), true);
   assert.equal(isUsageLimit('network error'), false);
+});
+
+// 2026-11-23 인수 시험 실측: Codex 기본 모델을 ChatGPT 로그인으로 쓸 수 없으면 일을 시작하기 전에 끝남 → 결과 불명이 아니라 model_not_supported(실행 안 됨)
+test('Codex: 기본 모델을 지금 로그인으로 쓸 수 없으면 model_not_supported(실행 안 됨)', async () => {
+  const MSG = "The 'gpt-6.2-sol' model is not supported when using Codex with a ChatGPT account.";
+  await assert.rejects(run(adapter(sdkWith([{ type: 'error', message: MSG }, { type: 'turn.failed', error: { message: MSG } }]))), (e) => e instanceof EngineError && e.code === 'model_not_supported' && e.http === 400);
+  assert.equal(isModelUnsupported(MSG), true);
+  assert.equal(isModelUnsupported('stream disconnected'), false);
+  assert.ok(KO['errors.model_not_supported'], '화면 문구');
 });
 
 test('서버: 대화 목록에 그 대화의 질문이 나가는 계정(접속)이 보인다', async (t) => {
