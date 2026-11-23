@@ -3,7 +3,7 @@
 // - Linux: 잠금 파일의 inode가 /proc/locks에 쓰기(WRITE) 잠금으로 올라 있는지 읽기만 한다(flock·POSIX 잠금 모두 보임).
 //   Codex가 Linux에서 실제로 어떤 방식으로 잠그는지는 WSL 실측 전까지 미검증이다. 확인 못 하면 LOCK_CHECK_ERROR로 보고해 실행하지 않는다.
 // 결과 outcome: NO_LOCK_FILE · NO_WRITER_LOCK · WRITER_LOCK_CONFLICT · OPEN_FAILED · LOCK_CHECK_ERROR
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -62,6 +62,40 @@ export function probeLockAt(id, dir, deps = {}) {
   if (process.platform !== 'win32') return probeLinux(id, { ...deps, lockRoot: dir });
   return JSON.parse(execFileSync('pwsh', ['-NoProfile', '-File', PS1, '-ThreadId', id, '-LockPath', join(dir, `${id}.lock`)], { encoding: 'utf8' }));
 }
+
+// 2026-11-23 인수 시험(질문 대기 줄이기): Windows 잠금 검사를 띄워 둔 PowerShell 하나로 반복(매번 새로 띄우는 1.5초를 없앰). 실패하면 예전 방식 한 번.
+const SERVE = fileURLToPath(new URL('./lock-probe-serve.ps1', import.meta.url));
+let worker = null;
+function lockWorker(make = spawn) {
+  if (worker?.alive) return worker;
+  const child = make('pwsh', ['-NoProfile', '-NonInteractive', '-File', SERVE], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+  const w = { alive: true, waits: [], child };
+  let buf = '';
+  child.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!line) continue; const next = w.waits.shift(); try { next?.resolve(JSON.parse(line)); } catch (e) { next?.reject(e); } } });
+  child.on('exit', () => { w.alive = false; for (const x of w.waits.splice(0)) x.reject(new Error('lock_worker_exit')); });
+  child.on('error', () => { w.alive = false; });
+  child.unref?.(); child.stdout.unref?.(); child.stdin.unref?.();
+  worker = w;
+  return w;
+}
+export async function probeWindowsAsync(threadId, { make, timeoutMs = 5000 } = {}) {
+  validate(threadId);
+  try {
+    const w = lockWorker(make);
+    // 기다리는 동안만 프로세스를 붙잡고(답을 받기 전에 끝나지 않게), 쉬는 동안은 놓는다(한 번 쓰는 스크립트가 끝날 수 있게)
+    w.child.stdout.ref?.();
+    const r = await new Promise((resolve, reject) => { w.waits.push({ resolve, reject }); w.child.stdin.write(threadId + '\n'); setTimeout(() => reject(new Error('lock_worker_timeout')), timeoutMs).unref?.(); })
+      .finally(() => { if (!w.waits.length) w.child.stdout.unref?.(); });
+    if (r?.threadId === threadId && r.outcome) return r;
+    throw new Error('lock_worker_mismatch');
+  } catch {
+    try { worker?.child.kill(); } catch { /* 이미 끝남 */ } worker = null;
+    return probeWindows(threadId);
+  }
+}
+// 연결부가 켜질 때 검사기를 미리 띄워 첫 질문의 2초도 없앤다(Windows만, 실패해도 질문 때 다시 띄움)
+export function prewarmLockWorker() { if (process.platform === 'win32') { try { lockWorker(); } catch { /* 질문 때 다시 */ } } }
+export const lockOutcomeAsync = async (threadId) => (process.platform === 'win32' ? (await probeWindowsAsync(threadId)).outcome : probeLinux(threadId).outcome);
 
 export const probeLock = (threadId, deps) => (process.platform === 'win32' ? probeWindows(threadId) : probeLinux(threadId, deps));
 export const lockOutcome = (threadId) => probeLock(threadId).outcome;

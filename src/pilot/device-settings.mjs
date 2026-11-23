@@ -187,11 +187,22 @@ export function setLive(path, live) {
   const c = read(path); c.live = live; write(path, c);
 }
 
+// 연결 방식만 바꾼다(작업 폴더는 그대로) — 대화 화면 연결 설정에서 고르면 허브가 그 PC에 보낸다(빠른 응답은 PC 연결부가 미리 띄워야 해서).
+export function setCodexMode(path, threadId, mode) {
+  const id = String(threadId ?? '').trim().toLowerCase();
+  if (!UUID.test(id) || id === EXCLUDED_THREAD) fail('bad_thread_id');
+  if (!['alternate', 'shared_server', 'warm'].includes(mode)) fail('bad_mode');
+  const c = read(path);
+  if (!(c.codex?.allowlist ?? []).includes(id)) fail('not_found');
+  c.codex.modes = { ...(c.codex.modes ?? {}), [id]: mode };
+  write(path, c);
+}
+
 export function upsertCodexThread(path, { threadId, mode = 'alternate', workingDirectory = null }) {
   const id = String(threadId ?? '').trim().toLowerCase();
   if (!UUID.test(id)) fail('bad_thread_id');
   if (id === EXCLUDED_THREAD) fail('excluded_session');
-  if (!['alternate', 'shared_server'].includes(mode)) fail('bad_mode');
+  if (!['alternate', 'shared_server', 'warm'].includes(mode)) fail('bad_mode');
   const c = read(path);
   if (mode === 'shared_server' && !c.codex?.shared?.endpoint) fail('shared_server_not_configured');
   let dir = workingDirectory ? String(workingDirectory).trim() : null;

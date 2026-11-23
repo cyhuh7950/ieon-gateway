@@ -3,6 +3,7 @@
 // 실행 전 request_id를 로컬 receipt에 내구 저장하고, 이미 본 요청은 다시 실행하지 않는다.
 import { appendFileSync, existsSync, openSync, fsyncSync, closeSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { EngineError, StoppedError } from './contracts.mjs';
 import { accountsDirFor, accountLabel, codexAccountId, codexAccounts, codexHomeOf, desktopCodexHome, PC_DEFAULT, readCodexCompat } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
@@ -158,7 +159,7 @@ export async function pollOnce({ baseUrl, deviceToken, adapters, receipts, healt
   return true;
 }
 
-export async function runConnector({ pollMs = 2000, signal, ...opts }) {
+export async function runConnector({ pollMs = 700, signal, ...opts }) { // 2026-11-23: 2초 → 0.7초(질문 대기 줄이기, 허브 한도 1분 240번 안)
   let announced = false; // RC4: 켜졌음을 서버에 한 번 알린다(이 프로세스가 처리하던 질문은 없으므로 서버가 '처리 중'을 결과 불명으로 정리)
   while (!signal?.aborted) {
     try {
@@ -188,14 +189,28 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const o = connectorOptions(config, process.argv.slice(3));
   const { buildAdapters } = await import('./adapters/index.mjs');
   process.stderr.write(JSON.stringify({ ch: 'connector', event: 'start', server: o.serverUrl }) + '\n');
+  const adapters = await buildAdapters(config);
+  (await import('./lock-probe.mjs')).prewarmLockWorker(); // 잠금 검사기 미리 띄우기(첫 질문도 빠르게)
+  // 빠른 응답(미리 띄워 두기): 이 PC에는 연결부가 둘(이 PC 화면용·허브용) 돌 수 있어 질문을 실제로 받는 쪽만 띄운다(같은 대화를 Codex 둘이 잡지 않게).
+  if (warmHere(process.argv[2], o.serverUrl)) adapters.codex_thread?.warmup?.((e) => process.stderr.write(JSON.stringify({ ch: 'connector', ...e }) + '\n'));
   await runConnector({
     baseUrl: o.serverUrl,
     deviceToken: readFileSync(o.deviceTokenFile, 'utf8').trim(),
-    adapters: await buildAdapters(config),
+    adapters,
     health: () => engineHealth(config),
     receipts: receiptLog(o.receiptPath),
     log: (e) => process.stderr.write(JSON.stringify({ ch: 'connector', ...e }) + '\n'),
   });
+}
+
+// 이 연결부가 질문을 받는 쪽인가: 사용 방식이 "내 허브에 연결"이면 허브 주소 연결부, 아니면 이 PC(127.0.0.1) 연결부.
+// 사용 방식 파일이 없으면(허브·엔진 칸·예전 설치) 그대로 띄운다.
+export function warmHere(configPath, serverUrl) {
+  let mode = null;
+  try { mode = JSON.parse(readFileSync(join(dirname(configPath), '..', 'mode.json'), 'utf8')).mode ?? null; } catch { mode = null; }
+  if (!mode) return true;
+  const local = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(String(serverUrl));
+  return mode === 'hub' ? !local : local;
 }
 
 // 공유 App Server(readyz)와 이어온 채널(/v1/health)이 살아 있는지만 본다. 실패는 down으로 둔다.

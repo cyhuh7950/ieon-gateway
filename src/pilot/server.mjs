@@ -1756,6 +1756,13 @@ export function createApp(config) {
       let s = path.match(/^\/v1\/conversations\/([\w-]+)\/settings$/);
       if (req.method === 'PUT' && s) {
         const r = store.setConnectMode(principal, s[1], (await readJson(req)).connectMode);
+        if (r.http === 200) {
+          // 2026-11-23 빠른 응답: PC 연결부가 대화 전용 Codex를 미리 띄우거나 내리도록 그 PC 설정(연결 방식)도 바꾼다. 실패해도 질문 때 다시 띄움.
+          const b = store.listBindings().find((x) => x.conversationId === s[1]);
+          const args = { threadId: b?.sessionRef, mode: r.connectMode };
+          const pc = b?.hostId && access && online(b.hostId) ? adminQueue.send(b.hostId, 'device.codex.mode', args) : (!access && deviceAdmin ? deviceAdmin.run('device.codex.mode', args) : null);
+          pc?.catch?.(() => {});
+        }
         return r.http === 200 ? json(res, 200, { connectMode: r.connectMode }) : json(res, r.http, { error: r.code });
       }
       // --- V2 OpenAI 음성(설계 VOICE_LIVE): 방식 보기·실시간 열쇠·받아쓰기·읽기. 대답은 세션(질문은 일반 질문 API로) ---

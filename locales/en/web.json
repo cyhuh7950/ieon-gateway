@@ -420,6 +420,8 @@
   "send.11": "Stopped",
   "mic_no_speech_api": "This browser doesn't support voice input. Use Chrome, Edge or Safari, or add a key in Settings → Account → OpenAI voice to use it in any browser.",
   "live_on_pc": "AI replies (PC settings)",
+  "mode_warm": "Fast replies (keep running · MCP tools)",
+  "mode_warm_tip": "Keeps a Codex for this conversation running and sends questions right away (MCP tools are prepared once). While it runs, Ieon holds this conversation, so don't use it in the Codex app at the same time. Switch to Take turns to open it in the Codex app.",
   "p_mode_codex_only": "The connection mode can only be changed for Codex conversations",
   "p_new_only": "Only new sessions made in Ieon can be put to sleep or deleted. Tidy existing conversations in their own engine app.",
   "render_panel.1": " (Ieon-only accounts: Settings → Account)",
