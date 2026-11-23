@@ -671,4 +671,4 @@ pwsh scripts/install.ps1
 | "이 PC는 허브에 연결돼 있어요" | PC 화면에서는 보낼 수 없음. **허브 화면 열기**로 허브에서 보내기 |
 | 허브 Codex 로그인에서 기기 코드가 꺼져 있다는 안내 | 8절의 ChatGPT 보안 설정을 켠 뒤 **로그인**을 다시 누르기 |
 
-개발·문제 해결용 명령(`scripts/ieon.ps1`)은 [MANUAL](MANUAL.md) 부록에 있습니다. 보통은 쓸 일이 없습니다.
+개발·문제 해결용 명령(`scripts/ieon.ps1`)은 [참고 설명서](MANUAL_REFERENCE.md) 부록에 있습니다. 보통은 쓸 일이 없습니다.

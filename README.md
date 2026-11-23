@@ -17,7 +17,8 @@
 | 무엇 | 문서 |
 | --- | --- |
 | 처음 쓰는 사람용 따라 하기 | [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) |
-| 사용 설명서 | [docs/MANUAL.md](docs/MANUAL.md) |
+| 사용 설명서(업무 흐름) | [docs/MANUAL.md](docs/MANUAL.md) |
+| 참고 설명서(기능별·API·고급) | [docs/MANUAL_REFERENCE.md](docs/MANUAL_REFERENCE.md) |
 | 이어온 앱 | [docs/APP_GUIDE.md](docs/APP_GUIDE.md) |
 | 메신저 설정 | [docs/MESSENGER_MANUAL.md](docs/MESSENGER_MANUAL.md) |
 | 다른 사람 허브에 가입해 쓰기 | [docs/MEMBER_GUIDE.md](docs/MEMBER_GUIDE.md) |
