@@ -1487,7 +1487,7 @@ async function loadApps() {
       save.onclick = async () => { const x = await api('/v1/admin/apps/' + a.appId + '/sessions', { method: 'PUT', body: JSON.stringify({ sessions: [...ses.querySelectorAll('input:checked')].map((c) => c.value) }) });
         setStatus(x.status === 200 ? 'ok' : 'err', x.status === 200 ? t('settings.load_apps.4') : x.body.error); loadApps(); };
       const rv = el('button', t('settings.load_devices.3')); rv.type = 'button';
-      rv.onclick = async () => { if (!confirm(t('settings.load_apps.5', { name: a.name }))) return; await api('/v1/admin/apps/' + a.appId + '/revoke', { method: 'POST', body: '{}' }); loadApps(); };
+      rv.onclick = async () => { if (!confirm(t('settings.load_apps.5', { name: a.name }))) return; await api('/v1/admin/apps/' + a.appId + '/revoke', { method: 'POST', body: '{}' }); $('appKeyText').textContent = ''; $('appKey').hidden = true; loadApps(); }; // 폐기한 키가 상자에 남아 있던 것(2026-11-23 시험)
       wrap.append(ses, save, rv);
     }
     box.append(wrap);
@@ -1602,7 +1602,7 @@ async function loadAdmin() {
   $('roleRows').innerHTML = '';
   for (const q of roles) {
     const tr = el('tr', null, 'pick'); tr.tabIndex = 0;
-    [q.roleId, q.name, q.engines.join(', '), q.profiles.join(', '), adminSessions.find((s2) => s2.conversationId === q.defaultSession)?.label || '—'].forEach((v) => tr.append(el('td', v)));
+    [q.roleId, q.name, q.engines.map((x) => ({ codex: 'Codex', claude: 'Claude', antigravity: 'Antigravity', grok: 'Grok' })[x] || x).join(', '), q.profiles.map((x) => ({ workspace: t('settings.role_prof.workspace'), read_only: t('settings.role_prof.read_only') })[x] || x).join(', '), adminSessions.find((s2) => s2.conversationId === q.defaultSession)?.label || '—'].forEach((v) => tr.append(el('td', v)));
     tr.onclick = tr.onkeydown = (e) => { if (e.type === 'click' || e.key === 'Enter') editRole(q.roleId); };
     $('roleRows').append(tr);
   }
@@ -1670,6 +1670,7 @@ $('rNew').onclick = () => editRole(null);
 $('roleForm').onsubmit = async (e) => {
   e.preventDefault();
   const id = $('rId').value.trim();
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])$/.test(id)) return setStatus('err', ADMIN_ERR.bad_role_id); // 2026-11-23 시험: 모양이 틀린 ID는 주소가 안 맞아 not_found가 그대로 보였음
   const body = { name: $('rName').value.trim(), description: $('rDesc').value.trim(), aiGuide: $('rGuide').value,
     engines: [...document.getElementsByName('rEng')].filter((c) => c.checked).map((c) => c.value),
     profiles: [...document.getElementsByName('rProf')].filter((c) => c.checked).map((c) => c.value), defaultSession: $('rDefault').value || null };
