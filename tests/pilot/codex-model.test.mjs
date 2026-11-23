@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
-import { codexThreadAdapter, stdioAppServer, listMcpNames } from '../../src/pilot/adapters/codex-thread.mjs';
+import { codexThreadAdapter, stdioAppServer, listMcpNames, configMcpNames } from '../../src/pilot/adapters/codex-thread.mjs';
 import { koView } from './web-page.mjs';
 
 const TID = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
@@ -67,10 +67,18 @@ test('MCP 목록: 켜진 것만·이상한 이름 빼기, 10분 기억, 못 읽�
   let calls = 0;
   const run = (bin, args, o, cb) => { calls++; cb(null, JSON.stringify([{ name: 'a', enabled: true }, { name: 'off', enabled: false }, { name: 'bad name;x', enabled: true }, { name: 'b-2' }])); };
   const env = { CODEX_HOME: 'x-' + Math.random() };
-  assert.deepEqual(await listMcpNames(env, { now: 1000, run }), ['a', 'b-2']);
-  assert.deepEqual(await listMcpNames(env, { now: 2000, run }), ['a', 'b-2']);
-  assert.equal(calls, 1);
-  await listMcpNames(env, { now: 1000 + 11 * 60_000, run });
-  assert.equal(calls, 2);
+  const inConfig = () => new Set(['a', 'b-2', 'off']); // 설정 파일에 적힌 것만(앱 플러그인 서버는 빼야 Codex가 시작됨)
+  assert.deepEqual(await listMcpNames(env, { now: 1000, run, inConfig }), ['a', 'b-2']);
+  assert.deepEqual(await listMcpNames(env, { now: 2000, run, inConfig }), ['a', 'b-2']);
+  assert.deepEqual(await listMcpNames({ CODEX_HOME: 'z-' + Math.random() }, { now: 1, run, inConfig: () => new Set(['a']) }), ['a']);
+  assert.equal(calls, 2); // 같은 CODEX_HOME은 한 번만 읽고, 다른 계정 폴더는 따로
+  await listMcpNames(env, { now: 1000 + 11 * 60_000, run, inConfig });
+  assert.equal(calls, 3);
   assert.deepEqual(await listMcpNames({ CODEX_HOME: 'y-' + Math.random() }, { now: 1, run: (b, a, o, cb) => cb(new Error('x')) }), []);
+});
+
+test('설정 파일의 [mcp_servers.이름] 만 읽음(따옴표 이름 포함, 하위 표 제외)', (t) => {
+  const d = tmp(t);
+  writeFileSync(join(d, 'config.toml'), ['model = "x"', '[mcp_servers.korean-law]', 'command = "a"', '[mcp_servers."daon2"]', 'url = "b"', '[mcp_servers.korean-law.env]', 'K = "v"', '[profiles.p]'].join(String.fromCharCode(10)));
+  assert.deepEqual([...configMcpNames({ CODEX_HOME: d })].sort(), ['daon2', 'korean-law']);
 });
