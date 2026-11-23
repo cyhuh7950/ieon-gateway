@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDeviceAdmin } from '../../src/pilot/device-admin.mjs';
-import { codexThreadAdapter, stdioAppServer } from '../../src/pilot/adapters/codex-thread.mjs';
+import { codexThreadAdapter, stdioAppServer, listMcpNames } from '../../src/pilot/adapters/codex-thread.mjs';
 import { koView } from './web-page.mjs';
 
 const TID = '01a18790-63c7-73e3-a60b-6ddb60fd5be8';
@@ -49,4 +49,28 @@ test('작업 모드 app-server: 모델이 있으면 -c model=… 로 띄움', ()
 test('화면: PC 설정에 "이어온이 쓸 Codex 모델" 칸과 저장', () => {
   const S = koView('settings.html');
   assert.ok(S.includes('id="devModel"') && S.includes('id="devModelSave"') && S.includes("devRun('device.codex.model'"));
+});
+
+// 인수 시험(신산님 "답변이 오는 시간이 너무 걸리는데"): 질문마다 사용자 Codex의 MCP 서버 11개를 띄우느라 15초 — 질문 모드·새 세션에서는 끈다
+test('어댑터: 켜진 MCP 서버를 질문 실행에서만 끔(mcp_servers.<이름>.enabled=false), 모델과 함께', async () => {
+  const seen = [];
+  const loadSdk = async () => ({ Codex: class {
+    constructor(o) { seen.push(o); }
+    resumeThread(id) { return { id, async runStreamed() { return { events: (async function* () { yield { type: 'thread.started', thread_id: id }; yield { type: 'item.completed', item: { type: 'agent_message', text: '확인' } }; yield { type: 'turn.completed' }; })() }; } }; }
+  } });
+  const a = codexThreadAdapter({ live: true, allowlist: [TID], probe: () => 'NO_LOCK_FILE', loadSdk, model: 'gpt-6.1-sol', mcpList: async () => ['korean-law', 'context7'] });
+  await a.run({ engine: 'codex_thread', sessionRef: TID, question: 'q', connectMode: 'alternate' });
+  assert.deepEqual(seen[0].config, { model: 'gpt-6.1-sol', mcp_servers: { 'korean-law': { enabled: false }, context7: { enabled: false } } });
+});
+
+test('MCP 목록: 켜진 것만·이상한 이름 빼기, 10분 기억, 못 읽으면 빈 목록', async () => {
+  let calls = 0;
+  const run = (bin, args, o, cb) => { calls++; cb(null, JSON.stringify([{ name: 'a', enabled: true }, { name: 'off', enabled: false }, { name: 'bad name;x', enabled: true }, { name: 'b-2' }])); };
+  const env = { CODEX_HOME: 'x-' + Math.random() };
+  assert.deepEqual(await listMcpNames(env, { now: 1000, run }), ['a', 'b-2']);
+  assert.deepEqual(await listMcpNames(env, { now: 2000, run }), ['a', 'b-2']);
+  assert.equal(calls, 1);
+  await listMcpNames(env, { now: 1000 + 11 * 60_000, run });
+  assert.equal(calls, 2);
+  assert.deepEqual(await listMcpNames({ CODEX_HOME: 'y-' + Math.random() }, { now: 1, run: (b, a, o, cb) => cb(new Error('x')) }), []);
 });

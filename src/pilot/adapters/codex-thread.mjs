@@ -4,7 +4,7 @@
 // 기본은 live 실행 차단이다. allowlist 밖 thread·업무 대화는 거부한다. override를 넘기지 않는다.
 import { t as i18nT } from '../../i18n/index.mjs';
 import { mkdirSync, readFileSync, statSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { checkNewSession } from '../new-sessions.mjs';
 import { lockOutcome } from '../lock-probe.mjs';
@@ -34,7 +34,7 @@ async function runAlternate(threadId, question, deps) {
     throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
   }
   const { Codex } = await deps.loadSdk();
-  const codexOpts = sdkOpts(deps); // A2: 고른 이어온 전용 계정(없으면 PC 기본 로그인), 이어온이 쓸 모델
+  const codexOpts = sdkOpts({ ...deps, mcpOff: await (deps.mcpList ?? listMcpNames)(deps.env) }); // A2: 고른 이어온 전용 계정(없으면 PC 기본 로그인), 이어온이 쓸 모델, 끌 MCP
   // ThreadOptions를 비우면 SDK(codex exec)가 사용자 config.toml의 sandbox_mode(이 PC는 danger-full-access)와
   // approval never로 실행한다(2026-10-30 rollout 확인). 외부 질문은 항상 읽기 전용·승인 없음·웹/네트워크 차단으로 고정하고,
   // SDK 옵션은 이번 실행에만 적용되고 Desktop은 다음 turn에 자기 설정을 다시 쓴다(rollout 확인).
@@ -141,7 +141,7 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
   const plan = newSessionPlan(newSession, config);
   if (deps.extraDirs?.length && plan.options.sandboxMode === 'workspace-write') plan.options.additionalDirectories = deps.extraDirs; // WS1-b: 공유(쓰기) 폴더
   const { Codex } = await deps.loadSdk();
-  const codexOpts = sdkOpts(deps);
+  const codexOpts = sdkOpts({ ...deps, mcpOff: await (deps.mcpList ?? listMcpNames)(deps.env) });
   let thread;
   let cwd;
   const pending = sessionRef.startsWith('pending:');
@@ -417,11 +417,32 @@ function wsTransport(endpoint, token, WS = globalThis.WebSocket) {
 // opts: { live, allowlist, modes: {threadId: 'alternate'|'shared_server'}, shared: {endpoint, tokenFile}, probe?, loadSdk?,
 //         newSessions?: { config(loadNewSessionsConfig 결과), created: { has(id), add(id, name) } },
 //         accountEnv?: (threadId|null) => env|null — A2 이어온 전용 계정. null이면 PC 기본 로그인. 공유 서버 방식은 그 서버의 로그인이라 쓰지 않는다 }
-// SDK(codex exec)에 넘길 것: 이어온 전용 계정 env, 이어온이 쓸 모델(--config model=…). 둘 다 없으면 그 PC Codex 기본 그대로.
-const sdkOpts = (deps) => (deps.env || deps.model ? { ...(deps.env ? { env: deps.env } : {}), ...(deps.model ? { config: { model: deps.model } } : {}) } : undefined);
+// 2026-11-23 인수 시험(신산님 "답변이 오는 시간이 너무 걸리는데"): 질문 하나에 22초 중 Codex 일은 6초, 나머지 대부분은 사용자 Codex 설정의
+// MCP 서버(그 PC는 11개)를 질문마다 띄우는 시간이었음. 질문 모드·새 세션은 MCP 도구를 원래 막으므로(BLOCKED_SDK·plan.blocked) 이어온 실행에서만
+// 그 서버들을 켜지 않는다(--config mcp_servers.<이름>.enabled=false). 사용자 Codex 앱 설정은 바꾸지 않음. 작업 모드는 그대로.
+const MCP_TTL_MS = 10 * 60_000;
+const mcpCache = new Map(); // CODEX_HOME → { names, at }
+export function listMcpNames(env, { now = Date.now(), run = execFile } = {}) {
+  const key = env?.CODEX_HOME ?? '';
+  const hit = mcpCache.get(key);
+  if (hit && now - hit.at < MCP_TTL_MS) return Promise.resolve(hit.names);
+  return new Promise((resolve) => {
+    run(process.execPath, [require0.resolve('@openai/codex/bin/codex.js'), 'mcp', 'list', '--json'], { env: env ?? process.env, timeout: 15_000, windowsHide: true, maxBuffer: 4 << 20 }, (err, stdout) => {
+      let names = [];
+      try { names = err ? [] : JSON.parse(String(stdout)).filter((s) => s && s.enabled !== false && /^[\w.-]{1,64}$/.test(String(s.name))).map((s) => String(s.name)); } catch { names = []; }
+      mcpCache.set(key, { names, at: now });
+      resolve(names); // 못 읽으면 지금처럼(아무것도 끄지 않음)
+    });
+  });
+}
+// SDK(codex exec)에 넘길 것: 이어온 전용 계정 env, 이어온이 쓸 모델·끌 MCP 서버(--config …). 없으면 그 PC Codex 기본 그대로.
+const sdkOpts = (deps) => {
+  const config = { ...(deps.model ? { model: deps.model } : {}), ...(deps.mcpOff?.length ? { mcp_servers: Object.fromEntries(deps.mcpOff.map((n) => [n, { enabled: false }])) } : {}) };
+  return deps.env || Object.keys(config).length ? { ...(deps.env ? { env: deps.env } : {}), ...(Object.keys(config).length ? { config } : {}) } : undefined;
+};
 
 export function codexThreadAdapter(opts) {
-  const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')) };
+  const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')), mcpList: opts.mcpList ?? (opts.loadSdk ? async () => [] : listMcpNames) }; // 가짜 SDK(시험)면 MCP 목록을 읽지 않음
   return {
     engine: 'codex_thread',
     async run({ sessionRef: threadId, question, connectMode, newSession, workMode = false }, { approve = null, approvalResult = null, signal = null } = {}) {
