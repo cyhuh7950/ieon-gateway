@@ -216,10 +216,13 @@ export function createApp(config) {
   // W3: 짝맺기. 허브(접속 제한 있음)는 PC의 요청을 받아 승인하고, PC(접속 제한 없음)는 허브에 연결한다.
   const pairing = access ? createPairing({ store, reserved: () => fileHosts }) : null;
   const hubLink = access ? null : createHubLink({ dir: config.hubLinkDir ?? join(dirname(config.dbPath), 'hub'),
-    connectorConfigPath: config.connectorConfigPath, log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n') });
+    connectorConfigPath: config.connectorConfigPath, log: (e) => process.stderr.write(JSON.stringify({ ch: 'server', ...e }) + '\n'),
+    // 2026-11-23 시험: PC 연결 링크로 허브에 연결해도 사용 방식이 비어 있어 PC 화면이 처음 설정(어떻게 쓰실 건가요?)을 다시 물었음 — 연결되면 "내 허브에 연결"로 적음
+    onPaired: () => { if (modePath) { try { writeMode(modePath, 'hub'); } catch { /* 적지 못해도 연결은 됨 */ } } } });
   // M1: 이 PC의 사용 방식(.local/mode.json). 허브 서버에는 없음. null이면 예전 설치 — 지금처럼 두고 화면이 고르기를 권한다.
   const modePath = access ? null : (config.modePath ?? (basename(dirname(config.dbPath)) === 's2' ? join(dirname(config.dbPath), '..', 'mode.json') : join(dirname(config.dbPath), 'mode.json'))); // PC: .local/mode.json
   const mode = () => (modePath ? readMode(modePath) : null);
+  if (modePath && mode() === null && hubLink?.status().state === 'paired') { try { writeMode(modePath, 'hub'); } catch { /* 화면이 고르기를 권함 */ } } // 이미 연결됐는데 비어 있던 PC(위 onPaired 이전 설치)
   // ② 내 허브: 이 PC는 질문을 받지 않고 봇을 켜지 않는다(허브 연결이 잠깐 끊겨 있어도 그대로)
   const hubModeOn = () => mode() === 'hub' || Boolean(hubLink?.hubMode());
   const ipOf = (req) => (access ? access.clientIp(req) : (req.socket.remoteAddress ?? '?'));

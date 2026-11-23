@@ -43,7 +43,7 @@ test('새 화면은 이미 있는 API만 부른다', () => {
     '/v1/rooms', '/v1/rooms/', '/v1/admin/roles', '/v1/roles', // AP-1: 방·AI 직원 역할
     '/v1/approvals/', // W1: 승인 카드
     '/v1/approvals', '/v1/tasks?filter=active', '/v1/tasks?limit=30', '/v1/tasks/', // RC3: 작업 화면(승인 대기함·작업 목록·작업 하나)
-    '/v1/admin/hosts/', // 가입자 대화 붙이기: 허브에서 고른 PC의 Codex 대화(기존 기기 명령 API)
+    '/v1/admin/hosts/', '/v1/admin/local/hub', // 가입자 대화 붙이기 · 허브에 연결된 PC 화면 첫 카드(허브 주소): 허브에서 고른 PC의 Codex 대화(기존 기기 명령 API)
     '/v1/admin/devices', // SV2: 새 세션 만들 곳(허브의 PC·엔진 칸) 고르기(기존 API)
     '/v1/voice/config?lang=', '/v1/voice/live', '/v1/voice/live/', '/v1/voice/speak', '/v1/voice/dictate', '/v1/voice/transcribe?sec=', // V2 OpenAI 음성
     '/v1/events', '/v1/webpush/key', '/v1/webpush/subscription']); // 웹 알림(탭을 닫아도) // AP-4a: 새 소식(알림, AP-2에서 만든 API) // U8, L1(라인 webhook 주소): 새 세션 만들기(예전 화면에서 옮김, 기존 API)

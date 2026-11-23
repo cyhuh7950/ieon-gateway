@@ -91,6 +91,6 @@ test('화면: 계정 표시·한도 카드(다시 보내기는 누를 때만)·�
   assert.equal(KO['errors.usage_limit'], '계정의 사용 한도에 걸려 실행되지 않았어요.');
   assert.ok(APP.includes("t('errors.' + c)") && !/ERR_HARD = new Set\([^)]*'usage_limit'/.test(APP), '한도는 경고(warn)');
   assert.ok(APP.includes("' 지금 쓰는 계정: ' + (acct ?? '알 수 없음')"), '한도 카드에 계정 이름');
-  assert.ok(APP.includes("if (s === 'token_missing' && Date.now() - savedAt < 75_000)"), '저장 직후 토큰 없음은 기다림');
+  assert.ok(APP.includes("if ((s === 'token_missing' || stale) && Date.now() - savedAt < 75_000)"), '저장 직후 토큰 없음·넣기 전 토큰의 오류는 기다림');
   assert.ok(APP.includes("bad_access_token: '토큰이 맞지 않아요"), '토큰 거절 이유');
 });

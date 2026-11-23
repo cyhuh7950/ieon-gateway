@@ -125,5 +125,5 @@ test('화면: 메신저 연결 창 — 토큰 칸·카카오 스킬 URL·숫자 
   for (const id of ['id="msg"', 'id="m1"', 'id="m2"', 'id="m3"', 'id="m4"', 'id="msgBtn"']) assert.ok(APP.includes(id), id);
   assert.ok(APP.includes("'/v1/admin/messenger/claim'") && APP.includes("'/v1/admin/secrets/' + inp.dataset.name") && APP.includes("'/v1/admin/kakao/skill-url'"));
   assert.ok(APP.includes("$('sMsg').onclick = () => openMsg();"), '처음 설정 3단계에서도 연다');
-  assert.ok(APP.includes('btnEl.disabled = !b || off;'), '꺼 둔 봇(허브로 옮긴 봇)은 고를 수 없음');
+  assert.ok(APP.includes('btnEl.disabled = Boolean(off);'), '꺼 둔 봇(허브로 옮긴 봇)만 고를 수 없음 — 쓸 수 없음은 눌러서 이유');
 });

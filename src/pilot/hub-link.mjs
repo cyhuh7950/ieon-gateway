@@ -10,7 +10,7 @@ import { childEnv } from './parent-watch.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
-export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spawnImpl = spawn, pollMs = 3000, adminPollMs = 2000, log = () => {} }) {
+export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spawnImpl = spawn, pollMs = 3000, adminPollMs = 2000, log = () => {}, onPaired = () => {} }) {
   const tokenFile = join(dir, 'device-token');
   const infoFile = join(dir, 'hub.json');
   let pending = null; // { hubUrl, pairId, code, expiresAt, error }
@@ -77,6 +77,7 @@ export function createHubLink({ dir, connectorConfigPath, fetchImpl = fetch, spa
       writeFileSync(infoFile, JSON.stringify({ hubUrl: pending.hubUrl, hostId: body.hostId, pairedAt: new Date().toISOString() }, null, 2) + '\n');
       log({ event: 'hub_paired', hub: pending.hubUrl, hostId: body.hostId });
       pending = null;
+      onPaired();
       startConnector();
     } else if (['rejected', 'expired'].includes(body.status)) {
       pending = { ...pending, error: body.status };

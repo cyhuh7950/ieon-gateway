@@ -99,6 +99,8 @@ export function runTelegram({ token, onMessage, log, signal, retryMs = 5000 }) {
     let conflict = false; // 409: 다른 곳에서 같은 봇을 받고 있다
     // 봇 이름(공개 정보)만 알려 준다. 메신저에서 이 이름으로 검색해 대화를 시작한다.
     const me = await api('getMe', {}).catch(() => null);
+    // 2026-11-23 시험: 토큰을 텔레그램이 거절(401)해도 "시작됨"으로 보고해 마법사가 연결된 줄 알고 숫자를 띄웠음 — 라인·카카오처럼 멈추고 이유를 보고
+    if (me && me.ok === false && me.error_code === 401) { log({ platform: 'telegram', event: 'open_error', error: 'unauthorized' }); return; }
     // canReadAll: 그룹 일반 글 수신(privacy mode 해제) 여부. 꺼져 있으면 부르는 이름으로 부를 수 없다.
     log({ platform: 'telegram', event: 'started', bot: me?.ok ? `@${me.result.username}` : null, open: me?.ok ? `https://t.me/${me.result.username}` : null,
       canReadAll: me?.ok ? Boolean(me.result.can_read_all_group_messages) : undefined });
@@ -106,6 +108,7 @@ export function runTelegram({ token, onMessage, log, signal, retryMs = 5000 }) {
       try {
         const r = await api('getUpdates', { offset, timeout: 30, allowed_updates: ['message'] });
         if (!r.ok) {
+          if (r.error_code === 401) { log({ platform: 'telegram', event: 'open_error', error: 'unauthorized' }); return; } // 토큰이 틀리면 다시 해도 실패
           if (r.error_code === 409) conflict = true;
           log({ platform: 'telegram', event: r.error_code === 409 ? 'conflict' : 'poll_error', code: r.error_code });
           await sleep(retryMs);
