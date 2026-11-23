@@ -1,5 +1,6 @@
 // V2 OpenAI 음성(설계 docs/design/VOICE_LIVE.md, 신산님 2026-11-20 "OpenAI API를 사용할거야"·"지금 다 만들어"·"설정에서 바꾸면 바로"):
-// 가 실시간 대화(열쇠 발급·시간 세기), 나 한 번씩(받아쓰기·읽기 중계), 설정 저장(키 확인·끝 4자만), 화면·앱이 같은 공통 코드. 실제 OpenAI 호출 없음(가짜 fetch).
+// 가 실시간 대화(열쇠 발급·시간 세기), 나 한 번씩(받아쓰기·읽기 중계), 설정 저장(키 확인·끝 4자만), 화면·앱이 같은 공통 코드. 실제 OpenAI 호출 없음(가짜 fetch·가짜 실시간 연결).
+// 2026-11-23: 2027년 종료 모델 전환(읽기는 /audio/speech 대신 실시간 연결, 저장된 옛 이름도 새 이름으로).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -7,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createApp } from '../../src/pilot/server.mjs';
-import { createVoice, validateVoiceSettings, DEFAULTS } from '../../src/pilot/voice-openai.mjs';
+import { createVoice, validateVoiceSettings, upgradeModels, DEFAULTS } from '../../src/pilot/voice-openai.mjs';
 import { build } from '../../app/scripts/copy-locales.mjs';
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
@@ -30,6 +31,25 @@ function fakeOpenai() {
   };
   return { f, calls };
 }
+// 가짜 실시간 연결(읽기): 열리면 받은 글을 기록하고, response.create에 소리 조각 둘과 response.done을 돌려준다
+function fakeWs(mode = 'ok') {
+  const made = [];
+  class W {
+    constructor(url, init) { this.url = url; this.headers = init?.headers ?? {}; this.sent = []; this.closed = false; made.push(this); setTimeout(() => (mode === 'drop' ? this.onclose?.() : this.onopen?.()), 0); }
+    emit(o) { setTimeout(() => this.onmessage?.({ data: JSON.stringify(o) }), 0); }
+    send(x) {
+      const e = JSON.parse(x); this.sent.push(e);
+      if (e.type !== 'response.create') return;
+      if (this.headers.authorization !== `Bearer ${KEY}`) return this.emit({ type: 'error', error: { type: 'invalid_request_error', code: 'invalid_api_key' } });
+      if (mode === 'empty') return this.emit({ type: 'response.done', response: { status: 'completed' } });
+      this.emit({ type: 'response.output_audio.delta', delta: Buffer.from([1, 2]).toString('base64') });
+      this.emit({ type: 'response.output_audio.delta', delta: Buffer.from([3, 4]).toString('base64') });
+      this.emit({ type: 'response.done', response: { status: 'completed' } });
+    }
+    close() { this.closed = true; }
+  }
+  return { W, made };
+}
 function memStore() { const m = new Map(); return { getSetting: (k) => (m.has(k) ? { value: structuredClone(m.get(k)) } : null), setSetting: (k, v) => m.set(k, structuredClone(v)), _m: m }; }
 
 test('V2 설정 검사: 기본값, 틀린 방식·모델·시간·키 모양은 거절, 키 null이면 지움', () => {
@@ -38,7 +58,7 @@ test('V2 설정 검사: 기본값, 틀린 방식·모델·시간·키 모양은 
   for (const [b, e] of [[{ mode: 'x' }, 'bad_voice_mode'], [{ liveModel: 'A B' }, 'bad_voice_model'], [{ dailyMinutes: 0 }, 'bad_voice_limit'], [{ idleSec: 5 }, 'bad_voice_limit'],
     [{ maxMinutes: 61 }, 'bad_voice_limit'], [{ members: 'yes' }, 'bad_voice'], [{ apiKey: 'nope' }, 'bad_voice_key']]) assert.throws(() => validateVoiceSettings(b), new RegExp(e), JSON.stringify(b));
   assert.equal(validateVoiceSettings({ apiKey: null }, { apiKey: KEY }).apiKey, undefined);
-  assert.equal(DEFAULTS.liveModel, 'gpt-realtime-mini');
+  assert.deepEqual([DEFAULTS.liveModel, DEFAULTS.sttModel, DEFAULTS.ttsModel], ['gpt-realtime-2.1-mini', 'gpt-transcribe', 'gpt-realtime-2.1-mini'], '2027 종료 모델이 아닌 새 모델');
 });
 
 test('V2 모듈: 설정 저장(새 키는 OpenAI 확인, 틀리면 저장 안 함), 화면엔 끝 4자만, 이유(키 없음·가입자 꺼짐·한도)', async () => {
@@ -67,7 +87,7 @@ test('V2 가: 실시간 열쇠 — 모델·목소리·지시문(대화 이름)·
   const s = await v.startLive({}, { conversationId: 'c1' }, '결제 작업');
   assert.equal(s.clientSecret, 'ek_test_secret'); assert.match(s.liveId, /^lv_[0-9a-f]{16}$/); assert.equal(s.maxSec, 60, '남은 하루 시간이 더 짧으면 그만큼');
   const c = calls.find((x) => x.url.endsWith('/realtime/client_secrets')); const body = JSON.parse(c.init.body);
-  assert.equal(body.session.model, 'gpt-realtime-mini'); assert.equal(body.session.audio.output.voice, 'cedar');
+  assert.equal(body.session.model, 'gpt-realtime-2.1-mini'); assert.equal(body.session.audio.output.voice, 'cedar');
   assert.equal(body.session.instructions, 'ko|server.voice_live.instructions|결제 작업');
   assert.deepEqual(body.session.tools.map((x) => x.name), ['ask_session', 'check_status', 'stop_request']);
   assert.equal(body.expires_after.seconds, 60);
@@ -82,25 +102,59 @@ test('V2 가: 실시간 열쇠 — 모델·목소리·지시문(대화 이름)·
 
 test('V2 나: 받아쓰기·읽기를 서버가 OpenAI로 넘김(언어·모델·목소리), 방식이 다르면 거절, 쓴 만큼 셈', async () => {
   const { f, calls } = fakeOpenai(); const store = memStore();
-  const v = createVoice({ store, fetchImpl: f, isAdmin: () => true, userKey: () => 'admin', lang: () => 'en', t: (l, k) => k });
+  const ws = fakeWs();
+  const v = createVoice({ store, fetchImpl: f, WebSocketImpl: ws.W, isAdmin: () => true, userKey: () => 'admin', lang: () => 'en', t: (l, k) => k });
   await v.saveSettings({ apiKey: KEY, mode: 'openai_live' });
   await assert.rejects(v.transcribe({}, Buffer.from('x'), 'audio/webm', 3), /voice_mode_off/);
   await v.saveSettings({ mode: 'openai_turn', voice: 'marin' });
   assert.deepEqual(await v.transcribe({}, Buffer.from('abc'), 'audio/webm;codecs=opus', 3), { text: '안녕하세요' });
   const tr = calls.find((x) => x.url.endsWith('/audio/transcriptions'));
-  assert.equal(tr.init.body.get('model'), 'gpt-4o-mini-transcribe'); assert.equal(tr.init.body.get('language'), 'en'); assert.equal(tr.init.body.get('file').name, 'voice.webm');
-  const mp3 = await v.speak({}, 'Hello there');
-  assert.deepEqual([...mp3], [1, 2, 3]);
-  const sp = JSON.parse(calls.find((x) => x.url.endsWith('/audio/speech')).init.body);
-  assert.deepEqual([sp.model, sp.voice, sp.input, sp.response_format], ['gpt-4o-mini-tts', 'marin', 'Hello there', 'mp3']);
+  assert.equal(tr.init.body.get('model'), 'gpt-transcribe'); assert.equal(tr.init.body.get('language'), null, 'gpt-transcribe에는 한 언어 힌트를 보내지 않음'); assert.equal(tr.init.body.get('file').name, 'voice.webm');
+  const wav = await v.speak({}, 'Hello there');
+  assert.equal(wav.subarray(0, 4).toString('latin1'), 'RIFF'); assert.equal(wav.readUInt32LE(24), 24000, '24kHz');
+  assert.deepEqual([...wav.subarray(44)], [1, 2, 3, 4], '소리 조각을 이어 붙임');
+  assert.ok(!calls.some((x) => x.url.endsWith('/audio/speech')), '끝나는 /audio/speech를 부르지 않음');
+  const w = ws.made[0];
+  assert.equal(w.url, 'wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1-mini'); assert.equal(w.headers.authorization, `Bearer ${KEY}`); assert.match(w.headers['openai-safety-identifier'], /^[0-9a-f]{32}$/);
+  assert.deepEqual(w.sent.map((e) => e.type), ['session.update', 'conversation.item.create', 'response.create']);
+  assert.equal(w.sent[0].session.audio.output.voice, 'marin'); assert.deepEqual(w.sent[0].session.audio.output.format, { type: 'audio/pcm', rate: 24000 });
+  assert.equal(w.sent[1].item.content[0].text, 'Hello there'); assert.match(w.sent[2].response.instructions, /exactly as written/);
+  assert.ok(w.closed, '받으면 연결을 닫음');
   await assert.rejects(v.speak({}, ''), /voice_bad_text/);
   assert.ok(v.adminView().usedTodaySec >= 4, '받아쓰기 3초 + 읽기 1초 이상');
+});
+
+test('V2 모델 전환: 저장된 옛 모델 이름(기본값보다 우선)도 새 이름으로, 다른 이름은 그대로', async () => {
+  assert.deepEqual(upgradeModels({ liveModel: 'gpt-realtime-mini', sttModel: 'gpt-4o-mini-transcribe', ttsModel: 'gpt-4o-mini-tts' }),
+    { liveModel: 'gpt-realtime-2.1-mini', sttModel: 'gpt-transcribe', ttsModel: 'gpt-realtime-2.1-mini' });
+  assert.deepEqual(upgradeModels({ liveModel: 'gpt-realtime-mini-2025-12-15', sttModel: 'whisper-1', ttsModel: 'tts-1-hd' }),
+    { liveModel: 'gpt-realtime-2.1-mini', sttModel: 'gpt-transcribe', ttsModel: 'gpt-realtime-2.1-mini' });
+  assert.equal(upgradeModels({ liveModel: 'gpt-realtime' }).liveModel, 'gpt-realtime-2.1');
+  assert.deepEqual(upgradeModels({ liveModel: 'gpt-realtime-2.1', sttModel: 'gpt-live-transcribe', ttsModel: 'gpt-realtime-2.1' }),
+    { liveModel: 'gpt-realtime-2.1', sttModel: 'gpt-live-transcribe', ttsModel: 'gpt-realtime-2.1' }, '새 이름은 건드리지 않음');
+  // 이미 설치된 곳: 11-20 판이 모델 이름까지 저장해 둠
+  const store = memStore(); store.setSetting('voice.openai', { mode: 'openai_live', apiKey: KEY, liveModel: 'gpt-realtime-mini', sttModel: 'gpt-4o-mini-transcribe', ttsModel: 'gpt-4o-mini-tts', voice: 'marin' });
+  const { f, calls } = fakeOpenai();
+  const v = createVoice({ store, fetchImpl: f, isAdmin: () => true, userKey: () => 'admin', lang: () => 'ko', t: (l, k) => k });
+  assert.deepEqual([v.adminView().liveModel, v.adminView().sttModel, v.adminView().ttsModel], ['gpt-realtime-2.1-mini', 'gpt-transcribe', 'gpt-realtime-2.1-mini'], '설정 화면에도 새 이름');
+  await v.startLive({}, { conversationId: 'c1' }, 'x');
+  assert.equal(JSON.parse(calls.find((x) => x.url.endsWith('/realtime/client_secrets')).init.body).session.model, 'gpt-realtime-2.1-mini', '실제 요청도 새 이름');
+  assert.equal((await v.saveSettings({ ttsModel: 'gpt-4o-mini-tts' })).ttsModel, 'gpt-realtime-2.1-mini', '옛 이름을 넣어도 새 이름으로 저장');
+});
+
+test('V2 나 읽기 실패: 키 거절·끊김·소리 없음은 이유로 알려 주고 사용 시간을 세지 않음', async () => {
+  for (const [mode, key, err] of [['ok', 'sk-other' + 'z'.repeat(40), /voice_key_rejected/], ['drop', KEY, /voice_openai_unreachable/], ['empty', KEY, /voice_openai_failed/]]) {
+    const store = memStore(); store.setSetting('voice.openai', { mode: 'openai_turn', apiKey: key });
+    const v = createVoice({ store, WebSocketImpl: fakeWs(mode).W, isAdmin: () => true, userKey: () => 'admin', lang: () => 'ko', t: (l, k) => k });
+    await assert.rejects(v.speak({}, '읽어 줘'), err, mode);
+    assert.equal(v.adminView().usedTodaySec, 0, mode + ': 실패는 세지 않음');
+  }
 });
 
 test('V2 서버: 설정 API로 바꾸면 바로 /v1/voice/config에 반영, 실시간 열쇠는 볼 수 있는 대화만, 받아쓰기·읽기 길, 화면 응답에 키 없음', async (t) => {
   const d = mkdtempSync(join(tmpdir(), 'ieon-v2-'));
   const { f } = fakeOpenai();
-  const app = createApp({ dbPath: join(d, 'p.db'), voiceFetch: f, users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }], devices: [],
+  const app = createApp({ dbPath: join(d, 'p.db'), voiceFetch: f, voiceWebSocket: fakeWs().W, users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }], devices: [],
     bindings: [{ conversationId: 'c1', ownerUserId: 'u_sinsan', appIds: ['app_web'], hostId: 'h_pc', engine: 'codex_thread', sessionRef: T1, label: '결제 작업' }] });
   const base = `http://127.0.0.1:${await app.listen(0)}`;
   t.after(async () => { await app.close(); rmSync(d, { recursive: true, force: true }); });
@@ -124,7 +178,7 @@ test('V2 서버: 설정 API로 바꾸면 바로 /v1/voice/config에 반영, 실�
   assert.equal((await call('/v1/voice/config')).body.turn, true, '저장하면 바로 적용');
   assert.equal((await call('/v1/voice/transcribe?sec=2&lang=ko', { method: 'POST', raw: Buffer.from('abc'), type: 'audio/webm' })).body.text, '안녕하세요');
   const sp = await call('/v1/voice/speak', { method: 'POST', body: { text: '읽어 줘' } });
-  assert.equal(sp.ct, 'audio/mpeg'); assert.deepEqual([...sp.body], [1, 2, 3]);
+  assert.equal(sp.ct, 'audio/wav'); assert.equal(sp.body.subarray(0, 4).toString('latin1'), 'RIFF'); assert.deepEqual([...sp.body.subarray(44)], [1, 2, 3, 4]);
   assert.equal((await call('/v1/admin/settings/voice', { method: 'PUT', body: { apiKey: null } })).body.voiceOpenai.configured, false);
   assert.equal((await call('/v1/voice/config')).body.reason, 'voice_no_key', '키를 지우면 이유가 보임');
 });

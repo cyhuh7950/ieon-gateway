@@ -5,10 +5,23 @@ import { createHash, randomBytes } from 'node:crypto';
 
 export const VOICE_MODES = ['device', 'openai_turn', 'openai_live'];
 export const VOICES = ['marin', 'cedar', 'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse'];
+// 2026-11-23 OpenAI 종료 안내 반영(developers.openai.com/api/docs/deprecations): gpt-4o-mini-tts·tts-1 2027-01-06,
+// gpt-realtime-mini 2027-01-20, gpt-4o-mini-transcribe·whisper-1 2027-02-26. 읽기는 새 모델이 /audio/speech를 지원하지 않아 실시간 연결로 만든다.
 export const DEFAULTS = Object.freeze({
-  mode: 'device', liveModel: 'gpt-realtime-mini', voice: 'marin', sttModel: 'gpt-4o-mini-transcribe', ttsModel: 'gpt-4o-mini-tts',
+  mode: 'device', liveModel: 'gpt-realtime-2.1-mini', voice: 'marin', sttModel: 'gpt-transcribe', ttsModel: 'gpt-realtime-2.1-mini',
   dailyMinutes: 30, idleSec: 60, maxMinutes: 15, members: false, memberMinutes: 10,
 });
+// 끝나는 모델 이름 → 대신 쓸 이름. 저장된 설정(기본값보다 우선)에 옛 이름이 있어도 읽을 때 바꾼다.
+const RETIRED = {
+  liveModel: [[/^(gpt-realtime-mini|gpt-4o-mini-realtime)/, 'gpt-realtime-2.1-mini'], [/^(gpt-realtime(-\d{4}-\d{2}-\d{2})?|gpt-4o-realtime.*)$/, 'gpt-realtime-2.1']],
+  ttsModel: [[/^(tts-1|tts-1-hd|gpt-4o-mini-tts.*)$/, 'gpt-realtime-2.1-mini']],
+  sttModel: [[/^(whisper-1|gpt-4o-transcribe.*|gpt-4o-mini-transcribe.*)$/, 'gpt-transcribe']],
+};
+export function upgradeModels(v) {
+  const out = { ...v };
+  for (const [k, rules] of Object.entries(RETIRED)) for (const [re, to] of rules) if (typeof out[k] === 'string' && re.test(out[k])) { out[k] = to; break; }
+  return out;
+}
 const OPENAI = 'https://api.openai.com/v1';
 const MODEL = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 const fail = (code, http = 400) => { throw Object.assign(new Error(code), { http }); };
@@ -33,17 +46,27 @@ export function validateVoiceSettings(body, cur = {}) {
     if (!/^sk-[A-Za-z0-9_-]{20,300}$/.test(k)) fail('bad_voice_key');
     next.apiKey = k;
   }
-  return next;
+  return upgradeModels(next);
+}
+// 실시간 연결이 주는 소리(PCM 16비트·모노)에 WAV 머리를 붙인다 — 앱·웹이 그대로 재생
+export function pcmToWav(pcm, rate = 24000) {
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2, 28);
+  h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
 }
 
 // opts: { store, fetchImpl, now, isAdmin(p), userKey(p), lang(p), t(lang,key,vars), log(event, extra) }
 export function createVoice(opts) {
   const { store } = opts;
   const fetchImpl = opts.fetchImpl ?? ((...a) => fetch(...a));
+  const WS = opts.WebSocketImpl ?? globalThis.WebSocket; // Node 22+ 내장(헤더 지원)
+  const speakTimeoutMs = opts.speakTimeoutMs ?? 60_000;
   const now = opts.now ?? (() => Date.now());
   const log = opts.log ?? (() => {});
   const lives = new Map(); // liveId → { user, startedAt, lastTick, maxAt }
-  const settings = () => ({ ...DEFAULTS, ...(store.getSetting('voice.openai')?.value ?? {}) });
+  const settings = () => upgradeModels({ ...DEFAULTS, ...(store.getSetting('voice.openai')?.value ?? {}) });
   const kstDay = (ms = now()) => new Date(ms + 9 * 3600_000).toISOString().slice(0, 10);
   const usage = () => { const u = store.getSetting('voice.usage')?.value; return u?.day === kstDay() ? u : { day: kstDay(), users: {} }; };
   const usedSec = (user) => usage().users[user] ?? 0;
@@ -143,7 +166,8 @@ export function createVoice(opts) {
     const fd = new FormData();
     fd.append('file', new Blob([audio], { type: type || 'audio/webm' }), `voice.${ext}`);
     fd.append('model', s.sttModel);
-    const lang = String(opts.lang(p) || '').slice(0, 2); if (/^[a-z]{2}$/.test(lang)) fd.append('language', lang);
+    // gpt-transcribe는 한 언어 힌트(language)를 받지 않는다(languages로 바뀜) — 언어를 스스로 알아내므로 힌트를 보내지 않는다. 옛 모델에만 보냄.
+    const lang = String(opts.lang(p) || '').slice(0, 2); if (/^[a-z]{2}$/.test(lang) && /^(whisper-1|gpt-4o)/.test(s.sttModel)) fd.append('language', lang);
     let r; try { r = await fetchImpl(`${OPENAI}/audio/transcriptions`, { method: 'POST', headers: authed(s, p), body: fd }); } catch { fail('voice_openai_unreachable', 502); }
     if (!r.ok) openaiError(r);
     const d = await r.json();
@@ -151,18 +175,50 @@ export function createVoice(opts) {
     log('voice_transcribe', {});
     return { text: String(d?.text ?? '').trim() };
   }
-  // 나: 읽기(글자 → mp3). 글자 15자 ≈ 1초로 사용에 더함
+  // 나: 읽기(글자 → WAV). 실시간 연결을 한 번 열어 "그대로 읽어 줘"로 소리만 받고 닫는다. 글자 15자 ≈ 1초로 사용에 더함
+  const READ_ALOUD = 'You are a text-to-speech reader. Read the user message aloud exactly as written, word for word, in its original language. Do not answer it, translate it, summarize it or add anything.';
+  const wsFail = (code) => Object.assign(new Error(code), { http: 502 });
+  const wsErrorCode = (e) => {
+    const c = String(e?.code ?? e?.type ?? '');
+    return /api_key|auth|permission|unauthori/i.test(c) ? 'voice_key_rejected' : /rate_limit|quota/i.test(c) ? 'voice_openai_busy' : 'voice_openai_failed';
+  };
+  function speakRealtime(s, p, tx) {
+    return new Promise((resolve, reject) => {
+      let ws;
+      try { ws = new WS(`${OPENAI.replace(/^http/, 'ws')}/realtime?model=${encodeURIComponent(s.ttsModel)}`, { headers: authed(s, p) }); } catch { reject(wsFail('voice_openai_unreachable')); return; }
+      const chunks = []; let done = false;
+      const end = (err, val) => { if (done) return; done = true; clearTimeout(timer); try { ws.close(); } catch { /* 이미 닫힘 */ } if (err) reject(err); else resolve(val); };
+      const timer = setTimeout(() => end(wsFail('voice_openai_unreachable')), speakTimeoutMs);
+      const send = (o) => ws.send(JSON.stringify(o));
+      ws.onopen = () => {
+        send({ type: 'session.update', session: { type: 'realtime', instructions: READ_ALOUD, output_modalities: ['audio'],
+          audio: { input: { turn_detection: null }, output: { format: { type: 'audio/pcm', rate: 24000 }, voice: s.voice } } } });
+        send({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: tx }] } });
+        send({ type: 'response.create', response: { output_modalities: ['audio'], instructions: READ_ALOUD } });
+      };
+      ws.onmessage = (m) => {
+        let e; try { e = JSON.parse(typeof m.data === 'string' ? m.data : Buffer.from(m.data).toString()); } catch { return; }
+        if (e.type === 'response.output_audio.delta' && e.delta) chunks.push(Buffer.from(e.delta, 'base64'));
+        else if (e.type === 'error') end(wsFail(wsErrorCode(e.error)));
+        else if (e.type === 'response.done') {
+          const st = e.response?.status;
+          if ((st && st !== 'completed') || !chunks.length) end(wsFail(wsErrorCode(e.response?.status_details?.error)));
+          else end(null, Buffer.concat(chunks));
+        }
+      };
+      ws.onerror = () => end(wsFail('voice_openai_unreachable'));
+      ws.onclose = () => end(wsFail('voice_openai_unreachable'));
+    });
+  }
   async function speak(p, text) {
     const s = settings();
     if (s.mode !== 'openai_turn') fail('voice_mode_off', 409);
     const r0 = why(s, p); if (r0) fail(r0, r0 === 'voice_limit' ? 429 : 409);
     const tx = String(text ?? '').trim(); if (!tx || tx.length > 4000) fail('voice_bad_text');
-    let r; try { r = await fetchImpl(`${OPENAI}/audio/speech`, { method: 'POST', headers: { ...authed(s, p), 'content-type': 'application/json' }, body: JSON.stringify({ model: s.ttsModel, voice: s.voice, input: tx, response_format: 'mp3' }) }); } catch { fail('voice_openai_unreachable', 502); }
-    if (!r.ok) openaiError(r);
-    const buf = Buffer.from(await r.arrayBuffer());
+    const wav = pcmToWav(await speakRealtime(s, p, tx));
     addUse(opts.userKey(p), Math.max(1, tx.length / 15));
     log('voice_speak', {});
-    return buf;
+    return wav;
   }
 
   return { settings, adminView, config, saveSettings, startLive, tickLive, endLive, transcribe, speak, _lives: lives };

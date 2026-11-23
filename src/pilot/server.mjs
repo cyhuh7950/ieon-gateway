@@ -237,7 +237,7 @@ export function createApp(config) {
   // 규칙 점검 4(2026-11-18 신산님): PC 설정 바꾸기는 로그인한 웹 화면이면 어디서나(휴대폰·Tailscale 포함). 전에는 이 PC에서 연 화면만(local_only).
   const webUser = (p) => p?.appId === 'app_web';
   // V2 OpenAI 음성(설계 VOICE_LIVE): 설정은 요청마다 DB에서 다시 읽음(저장하면 바로 적용)
-  const voice = createVoice({ store, fetchImpl: config.voiceFetch, isAdmin: (p) => isAdminP(p), userKey: (p) => p?.userId ?? 'admin', lang: (p) => p?.lang ?? serverLang(),
+  const voice = createVoice({ store, fetchImpl: config.voiceFetch, WebSocketImpl: config.voiceWebSocket,isAdmin: (p) => isAdminP(p), userKey: (p) => p?.userId ?? 'admin', lang: (p) => p?.lang ?? serverLang(),
     t: (lang, key, vars) => makeT(lang)(key, vars), log: (event, extra) => process.stderr.write(JSON.stringify({ ch: 'server', event, ...extra }) + '\n') });
   // 기기 설정이 바뀌면 그 설정을 읽는 연결부를 다시 띄운다. 이 서버가 띄운 것이 아니면 다시 켜야 한다고 알린다.
   const applyDevice = async () => {
@@ -1776,8 +1776,9 @@ export function createApp(config) {
           }
           if (req.method === 'POST' && path === '/v1/voice/speak') {
             const b = await readJson(req); if (b.lang) vp.lang = normLang(b.lang) ?? vp.lang;
-            const mp3 = await voice.speak(vp, b.text);
-            res.writeHead(200, { 'content-type': 'audio/mpeg', 'cache-control': 'no-store', 'content-length': mp3.length }); return res.end(mp3);
+            const snd = await voice.speak(vp, b.text);
+            const ct = snd.subarray(0, 4).toString('latin1') === 'RIFF' ? 'audio/wav' : 'audio/mpeg';
+            res.writeHead(200, { 'content-type': ct, 'cache-control': 'no-store', 'content-length': snd.length }); return res.end(snd);
           }
         } catch (e) { return json(res, e.http ?? 400, { error: e.message }); }
         return json(res, 404, { error: 'not_found' });
