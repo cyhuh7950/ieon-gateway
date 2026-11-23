@@ -27,6 +27,10 @@ html, body { height:100%; }
 body { margin:0; display:flex; flex-direction:column; background:var(--bg); color:var(--text); font:12px/1.6 "Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Segoe UI",sans-serif; }
 button, input, textarea { font:inherit; color:inherit; }
 button { cursor:pointer; }
+/* 2026-11-23 신산님 발견: 모양을 따로 주지 않은 버튼·선택칸이 브라우저 기본(밝은 회색)이라 어두운 화면에서 글자가 안 보였다 — 기본 모양을 토큰으로 */
+button:not([class]) { border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:10px; padding:6px 14px; min-height:36px; }
+button:not([class]):hover:not(:disabled) { border-color:var(--accent); }
+select { background:var(--surface-alt); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:6px 8px; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 a { color:var(--accent); }
 .muted { color:var(--muted); } .small { font-size:12px; }
