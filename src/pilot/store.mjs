@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS room_posts (
 
 const hash = (payload) => createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
-export const CONNECT_MODES = Object.freeze(['alternate', 'shared_server']);
+export const CONNECT_MODES = Object.freeze(['alternate', 'shared_server', 'warm']); // warm: 빠른 응답(미리 띄워 두기, 2026-11-23)
 const NEEDS_REVIEW = new Set([STATUS.unknown, STATUS.approvalRequired]);
 // W3: 예약 한 줄을 화면·실행기용 모양으로
 const scheduleView = (r) => ({ scheduleId: r.schedule_id, ownerUserId: r.owner_user_id, conversationId: r.conversation_id, question: r.question, kind: r.kind,

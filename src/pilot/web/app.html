@@ -471,6 +471,7 @@ details.adv[open] summary { margin-bottom:10px; }
           <div class="small muted" id="pModeWhy" hidden>{{web.p_mode_codex_only}}</div>
           <label class="radio"><input type="radio" name="mode" value="alternate"> <span>{{web.html_st_save.1}} <span class="muted small">{{web.html_p_data.2}}</span></span></label>
           <label class="radio"><input type="radio" name="mode" value="shared_server"> <span>{{web.html_p_data.3}} <span class="muted small">{{web.html_p_data.4}}</span></span></label>
+          <label class="radio"><input type="radio" name="mode" value="warm"> <span>{{web.mode_warm}} <span class="tip" tabindex="0" role="note" aria-label="{{web.mode_warm_tip}}" data-tip="{{web.mode_warm_tip}}">i</span></span></label>
         </div>
         <dl class="kv small" style="margin-top:10px"><dt>{{web.html_p_data.5}}</dt><dd id="pId" class="small"></dd></dl>
       </details>
@@ -492,7 +493,7 @@ const ENGINE = { codex_thread: 'Codex', claude_channel: t('web.engine.1'), claud
 const AV = { codex_thread: 'Cx', claude_channel: 'Cl', claude_cli: 'Cl', agy_cli: 'Ag', grok_cli: 'Gk' };
 const HOW = { codex_thread: t('web.how.1'), claude_channel: t('web.how.2'), claude_cli: t('web.how.3'),
   agy_cli: t('web.how.4'), grok_cli: t('web.how.5') };
-const MODE = { alternate: t('web.html_st_save.1'), shared_server: t('web.html_p_data.3') };
+const MODE = { alternate: t('web.html_st_save.1'), shared_server: t('web.html_p_data.3'), warm: t('web.mode_warm') };
 const NS_STATE = { pending: t('web.ns_state.1'), active: t('web.ns_state.2'), sleeping: t('web.ns_state.3'), archived: t('web.ns_state.4') };
 // I18N-a: 오류 문구는 사전 한 곳(locales/<언어>/errors.json — 웹·앱·메신저가 같이 씀). 여기에는 심각도만 둔다.
 const ERR_HARD = new Set(['session_load_failed', 'engine_not_installed', 'device_unavailable', 'shared_server_down', 'session_not_running', 'thread_not_allowed', 'shared_server_not_configured', 'profile_not_allowed', 'new_sessions_not_configured']);

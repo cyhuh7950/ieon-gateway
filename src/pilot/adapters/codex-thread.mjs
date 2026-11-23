@@ -9,7 +9,7 @@ import { join as joinPath } from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { checkNewSession } from '../new-sessions.mjs';
-import { lockOutcome } from '../lock-probe.mjs';
+import { lockOutcome, lockOutcomeAsync } from '../lock-probe.mjs';
 import { randomUUID } from 'node:crypto';
 import { EngineError, StoppedError } from '../contracts.mjs';
 
@@ -19,7 +19,7 @@ const EXCLUDED = '01a0dadd-739f-74d2-93c5-9c405cc1019b';
 const BLOCKED_SDK = new Set(['mcp_tool_call', 'dynamic_tool_call']);
 const BLOCKED_APP = new Set(['commandExecution', 'fileChange', 'mcpToolCall', 'webSearch', 'dynamicToolCall']);
 // Windows는 lock-probe.ps1, Linux는 /proc/locks 읽기(src/pilot/lock-probe.mjs).
-export const lockProbe = (threadId) => lockOutcome(threadId);
+export const lockProbe = (threadId) => lockOutcomeAsync(threadId); // 띄워 둔 검사기(Windows), 실패하면 예전 방식
 
 // A1(ENGINE_ACCOUNTS EA4): 계정의 사용 한도에 걸려 답을 만들기 전에 끝난 경우. 모델이 일을 시작하지 않았으므로 "실행 안 됨"이
 // 확실하다 → 결과 불명으로 잠그지 않고 usage_limit(실패)로 알린다(다시 보내기는 사용자가 누를 때만).
@@ -31,7 +31,7 @@ export const isModelUnsupported = (m) => /model is not supported|model_not_suppo
 const modelHit = (turn) => turn.failed && isModelUnsupported(turn.failMessage) && !turn.answer && !turn.worked;
 
 async function runAlternate(threadId, question, deps) {
-  const outcome = deps.probe(threadId);
+  const outcome = await deps.probe(threadId);
   if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) {
     throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
   }
@@ -153,7 +153,7 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
   } else {
     // 서버 DB만 믿지 않는다. 이 연결부가 직접 만든 대화만 새 세션으로 재개한다.
     if (sessionRef === EXCLUDED || !created.has(sessionRef)) throw new EngineError('thread_not_allowed', 403);
-    const outcome = deps.probe(sessionRef);
+    const outcome = await deps.probe(sessionRef);
     if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) {
       throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
     }
@@ -317,7 +317,9 @@ export function matchAllowed(allowed, done) {
   return allowed.find((a) => !a.reported && a.itemId && a.itemId === done.itemId && a.kind === done.kind) ?? null;
 }
 
-export async function appServerTurn(transport, { threadId, question, cwd, extraRoots = [], approve, approvalResult = null, checkIdle = false, timeoutMs = 30 * 60_000, signal = null }) {
+// policy: 'work'(작업 모드 — 쓰기는 작업 폴더 안, 승인 카드) | 'read'(빠른 응답의 평소 질문 — 읽기 전용, 묻지 않음).
+// keep: 빠른 응답은 띄워 둔 Codex를 닫지 않고 다음 질문에 다시 쓴다(initialize는 처음 한 번만).
+export async function appServerTurn(transport, { threadId, question, cwd, extraRoots = [], approve, approvalResult = null, checkIdle = false, timeoutMs = 30 * 60_000, signal = null, policy = 'work', keep = false, model = null }) {
   const allowed = []; // 이번 차례에 허용한 승인: { approvalId, itemId, kind, reported }
   const track = (a) => {
     allowed.push(a);
@@ -358,8 +360,11 @@ export async function appServerTurn(transport, { threadId, question, cwd, extraR
     if (msg.method === 'turn/completed') { turnError = params.turn?.error ?? null; finish(params.turn?.status ?? null); }
   });
   try {
-    await call('initialize', { clientInfo: { name: 'ieon-connector', version: '0.1.0' } });
-    transport.send({ jsonrpc: '2.0', method: 'initialized', params: {} });
+    if (!transport.ready) {
+      await call('initialize', { clientInfo: { name: 'ieon-connector', version: '0.1.0' } });
+      transport.send({ jsonrpc: '2.0', method: 'initialized', params: {} });
+      transport.ready = true;
+    }
     if (checkIdle) {
       const read = await call('thread/read', { threadId, includeTurns: false });
       const status = read.thread?.status?.type;
@@ -367,10 +372,18 @@ export async function appServerTurn(transport, { threadId, question, cwd, extraR
     }
     // SV1 엔진 칸(IEON_CONTAINER_BOUNDARY=1): 컨테이너가 경계 — 엔진 샌드박스(bwrap)가 Docker 안에서 안 되므로 끄되, 명령·파일 수정은 여전히 승인 카드로 묻는다
     const boundary = containerBoundary();
-    await call('thread/resume', { threadId, excludeTurns: true, cwd, sandbox: boundary ? 'danger-full-access' : 'workspace-write', ...WORK_POLICY });
-    const started = await call('turn/start', { threadId, cwd, clientUserMessageId: randomUUID(), ...WORK_POLICY,
-      sandboxPolicy: boundary ? { type: 'dangerFullAccess' } : { type: 'workspaceWrite', writableRoots: [cwd, ...(extraRoots ?? [])], networkAccess: false },
-      input: [{ type: 'text', text: question, text_elements: [] }] });
+    const at = cwd ? { cwd } : {};
+    let started;
+    if (policy === 'read') {
+      await call('thread/resume', { threadId, excludeTurns: true, ...at, sandbox: 'read-only', approvalPolicy: 'never' });
+      started = await call('turn/start', { threadId, ...at, clientUserMessageId: randomUUID(), approvalPolicy: 'never', sandboxPolicy: { type: 'readOnly' }, ...(model ? { model } : {}),
+        input: [{ type: 'text', text: question, text_elements: [] }] });
+    } else {
+      await call('thread/resume', { threadId, excludeTurns: true, cwd, sandbox: boundary ? 'danger-full-access' : 'workspace-write', ...WORK_POLICY });
+      started = await call('turn/start', { threadId, cwd, clientUserMessageId: randomUUID(), ...WORK_POLICY, ...(model ? { model } : {}),
+        sandboxPolicy: boundary ? { type: 'dangerFullAccess' } : { type: 'workspaceWrite', writableRoots: [cwd, ...(extraRoots ?? [])], networkAccess: false },
+        input: [{ type: 'text', text: question, text_elements: [] }] });
+    }
     turnId = started.turn?.id ?? null;
     // RC2: 멈춤 신호가 오면 그 차례를 끊는다(turn/interrupt). 엔진이 interrupted로 끝냈다고 알려 와야 중지됨.
     const interrupt = () => { if (turnId) call('turn/interrupt', { threadId, turnId }).catch(() => {}); };
@@ -382,7 +395,7 @@ export async function appServerTurn(transport, { threadId, question, cwd, extraR
     if (status !== 'completed') throw new Error(`turn_${status}`);
     if (userMessages > 1) throw Object.assign(new Error('turn_joined_by_other_input'), { unknownCode: 'turn_joined_by_other_input' });
     return { receipt: `codex:${threadId}:${turnId}`, answer, usage: Object.keys(usage).length ? usage : null };
-  } finally { transport.close(); }
+  } finally { if (!keep) transport.close(); }
 }
 
 // 번갈아 쓰기의 작업 모드: Desktop 잠금 판별 → 질문할 때만 app-server(stdio, 포트 없음)를 띄워 차례 하나 → 닫음.
@@ -391,7 +404,35 @@ export function stdioAppServer({ env, cwd, model = null, spawnImpl = spawn }) {
   const child = spawnImpl(process.execPath, [require0.resolve('@openai/codex/bin/codex.js'), ...(model ? ['-c', `model=${JSON.stringify(model)}`] : []), 'app-server'], { cwd, env: env ?? process.env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
   let buf = ''; let handler = () => {};
   child.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line.trim()) continue; try { handler(JSON.parse(line)); } catch { /* 형식이 틀린 줄은 무시 */ } } });
-  return { send: (m) => child.stdin.write(JSON.stringify(m) + '\n'), onMessage: (fn) => { handler = fn; }, close: () => child.kill() };
+  const t = { ready: false, alive: true, send: (m) => child.stdin.write(JSON.stringify(m) + '\n'), onMessage: (fn) => { handler = fn; }, close: () => { t.alive = false; child.kill(); } };
+  child.on?.('exit', () => { t.alive = false; });
+  return t;
+}
+
+// 2026-11-23 인수 시험(신산님 "연결 설정에서 띄워"): 빠른 응답(warm) — 대화 전용 Codex(app-server)를 미리 띄워 두고(MCP 서버도 그때 한 번)
+// 질문마다 차례만 연다. 띄워 둔 동안 그 대화는 이어온의 Codex가 잡고 있으므로 Codex 앱과 동시에 쓰지 않는다(화면·설명서 안내).
+const warmPool = new Map(); // threadId → transport
+const warmBusy = new Set();
+export function warmTransport(threadId, { env, cwd, model, make = stdioAppServer } = {}) {
+  const hit = warmPool.get(threadId);
+  if (hit?.alive) return hit;
+  const t = make({ env, cwd, model });
+  warmPool.set(threadId, t);
+  return t;
+}
+export function closeWarm(threadId = null) {
+  for (const [id, t] of warmPool) if (!threadId || id === threadId) { try { t.close(); } catch { /* 이미 끝남 */ } warmPool.delete(id); }
+}
+process.on?.('exit', () => closeWarm());
+// 미리 띄우기: initialize + thread/resume까지(모델 호출 없음) — MCP 서버·대화 기록을 이때 읽어 둔다.
+export async function warmUp(threadId, opts = {}) {
+  const t = warmTransport(threadId, opts);
+  const pending = new Map(); let id = 1;
+  const call = (method, params) => { const n = id++; t.send({ jsonrpc: '2.0', id: n, method, params }); return new Promise((resolve, reject) => { pending.set(n, { resolve, reject }); setTimeout(() => reject(new Error('warm_timeout')), 120_000).unref?.(); }); };
+  t.onMessage((msg) => { if (msg.id !== undefined && !msg.method && pending.has(msg.id)) { const p = pending.get(msg.id); pending.delete(msg.id); if (msg.error) p.reject(new Error(msg.error.message)); else p.resolve(msg.result); } });
+  if (!t.ready) { await call('initialize', { clientInfo: { name: 'ieon-connector', version: '0.1.0' } }); t.send({ jsonrpc: '2.0', method: 'initialized', params: {} }); t.ready = true; }
+  await call('thread/resume', { threadId, excludeTurns: true, ...(opts.cwd ? { cwd: opts.cwd } : {}), sandbox: 'read-only', approvalPolicy: 'never' });
+  return t;
 }
 // WS1-a: 공유(쓰기) 폴더 중 지금 있는 것만 writableRoots에 더한다(없어진 폴더는 빼고 — 작업 폴더 밖으로 넓히지 않음)
 function liveRoots(list) { return (list ?? []).filter((d) => { try { return statSync(d).isDirectory(); } catch { return false; } }); }
@@ -402,7 +443,7 @@ function workDir(dir) {
 }
 async function runAlternateWork(threadId, question, deps) {
   const cwd = workDir(deps.workingDirectory);
-  const outcome = deps.probe(threadId);
+  const outcome = await deps.probe(threadId);
   if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
   const transport = (deps.appServer ?? stdioAppServer)({ env: deps.env, cwd, model: deps.model ?? null });
   return appServerTurn(transport, { threadId, question, cwd, extraRoots: deps.extraRoots, approve: deps.approve, approvalResult: deps.approvalResult, timeoutMs: deps.workTimeoutMs, signal: deps.signal });
@@ -454,6 +495,17 @@ export function codexThreadAdapter(opts) {
   const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')), mcpList: opts.mcpList ?? (opts.loadSdk ? async () => [] : listMcpNames) }; // 가짜 SDK(시험)면 MCP 목록을 읽지 않음
   return {
     engine: 'codex_thread',
+    // 빠른 응답으로 정한 대화를 미리 띄운다(연결부 시작 때, 질문을 받는 연결부만). 실패해도 질문 때 다시 띄운다.
+    warmup(log = () => {}) {
+      if (!opts.live) return [];
+      const ids = Object.entries(opts.modes ?? {}).filter(([id, m]) => m === 'warm' && opts.allowlist.includes(id) && id !== EXCLUDED).map(([id]) => id);
+      for (const id of ids) {
+        const s = Date.now();
+        (opts.warmUp ?? warmUp)(id, { env: accountEnv(opts, id), cwd: opts.workingDirectories?.[id] ?? undefined, model: opts.model ?? null })
+          .then(() => log({ event: 'warm_ready', ms: Date.now() - s }), () => log({ event: 'warm_failed' }));
+      }
+      return ids;
+    },
     async run({ sessionRef: threadId, question, connectMode, newSession, workMode = false }, { approve = null, approvalResult = null, signal = null } = {}) {
       if (newSession) {
         if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
@@ -475,6 +527,18 @@ export function codexThreadAdapter(opts) {
         }
         // 작업 모드가 아니면 승인 요청이 와도 바로 거부(지금처럼 읽기 전용)
         return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: null, signal });
+      }
+      if (mode === 'warm') {
+        // 빠른 응답: 띄워 둔 Codex로 바로(없거나 죽었으면 지금 띄움). 이어온이 잡고 있으므로 Desktop 잠금 검사는 하지 않는다.
+        if (warmBusy.has(threadId)) throw new EngineError('thread_busy', 409);
+        warmBusy.add(threadId);
+        try {
+          const cwd = opts.workingDirectories?.[threadId] ?? null;
+          if (workMode) workDir(cwd);
+          const t = (opts.warmTransport ?? warmTransport)(threadId, { env: accountEnv(opts, threadId), cwd: cwd ?? undefined, model: opts.model ?? null });
+          return await appServerTurn(t, { threadId, question, cwd: cwd ?? undefined, extraRoots: workMode ? liveRoots(opts.writableExtra?.[threadId]) : [], approve: workMode ? approve : null, approvalResult,
+            timeoutMs: opts.workTimeoutMs, signal, policy: workMode ? 'work' : 'read', keep: true, model: opts.model ?? null });
+        } finally { warmBusy.delete(threadId); }
       }
       if (workMode) return runAlternateWork(threadId, question, { ...deps, model: opts.model ?? null, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], extraRoots: liveRoots(opts.writableExtra?.[threadId]), approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs, signal });
       return runAlternate(threadId, question, { ...deps, model: opts.model ?? null, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], signal });
