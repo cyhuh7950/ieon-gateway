@@ -52,6 +52,6 @@ test('설명서는 새 화면만 안내한다(예전 화면·봇 관리 탭 없�
   for (const f of ['docs/MANUAL.md', 'docs/MESSENGER_MANUAL.md', 'docs/BEGINNER_GUIDE.md', 'docs/API_GUIDE.md']) {
     const t = read(f);
     assert.ok(!/봇 관리|\/classic|예전 화면|이 PC 탭/.test(t), f);
-    assert.ok(t.includes('2026-11-19'), f + ': 기준 날짜'); // 2026-11-19 설명서 전체 점검으로 기준 날짜를 옮김
+    assert.ok(/2026-11-(19|2[0-9])/.test(t), f + ': 기준 날짜'); // 2026-11-19 설명서 전체 점검 이후 날짜(2026-11-23 업무 흐름 설명서)
   }
 });

@@ -181,7 +181,7 @@
   "set_live.1": "With AI replies on, Codex or Claude is called for every question. Turn it on?",
   "set_live.2": "AI replies {on}",
   "set_live.3": "Can only be changed from a screen opened on this PC",
-  "set_live.hub": "On the hub screen, change it in Settings → PC settings → Live run · Codex allowlist (\"Turn on live run\")",
+  "set_live.hub": "On the hub screen, change it in Settings → PC settings → Real runs · Codex allowlist (\"Turn on real runs\")",
   "set_live.4": "Couldn't change it: {error}",
   "state_of.1": "Connected to hub · can't send from here",
   "state_of.2": "PC disconnected",

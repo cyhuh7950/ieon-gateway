@@ -1,305 +1,719 @@
-<!-- source: docs/MANUAL.md @ ee3e10c -->
-# Ieon User Manual (Short Version)
+<!-- source: docs/MANUAL.md @ 10e60c2 -->
+# Ieon User Manual
 
-- As of: 2026-11-19 (new screens U1–U7, Antigravity, work mode, and multiple users included) · For: you
-- Principle: **All settings are done on the web screen, and Ieon handles tokens internally.** You never edit config files or move tokens around ([WEB_FIRST](../design/WEB_FIRST.md)).
-- Forms: PC mode (on your PC at `http://127.0.0.1:28760`) and hub mode (`https://ieun-gateway.sinsan.kr` + PC connection).
-- Two features: **Connect an existing session** (ask questions in a Codex conversation, Claude Code session, or Antigravity conversation that already exists on this PC) and **Create a new session** (Ieon creates a new Codex, Claude, or Antigravity session and a work folder; off by default).
-- If this is your first time, see the [step-by-step guide](BEGINNER_GUIDE.md) (includes installation and setup). To connect your own program, see the [developer integration guide](API_GUIDE.md).
-- Basis for verdicts: [first validation result](../validation/FIRST_CONTINUITY_RESULT.md); design: [DESIGN](../design/DESIGN.md)
+- As of: the 2026-11-23 screens (main `10e60c2` and later). Menu and button names in this manual are **exactly the text on the screen**.
+- Basis: written on 2026-11-23 from the results of an AI worker who built a test environment (test hub, test PC, test accounts) and pressed through every screen. The results are at the end in [Test evidence](#test-evidence-and-what-is-not-yet-verified).
+- Detailed behavior by feature, the HTTP API, and advanced features (Codex shared use, the Claude channel window) are in the [Reference Manual](MANUAL_REFERENCE.md). Install commands are in the [Beginner's Guide](BEGINNER_GUIDE.md).
 
-## 1. What Ieon does
+## How to read this manual
 
-Ieon takes a question sent from the web screen, puts it into **a work session you are already using**, and returns that session's answer. It does not create a new conversation or copy a conversation.
+| I... | Read it like this |
+| --- | --- |
+| am new | Follow **Part 1 in order, starting from Chapter 1**. That takes you from installation to questions and messengers. Each step links to the Part 2 description of the screen it uses. |
+| have used it and want only what I need | Find "what you want to do" in the [Index](#index) at the end, then go to the chapter or screen. |
+| have something that doesn't work | See the status text, card, and message tables in [Part 3 Troubleshooting](#part-3-troubleshooting). |
 
-| Engine | How it connects | Screen a person sees |
+There are three kinds of Ieon users. Each chapter says who it is for.
+
+| Name | Who | Shown at the top left |
 | --- | --- | --- |
-| Codex · alternate (`alternate`, default) | For each question, reopens the same conversation through the SDK, continues it, and releases it right away | Codex Desktop (when needed) |
-| Codex · shared (`shared_server`) | A person (TUI) and Ieon attach to one shared App Server together | Official Codex TUI |
-| Claude Code · channel | Puts the question into a running Claude Code session through the Ieon channel and receives the answer via `reply` | Claude Code terminal |
-| Antigravity · connected conversation | For each question, continues the same conversation with `agy` (work mode uses ACP `agy acp`) | Antigravity CLI |
+| **PC mode** | Someone who uses Ieon only on their own PC. The PC screen (`http://127.0.0.1:28760`) opens without logging in. | "This PC" |
+| **Hub admin** | Someone who installs and runs a public server (hub). Logs in with a password. | "Hub · address · Administrator" |
+| **Member** | Someone who signs up on another person's hub. Logs in with an email and password. | "Hub · address · email" |
 
-It has three parts.
+How text is shown: **bold text** is a button or menu you press, and "quoted text" is text that appears on the screen. Arrows, as in "Settings → Apps and devices → Devices", show the order in which you press things.
 
-- **Ieon server** (`127.0.0.1:28760`): web screen and API; keeps conversations and request states.
-- **Connector**: connects from this PC to the server first, picks up questions, and puts them into the engine. It opens no ports to the outside.
-- **Engines**: Codex conversations, the shared App Server (`28761`), the Claude channel (`28762`).
+---
 
-## 2. One-time setup
+## Part 1 Task flow
 
-- **Install on a Linux server (server install / hub mode):** Paste the command created in your existing hub's **Settings → Admin → Hub security → Install on a new server** (a 1-hour key, `curl … | sh`) into the new server (no repository access needed), or, if you have repository access, run `git clone` and then `sh deploy/server/install.sh` once — just press Enter for most questions; the rest (admin password, Codex/Claude login, messengers) is done on the web screen. For prerequisites, recommended specs, and what to do after installing, see [step-by-step guide 8-1](BEGINNER_GUIDE.md). A server install hides the PC connection screen; turning on PC connection in **Settings → Apps and devices → Devices** turns it into hub mode (data stays as is). Running the same install command again updates everything, including engine cells, to the new version.
-- **Work folders (folders per AI staff):** In **Settings → Work → Work folder**, register folders on that PC (on a hub, choose the PC or cell) with a name, and for each staff member use [Set folders] to attach one personal folder and shared folders (read only / read and write). When you save, it shows "how strictly it is actually blocked" and asks for your approval — in work mode, Codex asks with an approval card every time it edits a file (the card shows the file path, and "outside work folder" if it is outside the work folder), and it writes only if a person allows it — if you allow it, it can write outside the work folder too, so look carefully before pressing an "outside work folder" card. Reading cannot be blocked (guidance only), and other engines only get told about the folders. Folders under a temporary folder cannot be registered. Staff with no folders attached work exactly as before. Messenger `/status` shows only folder names. Claude (server conversations and new sessions) can neither read nor edit files outside the attached folders (blocked), and shared (read-only) folders are read only (a new session with full permission has command tools, so guidance only). Only shared folders are attached to new sessions (the personal folder is the auto-created work folder). For hub new sessions, choose "The hub itself" in **Settings → Work → Work folder**.
-- **Work blocked for Claude:** In Claude new sessions and server conversations, actions blocked by permission settings (for example, editing a read-only folder) are not run, and the end of the answer shows what was blocked as "[Ieon] actions not run because permission settings blocked them". The conversation does not stop.
-- **Scheduled tasks:** In **Settings → Work → Scheduled tasks**, enter a conversation, when (daily time / interval / once), the question, and a daily maximum, then create it; at that time the question goes to that conversation and the answer accumulates in the conversation. It asks for confirmation when you create it and when you turn it back on (AI is called while no one is around). It only sends questions (work mode conversations are skipped), and if the conversation is busy or the PC is off, that run is skipped (not resent automatically). If the result of the previous scheduled question cannot be confirmed, that schedule stops; resolve it and press **Turn back on** to have it send again. The answer is also posted to the messenger room connected to that conversation (Telegram, Discord, Slack, LINE) as "[name] Scheduled question (daily 09:00) answer:".
-- **Concurrent questions:** The questions one PC or engine cell handles at once (waiting + processing) default to 3. Beyond that, questions are not queued; it tells you "that PC/cell is handling several other questions" and does not resend automatically (the card's **Resend** sends only when you press it). To change: **Settings → Admin → Register conversations → Concurrent questions · wait time** (0 = no limit).
+### Chapter 1 What you need and installation
 
-[Step-by-step guide section 1](BEGINNER_GUIDE.md): run `pwsh scripts/install.ps1` once in the Ieon folder. It installs and sets up the components, creates internal tokens, sets up auto-start at logon, and makes a desktop shortcut. If Edge is installed, the **Ieon** shortcut opens as an Edge app window (its own window without address bar or tabs); otherwise it opens as a browser tab. Settings and tokens are in `.local\` (excluded from git) and are not shown on screen.
+**Who:** everyone (members only need 1-3)
 
-When you first open this PC's screen (when there are no connected conversations), the **3-step first-time setup** appears: ① readiness check (whether Codex is logged in on this PC) ② choose a conversation (one of the Codex conversations used recently on this PC — the only required choice) ③ Ready (messengers and hub are optional; **Open conversation**). To open it again, add `/#setup` to the end of the address. Other settings are in **Settings** (⚙) at the bottom left of the screen. **The work conversation `01a0dadd-…` does not appear in the list and cannot be connected** (the server removes and rejects it).
+Ieon lets you send questions from the web, messengers, and apps into **Codex and Claude Code work conversations you already use**, and brings back that conversation's answers. It never secretly creates new conversations or copies conversations. When you need one, Ieon can also create a new session (Chapter 6).
 
-## 3. Turning on and off
+#### 1-1. What you need
 
-- Ieon **starts automatically without a window when you log on** (Task Scheduler `ieon-gateway`). The server launches the connector and messengers together and restarts any that exits.
-- AI calls (AI replies) are on at install (since 2026-11-18; to install with them off, `pwsh scripts/install.ps1 -AiOff`). To turn them off, use the **AI replies** switch above the conversation (the same setting is "Turn on real runs" in **Settings → This PC** (on the hub screen, **Settings → PC settings**)). You can change it from any logged-in web screen (including phones and Tailscale). While it is off, messenger and API questions are not run.
-- Usually, picking a Codex conversation in **＋ Connect conversation** adds it to the allowlist and registers the session in one step. To add or remove allowlist entries directly (including connection mode and work folder), use **Settings → This PC** (on the hub screen, **Settings → PC settings**). When you change it, the connector restarts with the new settings.
-- To turn off completely (also removes auto-start): `pwsh scripts/install.ps1 -Uninstall` (settings and records remain).
-- To turn back on or apply a new version: `pwsh scripts/install.ps1` (settings and tokens stay; restarts with the new code).
-- It turns off when the PC turns off, and starts automatically at the next logon. For the order from install to removal, see section 10 of the [step-by-step guide](BEGINNER_GUIDE.md).
-- Log: `.local\run\server.log` (questions, answers, and token values are not recorded).
-
-### Connecting to a hub (hub mode)
-
-The easiest way (PC connection link):
-
-1. On the hub screen, **Settings → Apps and devices → Devices → PC connection link → Create link**. The link can be used once within 10 minutes.
-2. Open that link on the PC you want to connect. When "Connect this PC to the hub?" and the hub address appear, press **Connect** **only if it is a link you created** (if you leave this PC's name blank, the computer name is used). It finishes without a code check.
-
-Manual way (6-digit code):
-
-1. On this PC's screen, **Settings → Apps and devices → Hub connection → Connect to hub**: hub address (this PC's name is optional) → **Connect** → 6-digit code.
-2. On the hub screen, **Settings → Apps and devices → Devices → Connection requests**: if the code matches, **Approve** (if you reconnect the same PC, "Replace existing device").
-
-Once connected, the token is passed internally from the hub to this PC, and this PC's server launches a connector for the hub. It reconnects automatically after a reboot. **Reconnect**, **Disconnect**, and **Forget hub** are on this PC's screen under **Settings → Apps and devices → Hub connection**. The conversation list on the hub screen is grouped by PC name.
-
-- While connected to a hub, this PC's server does not hand out its own work (so the same PC does not run questions from two servers). So the PC screen does not accept questions and shows the "This PC is connected to a hub" card (**Open hub screen**). Send from the hub screen or a messenger bot connected to the hub.
-- To get real answers, this PC's AI replies (real runs) must be on.
-- This PC's safety settings (allowlist, real runs, work folders) cannot be changed from the hub.
-- `https` is recommended for the hub address. A server install without a domain also accepts `http` (with a warning). The hub accepts up to 240 requests per minute per device and returns 429 beyond that (the connector waits and asks again; it does not resend questions).
-
-### Claude channel session
-
-```powershell
-pwsh scripts/ieon.ps1 claude
-```
-
-`claude --dangerously-load-development-channels server:ieon` starts in a new window.
-
-- For the account, it uses the PC default login (a Pro/Max subscription login done with `/login` in that window; the first time, you do it yourself) or an Ieon account (subscription, API key, compatible endpoint) in **Settings → Account → Claude accounts**. An Ieon account is used from the channel windows you **newly open** after choosing it as the default.
-- Check that the bottom shows `manual mode`. If it shows `auto mode`, turn it off with `shift+tab`.
-- Do not type questions directly into this window (even if you do, the answer does not go to Ieon).
-- To end, `/exit`. When the session ends, the channel ends too.
-
-### Codex shared mode (TUI, advanced)
-
-This is a development feature that runs the shared App Server and the Codex TUI together, so it has no web screen yet. Usually you use "alternate". To use it, first remove auto-start with `pwsh scripts/install.ps1 -Uninstall` (so there are not two connectors), then run the commands below; when done, `stop` and restore with `pwsh scripts/install.ps1`.
-
-```powershell
-pwsh scripts/ieon.ps1 start -Shared
-pwsh scripts/ieon.ps1 tui
-```
-
-- **Do not open this mode's conversation in the Codex Desktop app** (lock conflict).
-- If a hook confirmation screen appears, choose "Continue without trusting".
-
-## 4. Using the web screen
-
-1. Open **Ieon** on the desktop (or `http://127.0.0.1:28760`). A screen opened on this PC logs in automatically. The hub logs in with the admin password (the first time, "Create admin").
-2. Choose a conversation from the list on the left. Each row has a line with the engine and status, and a count badge appears when there is something to handle. At the top of the list is **＋ Connect conversation**, and at the bottom left are **Messengers** and **Settings** (⚙).
-3. Type a question in the input box at the bottom and press **Send** (Enter; Shift+Enter for a new line). It shows Received → Running → Completed, then the answer appears.
-
-Above the conversation are the conversation name, engine, and status, the **AI replies** switch (this PC's screen only), and **Connection settings**. Pressing **Connection settings** shows the engine, connection method, and status on the right; for a new session it has Sleep and Delete, and **Advanced** has the Codex connection mode and conversation ID.
-
-### Connecting a conversation (＋ Connect conversation)
-
-On this PC's screen, pressing **＋ Connect conversation** shows the list of Codex conversations used recently on this PC (takes about 10 seconds; the server removes the work conversation before showing it). Pressing one adds it to the allowlist (alternate) and registers the session in one step, and that conversation opens. The work folder is set automatically. If it is not in the list, use **Advanced: enter conversation ID**. The hub screen works the same way — when you press **＋ Connect conversation**, the hub asks your PC (choose one if there are two or more) for the list and shows it, and choosing one adds it to that PC's allowlist and registers the session in one step (the PC must be on). You can also connect from the hub's **Settings → PC settings** by choosing a PC and using **Codex conversations on that PC → Load conversation list**. To register a Claude channel session, use **Settings → Admin → Register conversations → Register manually**.
-
-### Status labels and cards
-
-| Status label | Meaning | What to do |
+| What you need | Why | If you don't have it |
 | --- | --- | --- |
-| Ready to send | Engine is ready | You can ask |
-| Processing | This conversation's question is at the PC or running (the task screen splits this into Sending → Running) | Wait until it finishes |
-| Needs review | Locked because there is a question with an unknown result | See "Resolving needs review" below |
-| Asleep · wakes when you ask | A new session that is resting | Just ask |
-| PC disconnected | The connector is off | Check that the PC is on, and in hub mode, that the PC screen's **Settings → Apps and devices → Hub connection** shows connected |
-| Claude session off | The Claude channel session is off | Start the Claude channel session (see "Claude channel session" above) |
-| Shared server off | Shared mode, but the shared App Server is off | Switch to alternate in **Connection settings → Advanced** |
-| Connected to hub · can't send from here | This PC is connected to a hub | Send from the hub screen |
+| A Windows 10/11 or Linux PC | Ieon and the connector (the part that picks up questions and feeds them to the engine) run on this PC | You can't use Ieon |
+| Node.js 20 or later | Runs Ieon | The install script tells you |
+| Codex (ChatGPT subscription login) or Claude Code (Pro/Max subscription or API key) | The engine that actually answers | Step 1 of first-time setup shows "Login required". Installation still continues |
+| (Hub mode) One public server and a domain (https recommended) | Use it away from home, on your phone, or with several people; KakaoTalk and LINE | Use PC mode only (Telegram, Discord, and Slack also work in PC mode) |
+| (Messengers) Telegram, Discord, or Slack bot tokens; a Kakao Open Builder or LINE Developers account | Ask questions from messengers | Use the web and the app without messengers |
+| (Voice, optional) An OpenAI API key | Voice input in any browser, live voice conversation | Use the browser's built-in voice (Chrome, Edge, Safari) |
 
-When there is a problem, a **card** in the conversation shows the reason together with buttons: This PC is connected to a hub (**Open hub screen**), PC disconnected, Claude session is off / Shared server is off, Question needing review (**It ran** / **It didn't run**), This session is archived (**Restore**), AI replies are off (**Turn on AI replies**), The hub needs a Codex login (hub screen; goes to settings), Unsent question.
+#### 1-2. Installation (PC mode and hub mode)
 
-The **Resend** button on an **Unsent question** appears only when it is certain the question was not sent (open in the Codex app, shared server in use, processing, concurrency limit). It sends only when you press it and never resends automatically. Questions with an unknown result are not eligible for resending.
+- **Windows PC:** run `pwsh scripts/install.ps1` once in the Ieon folder. It installs the parts, sets things up, starts Ieon automatically at logon, and creates the desktop shortcut **Ieon**. For the detailed steps, see [Beginner's Guide section 1](BEGINNER_GUIDE.md).
+- **Linux PC:** `bash scripts/ieon.sh init`, then `bash scripts/ieon.sh start --live`. The screen is at `http://127.0.0.1:28760`.
+- **Hub (public server):** run the install command in [Beginner's Guide 8-1](BEGINNER_GUIDE.md) once. If you already have a hub, use **Settings → Admin → Hub security → Install on a new server → Create install command** and paste the command it makes into the new server.
 
-### Changing the Codex connection mode
+After installation: PC mode goes to Chapter 2, and a hub goes to Chapter 3.
 
-In a Codex conversation, choose **Connection settings → Advanced → Codex connection mode**.
+#### 1-3. What members need
 
-- **Alternate**: when you use only one of Desktop and Ieon at a time, or for an Ieon-only conversation. If that conversation is open in Desktop when sending, it is refused with "Not sent because this conversation is open in Desktop". The app can stay running; **just close that conversation**. When you reopen the conversation in Desktop, Ieon's questions and answers are visible.
-- **Shared**: a person (TUI) and Ieon use the same conversation without quitting the app. Ieon's questions and answers appear in the TUI right away.
-- You cannot change the mode while a question is processing or needs review.
+The **hub address** the hub admin gave you, your email, and your PC (with Ieon installed and Codex logged in). Go to Chapter 15, "Members".
 
-### Using it on a phone (Tailscale)
+---
 
-- **Recommended: use hub mode on phones.** Open the hub address in the phone browser and do **Add to Home Screen** (Android Chrome may show it as "Install app"; on iPhone Safari it is in the Share button) to get an app-like icon. On a narrow screen it switches between list ↔ conversation, and buttons are shown large (44px or more). Nothing is stored offline. The hub opens only from places you allow (access restriction in the hub screen's **Settings → Admin → Hub security**).
-- Exposing the PC directly, below, is an advanced setting with no web screen yet; the admin puts it in the config file at install time: setting `extraHosts` (this PC's Tailscale address) and `extraAllowedClients` (the phone's Tailscale address) lets it open from those addresses too. Only Tailscale addresses (100.64.0.0/10) are allowed; it does not open on 0.0.0.0 or home Wi-Fi addresses. Devices outside the allowlist get 403.
-- Turn on Tailscale on the phone and open `http://<this PC's Tailscale address>:28760`. Tailscale encrypts the traffic.
-- When not in use, delete the two entries or turn it off with `stop`.
+### Chapter 2 Start using it on this PC only (first-time setup)
 
-### Using it from messengers (Telegram, Discord, Slack, LINE, KakaoTalk)
+**Who:** PC mode · **Screens used:** [First-time setup](#first-time-setup-4-steps), [Left list](#left-list)
 
-For detailed bot creation, adding, and troubleshooting, see the [messenger setup manual](MESSENGER_MANUAL.md).
+1. Open **Ieon** on the desktop (or `http://127.0.0.1:28760`). If no conversation is connected yet, first-time setup opens by itself.
+2. In "How will you use it?", press **This PC only**. (If you have a hub, press **Connect to my hub** → Chapter 4.)
+3. In "Start Ieon", check that the Codex row says "✓ Ready". Even with "Login required" you can press **Continue** (log in to Codex later).
+4. In "Choose a conversation to continue" (takes about 10 seconds), press one Codex conversation to continue. This is the only choice you must make.
+5. In "Ready", press **Open conversation**. Messengers and the hub can wait (the **Set up** buttons).
 
-You can have several bots per messenger (**Settings → Messenger**). Connect one session per chat room (Telegram group or topic, Discord channel, Slack channel), or choose the target session with `/use` in a 1:1 chat with the bot. Telegram, Discord, and Slack connect from this PC to the messenger first, so no public address or Tailscale is needed. KakaoTalk goes through a public relay (PC mode) or the hub (hub mode), and LINE also needs a public address (currently hub mode only, 1:1 chats only).
+When you finish, the conversation appears in the left list, and first-time setup doesn't open the next time. To see it again, add `/#setup` to the end of the address. If you press **Do it later**, the mode is set to "This PC only" and the setup closes.
 
-1. **Messengers** at the bottom left of the screen → choose a messenger (Telegram, Discord, Slack, LINE, KakaoTalk). Bots that are turned off (such as bots moved to a hub) cannot be chosen.
-2. Follow the short instructions and enter the bot token in the field (Telegram and Discord: 1 field, Slack: 2 fields; if already saved, only when changing it). Saved values are not shown again. For KakaoTalk, copy the skill URL and paste it into the Open Builder skill URL.
-3. When the bot connects, a 6-digit number appears in large type. Send that number to the bot, and the sender is registered as that bot's owner (allowed user) ("○○ is now registered as the owner"). The number is valid for 10 minutes and one use, and after 5 wrong tries it locks and you need a new one. If an already allowed person sends it, the bot replies "You're already allowed, so nothing extra was registered" and the screen changes to complete.
-   - Another way: send anything to the bot, then press **Allow** in the "people waiting for messenger access" banner on the conversation screen or in **Settings → Messenger → Access requests**. Users outside the allowlist get no reply except to `/whoami`.
-4. Commands: `/sessions`, `/use <number>` (connect this chat room to a session), `/status`, `/review done|not` (resolve needs review), `/stop` (stop only the last question in this chat room), `/help`. Any other message goes to the connected session as a question. In Slack, use `!` instead of `/` (for example, `!sessions`).
+Next: Chapter 7 (asking questions). To connect more conversations, see Chapter 5.
 
-Messenger-specific preparation:
+---
 
-- Telegram: BotFather `/newbot`. To use it in groups, BotFather `/setprivacy` → Disable (or use 1:1 chats only).
-- Discord: Developer Portal → Bot → turn on **Message Content Intent**, and invite it to your server with the OAuth2 URL Generator (bot, Send Messages, Read Message History).
-- Slack: when creating the app, choose **From scratch**, not an AI connection (Claude/OpenAI) template. Turn on Socket Mode (App-Level Token `connections:write` → xapp), Bot Token Scopes `chat:write`, `channels:history`, `groups:history`, `im:history`, bot events `message.channels`, `message.groups`, `message.im` under Event Subscriptions, allow the Messages tab in App Home, install it to the workspace (xoxb), then invite the app to channels.
+### Chapter 3 Create a hub and log in as admin
 
-### Using it from your programs (HTTP API)
+**Who:** hub admin · **Screens used:** [Create admin](#create-admin), [Log in](#log-in), [Hub security tab](#admin--hub-security)
 
-For a detailed walkthrough and examples (PowerShell, Node, Python, curl), see the [developer integration guide](API_GUIDE.md).
+1. Open the hub address in a browser and "Create admin" appears. Enter a password (10 or more characters) twice and press **Create**.
+   - If the two boxes differ: "The two passwords don't match". If it's too short: "Password must be at least 10 characters".
+2. From then on, on the "Log in" screen, **leave the email box empty**, enter only the password, and press **Log in**. If the top left shows "Hub · address · Administrator", it worked.
+   - After 5 wrong passwords: "Too many failed attempts; temporarily locked" (15 minutes).
+3. In **Settings → Admin → Hub security → Security (hub access restriction)**, decide who can reach the hub. Look at "Your current address", press **Add my address** → **Save**. If your phone or other people need it, add their addresses too, or use the Cloudflare Access or Tailscale method (places that aren't allowed get "access denied").
+4. To use new sessions (Chapter 6) on the hub itself, press **Log in** under **Codex login (this hub)** on the same tab.
 
-Programs you build call the same HTTP API as the web screen and messenger bots. They do not call the engines directly. When a question is submitted to the server, the connector picks it up and puts it into the Codex conversation or Claude channel session, and the program checks the result.
+Next: Chapter 4 (connecting a PC).
 
-- Address: `http://127.0.0.1:28760` (for Tailscale-allowed devices, `http://<this PC's Tailscale address>:28760`).
-- Authentication: `Authorization: Bearer <API key>` on every `/v1/` request. If the key is wrong or revoked, 401.
-- Issue an API key per program in **Settings → Admin → External programs** (shown only once). Check the sessions that program may see and save; revoke it when no longer needed. You do not edit config files.
+---
 
-| Request | What it does | Response |
+### Chapter 4 Connect a PC to the hub
+
+**Who:** hub admin and members (their own PC) · **Screens used:** [Apps and devices tab](#my-settings--apps-and-devices), PC screen [Hub connection](#hub-connection-pc-screen)
+
+**Easiest way — PC connection link (tested)**
+
+1. On the hub screen, open **Settings → Apps and devices → Devices → PC connection link** and press **Create link**. The link works once within 10 minutes. Press **Copy**.
+2. Open that link **on the PC you want to connect**. The PC screen shows "Connect this PC to the hub?" and "Hub to connect: address". Press **Connect** **only if it's a link you made** (if you leave this PC's name empty, the computer name is used).
+3. "Connected to the hub…" appears, and the status changes to "hub address · PC name · Connected". The usage mode becomes "Connect to my hub" automatically.
+4. On the hub screen, the PC shows as "Connected" in the table under **Settings → Apps and devices → Devices**.
+
+**Manual way — 6-digit code**
+
+1. On the PC screen, go to **Settings → Apps and devices → Hub connection → Connect to hub**, enter the hub address, and press **Connect** → a 6-digit code appears.
+2. On the hub screen, in **Settings → Apps and devices → Devices → Connection requests**, check that it's the same code and press **Approve**.
+
+**Things to know after connecting**
+
+- The screen of a PC connected to a hub shows the card "This PC is connected to a hub" and **Open hub screen**. **Ask questions and use the conversation list on the hub screen.**
+- To reconnect, disconnect, or forget the hub, use **Settings → Apps and devices → Hub connection** on the PC screen.
+- To change that PC's settings (AI replies, allowlist, and so on) from the hub screen, pick the PC in **Settings → PC settings**. If the PC is off, "That PC isn't connected…" appears in the tab and the fields are locked.
+
+---
+
+### Chapter 5 Connect a conversation
+
+**Who:** everyone · **Screens used:** [Connect conversation window](#connect-conversation-window), [PC settings tab](#my-settings--this-pc--pc-settings)
+
+1. At the top left, press **＋ Connect conversation**.
+2. (Hub) Choose your PC in the "PC" box. Members see only their own PCs.
+3. In the "Codex conversations used recently on that PC" list, press one (takes about 10 seconds).
+4. The conversation opens right away and appears in the left list (on a hub, under the PC name). It is also added to the allowlist in the same step.
+
+- If it's not in the list, enter the Codex conversation ID and the name to show in the list under **Advanced: enter conversation ID** and press **Connect**.
+- You can do the same thing with **Settings → This PC (on a hub, PC settings) → Codex conversations on that PC → Load conversation list → Connect**.
+- Claude Code conversations and Antigravity or Grok sessions are registered by the admin in **Settings → Admin → Register conversations → Register sessions manually**, and added to **Settings → This PC → Antigravity · Grok allowlist** on the PC that will run them.
+
+---
+
+### Chapter 6 Create a new session
+
+**Who:** everyone (on a hub or PC where the admin has turned on new sessions) · **Screens used:** [New session window](#new-session-window), [Connection settings](#connection-settings)
+
+Ieon creates a new Codex, Claude, Antigravity, or Grok session with its own work folder.
+
+1. At the top left, press **＋ New session**.
+2. Choose the engine, (hub) **Where**, the name (2–32 letters, digits, or -), and the permission, then press **Create**.
+   - A hub admin chooses from "Hub (text replies only)" and the PCs and engine cells. A member chooses from their own PCs (a PC that is on is picked first).
+   - The permission "Full (run commands, internet)" appears only when the admin allows it in **Settings → Admin → Register conversations → New session settings**.
+3. "Created new session "name". It starts when you send the first question." → it appears in the list, and its status is "Before first question".
+4. It starts when you send the first question (Chapter 7).
+
+Tidying up: after 30 minutes without use it is "Asleep" (it wakes when you ask), and after 14 days without use it goes to the archive (restore it before asking). To delete, use **Connection settings → New session → Delete** (with a confirmation window). Sleep and delete are blocked for conversations that already existed, with the notice "Only new sessions made in Ieon can be put to sleep or deleted…".
+
+---
+
+### Chapter 7 Ask questions and get answers
+
+**Who:** everyone · **Screens used:** [Conversation header](#conversation-header), [Messages and input bar](#messages-and-input-bar), [To-do cards](#to-do-cards)
+
+1. Choose a conversation in the left list. Check that its status is "Ready to send".
+2. Write your question in the input box at the bottom and press **Send** (Enter; for a new line, Shift+Enter).
+3. The status changes in the order "✓ Received → Running… → ✓ Completed", and then the answer bubble appears. To stop, press **Stop**.
+
+- **AI replies switch:** "AI replies on/off" at the top of the PC screen. If it's off, the first time you send, the "AI will answer this question" window appears; press **Turn on and send**. On the hub screen it shows as "AI replies (PC settings)", and pressing it tells you where to change it (**Settings → PC settings → Real runs · Codex allowlist → Turn on real runs**).
+- **Codex conversations in Alternate mode (the default):** if that conversation is open in the Codex app when you send, it is not sent. The app can stay on; just close that one conversation.
+- If something blocks it, a **card** in the conversation shows the reason and buttons ([Card table](#card-table)).
+- A question whose result is unknown is locked with the "Question needing review" card. Check whether it ran in the original session, then press **It ran** or **It didn't run**. Ieon never resends anything on its own.
+
+---
+
+### Chapter 8 Work mode and approvals
+
+**Who:** everyone (Codex and Antigravity conversations) · **Screens used:** [Connection settings](#connection-settings), [To-do cards](#to-do-cards)
+
+Normal questions are read-only. When you need to edit files or run commands, turn on work mode for that one conversation.
+
+1. **Connection settings → Work mode → Turn on work mode** (with a confirmation window). A "Work mode" chip appears in the header.
+   - You can turn it on only for conversations that have a work folder (the work folder in **Settings → This PC (on a hub, PC settings) → Real runs · Codex allowlist**).
+2. When you send a question, each time the engine tries to edit a file or run a command, the card "OK to edit files?" or "OK to run a command?" appears.
+3. Press **Allow** (this time only) or **Deny**. If you don't answer within the set time (15 minutes by default), it is denied.
+4. The result of what you allowed (run completed, failed, or result unknown) is recorded on the same card.
+
+**Human tasks:** In **Connection settings → Human tasks**, set "Run any command", "Edit any file", "Request more permissions", or text patterns (for example, git push). Such actions are not asked of the AI; they are handed over as a "Human task" card. If you did it yourself, press **Done by me**.
+
+---
+
+### Chapter 9 Tasks drawer (see each question)
+
+**Who:** everyone · **Screens used:** [Tasks drawer](#tasks-drawer)
+
+1. At the bottom left, press **Tasks** (with a badge for the number of pending approvals).
+2. You see "Awaiting approval · human tasks", "In progress · needs review", and "Recent".
+3. **Details** on a row → question, status, engine, received, last change, resume check ("Same session"), and answer. Press **To conversation** to open that conversation.
+
+If you open a task link received in a messenger (`/#task=…`), that task opens right away. If it isn't yours: "Can't view this task".
+
+---
+
+### Chapter 10 AI staff and rooms
+
+**Who:** everyone · **Screens used:** [Connection settings](#connection-settings), [Room window](#room-create-and-edit-window), [Room screen](#room-screen), [Messenger advanced tab](#admin--messenger-advanced)
+
+1. Name each conversation: in **Connection settings → AI staff name and role**, enter a name (1–20 characters, no spaces), an icon (one emoji), and a role, then press **Save** → "Saved AI staff info". The list shows the icon and @name.
+2. Roles (admin): in **Settings → Admin → Messenger advanced → Roles → Create · edit roles**, enter the role ID, name, engines it can create, allowed permissions, and AI role instructions, then press **Save role**. Members can also pick and use these roles.
+3. Create a room: press **＋ Room** next to "Rooms" on the left → room name, members (1–10), lead, shared instructions → **Save** → "Room created".
+4. Using a room: call someone with @name and that staff member answers; if you call no one, the lead answers. Each answer has **Hand off to another AI staff member**.
+5. Delete a room: on the room screen, **Room settings → Delete room** (deletes only the room's history; the staff conversations stay as they are).
+
+---
+
+### Chapter 11 Work folders and schedules
+
+**Who:** everyone · **Screens used:** [Work tab](#my-settings--work)
+
+- **Work folders:** In **Settings → Work → Work folder** (on a hub, choose the "PC · cell" first), **Register** a folder name and path. Then use **Set folders** in the "AI staff" table to attach a personal folder and shared folders (read only / read and write) to each staff member. When you save, it shows "how strictly this PC actually blocks access" and asks you to confirm.
+- **Scheduled tasks:** In **Settings → Work → Scheduled tasks**, enter the conversation, when (daily / interval / once), the daily max, and the question to send, then press **Create schedule** (with a confirmation window). At that time the question goes to that conversation, and the answers collect in the conversation (and its connected messenger chat). If it is busy or the PC is off, that run is skipped.
+
+---
+
+### Chapter 12 Use it from messengers
+
+**Who:** PC mode and hub admin (bot owner), members (connect to the shared bot) · **Screens used:** [Messenger connection wizard](#messenger-connection-wizard), [Messenger tab](#my-settings--messenger)
+
+**Bot owner (PC mode, hub admin) — tested**
+
+1. At the bottom left, press **Messengers** → choose a messenger in "Which messenger will you use?". Each row shows "Not set up", "Connected", "Not connected · tap to check the token", or "Unavailable".
+2. Create a bot as the instructions say, paste the token, and press **Connect** (spaces at the start and end are removed automatically).
+   - If the token is wrong: "Bot not connected — Invalid token. Go back and check the token."
+   - KakaoTalk and LINE need a public address, so you connect them **from the hub (or a public relay)**. If you press them in PC mode, the reason is shown.
+3. When the bot connects, "Send this number to the bot" and a 6-digit number (valid 10 minutes) appear. Send that number to the bot, and the sender is registered as the bot owner.
+4. "Connected". Send the bot `/sessions` and `/use number` to choose a conversation, then ask questions.
+
+Multiple bots, call names, and allowed users are in **Settings → Messenger → Bots**. Requests from people who aren't allowed are in **Settings → Messenger → Access requests**. For details, see the [Messenger Setup Manual](MESSENGER_MANUAL.md).
+
+**Members — link your messenger account to the shared bot**
+
+1. At the bottom left, press **Messengers** (or **Settings → Messenger**) → "Messenger connection".
+2. Press **Get linking number** → send the number to the hub's shared bot.
+3. That messenger account sees only your conversations. To unlink, press **Disconnect** in the same table.
+
+---
+
+### Chapter 13 Voice
+
+**Who:** everyone · **Screens used:** [Messages and input bar](#messages-and-input-bar), [Account tab OpenAI voice](#my-settings--account)
+
+- **Voice input (default):** 🎤 in the input bar → the first time, the "Before using voice" notice → **OK** → speak and the text goes into the input box. It works in Chrome, Edge, and Safari. In a browser where it doesn't work: "This browser doesn't support voice input…".
+- **Read aloud:** **🔈 Read aloud** in the header → new answers are read out loud (code becomes "Code omitted").
+- **OpenAI voice (admin setting):** enter a key in **Settings → Account → OpenAI voice** and set the voice mode to "OpenAI speak once, then listen" or "OpenAI live conversation". In live mode, pressing 🎤 shows a bar at the bottom ("Connecting… → Listening", "N min left", **Mute**, **Hang up**). The answer always comes from that conversation's work session.
+
+---
+
+### Chapter 14 Ieon App (phone and PC)
+
+**Who:** everyone · **Screens used:** [Apps and devices tab](#my-settings--apps-and-devices)
+
+1. Get the app: open `hub address/app` in your phone's browser, or use **Settings → Apps and devices → App → Get the app**.
+2. **Settings → Apps and devices → Connect Ieon App → Create pairing code** → on the app's first screen, "Connect Ieon", enter the server address and the 8-digit code and press **Connect**.
+3. In the app, use the conversation list, questions, cards (allow/deny), rooms, tasks, and voice the same way as on the web. To disconnect, press **Disconnect** in the same table on the web, or **Disconnect this device** in the app.
+
+For a detailed description of each app screen, see the [Ieon App Guide](APP_GUIDE.md).
+
+---
+
+### Chapter 15 Use it with several people
+
+**Who:** hub admin (15-1), members (15-2) · **Screens used:** [Hub security tab](#admin--hub-security), [Log in](#log-in), [Waiting for approval](#waiting-for-approval)
+
+#### 15-1. Admin
+
+1. Turn on **Settings → Admin → Hub security → Multiple users → Multi-user (accept sign-up requests)** (with a confirmation window). The login screen gets **Sign-up request** and a terms agreement box.
+2. Open **Security (hub access restriction)** at the top of the same tab so other people can reach the hub (even when open, logging in is still required).
+3. When a request arrives, press **Approve** or **Reject** in the table in the same section.
+4. People already using it: **Disconnect** (logs them out right away), **Turn back on**, **Temporary password** (shown once in a browser alert window), **Delete**. Set the number of questions per day with **Member daily question limit** and each person's **Limit**.
+
+#### 15-2. Members (tested)
+
+1. Open the hub address, enter your email and a password (10 or more characters), read the **Terms of Use** and **Privacy Policy**, check the agreement box, and press **Sign-up request** → confirmation window → "Waiting for approval".
+2. After the admin approves, **Log in** with the same email and password. The top left shows "Hub · address · your email".
+3. Connect your PC: **Settings → Apps and devices → Devices → PC connection link → Create link** → open that link on your PC and press **Connect** (same as Chapter 4).
+4. Connect conversations (Chapter 5), create new sessions (Chapter 6, on your PC only), and ask questions (Chapter 7). For messengers, see Chapter 12 "Members".
+5. Change your password: **Settings → Account → My password**.
+
+Tabs members see in Settings: **PC settings, Work, Account (My password), Messenger (Messenger connection), Apps and devices**. Hub settings, security, bots, and account logins are admin-only. Other people's conversations and PCs are not visible.
+
+---
+
+### Chapter 16 Engine accounts and usage
+
+**Who:** PC mode and hub admin · **Screens used:** [Account tab](#my-settings--account)
+
+- By default, Ieon uses the Codex and Claude already logged in on that PC ("PC default login — that PC's Codex login").
+- To use another account, go to **Settings → Account → Codex accounts** (or Claude, Antigravity, or Grok accounts), press **Add account** → choose login (subscription), API key, or compatible endpoint → **Default account**. A different account per conversation is set in the per-conversation table in the same section.
+- In **Usage · limits**, see each account's questions today and tokens this month, and set daily question and monthly token limits. If a limit is exceeded, the card "This conversation's API account hit its limit" appears.
+
+---
+
+### Chapter 17 Operations
+
+**Who:** hub admin (some for PC mode)
+
+| What you want to do | Where |
+| --- | --- |
+| Decide where the hub can be reached from | **Settings → Admin → Hub security → Security (hub access restriction)** |
+| Install Ieon on a new server | **Settings → Admin → Hub security → Install on a new server → Create install command** (1 hour) |
+| Questions one PC handles at once, approval card time, login duration | **Settings → Admin → Register conversations → Concurrent questions · wait time** |
+| Turn on new sessions, limits, sleep, archive, allow full permission | **Settings → Admin → Register conversations → New session settings** |
+| Language of text the server sends | **Settings → Admin → Register conversations → Server language** |
+| An API key so your own program can call Ieon | **Settings → Admin → External programs** → program name → **Issue key** (shown only once) → save visible sessions; if no longer needed, **Revoke**. For usage, see the [API Guide](API_GUIDE.md) |
+| Disconnect a PC (hub side) | **Revoke** in the table under **Settings → Apps and devices → Devices** |
+| Backups, limits, running for multiple users | [Hub Operations Manual](OPERATIONS.md) |
+
+---
+
+## Part 2 Screen by screen
+
+For each screen: **how to open it · what it does · steps · main items**.
+
+### Conversation screen (`/`)
+
+#### Log in
+
+- **How to open:** go to the hub address (before logging in). The PC screen logs in automatically, so you don't see it there.
+- **What it does:** enter the hub, request sign-up, choose the screen language.
+- **Steps:** admin leaves the email empty, enters the password → **Log in**. Members enter email and password → **Log in**. First time: agreement box → **Sign-up request**.
+
+| Item | Description |
+| --- | --- |
+| "Email (admin: leave blank)" | The member's email. The admin leaves it empty |
+| "Password" | 10 or more characters |
+| **Log in** | Enter. If wrong: "Wrong password". After 5 wrong tries, locked for 15 minutes |
+| Agreement box "Terms of Use and Privacy Policy: I agree (when requesting sign-up)" | Shown only on hubs with multi-user turned on. Both documents open in a new tab |
+| **Sign-up request** | Request confirmation window → waiting for approval. If the email has already applied: "This email has already applied — try logging in". If the email format is wrong: "That doesn't look like an email address" |
+| Language choice (Korean/English) | Screen language |
+
+#### Create admin
+
+- **How to open:** when you first open a hub that has no admin.
+- **What it does:** set the hub admin password.
+- **Steps:** password twice → **Create** → straight to the conversation screen.
+
+| Item | Description |
+| --- | --- |
+| "Password" and "Confirm password" | 10 or more characters, must match |
+| **Create** | If it was already created in another tab: "An admin already exists. Please log in" |
+
+#### Waiting for approval
+
+- **How to open:** right after a sign-up request, or when logging in before approval.
+- **What it does:** tells you that approval hasn't happened yet.
+- **Main items:** "Waiting for approval" (with an ⓘ note), **Log out**. If the admin has disconnected the account, logging in shows "This account can't be used (contact the admin)".
+
+#### First-time setup (4 steps)
+
+- **How to open:** opens by itself on the PC screen when no conversation is connected (not on a PC connected to a hub), or at the address `/#setup`.
+- **What it does:** choose the usage mode and connect the first conversation.
+
+| Step | Screen text | What to do |
 | --- | --- | --- |
-| `GET /v1/conversations` | Session list | `conversationId`·`label`·`engine`·`deviceOnline`·`busy`·`engineReady`·`heldBy` |
-| `POST /v1/conversations/<id>/requests` | Submit a question | 202 `{"requestId"}` |
-| `GET /v1/requests/<requestId>` | Check the result | `status`·`answer`·`errorCode`·`usage` |
-| `POST /v1/requests/<requestId>/review` | Resolve needs review, body `{"executed": true\|false}` | Resolved `status` |
-| `GET /v1/tasks?filter=active\|all` · `GET /v1/tasks/<requestId>` | Task (per question) list / one task (question, approval results, answer) | `tasks` · task |
-| `GET /v1/approvals` | Pending approvals and tasks handed to a human (`handoff: true`) across all conversations | `approvals` |
-| `GET·PUT /v1/conversations/<id>/handoff` | "Human task" rules (PUT from the web screen only), body `{"kinds":["command"\|"file"\|"permissions"], "patterns":["git push"]}` | Rules |
-| `POST /v1/requests/<requestId>/stop` | Stop only that question | 200 `cancelled` (before start) · 202 `stopping` (running → `cancelled` after confirmation) · 409 `not_running`·`stop_unsupported` |
-| `GET /v1/conversations/<id>/messages` | Ieon question/answer history for that session | `messages` |
-| `DELETE /v1/conversations/<id>/messages` | Delete history | 204 |
-| `PUT /v1/conversations/<id>/settings` | Codex connection mode, body `{"connectMode": "alternate"\|"shared_server"}` | `connectMode` |
+| 0 | "How will you use it?" | **This PC only** / **Connect to my hub** (→ Settings, Apps and devices) / "Ieon public service" (coming soon). Skipped if the usage mode is already set |
+| 1 | "Start Ieon" | Codex "✓ Ready" or "Login required", Claude Code "Later" → **Continue** |
+| 2 | "Choose a conversation to continue" | Press one recent Codex conversation on this PC |
+| 3 | "Ready" | "Use with messengers too — **Set up**", "Use it away from home (hub) — **Set up**", **Open conversation** |
+| Bottom | **Do it later**, "1 / 3" | Do it later = set to This PC only and close |
 
-Submitting a question requires an `Idempotency-Key` header (8–64 letters, digits, `_`, `-`; a new value for each question). Sending the same key again does not run it again. When a network error leaves you unsure whether it was submitted, send again **with the same key**.
+#### Left list
 
-```powershell
-$token = $env:IEON_API_KEY   # Put the key issued on the web into your program's environment variable
-$h = @{ Authorization = "Bearer $token" }
-$base = 'http://127.0.0.1:28760'
-Invoke-RestMethod "$base/v1/conversations" -Headers $h
-$r = Invoke-RestMethod "$base/v1/conversations/c_claude_test/requests" -Method Post -ContentType 'application/json' `
-  -Headers ($h + @{ 'Idempotency-Key' = "myapp-$([guid]::NewGuid())" }) -Body (@{ question = 'Hello' } | ConvertTo-Json)
-do { Start-Sleep 2; $s = Invoke-RestMethod "$base/v1/requests/$($r.requestId)" -Headers $h } while ($s.status -in 'queued', 'dispatching', 'running')
-$s
-```
+- **How to open:** always shown after logging in (on a phone, it is the first screen).
+- **What it does:** choose conversations and rooms, connect or create new ones, bottom menu.
+- **Steps:** press a conversation and it opens on the right.
 
-Handling the result `status`:
+| Item | Description |
+| --- | --- |
+| "Ieon" + where | "This PC" or "Hub · address · Administrator/email" |
+| **＋ Connect conversation** | [Connect conversation window](#connect-conversation-window) |
+| **＋ New session** | [New session window](#new-session-window) |
+| "Choose a usage mode — recommended: …" | Only when the PC usage mode isn't set yet. Press it to go to Settings |
+| "Rooms" · **＋ Room** | Room list and the [room window](#room-create-and-edit-window) |
+| "AI staff (conversations)" | Conversation rows: icon and name, "@name · engine · status", a badge with the number of to-do items. On a hub, grouped by PC name |
+| "Archive N" | Archived new sessions, **Restore** |
+| **Notifications** | Browser notifications "X replied" even when the tab is closed (content not included) |
+| **Tasks** | [Tasks drawer](#tasks-drawer) |
+| **Messengers** | PC mode and admin: [messenger wizard](#messenger-connection-wizard). Members: Messenger connection in Settings |
+| **Settings** | Settings screen |
+| **Log out** | Leave |
 
-- `completed`: `answer` is the answer.
-- `failed`: check `errorCode`, fix the cause, and you can send again with a new key.
-- `unknown`·`approval_required`: **do not resend automatically.** Check in the original session, then resolve with `review` (same as "Resolving needs review"). Until resolved, that session is locked.
+#### Conversation header
 
-Submission errors: 400 `bad_request` (missing key or question, question too long), 404 `not_found` (session does not exist or is not allowed), 503 `device_unavailable` (connector off), `session_not_running` (Claude session off), `shared_server_down` (shared App Server off), 409 `conversation_busy` (processing or locked by needs review), `idempotency_conflict` (a different question with the same key).
+- **How to open:** at the top when you choose a conversation.
+- **What it does:** see the current conversation's status and open its settings.
 
-To get real answers, AI replies (real runs) must be on, and for Claude sessions keep the channel session running. Connect existing Codex conversations first with **＋ Connect conversation** on the web (allowlist entry and session registration in one step).
+| Item | Description |
+| --- | --- |
+| Title | Conversation name (on a phone, **←** goes back to the list) |
+| Engine, account, and work mode chips | Wide screens only. "Account · PC default login…" |
+| Status chip | "Ready to send", "Processing", "Needs review", "PC disconnected", "Asleep · wakes when you ask", and so on |
+| "AI replies on/off" switch | PC screen: turns real runs on and off (confirmation window when turning on). Hub screen: "AI replies (PC settings)" — pressing it tells you where to change it (not shown on the hub screen on a phone) |
+| **🔈 Read aloud** | Reads new answers out loud |
+| **Connection settings** (⋯ on a phone) | [Connection settings](#connection-settings) |
 
-### Work mode (Codex, Antigravity, approval cards)
+#### To-do cards
 
-Only in "work mode", turned on per conversation, can Codex and Antigravity edit files and run commands, and each time they ask with an [Allow]/[Deny] card (web) or `/allow n` · `/deny n` (messenger, owner only; on Korean bots also `/허용 n` · `/거부 n`). This time only; no reply within the set time (default 15 minutes; 15 minutes to 24 hours in **Settings → Admin → Register conversations → Concurrent questions · wait time**) or end of turn means deny; no internet; a person makes the approval decision. Writes ask with an approval card per file, and if outside the work folder the card shows "outside work folder" — if a person allows it, writing outside the folder happens too (section 2, work folders). The real result after allowing (running → completed, failed, or result unknown) is shown on the same card and in the messenger chat room, and the number n is the same on web and messenger. For the detailed order, see [BEGINNER_GUIDE 5-2](BEGINNER_GUIDE.md).
+- **How to open:** appear by themselves under the header when there is something to do.
+- **What it does:** shows in one place why something is blocked and what to do. For the kinds, see the [Card table](#card-table).
 
-**Antigravity (E3, 2026-11-19):** You can also turn on work mode for a connected Antigravity conversation in Connection settings. When on, the question is continued in the same conversation through Antigravity's ACP (`agy acp`), and every time Antigravity asks permission to edit files or run commands, the same [Allow]/[Deny] card appears (Allow = this time only; "always allow" is never chosen). When work mode is off, it runs once in plan (read-only) mode as before. If a person has that conversation open in Antigravity, it is not sent and shows "in use" as before. The approval round trip (allow and deny) was verified with real Antigravity (2026-11-19).
+#### Messages and input bar
 
-### OpenAI voice (V2, 2026-11-20)
+- **What it does:** send questions, see answers, voice input.
+- **Steps:** write → **Send** → "✓ Received → Running… → ✓ Completed" → answer. To stop, press **Stop**.
 
-In **Settings → Accounts → OpenAI voice** (admin), set the OpenAI API key, the voice method (built-in device, OpenAI speak once then listen, OpenAI live conversation), voice, daily max, hang up after silence and max per call, plus the folded **Members and models** (members can use it, member daily max, model names). Changes save right away and apply from the next 🎤 without a restart. A new key is saved only after OpenAI accepts it (a model list lookup — no charge), and only its last 4 characters are shown. **The conversation's work session always does the answering**; OpenAI only relays the words (in a live conversation, anything about the work goes to the session as a normal question and shows up in the chat as a 🎤 question). Nothing is approved by voice. How to use it: [APP_GUIDE 8-2](APP_GUIDE.md); design: [VOICE_LIVE](../design/VOICE_LIVE.md). Audio is not stored in Ieon or logged (it does go to OpenAI). On a PC connected to a hub, use it from the hub screen, like questions.
+| Item | Description |
+| --- | --- |
+| Bubbles | Your questions (right) and answers (left). With no history: "No messages exchanged in Ieon yet…" |
+| **🎤** (voice input) | Voice input (Chapter 13) |
+| "Message" input box | Enter sends, Shift+Enter adds a new line (16px text on phones — no zooming) |
+| **Send** / **Stop** | Send, or stop while processing |
 
-### Creating a new session
+#### Connect conversation window
 
-A feature where Ieon creates a new Codex, Claude, or Antigravity session and a dedicated work folder (off by default). Turning it on, limits, sleep, archive, and default permissions are in **Settings → Admin → Register conversations → New session**; design is in [NEW_SESSIONS](../design/NEW_SESSIONS.md).
+- **How to open:** **＋ Connect conversation**.
+- **What it does:** connects a Codex conversation you were using on that PC to Ieon.
+- **Steps:** (hub) choose the PC → press one in the list → it opens right away.
 
-- Create: **＋ New session** at the top left of the screen (visible only when the feature is on — choose engine, name, and permission, then create), messenger `/new codex|claude|antigravity <name>`, API `POST /v1/sessions`.
-- **Grok new sessions and accounts (G1, 2026-11-20):** If you choose **Grok** as the engine, the Grok CLI (`grok`) on that PC creates a new session at the first question (`-p … --output-format json`), and it continues only with the session ID it received (`-r <ID>`). If you choose an account with an xAI API key in **Settings → Account → Grok accounts (for new sessions)**, it goes out with that key (`XAI_API_KEY`); otherwise it uses that PC's Grok login (PC default). Real Grok answers have not been verified yet because there is no subscription (only testing after install and subscription remains). The new session limit is the Grok limit in **Settings → Admin → Register conversations → New session settings**.
-- **Antigravity new sessions (E4, 2026-11-19):** If you choose **Antigravity** as the engine, Antigravity (`agy`) on that PC creates a new conversation at the first question, and it continues only with the conversation ID it received. Permissions: read only = `plan` + sandbox, work folder = `accept-edits` (edit files) + sandbox, full = `auto` (including commands, no sandbox). It works where Antigravity is installed (installed in the hub image since 2026-11-20 — not yet verified on real hub/server cells). New session questions were verified with real Antigravity (2026-11-19).
-- Cleanup: sleeps after 30 minutes idle (wakes when you ask) → archived after 14 days unused (must be restored before asking) → deletion requires name confirmation. On the web, Sleep and Delete in **Connection settings**, and **Restore** in the archive below the list and on the "This session is archived" card; in messengers, `/sleep`, `/archived`, `/restore`, `/close`, `/limits`.
-- The default permission is read and write inside the work folder. `full` (command execution, network) can be chosen only after turning on the "full permission" switch in **Settings → Admin → Register conversations → New session** (a confirmation dialog when turning it on, since 2026-11-18).
-- **Where (hub mode, SV2):** If the hub has engine cells or PCs, "Where" appears in the create dialog. **The default is the first engine cell that is on** (since 2026-11-18 — web, app, and messenger `/new` all; if you don't choose, that cell). Engine cells (for example, Server · test1 — shown in the list as "including commands and file work") handle commands and file work (for Codex new sessions the cell container is the boundary; it cannot touch anything outside the cell or the hub data), and the hub itself answers with text only. If there are no engine cells or all are off, it is created on the hub itself.
-- **Server Claude login (hub mode, once):** On the hub screen, in **Settings → Account → Claude accounts**, press **Log in (subscription)** → in **Open approval window**, approve with your Claude account → copy the code shown and paste it into the Ieon field → "Logged in · subscription". Or enter an **API key** (sk-ant-…) once. The hub and all engine cells share this one login (no login per cell), and tokens and keys are not shown on screen again. If you write `ANTHROPIC_API_KEY=...` in the environment file of the server's Ieon folder at install time, it is filled in automatically. Claude on a PC uses that PC's Claude Code login by default, and you can keep several Ieon-only accounts in **Settings → Account → Claude accounts** (label → login: approve in the approval window and paste the code, or API key → **Default Claude account**). The chosen account is used for Claude new sessions and newly opened Claude channel windows (`ieon.ps1 claude`), and nothing is sent before it is logged in. A different account per conversation is set in the **Claude conversation / Account to use** table on the same screen (same as per-conversation accounts for Codex). Which account a conversation uses is shown above the conversation, in conversation info, and in messenger `/sessions` as "Ieon account <label>". **Compatible endpoint** (Claude Code stays the same; only the model changes to Upstage Solar, a router, a local model, and so on): **Compatible endpoint** on the Claude account row → address, key, model name, how the key is sent → save. Existing human-created Claude conversations (including channel windows) continue only with verified combinations (Upstage), and other endpoints work only in Ieon new sessions (unverified combinations are not sent, with `combo_unverified`). **Antigravity accounts (A3, 2026-11-19):** On the same screen, **Antigravity accounts (for new sessions)** — label → **API key** (Gemini, pay per use) → **Antigravity account for new sessions**. Logging in with a subscription per account does not work (measured 2026-11-19 — to use a subscription, use "PC default login"). **Compatible endpoint** also works: **Compatible endpoint** on the account row → address (https; for your own PC, http://localhost), key, model names (optional, comma-separated), request format (Gemini/OpenAI Responses) — it sends to that model through Antigravity's enterprise model gateway feature (not verified with a real gateway). New sessions created with an Ieon account show "Ieon account <label>" above the conversation. Antigravity new sessions created with this account store their conversations in that account's folder and keep continuing with that account (even if you change the default), while Antigravity conversations originally used on that PC stay on the PC default login. Deleting an account also deletes the conversations of the new sessions created with it. **Codex compatible endpoint:** **Compatible endpoint** on the Codex account row (address, key, model; OpenAI Responses API compatible only — Codex 0.165 does not accept `wire_api = "chat"`). It is used only in Ieon Codex new sessions; existing human-created Codex conversations have no verified combination, so they are not sent (`combo_unverified`). Conversation history continues from that PC's records regardless of the account. On the hub, choose a PC and change it on the same screen.
-- **Choosing server-cell Claude conversations (hub mode):** Claude conversations opened directly on the server with `ieun.sh engine claude <cell> [name]` can also be continued in Ieon. On the hub screen, in **Settings → PC settings**, choose that cell (Server · name), and the **Server Claude conversations** table shows recent conversations with title, folder, and time → pressing **Connect** adds it to the conversation list right away, and questions continue in the same conversation. While that folder's Claude screen is open on the server, it does not send and tells you "in use" (close it and send again). Command execution is not opened; only reading and editing files.
+| Item | Description |
+| --- | --- |
+| "PC" | Hub only. Members see only their own PCs |
+| Conversation list | First question, folder, last used. Ones already connected show "Connected". Conversations excluded as work-only don't appear |
+| **Advanced: enter conversation ID** | Codex conversation ID and the name to show in the list → **Connect**. If the format is wrong: "Not a conversation ID format" |
+| **Close** | Close (Esc or clicking outside also works) |
 
-### Multiple bots and roles
+#### New session window
 
-One default bot is enough with the **Messengers** window. To add more bots or change name, call name, role, visible existing sessions, extra allowed users, on/off, or token, go to **Settings → Messenger** (the "Advanced" link in the messenger window also leads here). Creating and editing roles is in **Settings → Admin → Messenger advanced → Roles** (admin only). Tokens are not shown again. For the detailed order, see [messenger setup manual](MESSENGER_MANUAL.md) 6.2.
+- **How to open:** **＋ New session**.
+- **What it does:** Ieon creates a new session and a work folder.
+- **Steps:** engine → (hub) where → name → permission → **Create**.
 
-### Using it with multiple people (hub mode, 2026-11-19)
+| Item | Description |
+| --- | --- |
+| Engine | Codex, Claude, Antigravity, Grok |
+| Where | Admin: "Hub (text replies only)", PCs, and engine cells (" — including commands and file work"; when off, " (off)"). Members: only their own PCs |
+| Name | 2–32 letters, digits, or -. If wrong: "Names are 2–32 letters, digits, or -…". If taken: "A session with the same name already exists" |
+| Permission | "Read/write inside work folder (default)", "Read only" ("Full (run commands, internet)" if the admin allows it) |
+| Limit line | "Now N/N · Codex …" (for the admin, also where to turn on full permission) |
+| **Create**, **Close** | |
 
-A feature for sharing a hub with family or colleagues (off by default). People who sign up use **only their own sessions on their own PCs**, and their conversations are not visible on screen to other members or to the admin (hub owner). For the member walkthrough, see the [member guide](MEMBER_GUIDE.md); design is in [MULTI_USER](../design/MULTI_USER.md).
+#### Room create and edit window
 
-- **Turning it on:** "Multi-user" in the hub screen's **Settings → Admin → Hub security → Multiple users** (confirmation dialog). When on, **Sign-up request** appears on the login screen. Turning it off only blocks new requests; approved people keep using it.
-- **Hub access restriction:** If the hub is restricted by an IP list, other people cannot reach the hub. To share it, open it in **Security (hub access restriction)** at the top of the same screen (login is still required even when opened).
-- **Approval:** In the list on the same screen, **Approve / Reject** each applicant. For approved people: **Disconnect** (logs out immediately; cannot log in again), **Turn back on**, **Temporary password** (password recovery without email — shown only once, and that person's login is ended), **Delete** (deletes all of that person's Ieon conversation history, rooms, schedules, connected PCs, app connections, and messenger connections; the original session records on that person's PC remain).
-- **Terms and limits (M4, 2026-11-19):** When signing up, the person must check the agreement boxes for the **Terms of Use** (`/terms`) and **Privacy Policy** (`/privacy`) for the request to go through (the time of agreement is recorded; both pages open regardless of access restriction; they are drafts provided by Ieon, so the hub owner should review them). Set the daily question count with the **Member daily question limit** (default) in the same "Multiple users" section and the **Limit** in the list (per person; 0 = no limit for that person only; blank = default), and see usage in **Questions today** in the list. When exceeded, the question is not sent and the person is told (resets at midnight Korea time; admins have no limit). For the operating steps, see the [hub operations manual](OPERATIONS.md).
-- **Admin login:** As before, leave the email field blank and enter only the password. Change the admin password in **Settings → Account → My password** (members change their own password in the same field).
-- **What members can use:** connecting their own PC (PC connection link), new sessions on their own PC, work folders, schedules, app connections, messenger connection (shared bots), connecting Codex conversations used on their own PC (**＋ Connect conversation**). **What they cannot use:** hub settings, security, messenger bot settings, accounts, the session registration table (manual entry), hub engine cells, other people's PCs and conversations.
-- **Shared messenger bots:** Members share the hub's Telegram, Discord, Slack, LINE, and Kakao bots (Kakao since 2026-11-19 — Kakao cannot send first, so scheduled answers and notifications do not go to Kakao rooms). When a member sends the 6-digit number received in **Settings → Messenger → Messenger connection** to the bot, that messenger account sees only that person's conversations. Messenger accounts that are not connected work as before (people the admin allowed = admin's conversations). For details, see [messenger setup manual](MESSENGER_MANUAL.md) 6.6.
-- **Getting the app:** In the phone browser, `<hub address>/app` (direct Android app download), or **Settings → Apps and devices → Get the app** (Android, PC). When a new version is uploaded, the app's first screen shows "New version available — get it".
-- **Good to know:** Opening the DB file directly on the server lets you see the contents (not via the screen or API). The flow of actually connecting another person's PC and the shared bot connection have not yet been verified with real accounts (verified with test accounts and stand-in tests).
+- **How to open:** **＋ Room** / **Room settings** on the room screen.
+- **What it does:** gathers several AI staff into one room.
 
-## 5. When results look wrong
+| Item | Description |
+| --- | --- |
+| "Room name" | 1–30 characters ("Room name must be 1–30 characters") |
+| "Members" | Check 1–10 AI staff ("Choose 1–10 members") |
+| Lead | The staff member who answers when no one is called |
+| "Shared instructions (this room's purpose — added before each question)" | |
+| **Delete room**, **Cancel**, **Save** | Delete has a confirmation window and deletes only the room's history |
 
-| Message on screen | Cause | What to do |
+#### Room screen
+
+- **Main items:** **Room settings**, the note "The AI staff you call with @name replies. If you call no one, the lead @… replies.", the input bar, and on each answer **Hand off to another AI staff member** and **Resend to @…**.
+
+#### Messenger connection wizard
+
+- **How to open:** **Messengers** at the bottom left (PC mode and admin), or **Set up** in step 3 of first-time setup.
+- **What it does:** connects one default bot and registers the bot owner.
+
+| Step | Screen text | What to do |
 | --- | --- | --- |
-| Not sent because this conversation is open in Desktop | Alternate mode, but Desktop is holding the conversation | Close that conversation in Desktop and send again |
-| Not sent because this conversation is in use on the shared server | In shared mode, a person is processing in the TUI | Send again after the TUI answer finishes |
-| Session not running | Claude channel session off | Start the session with `claude` |
-| Real runs are off in the connector | AI replies (real runs) off | Turn on the **AI replies** switch at the top of this PC's screen (or **Settings → This PC**) |
-| Result unknown | No result received after sending (disconnected, timed out) | See "Resolving needs review" below |
-| TUI input may have joined during processing and mixed into the answer | In shared mode, someone pressed Enter in the TUI while Ieon was processing | Check the result in the TUI, then "Resolving needs review" |
-| Stopped because a permission check is needed in the original session | (Older versions) the model tried to start a tool or file action | Handle it in the original session, then "Resolving needs review". Since 2026-11-18, neither Codex nor Claude locks; the end of the answer notes "[Ieon] actions not run" |
+| 1 | "Which messenger will you use?" | One of Telegram, Discord, Slack, LINE, KakaoTalk. Status "Not set up / Connected / Not connected · tap to check the token / Unavailable / Off" |
+| 2 | "Connect X" | Follow the instruction lines, paste the token → **Connect**. Slack has two boxes. KakaoTalk: **Copy** the skill URL; LINE: the Webhook URL. In PC mode, Kakao and LINE show the note "needs a public address, so connect it from the hub" |
+| 3 | "Send this number to the bot" | After "Connecting the bot… (within 2 minutes)", a 6-digit number (valid 10 minutes). **Get a new number** |
+| 4 | "Connected" | Bot owner registration done |
+| Bottom | **Advanced: bot name, multiple bots, allowed users**, **Close** | Goes to the Messenger tab in Settings |
 
-### Resolving needs review
+#### Tasks drawer
 
-A question with an unknown result locks that session (to prevent the same question from running twice). Ieon **never resends automatically.**
+- **How to open:** **Tasks** at the bottom left, or a task link `/#task=…`.
+- **What it does:** shows the progress, approvals, and results of each question in one place.
 
-1. In the original session screen (Desktop, TUI, Claude terminal), check whether that question ran.
-2. When you choose that conversation on the web, a "Question needing review" card with two buttons appears.
-   - **It ran**: closes it as run. An answer that may not have been received or may be mixed is not saved.
-   - **It didn't run**: closes it as not run. If needed, send the question again yourself.
-3. Once resolved, the lock is released.
+| Item | Description |
+| --- | --- |
+| "Awaiting approval · human tasks N" | When empty: "No pending approvals." You can press **Allow (this once)** here |
+| "In progress · needs review N" | When empty: "No questions in progress." |
+| "Recent" | Time and question |
+| **Details** | Question, status, engine, received, last change, resume check, answer |
+| **To conversation** | Opens that conversation |
+| ✕ | Close (full screen on a phone) |
 
-## 6. Must follow
+#### Connection settings
 
-- In shared mode, to type in the TUI while Ieon is processing, use **Tab (queue), not Enter**. Enter joins the in-progress Ieon answer and changes it (measured).
-- Do not open shared mode conversations in Desktop.
-- If the Claude channel instructions say "no tools", even `reply` is blocked and answers do not reach Ieon. The channel is built to work as "no tools except reply".
-- Ordinary questions from Ieon run **read-only with network/web blocked**. If file changes or command execution are needed, turn on that conversation's **work mode** and allow with approval cards (Codex, Antigravity).
-- Real runs (`-Live`), logins, ports, and setting changes are done only within the approved scope. Do not copy, print, or share tokens or credential files.
-- The work conversation `01a0dadd-739f-74d2-93c5-9c405cc1019b` is not a target.
+- **How to open:** **Connection settings** in the header (⋯ on a phone).
+- **What it does:** settings for this one conversation.
 
-## 7. Known limitations
+| Section | Items and description |
+| --- | --- |
+| Top | Engine, account, connection method (for example, "Reopens the same conversation each time you send"), status |
+| "Work mode" | **Turn on work mode** (Chapter 8). Not available for Claude channel conversations |
+| "Human tasks" (collapsed) | Run any command, edit any file, request more permissions, text list (20 items, 60 characters each) → **Save** |
+| "AI staff name and role" (collapsed) | Name, icon, role → **Save** |
+| "Stored history" | **Delete this conversation's history stored on the server** (confirmation window; the original session's history stays as it is; blocked while processing) |
+| "New session" | Status ("Before first question · permission read only" and so on), **Sleep** and **Delete**. Blocked for conversations that already existed, with the reason shown |
+| "Advanced" (collapsed) | Codex connection method **Alternate / Shared** (Codex conversations only), conversation ID |
 
-- Access is possible only from this PC, allowed Tailscale devices, allowed messenger users (KakaoTalk goes through the relay or hub), and places that pass the hub access restriction. There is no other public internet access.
-- In shared mode, the person's screen is the TUI, not a Desktop window.
-- In Claude Code 2.1.314, the channel `reply` may run without a permission check (cause unconfirmed; `reply` can only reply on the channel).
-- New sessions: Claude new sessions run with `claude -p` for each question (no channel or terminal window needed). If a person asks while the same session is open in a terminal, it stops as result unknown (`session_forked`).
-- The new session `workspace` permission only writes files and blocks command execution and internet. `full` can run commands inside the work folder, but it does not block commands from touching things outside the folder at the operating system level. We decided not to do OS-level isolation (2026-11-19). Instead, approval cards, Claude path restrictions, and server engine cell containers block it.
-- New session archive notices go to the messenger chat room connected to that session. If nothing has been said in that room since the messenger bot was turned back on, it cannot send.
-- Telegram turns `/close` in the instructions into a link. Pressing the link shows the same instructions again without confirming. To delete, you must type `/close <name> confirm` yourself (on Korean bots, `/close <이름> 확인`).
-- Even if a new session is "Asleep", the process was not turned off; it is a status display (when there are no questions, there is no process to begin with).
-- Each Codex run shows one "unrecognized configuration setting (`computer_use.windows.always_allowed_app_ids`)" warning. It does not affect running.
-- Rules review round 2 (2026-11-18): PC settings (AI replies, accounts, allowlist, mode, hub connection) can be changed from any logged-in web screen. The new session full permission switch, name confirmation on delete, and also deleting the work folder are changed in **Settings → Admin → Register conversations → New session** (a confirmation dialog when making it less safe), and the web login duration defaults to 30 days (1–90 days, in the same tab's **Concurrent questions · wait time** → "Wait time" field). Deleting sessions and devices uses one confirmation dialog instead of typing the name. The hub address also accepts http (server install without a domain — the screen shows a "not encrypted" warning).
-- **Notifications (2026-11-18):** 🔕 Notifications at the bottom left of the web screen → if the browser allows it, "○○ replied" arrives as a Chrome/Edge notification **even after you close the tab** (not shown while you are looking at the Ieon screen; pressing it opens that conversation). The phone app uses Firebase notifications (APP_GUIDE 8-7). Question and answer text is never put in any notification.
-- Resolving result unknown is done by human check. There is no feature that automatically compares with the original session records. However, questions that were processing while the server restarted are resolved automatically when the PC (connector) sends the engine's real result (the connector resends for about 5 minutes; in PC mode, if the connector also went down, it stays result unknown). If only the connector goes down and comes back, questions that PC was processing immediately change to result unknown (review card) (2026-11-20, `connector_restarted` — not resent automatically).
-- Codex question mode (not work mode): existing conversations read files and run commands as usual in a read-only sandbox (writes and internet blocked), and new sessions run commands inside the work folder. Tools outside the sandbox (MCP and so on) stop on the spot, and what stopped or was blocked is noted at the end of the answer (the conversation is not locked). In shared server mode, if it tries to use a tool, that turn is cut off with a note that "it may have started before the cut".
-- The shared App Server (`codex app-server --listen`) is an experimental Codex feature and was verified with version 0.165.0.
+#### AI will answer this question (window)
 
-## 8. Development workflow (reference)
+- **How to open:** on the PC screen, the first time you send while AI replies are off.
+- **Main items:** **Cancel** (don't send) and **Turn on and send**.
 
-Work branches are created from the latest `origin/main` with a prefix per author (Codex `codex/<purpose>`, Claude Code `claude/<purpose>`). After commit and push, pushing a `pr-request/<branch latest sha>/<branch>` tag (pointing to current main) merges it through an automatic PR. Confirm the merge → run `node --test tests/pilot/*.test.mjs` on main → clean up the branch and work folder, then the next task. For detailed rules, see [AGENTS.md](../../AGENTS.md).
+#### Voice windows and live bar
 
-## Appendix. Commands for development and troubleshooting
+- "Before using voice" / "Before using OpenAI voice": a one-time notice about voice processing, **Quit** and **OK**.
+- Live bar: "Connecting… / Listening…", "N min left", **Mute** / **Unmute**, **Hang up**.
 
-Usually not used. Do not use them together with Ieon launched by the installer (`install.ps1`); before using them, remove auto-start with `pwsh scripts/install.ps1 -Uninstall`.
+#### Hub connection (PC screen)
 
-```powershell
-pwsh scripts/ieon.ps1 start [-Shared] [-Live]   # Start the server and connector directly (for development)
-pwsh scripts/ieon.ps1 status                    # Ports, real runs, test conversation lock
-pwsh scripts/ieon.ps1 check                     # Install check (no model calls)
-pwsh scripts/ieon.ps1 stop
-```
+- **How to open:** **Settings → Apps and devices → Hub connection** on the PC screen, or when you open a PC connection link.
+- **What it does:** connects this PC to a hub or disconnects it.
+
+| Item | Description |
+| --- | --- |
+| "Connect this PC to the hub?" | When opened from a link. "Hub to connect: address", this PC's name (empty = computer name), **Connect** and **Cancel** |
+| "Connect to hub" | Hub address (for example, https://hub.example.com) and this PC's name → **Connect** → 6-digit code |
+| Connection status | "hub address · PC name · Connected", **Disconnect** and **Forget hub** (**Reconnect** when needed) |
+
+### Settings screen (`/settings`)
+
+#### Header and tabs
+
+- Top: **← Conversations** · "Settings" · "Hub · address" (or "This PC") · language · **Log out**. Right below it is the result banner.
+- Groups **My settings | Admin** (only when Admin tabs are visible). The tab that opens first: "This PC" on the PC screen, "Messenger" on a hub (it remembers the last tab you opened).
+
+| Group | Tab | PC mode | Hub admin | Member |
+| --- | --- | --- | --- | --- |
+| My settings | This PC (hub: PC settings) | ○ | ○ (choose a PC) | ○ (own PC) |
+| My settings | Work | ○ | ○ | ○ |
+| My settings | Account | ○ | ○ | ○ (My password only) |
+| My settings | Messenger | ○ | ○ | ○ (Messenger connection only) |
+| My settings | Apps and devices | ○ | ○ | ○ |
+| Admin | Register conversations | ○ | ○ | — |
+| Admin | Messenger advanced | ○ | ○ | — |
+| Admin | Hub security | — | ○ | — |
+| Admin | External programs | ○ | ○ | — |
+
+#### My settings › This PC / PC settings
+
+- **What it does:** that PC's usage mode, real runs, and allowlists.
+- **Steps:** (hub) choose a PC in the "PC" box (at first, a PC that is on) → change the sections below. If the PC doesn't respond, a yellow box shows the reason and the fields are locked.
+
+| Section | Items and description |
+| --- | --- |
+| "PC" (hub) | The PC to manage. Shows " (disconnected)" |
+| "Usage mode" | "This PC only —…" / "Connect to my hub —…" → **Change usage mode** (confirms what turns off and on) |
+| "Real runs · Codex allowlist" | **Turn on real runs** (same as AI replies), "Connector running", table (Codex conversation ID, connection method, work folder, remove), add row → **Add to allowlist** |
+| "Codex conversations on that PC" | **Load conversation list** → **Connect** on each row |
+| "Server Claude conversations" | When a hub server engine cell is chosen, **Connect** recent Claude conversations |
+| "Antigravity · Grok allowlist" (collapsed) | Engine, session ID, work folder → **Add to allowlist** |
+
+#### My settings › Work
+
+| Section | Items and description |
+| --- | --- |
+| "Work folder" | (Hub) "PC · cell" (the admin also has "The hub itself"). "Folders" table + name and path → **Register**. **Set folders** in the "AI staff" table → personal folder and shared folders (not used / read only / read and write) |
+| "Scheduled tasks" | Conversation, "Daily / Interval / Once", time / interval / when to send, daily max, question to send → **Create schedule** (confirmation window). In the table: turn off, turn back on, delete |
+
+#### My settings › Account
+
+| Section | Who | Items and description |
+| --- | --- | --- |
+| "Account" (hub: whose account) | PC mode and admin | The target of the five sections below |
+| "Codex accounts" and "Claude accounts" (collapsed) | Same | Table (name, status), login (subscription: **Open approval window** → paste the code), API key, compatible endpoint, log out, delete, **Add account**, default account, per-conversation account |
+| "Antigravity accounts (for new sessions)" and "Grok accounts (for new sessions)" (collapsed) | Same | API key accounts and the default |
+| "Usage · limits" (collapsed) | Same | Questions today, tokens this month, daily and monthly limits |
+| "OpenAI voice" | Same | Voice mode, save or delete the key (a wrong key isn't saved), voice, daily max, hang up after silence, max per call, collapsed "Members and models" |
+| "My password" | Admin and members | Current / new / confirm new → **Change**. "The two new password fields don't match", "The new password must be at least 10 characters", "The current password is incorrect". On success: "Password changed — logins elsewhere have been ended" |
+
+#### My settings › Messenger
+
+| Section | Who | Items and description |
+| --- | --- | --- |
+| "Bots" | PC mode and admin | Table (messenger, bot ID, name, role, call name, status), **Add bot**, edit (name, role, call name, extra allowed users, reply language, visible existing sessions, on, token) |
+| "Access requests" | PC mode and admin | Recent messages from people outside the allowlist → **Allow** |
+| "Messenger connection" | Members | "Shared bot", **Get linking number**, table (messenger, name, linked at, **Disconnect**) |
+
+#### My settings › Apps and devices
+
+| Section | Who | Items and description |
+| --- | --- | --- |
+| "Hub connection" | PC screen | [Hub connection (PC screen)](#hub-connection-pc-screen). Not on the hub screen |
+| "App" | Everyone | "Get the app", "Connect Ieon App" → **Create pairing code** (server address, 8 digits), table (app devices, **Disconnect**), "Phone notifications" (admin: notification key file) |
+| "Devices" | Hub (admin and members) | **PC connection link** (collapsed) → **Create link** and **Copy**, **Connection requests** (collapsed) → **Approve** / **Reject**, table (name, source, registered, last connected, status, **Revoke**), **Recent activity** |
+
+#### Admin › Register conversations
+
+| Section | Items and description |
+| --- | --- |
+| "Register sessions manually" | Collapsed "Register manually (＋ Connect conversation on the conversation screen is easier)": ID (c_…), name, engine (Codex conversation / Claude channel / Antigravity conversation / Grok session), PC, session ID, where visible → **Save**, **Delete**, **Enter new** |
+| "New session" | Collapsed "New session settings — On/Off": turn on, session count and per-engine limits, sleep and archive, default permission, "Allow choosing full (commands, internet) when creating", confirm on delete → **Save** / **Use file value** |
+| | Collapsed "Concurrent questions · wait time": concurrent questions per device, approval card (minutes), login duration (days) |
+| | "Server language" |
+
+#### Admin › Messenger advanced
+
+| Section | Items and description |
+| --- | --- |
+| "Messenger advanced" | Allowed users common to all messengers (Telegram, Discord, Slack, KakaoTalk IDs), collapsed "KakaoTalk (skill URL · relay)" |
+| "Roles" | Table (role ID, name, engines it can create, allowed permissions, default session), collapsed "Create · edit roles": role ID (lowercase letters, digits, -), name, description, engines, permissions, AI role instructions, default session → **Save role**, **Delete role**, **New role**. If the ID format is wrong: "Role ID must be 2–32 lowercase letters, numbers, or -". With no engine or permission: "Choose at least one engine" or "Choose at least one permission" |
+
+#### Admin › Hub security
+
+| Section | Items and description |
+| --- | --- |
+| "Security (hub access restriction)" | "Your current address", method (IP allowlist, Cloudflare Access, Tailscale), allowed IPs and **Add my address**, Cloudflare team domain and AUD → **Save** / **Use file value** |
+| "Install on a new server" | **Create install command** and **Copy** (1 hour) |
+| "Multiple users" | **Multi-user (accept sign-up requests)** (confirmation window), member daily question limit, table (email, status, PC, questions today, limit, requested at) — approve / reject / **Disconnect** (confirmation window) / **Turn back on** / **Temporary password** / **Delete** |
+| "Codex login (this hub)" | Login status, **Log in** / **Log in again**, "Turn on real runs for hub new sessions" |
+
+#### Admin › External programs
+
+| Item | Description |
+| --- | --- |
+| Key table | Program name (app ID), **Save visible sessions**, **Revoke** (" · Revoked") |
+| "Program name (e.g. My automation)" → **Issue key** | An empty name gives "Enter a program name of 1–40 characters" |
+| "New API key (shown only once)" | The key, **Copy**, **Close**. It closes when you revoke |
+
+---
+
+## Part 3 Troubleshooting
+
+### Status text table
+
+| Status text | Meaning | What to do |
+| --- | --- | --- |
+| Ready to send | Ready | Ask |
+| Before first question | A newly created session | It starts when you send the first question |
+| Processing | The question is at the PC or running | Wait until it finishes; to stop, press **Stop** |
+| Needs review | Locked by a question whose result is unknown | Resolve it with the "Question needing review" card |
+| Asleep · wakes when you ask | A resting new session | Just ask |
+| PC disconnected | Ieon or the connector on that PC is off | Check that the PC is on and, in hub mode, that the PC screen's **Settings → Apps and devices → Hub connection** says "Connected" |
+| Connected to hub · can't send from here | You're on the PC screen but that PC is connected to a hub | Send from the hub screen |
+| Claude session off / Shared server off | The engine is off | [Reference Manual](MANUAL_REFERENCE.md) Chapter 3 |
+
+### Card table
+
+| Card | When | Buttons |
+| --- | --- | --- |
+| "OK to run a command?", "OK to edit files?", "OK to use more permissions?" | Work mode approval request | **Allow** (this time only), **Deny** |
+| "Human task: …" | Matched a hand-over rule | **Done by me**, **Won't do** |
+| "This PC is connected to a hub" | Screen of a PC connected to a hub | **Open hub screen** |
+| "PC disconnected" | The PC is off | **Check again** |
+| "Question needing review" | Result unknown | **It ran**, **It didn't run** |
+| "This conversation's API account hit its limit" | Account limit | **View or change limits** |
+| "AI replies are off" | Real runs are off | **Turn on AI replies** |
+| "This session is archived" | An archived new session | **Restore** |
+| "The hub needs a Codex login" | A hub new session before the hub's Codex login | **Go to login** |
+| "This session replies with text only" | A new session on the hub itself | — |
+| "Unsent question" | Blocked while sending (busy, limit, open in the app) | **Resend** (only when you press it) |
+
+### Common messages
+
+| Message | Cause | What to do |
+| --- | --- | --- |
+| "Not sent because this conversation is open in the Codex app…" | The app is holding an Alternate-mode conversation | Close only that conversation in the app and send again |
+| "That PC didn't respond. Try again in a moment" / "That PC isn't connected…" | The PC chosen on the hub is off | Turn the PC on and check that Ieon is running |
+| "Bot not connected — Invalid token…" | The messenger rejected the token | Issue a new bot token and enter it |
+| "This screen can't create a Kakao skill URL (LINE webhook address)…" | PC mode has no public address | Connect from the hub |
+| "On the hub screen, change it in Settings → PC settings → Real runs · Codex allowlist ("Turn on real runs")" | You pressed the AI replies switch on the hub screen | Change it where it says |
+| "This browser doesn't support voice input…" | No built-in browser voice | Chrome, Edge, or Safari, or an OpenAI voice key |
+| "access denied" | Outside the hub access restriction | The admin allows the address in Hub security |
+| "Too many failed attempts; temporarily locked…" | 5 wrong passwords | Try again after 15 minutes |
+
+### Known limitations
+
+- In this test, bot owner registration with real messenger accounts (Telegram, Discord, Slack, Kakao, LINE) was not done (no real test bot accounts). Rejection of fake tokens and the notice text were verified.
+- The hub doesn't know whether a PC has a Codex shared server, so even a conversation on a PC without one can be switched to "Shared". The PC refuses when you send (normally use Alternate).
+- The count in a member's new session limit line is counted on the hub (it may differ from the count on the member's PC).
+- If you open two Ieon screens (different ports) on the same computer with `localhost`, their logins overwrite each other (browser cookies don't distinguish ports). Open each at a different address (127.0.0.1 and localhost).
+
+---
+
+## Index
+
+| What you want to do | Where |
+| --- | --- |
+| Install | Chapter 1, [Beginner's Guide](BEGINNER_GUIDE.md) |
+| Start on a PC for the first time | Chapter 2, [First-time setup](#first-time-setup-4-steps) |
+| Create the hub admin and log in | Chapter 3 |
+| Decide where the hub can be reached from | Chapter 3, [Hub security](#admin--hub-security) |
+| Connect a PC to the hub | Chapter 4 |
+| Continue a Codex conversation you were using | Chapter 5, [Connect conversation window](#connect-conversation-window) |
+| Create or delete a new session | Chapter 6, [New session window](#new-session-window), [Connection settings](#connection-settings) |
+| Ask a question or stop it | Chapter 7 |
+| Turn AI replies on or off | Chapter 7, [Conversation header](#conversation-header), [This PC / PC settings](#my-settings--this-pc--pc-settings) |
+| Allow file edits (work mode) | Chapter 8 |
+| See question progress and results in one place | Chapter 9 |
+| AI staff names, roles, rooms | Chapter 10 |
+| Work folders and schedules | Chapter 11 |
+| Connect a messenger bot | Chapter 12 |
+| Members: connect a messenger | Chapter 12 Members, [Messenger tab](#my-settings--messenger) |
+| Voice | Chapter 13 |
+| Phone app | Chapter 14, [App Guide](APP_GUIDE.md) |
+| Open to multiple users, approve, disconnect | 15-1 |
+| Sign up | 15-2 |
+| Change your password | 15-2, [Account tab](#my-settings--account) |
+| Other engine accounts and limits | Chapter 16 |
+| Issue an API key | Chapter 17, [External programs](#admin--external-programs) |
+| When something doesn't work | [Part 3](#part-3-troubleshooting) |
+
+---
+
+## Test evidence and what is not yet verified
+
+On 2026-11-23, an AI worker built a test environment and checked these directly.
+
+- Environment: a test hub (admin and member test accounts), a new test hub with no admin (for the first screen), a Linux test PC (installed → connected with a PC connection link — the real user order), and the Windows PC screen.
+- Verified: login, sign-up, waiting for approval, lockout, language; create admin; connecting with a PC connection link (usage mode set automatically); member conversation connection, new sessions (create, name error, duplicate name, delete), connection settings (staff name, icon, role, connection method), rooms (create, errors, delete), Tasks drawer; messenger wizard (list, Telegram token box, fake token rejection, Kakao and LINE notices); every Settings tab (member and admin); My password; multiple users (disconnect, turn back on); roles; external program keys (issue, API call, revoke); phone width (list, conversation, windows, drawer, every Settings tab). One real member question (Received → Running → Completed, answer "OK") was verified in an earlier test.
+- Fixed during testing: PRs #371–#374 (screen text, button reasons, member PC settings, Telegram token rejection, the screen of a PC connected to a hub, and so on).
+
+Not yet verified (reason):
+
+| Item | Reason |
+| --- | --- |
+| Allow and deny on work mode approval cards, Stop, first question of a new session, @calling and handing off in rooms, role instructions | Needs real AI calls, and each question needs the user's approval (next test) |
+| Registering an owner by sending the number to a real messenger bot | Needs a real messenger bot account |
+| OpenAI voice (speak once and live) | Needs a key and a microphone (wrong key rejection was verified) |
+| Phone app | Needs a real device (app 0.1.10 voice was confirmed by the user on 2026-11-23) |
+| Real Grok answers | No subscription (excluded by the user's decision) |

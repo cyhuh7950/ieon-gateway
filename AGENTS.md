@@ -20,7 +20,8 @@
 - 첫 실증 결과(종합 판정·미확인 목록): docs/validation/FIRST_CONTINUITY_RESULT.md
 - 실제 환경: docs/DEVELOPMENT_ENVIRONMENT.md
 - 제품 맥락 요약: PRODUCT.md
-- 사용 설명서: docs/MANUAL.md
+- 사용 설명서(업무 흐름·화면별 설명, 인수 시험 기준): docs/MANUAL.md
+- 참고 설명서(기능별 자세한 동작·API·고급 기능): docs/MANUAL_REFERENCE.md
 - 메신저 설정 설명서: docs/MESSENGER_MANUAL.md
 - 처음 쓰는 사람용 따라 하기(설치·설정 포함): docs/BEGINNER_GUIDE.md
 - 이어온 앱 따라 하기(앱 설치·연결·기능 확인): docs/APP_GUIDE.md
