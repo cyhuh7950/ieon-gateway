@@ -100,7 +100,7 @@
   "room.1": "@이름 (안 부르면 @{lead_name})",
   "room.2": "AI 직원 {members}명 · 대표 @{lead_name}",
   "room.3": "공통 안내: {guide}",
-  "room.4": "@이름으로 부른 AI 직원이 답해요. 아무도 안 부르면 대표 @{lead_name}가 답해요.",
+  "room.4": "@이름으로 부른 AI 직원이 답해요. 아무도 안 부르면 대표(@{lead_name})가 답해요.",
   "room.5": "{who}에게 다시 보내기",
   "room.6": "다른 AI 직원에게 넘기기",
   "room.7": "→ {targets}에게 보내요",

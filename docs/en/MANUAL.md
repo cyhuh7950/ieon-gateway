@@ -706,13 +706,13 @@ On 2026-11-23, an AI worker built a test environment and checked these directly.
 
 - Environment: a test hub (admin and member test accounts), a new test hub with no admin (for the first screen), a Linux test PC (installed → connected with a PC connection link — the real user order), and the Windows PC screen.
 - Verified: login, sign-up, waiting for approval, lockout, language; create admin; connecting with a PC connection link (usage mode set automatically); member conversation connection, new sessions (create, name error, duplicate name, delete), connection settings (staff name, icon, role, connection method), rooms (create, errors, delete), Tasks drawer; messenger wizard (list, Telegram token box, fake token rejection, Kakao and LINE notices); every Settings tab (member and admin); My password; multiple users (disconnect, turn back on); roles; external program keys (issue, API call, revoke); phone width (list, conversation, windows, drawer, every Settings tab). One real member question (Received → Running → Completed, answer "OK") was verified in an earlier test.
-- Fixed during testing: PRs #371–#374 (screen text, button reasons, member PC settings, Telegram token rejection, the screen of a PC connected to a hub, and so on).
+- AI-call tests (2026-11-23, 7 calls approved by the user — the test PC's Codex): first question of a new session (received → completed; the role instruction is sent once, with the first question), **Stop** ("Running…" → "Stopping…" → "Stopped"), work mode on → "May I edit files?" card → **Allow** ("✓ Allowed (this once)", "Approval request 1 · file edit: completed", the file was really created) / **Deny** ("✓ Denied", "Denied — not run", no file), and in a room: the lead answers, @calling, and **Hand off to another AI staff member** ("→ handed off to the reviewer").
+- Fixed during testing: PRs #371–#374 and later fixes (the state chip showed "Ready to send" while a question was running; room text) (screen text, button reasons, member PC settings, Telegram token rejection, the screen of a PC connected to a hub, and so on).
 
 Not yet verified (reason):
 
 | Item | Reason |
 | --- | --- |
-| Allow and deny on work mode approval cards, Stop, first question of a new session, @calling and handing off in rooms, role instructions | Needs real AI calls, and each question needs the user's approval (next test) |
 | Registering an owner by sending the number to a real messenger bot | Needs a real messenger bot account |
 | OpenAI voice (speak once and live) | Needs a key and a microphone (wrong key rejection was verified) |
 | Phone app | Needs a real device (app 0.1.10 voice was confirmed by the user on 2026-11-23) |

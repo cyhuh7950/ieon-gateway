@@ -136,7 +136,7 @@ test('화면: 왼쪽 방 목록·방 만들기 창·@이름 안내·사용 중 �
   const A = koView('app.html');
   assert.ok(A.includes('id="roomDlg"') && A.includes('id="rdMembers"') && A.includes('id="rdLead"') && A.includes('id="rdGuide"'));
   assert.ok(A.includes("nr.onclick = () => openRoomDlg(null)") && A.includes("b.onclick = () => selectRoom(r.roomId)"));
-  assert.ok(A.includes("'@이름으로 부르기 — 안 부르면 대표 @'"));
+  assert.ok(A.includes("'@이름으로 부르기 — 안 부르면 대표(@'")); // 2026-11-23 조사: 대표(@이름)가
   assert.ok(A.includes("conversation_busy: '지금 다른 일 중이라 보내지 않았어요'") && A.includes('retryBtn(box, room, p)') && A.includes('if (!p.canRetry) return;'), '사용 중은 알림 + 서버가 허락한 글만 다시 보내기 버튼');
   assert.ok(A.includes("hb.onclick = () => handoff(room, p, others)"), '넘기기는 버튼을 누를 때만');
   assert.ok(A.includes('id="pStaff"') && A.includes('id="stName"') && A.includes('id="stRole"') && A.includes('id="stIcon"'));
