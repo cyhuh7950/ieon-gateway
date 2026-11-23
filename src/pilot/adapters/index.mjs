@@ -57,7 +57,7 @@ export async function buildAdapters(config) {
     ? { config: nsCfg, created: createdLog(config.newSessions.createdPath) } : undefined;
   const wsDirs = codexWorkspaceDirs(config);
   const adapters = {
-    codex_thread: codexThreadAdapter({ live, allowlist: config.codex?.allowlist ?? [], modes: config.codex?.modes, shared: config.codex?.shared,
+    codex_thread: codexThreadAdapter({ live, allowlist: config.codex?.allowlist ?? [], modes: config.codex?.modes, shared: config.codex?.shared, model: config.codex?.model ?? null,
       workingDirectories: wsDirs.workingDirectories, writableExtra: wsDirs.writableExtra, newSessions,
       newSessionDirs: (name) => workspaceFor(config, 'codex_thread', `new:${name}`)?.write ?? [], // WS1-b: Codex 새 세션의 공유(쓰기) 폴더
       // A2: 이어온 전용 Codex 계정(설정 파일 경로를 아는 연결부가 accountsDir를 채워 준다)

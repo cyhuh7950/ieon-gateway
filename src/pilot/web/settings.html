@@ -179,6 +179,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     <div id="devBox" hidden>
       <h3>{{settings.html_dev_box.2}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.html_dev_box.1}}" data-tip="{{settings.html_dev_box.1}}">i</span></h3>
       <div class="row"><label class="chk"><input type="checkbox" id="devLive"> {{settings.html_dev_box.3}}</label><span id="devConn" class="muted"></span></div>
+      <div class="row"><label class="field">{{settings.codex_model.label}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.codex_model.tip}}" data-tip="{{settings.codex_model.tip}}">i</span><input id="devModel" placeholder="{{settings.codex_model.ph}}" maxlength="64" autocomplete="off"></label><button type="button" id="devModelSave">{{settings.codex_model.save}}</button></div>
       <table class="list"><thead><tr><th>{{settings.html_dev_thread.2}}</th><th>{{settings.html_dev_mode.1}}</th><th>{{settings.html_dev_dir.2}}</th><th></th></tr></thead><tbody id="devThreads"></tbody></table>
       <form id="devAdd" class="row">
         <input id="devThread" placeholder="{{settings.html_dev_thread.1}}" maxlength="36" autocomplete="off" aria-label="{{settings.html_dev_thread.2}}">
@@ -829,6 +830,7 @@ async function loadDevice() {
   if (pcTarget !== 'local') { $('pcTargetNote').hidden = true; $('pcTargetNote').className = 'muted'; }
   const d = r.body;
   $('devLive').checked = d.live;
+  if (document.activeElement !== $('devModel')) $('devModel').value = d.codexModel ?? '';
   $('devConn').textContent = d.managed ? (d.running ? t('settings.load_device.1') : t('settings.load_device.2')) : '';
   $('devMode').querySelector('[value="shared_server"]').disabled = !d.sharedServer;
   // E1·E2: Antigravity·Grok 허용 목록
@@ -1059,6 +1061,12 @@ async function loadClaudeSessions() {
   }
   tb.replaceChildren(...rows);
 }
+// 2026-11-23 인수 시험(신산님 ①): 이어온이 쓸 Codex 모델(비우면 그 PC의 Codex 기본 모델)
+$('devModelSave').onclick = async () => {
+  const model = $('devModel').value.trim();
+  const r = await devRun('device.codex.model', { model });
+  setStatus(r.status === 200 ? 'ok' : 'err', r.status === 200 ? (model ? t('settings.codex_model.saved', { model }) : t('settings.codex_model.cleared')) : (r.body.error === 'bad_model' ? t('settings.codex_model.bad') : (DEV_ERR[r.body.error] || HOST_ERR[r.body.error] || r.body.error))); loadDevice();
+};
 $('devLive').onchange = async () => {
   const on = $('devLive').checked;
   if (on && !confirm(t('settings.load_claude_sessions.5'))) { $('devLive').checked = false; return; }

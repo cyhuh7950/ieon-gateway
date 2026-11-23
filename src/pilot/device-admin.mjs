@@ -4,7 +4,7 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { addGrokAccount, removeGrokAccount, useGrokAccount, addAgyAccount, removeAgyAccount, useAgyAccount, addClaudeAccount, removeClaudeAccount, useClaudeAccount, readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
+import { setCodexModel, addGrokAccount, removeGrokAccount, useGrokAccount, addAgyAccount, removeAgyAccount, useAgyAccount, addClaudeAccount, removeClaudeAccount, useClaudeAccount, readDevice, setLive, upsertCodexThread, removeCodexThread, upsertCliSession, removeCliSession, addCodexAccount, removeCodexAccount, useCodexAccount,
   addWorkspaceFolder, removeWorkspaceFolder, attachWorkspaceTo } from './device-settings.mjs';
 import { workspacesView } from './workspaces.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome, readCodexCompat, saveCodexCompat, removeCodexCompat, compatHostOf } from './accounts.mjs';
@@ -19,7 +19,7 @@ import { CLAUDE_API_KEY, claudeAuthDir, claudeKind, canWrite, createClaudeLogin,
 
 // 명령 목록(이 밖의 것은 거절). read: 보기만(앞단을 거친 PC 화면 요청도 허용), 나머지는 바꾸기.
 export const OPS = {
-  'device.get': 'read', 'device.live': 'write', 'device.codex.put': 'write', 'device.codex.delete': 'write',
+  'device.get': 'read', 'device.live': 'write', 'device.codex.model': 'write', 'device.codex.put': 'write', 'device.codex.delete': 'write',
   'accounts.get': 'read', 'accounts.add': 'write', 'accounts.use': 'write', 'accounts.login': 'write', 'accounts.compat': 'write', // A2-c: Codex 호환 주소
   'accounts.login.cancel': 'write', 'accounts.logout': 'write', 'accounts.delete': 'write', 'accounts.apikey': 'write', // 신산님 2026-11-16: 구독 로그인·API 키 모두 이어온 화면에서
   'mode.get': 'read', 'mode.set': 'write',
@@ -311,6 +311,10 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         setLive(p, a.live);
         log({ event: 'device_live', live: a.live });
         return { status: 200, body: { live: a.live, ...(await applyDevice()) } };
+      case 'device.codex.model':
+        setCodexModel(p, a.model);
+        log({ event: 'device_codex_model', set: Boolean(String(a.model ?? '').trim()) });
+        return { status: 200, body: { ...device(p), ...(await applyDevice()) } };
       case 'device.codex.put':
         upsertCodexThread(p, { threadId: a.threadId, mode: a.mode, workingDirectory: a.workingDirectory ?? null });
         return { status: 200, body: { ...device(p), ...(await applyDevice()) } };

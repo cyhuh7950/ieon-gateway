@@ -23,6 +23,10 @@ export const lockProbe = (threadId) => lockOutcome(threadId);
 // 확실하다 → 결과 불명으로 잠그지 않고 usage_limit(실패)로 알린다(다시 보내기는 사용자가 누를 때만).
 export const isUsageLimit = (m) => /usage[ _]?limit|hit your limit|usageLimitExceeded/i.test(String(m ?? ''));
 const limitHit = (turn) => turn.failed && isUsageLimit(turn.failMessage) && !turn.answer && !turn.worked;
+// 2026-11-23 인수 시험: Codex 설정 모델을 지금 로그인으로 쓸 수 없으면(예: "The 'gpt-…' model is not supported when using Codex with a ChatGPT account")
+// 모델이 일을 시작하지 않았으므로 "실행 안 됨"이 확실하다 → 결과 불명 대신 model_not_supported(실패)로 이유를 알린다.
+export const isModelUnsupported = (m) => /model is not supported|model_not_supported|unsupported model|model .* does not exist/i.test(String(m ?? ''));
+const modelHit = (turn) => turn.failed && isModelUnsupported(turn.failMessage) && !turn.answer && !turn.worked;
 
 async function runAlternate(threadId, question, deps) {
   const outcome = deps.probe(threadId);
@@ -30,7 +34,7 @@ async function runAlternate(threadId, question, deps) {
     throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
   }
   const { Codex } = await deps.loadSdk();
-  const codexOpts = deps.env ? { env: deps.env } : undefined; // A2: 고른 이어온 전용 계정(없으면 PC 기본 로그인)
+  const codexOpts = sdkOpts(deps); // A2: 고른 이어온 전용 계정(없으면 PC 기본 로그인), 이어온이 쓸 모델
   // ThreadOptions를 비우면 SDK(codex exec)가 사용자 config.toml의 sandbox_mode(이 PC는 danger-full-access)와
   // approval never로 실행한다(2026-10-30 rollout 확인). 외부 질문은 항상 읽기 전용·승인 없음·웹/네트워크 차단으로 고정하고,
   // SDK 옵션은 이번 실행에만 적용되고 Desktop은 다음 turn에 자기 설정을 다시 쓴다(rollout 확인).
@@ -46,6 +50,7 @@ async function runAlternate(threadId, question, deps) {
   const turn = await streamTurn(thread, question, { cwd: deps.workingDirectory, blocked: BLOCKED_SDK, stop: deps.signal });
   if (turn.stopped) throw new StoppedError();
   if (limitHit(turn)) throw new EngineError('usage_limit', 429);
+  if (modelHit(turn)) throw new EngineError('model_not_supported', 400);
   if ((turn.failed && !turn.blocked) || (turn.returned ?? thread.id) !== threadId) throw new Error('turn_failed_or_thread_mismatch');
   return { receipt: `codex:${threadId}`, answer: withNote(turn.answer, blockedNote(turn)) };
 }
@@ -136,7 +141,7 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
   const plan = newSessionPlan(newSession, config);
   if (deps.extraDirs?.length && plan.options.sandboxMode === 'workspace-write') plan.options.additionalDirectories = deps.extraDirs; // WS1-b: 공유(쓰기) 폴더
   const { Codex } = await deps.loadSdk();
-  const codexOpts = deps.env ? { env: deps.env } : undefined;
+  const codexOpts = sdkOpts(deps);
   let thread;
   let cwd;
   const pending = sessionRef.startsWith('pending:');
@@ -159,6 +164,7 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
   if (turn.stopped) throw Object.assign(new StoppedError(), { sessionRef: threadId });
   // 멈추거나 실패해도 이미 만들어진 대화 ID는 서버에 남겨 같은 세션으로 이어 가게 한다.
   if (limitHit(turn)) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: threadId });
+  if (modelHit(turn)) throw Object.assign(new EngineError('model_not_supported', 400), { sessionRef: threadId });
   if ((turn.failed && !turn.blocked) || !threadId || (turn.returned ?? thread.id) !== threadId) {
     throw Object.assign(new Error('turn_failed_or_thread_mismatch'), { sessionRef: threadId });
   }
@@ -379,8 +385,8 @@ export async function appServerTurn(transport, { threadId, question, cwd, extraR
 
 // 번갈아 쓰기의 작업 모드: Desktop 잠금 판별 → 질문할 때만 app-server(stdio, 포트 없음)를 띄워 차례 하나 → 닫음.
 const require0 = createRequire(import.meta.url);
-export function stdioAppServer({ env, cwd, spawnImpl = spawn }) {
-  const child = spawnImpl(process.execPath, [require0.resolve('@openai/codex/bin/codex.js'), 'app-server'], { cwd, env: env ?? process.env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+export function stdioAppServer({ env, cwd, model = null, spawnImpl = spawn }) {
+  const child = spawnImpl(process.execPath, [require0.resolve('@openai/codex/bin/codex.js'), ...(model ? ['-c', `model=${JSON.stringify(model)}`] : []), 'app-server'], { cwd, env: env ?? process.env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
   let buf = ''; let handler = () => {};
   child.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line.trim()) continue; try { handler(JSON.parse(line)); } catch { /* 형식이 틀린 줄은 무시 */ } } });
   return { send: (m) => child.stdin.write(JSON.stringify(m) + '\n'), onMessage: (fn) => { handler = fn; }, close: () => child.kill() };
@@ -396,7 +402,7 @@ async function runAlternateWork(threadId, question, deps) {
   const cwd = workDir(deps.workingDirectory);
   const outcome = deps.probe(threadId);
   if (!['NO_LOCK_FILE', 'NO_WRITER_LOCK'].includes(outcome)) throw new EngineError(outcome === 'WRITER_LOCK_CONFLICT' ? 'desktop_holds_thread' : 'lock_check_failed', 409);
-  const transport = (deps.appServer ?? stdioAppServer)({ env: deps.env, cwd });
+  const transport = (deps.appServer ?? stdioAppServer)({ env: deps.env, cwd, model: deps.model ?? null });
   return appServerTurn(transport, { threadId, question, cwd, extraRoots: deps.extraRoots, approve: deps.approve, approvalResult: deps.approvalResult, timeoutMs: deps.workTimeoutMs, signal: deps.signal });
 }
 function wsTransport(endpoint, token, WS = globalThis.WebSocket) {
@@ -411,6 +417,9 @@ function wsTransport(endpoint, token, WS = globalThis.WebSocket) {
 // opts: { live, allowlist, modes: {threadId: 'alternate'|'shared_server'}, shared: {endpoint, tokenFile}, probe?, loadSdk?,
 //         newSessions?: { config(loadNewSessionsConfig 결과), created: { has(id), add(id, name) } },
 //         accountEnv?: (threadId|null) => env|null — A2 이어온 전용 계정. null이면 PC 기본 로그인. 공유 서버 방식은 그 서버의 로그인이라 쓰지 않는다 }
+// SDK(codex exec)에 넘길 것: 이어온 전용 계정 env, 이어온이 쓸 모델(--config model=…). 둘 다 없으면 그 PC Codex 기본 그대로.
+const sdkOpts = (deps) => (deps.env || deps.model ? { ...(deps.env ? { env: deps.env } : {}), ...(deps.model ? { config: { model: deps.model } } : {}) } : undefined);
+
 export function codexThreadAdapter(opts) {
   const deps = { probe: opts.probe ?? lockProbe, loadSdk: opts.loadSdk ?? (() => import('@openai/codex-sdk')) };
   return {
@@ -419,7 +428,7 @@ export function codexThreadAdapter(opts) {
       if (newSession) {
         if (!opts.newSessions) throw new EngineError('new_sessions_not_configured', 503);
         if (!opts.live) throw new EngineError('live_disabled', 503);
-        return runNewSession({ sessionRef: threadId, question, newSession }, { ...deps, env: accountEnv(opts, null), signal, extraDirs: liveRoots(opts.newSessionDirs?.(newSession.name)) }, opts.newSessions);
+        return runNewSession({ sessionRef: threadId, question, newSession }, { ...deps, model: opts.model ?? null, env: accountEnv(opts, null), signal, extraDirs: liveRoots(opts.newSessionDirs?.(newSession.name)) }, opts.newSessions);
       }
       if (threadId === EXCLUDED || !opts.allowlist.includes(threadId)) throw new EngineError('thread_not_allowed', 403);
       if (!opts.live) throw new EngineError('live_disabled', 503);
@@ -437,8 +446,8 @@ export function codexThreadAdapter(opts) {
         // 작업 모드가 아니면 승인 요청이 와도 바로 거부(지금처럼 읽기 전용)
         return runShared(threadId, question, { endpoint: opts.shared.endpoint, token, approve: null, signal });
       }
-      if (workMode) return runAlternateWork(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], extraRoots: liveRoots(opts.writableExtra?.[threadId]), approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs, signal });
-      return runAlternate(threadId, question, { ...deps, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], signal });
+      if (workMode) return runAlternateWork(threadId, question, { ...deps, model: opts.model ?? null, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], extraRoots: liveRoots(opts.writableExtra?.[threadId]), approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs, signal });
+      return runAlternate(threadId, question, { ...deps, model: opts.model ?? null, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], signal });
     },
   };
 }
