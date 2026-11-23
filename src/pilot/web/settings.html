@@ -108,9 +108,9 @@ table.list tr.pick:hover { background:var(--surface-alt); }
 .a { white-space:pre-wrap; }
 /* 앱과 기기: 넓은 화면에서 두 칸(허브 연결·앱 | 기기) — 한 탭 = 한 화면(2026-11-20) */
 @media (min-width:1100px) {
-  .admin[data-tab="apps"] { grid-template-columns:1fr 1fr; align-items:start; }
+  .admin[data-tab="apps"] { grid-template-columns:1fr 1fr; align-items:start; grid-auto-flow:row dense; }
   .admin[data-tab="apps"] > nav { grid-column:1 / -1; }
-  .admin[data-tab="apps"] > section#dvSection { grid-column:2; grid-row:3 / span 2; }
+  .admin[data-tab="apps"] > section#dvSection { grid-column:2; grid-row:span 2; } /* 줄 번호를 박지 않음: 묶음 줄이 없는 가입자·허브 화면에서 한 칸 밀리던 것(2026-11-23) */
 }
 /* 휴대폰 폭(대화 화면과 같은 760px): 누를 것 44px, 표는 한 줄에 한 카드로 쌓음(옆으로 밀지 않음) */
 @media (max-width:760px) {
@@ -271,7 +271,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       </details>
     </div>
   </section>
-  <section class="atab" data-atab="apps" hidden aria-label="{{settings.html_ac_usage.1}}">
+  <section class="atab" data-atab="apps" id="pcHubSec" hidden aria-label="{{settings.html_ac_usage.1}}">
     <h2>{{settings.html_ac_usage.1}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.html_ac_usage.2}}" data-tip="{{settings.html_ac_usage.2}}">i</span></h2>
     <div id="joinBox" class="state warn" hidden role="alert">
       <b>{{settings.html_cl_code.9}}</b>
@@ -825,8 +825,8 @@ async function loadDevice() {
   const r = await devRun('device.get'); $('devBox').hidden = false;
   // 2026-11-23 시험: PC가 답하지 않으면 빈 기본값(꺼짐)을 보이던 것 — 칸은 두고 막은 뒤 이유를 보임
   for (const x of $('devBox').querySelectorAll('input,select,button')) x.disabled = r.status !== 200;
-  if (r.status !== 200) { setStatus('err', DEV_ERR[r.body?.error] || HOST_ERR[r.body?.error] || t('settings.host_err.2')); return; }
-  if (pcTarget !== 'local') $('pcTargetNote').hidden = true;
+  if (r.status !== 200) { $('pcTargetNote').textContent = DEV_ERR[r.body?.error] || HOST_ERR[r.body?.error] || t('settings.host_err.2'); $('pcTargetNote').className = 'state warn'; $('pcTargetNote').hidden = false; return; } // 화면 위 알림이 아니라 이 탭 안에
+  if (pcTarget !== 'local') { $('pcTargetNote').hidden = true; $('pcTargetNote').className = 'muted'; }
   const d = r.body;
   $('devLive').checked = d.live;
   $('devConn').textContent = d.managed ? (d.running ? t('settings.load_device.1') : t('settings.load_device.2')) : '';
@@ -1397,7 +1397,7 @@ $('modeApply').onclick = async () => {
   loadMode(); loadHubLink().catch(() => {});
 };
 async function loadHubLink() {
-  if (authState?.mode === 'hub') { $('hubLinkBox').hidden = false; return; } // 서버에 묻지 않음(10초마다 404가 나던 것)
+  if (authState?.mode === 'hub') return; // 서버에 묻지 않음(10초마다 404가 나던 것). 허브 화면에서는 이 구역을 지움
   const r = await api('/v1/admin/local/hub'); $('hubLinkBox').hidden = false; // 쓸 수 있게 되면 다시 켜짐
   if (r.status !== 200) return;
   const s = r.body; const box = $('hubLinkState'); box.innerHTML = '';
@@ -1735,6 +1735,7 @@ function applyMode() {
   const h = location.hash.slice(1);
   showAtab(/^[a-z]+$/.test(h) ? h : (saved || (hub ? 'msg' : 'pc')));
   if (join && hub) { $('joinHubOnly').hidden = false; join = null; }
+  else if (hub) $('pcHubSec').remove(); // 2026-11-23 시험: "이 PC를 허브에 잇기"는 PC 화면 것 — 허브 화면에서는 빈 상자였음
   if (join) { $('joinHub').textContent = join.hubUrl; $('joinBox').hidden = false; showAtab('apps'); }
 }
 $('joinNo').onclick = () => { join = null; $('joinBox').hidden = true; };

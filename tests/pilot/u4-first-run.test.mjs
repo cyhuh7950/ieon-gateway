@@ -37,7 +37,7 @@ test('준비 확인: 확인이 실패하면 로그인 안 됨으로(막지 않�
 
 test('화면: 연결한 대화가 없는 이 PC 화면에서 처음 설정을 열고, 꼭 할 일은 대화 고르기뿐', () => {
   assert.ok(APP.includes('id="setup"') && APP.includes('id="s1"') && APP.includes('id="s2"') && APP.includes('id="s3"'));
-  assert.ok(APP.includes("if (device && (location.hash === '#setup' || (!convs.length && !done))) openSetup();"), '이 PC 화면 + 대화 없음(또는 #setup)일 때만');
+  assert.ok(APP.includes("if (device && (location.hash === '#setup' || (!convs.length && !done && !hubMode))) openSetup();"), '이 PC 화면 + 대화 없음(또는 #setup)일 때만 — 허브에 연결된 PC는 빼고');
   assert.ok(APP.includes("loadThreads($('sList'),"), '2단계는 대화 연결과 같은 목록');
   assert.ok(APP.includes("localStorage.setItem('ieon_setup_done', '1')"), '나중에 하기·완료 뒤 다시 열리지 않음');
   assert.ok(APP.includes("'/v1/admin/local/engines'"));

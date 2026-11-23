@@ -503,7 +503,7 @@ const AUTH_ERR = { terms_required: t('web.auth_err.1'), email_taken: t('web.auth
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
-let authState = null, convs = [], current = null, pending = null, device = null, toastTimer = null, hubMode = false;
+let authState = null, convs = [], current = null, pending = null, device = null, toastTimer = null, hubMode = false, hubNoteShown = false;
 let rooms = [], currentRoom = null, roomTimer = null; const roomSeen = new Map(); // AP-1, V1(방별 이미 본 답)
 // --- U8 새 세션 만들기(예전 화면에서 옮김). $·api 정의 뒤에 둔다(앞에 두면 화면 전체가 멈춤 — 2026-11-12 발견) ---
 async function loadLimits() {
@@ -610,7 +610,7 @@ async function startApp() {
   await Promise.all([load(), loadDevice(), loadDenied(), loadLimits()]).catch(() => {});
   startEvents();
   let done = false; try { done = localStorage.getItem('ieon_setup_done') === '1'; } catch { done = false; }
-  if (device && (location.hash === '#setup' || (!convs.length && !done))) openSetup();
+  if (device && (location.hash === '#setup' || (!convs.length && !done && !hubMode))) openSetup(); // 허브에 연결된 PC는 대화가 허브에 있어 처음 설정(대화 고르기)을 띄우지 않음(2026-11-23 시험)
   // RC3: 메신저의 "작업 보기" 링크(#task=<요청 ID>) — 로그인 뒤 그 작업을 펼쳐 보여 준다(권한은 서버가 확인)
   const tm = location.hash.match(/^#task=([\w-]+)$/); if (tm) openTasks(tm[1]).catch(() => {});
   const cm = location.hash.match(/^#conv=([\w-]+)$/); if (cm) { history.replaceState(null, '', location.pathname); if (convs.some((c) => c.conversationId === cm[1])) select(cm[1]).catch(() => {}); } // 웹 알림을 눌러 열었을 때
@@ -646,6 +646,8 @@ function stateOf(c) {
 async function load() {
   const { body } = await api('/v1/conversations');
   convs = body.conversations; hubMode = body.hubMode === true;
+  // 2026-11-23 시험: 허브에 연결된 PC 화면은 대화가 허브에 있어 빈 목록에 "목록에서 대화를 고르면…"만 보였음 — 첫 화면에 허브 연결 카드(허브 화면 열기)
+  if (hubMode && !hubNoteShown && $('welcome')) { hubNoteShown = true; const h = await api('/v1/admin/local/hub').catch(() => ({ body: {} })); $('welcome').replaceChildren(cardView({ kind: 'hub_mode', hubUrl: h.body?.hubUrl })); }
   // M1: 이 PC의 사용 방식을 아직 고르지 않았으면 왼쪽 위에 한 줄 안내(허브 화면에는 mode 값이 없음)
   if ('mode' in body) { $('modeNote').hidden = body.mode !== null; $('modeNote').textContent = t('web.load.1', { pc: (hubMode ? t('web.load.12') : t('web.load.13')) }); }
   const list = $('list'); list.replaceChildren();
@@ -790,8 +792,9 @@ async function openMsg() {
     const b = bots.find((x) => x.platform === id && x.botId === 'default');
     // 꺼 둔 봇(예: 허브로 옮긴 봇)은 여기서 고를 수 없다 — 토큰을 넣으면 다른 곳과 겹칠 수 있음
     const off = b && b.enabled === false;
-    const st = off ? t('web.open_msg.1') : b?.status?.state === 'connected' ? t('web.open_msg.2', { username: (b.status.username ? ' · ' + b.status.username : '') }) : b ? t('web.open_msg.3') : t('web.open_msg.4');
-    const btnEl = el('button', null, 'pick'); btnEl.type = 'button'; btnEl.disabled = !b || off;
+    const st = off ? t('web.open_msg.1') : b?.status?.state === 'connected' ? t('web.open_msg.2', { username: (b.status.username ? ' · ' + b.status.username : '') }) : b?.status?.state === 'error' ? t('web.open_msg.err') : b ? t('web.open_msg.3') : t('web.open_msg.4');
+    // 2026-11-23 시험: "쓸 수 없음"도 눌러서 이유를 보게(카카오는 공개 중계가 없으면 이유 문구) — 꺼 둔 봇만 막음
+    const btnEl = el('button', null, 'pick'); btnEl.type = 'button'; btnEl.disabled = Boolean(off);
     const av = el('div', info.mark, 'av'); av.style.background = info.color; if (info.ink) av.style.color = info.ink; av.setAttribute('aria-hidden', 'true');
     const mid = el('div'); mid.style.minWidth = '0'; mid.append(el('div', info.name, 't'), el('div', st, 's'));
     btnEl.append(av, mid); btnEl.onclick = () => msgSetup(id); box.append(btnEl);
@@ -856,7 +859,9 @@ async function msgClaim() {
       if (s === 'error' && b.status.detail && Date.parse(b.status.at) >= savedAt - 5000) { $('m3Hint').textContent = t('web.msg_claim.7', { detail: (DETAIL[b.status.detail] || b.status.detail) }); return; }
       // 저장 직후에는 봇이 다음 확인 주기(최대 1분)까지 예전 상태(토큰 없음)로 남아 있다 — 75초 동안은 기다린다.
       if (s === 'relay_off') { $('m3Hint').textContent = t('web.msg_claim.8'); return; }
-      if (s === 'token_missing' && Date.now() - savedAt < 75_000) { await new Promise((ok) => setTimeout(ok, 3000)); if ($('msg').hidden) return; continue; }
+      // 2026-11-23 시험: 넣기 전 토큰의 오류가 남아 있으면 새 토큰 결과를 기다림(옛 오류로 "연결 오류"라고 끝내던 것)
+      const stale = s === 'error' && !(Date.parse(b.status.at) >= savedAt - 5000);
+      if ((s === 'token_missing' || stale) && Date.now() - savedAt < 75_000) { await new Promise((ok) => setTimeout(ok, 3000)); if ($('msg').hidden) return; continue; }
       if (['token_missing', 'duplicate_token', 'conflict', 'error'].includes(s) && i > 3) { $('m3Hint').textContent = t('web.msg_claim.9', { error: ({ token_missing: t('web.msg_claim.20'), duplicate_token: t('web.msg_claim.21'), conflict: t('web.msg_claim.22'), error: t('web.msg_claim.23') })[s] }); return; }
       await new Promise((ok) => setTimeout(ok, 3000));
       if ($('msg').hidden) return;
