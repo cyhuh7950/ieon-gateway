@@ -93,6 +93,7 @@ case "$cmd" in
     fi
     # 연결부는 시작할 때만 설정을 읽는다. 이미 돌고 있으면 live를 바꾸지 않는다(바꾸려면 stop 후 start).
     if ! { [[ -f "$RUN/connector.pid" ]] && pid_alive "$(cat "$RUN/connector.pid")"; }; then set_live "$live"; fi
+    node "$ROOT/scripts/ieon-init.mjs" --web-first "$ROOT" >/dev/null || true # 예전 설치에 빠진 설정만 채움(있는 값은 그대로)
     start_owned server node src/pilot/server.mjs .local/s2/server.json
     sleep 1
     start_owned connector node src/pilot/connector.mjs .local/s2/connector.json
@@ -140,7 +141,8 @@ case "$cmd" in
     tail -n 3 "$RUN/messenger.log" || true
     ;;
   init)
-    node "$ROOT/scripts/ieon-init.mjs" "$ROOT"
+    # 2026-11-23: Windows 설치(install.ps1)와 같게 웹 중심 설정까지(연결부·메신저 경로) — 빠지면 허브 연결 승인 뒤 중계가 저절로 안 켜졌음
+    node "$ROOT/scripts/ieon-init.mjs" --web-first "$ROOT"
     ;;
   claude)
     echo "터미널(tmux 등)에서 직접 실행하세요: cd $LOCAL/c1 && claude --dangerously-load-development-channels server:ieon"

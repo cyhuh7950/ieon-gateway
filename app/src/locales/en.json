@@ -39,7 +39,7 @@
   "errors.ns.new_sessions_disabled": "New sessions are turned off (Settings → Admin → Register conversations)",
   "errors.ns.app_not_allowed": "You can't create new sessions from this app",
   "errors.ns.bad_name": "Names are 2–32 letters, digits, or - (starting and ending with a letter or digit)",
-  "errors.ns.bad_engine": "The engine must be one of codex, claude, or antigravity",
+  "errors.ns.bad_engine": "The engine must be one of codex, claude, antigravity, or grok",
   "errors.ns.unknown_profile": "That permission profile doesn't exist",
   "errors.ns.profile_not_allowed": "full permission can only be chosen when the hub admin turns on the full switch for new sessions in Settings → Admin → Register conversations on the Ieon screen",
   "errors.ns.unknown_host": "That PC/cell isn't in the list",

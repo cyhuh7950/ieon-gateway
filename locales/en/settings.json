@@ -580,7 +580,7 @@
   "load_accounts.15": "Open approval window",
   "load_accounts.16": "Code: {code}",
   "load_accounts.17": "Hub default login (the login in Admin → Hub security)",
-  "load_accounts.18": "PC default login (same account as Codex Desktop on that PC)",
+  "load_accounts.18": "PC default login (that PC's Codex login)",
   "load_accounts.19": "Ieon account {label}{logged_in}",
   "load_accounts.20": "Shared server login",
   "load_accounts.21": "Account for {thread_id}",

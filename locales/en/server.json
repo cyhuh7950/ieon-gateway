@@ -23,7 +23,7 @@
   "account.pc_grok": "PC default login — that PC's Grok login",
   "account.shared_server": "Shared server login — the Codex shared server started on that PC",
   "account.cell_codex": "Server cell's Codex login (shares the hub login)",
-  "account.pc_codex": "PC default login — same account as that PC's Codex Desktop",
+  "account.pc_codex": "PC default login — that PC's Codex login",
   "install.title": "Ieon server install (download from hub). Install folder: $IEON_DIR (default ~/ieon-gateway)",
   "install.need_curl": "curl is required (sudo apt-get install -y curl)",
   "install.downloading": "Downloading Ieon install files... ($DIR)",

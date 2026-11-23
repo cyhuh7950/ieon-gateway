@@ -48,13 +48,13 @@ test('서버: 대화 목록에 그 대화의 질문이 나가는 계정(접속)�
   t.after(async () => { await app.close(); rmSync(dir, { recursive: true, force: true }); });
   const list = (await fetch(`${base}/v1/conversations`, { headers: { authorization: 'Bearer web' } }).then((r) => r.json())).conversations;
   const by = Object.fromEntries(list.map((c) => [c.conversationId, noKey(c.account)]));
-  assert.deepEqual(by.c_codex, { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정' });
+  assert.deepEqual(by.c_codex, { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex 로그인' });
   assert.deepEqual(by.c_claude, { mode: 'pc_default', label: '그 PC의 Claude Code 창에 로그인된 계정' });
 });
 
 test('메신저: 한도는 어느 계정인지와 바꿀 길을 알리고, 결과 불명처럼 /review를 요구하지 않는다. /status에 계정', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'ieon-a1m-')); t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const account = { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정' };
+  const account = { mode: 'pc_default', label: 'PC 기본 로그인 — 그 PC의 Codex 로그인' };
   const conv = { conversationId: 'c1', label: '시험 표식 확인', engine: 'codex_thread', connectMode: 'alternate', deviceOnline: true, busy: false, account };
   const api = async (req) => {
     if (req.method === 'GET' && req.path === '/v1/conversations') return { status: 200, body: { conversations: [conv] } };
@@ -65,7 +65,7 @@ test('메신저: 한도는 어느 계정인지와 바꿀 길을 알리고, 결�
   const bridge = createBridge({ api, allowedUsers: { telegram: ['111'] }, roomsPath: join(dir, 'rooms.json'), pollMs: 1, waitMs: 1000 });
   const said = []; const say = (text) => bridge.handle({ platform: 'telegram', userId: '111', chatId: '-1', text }, async (s) => { said.push(s); });
   await say('/use 1'); await say('질문');
-  assert.match(said.at(-1), /사용 한도에 걸려 실행되지 않았어요\. — 지금 쓰는 계정: PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정/);
+  assert.match(said.at(-1), /사용 한도에 걸려 실행되지 않았어요\. — 지금 쓰는 계정: PC 기본 로그인 — 그 PC의 Codex 로그인/);
   assert.ok(!/review/.test(said.at(-1)), '잠그지 않으므로 정리 명령이 필요 없음');
   await say('/status');
   assert.match(said.at(-1), /계정: PC 기본 로그인/);

@@ -462,6 +462,7 @@ details.adv[open] summary { margin-bottom:10px; }
       <details class="adv" id="pAdv"><summary>{{web.html_st_icon.2}}</summary>
         <div id="pMode" hidden>
           <div class="small muted">{{web.html_st_role.1}}</div>
+          <div class="small muted" id="pModeWhy" hidden>{{web.p_mode_codex_only}}</div>
           <label class="radio"><input type="radio" name="mode" value="alternate"> <span>{{web.html_st_save.1}} <span class="muted small">{{web.html_p_data.2}}</span></span></label>
           <label class="radio"><input type="radio" name="mode" value="shared_server"> <span>{{web.html_p_data.3}} <span class="muted small">{{web.html_p_data.4}}</span></span></label>
         </div>
@@ -503,6 +504,7 @@ let rooms = [], currentRoom = null, roomTimer = null; const roomSeen = new Map()
 async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
   $('newSessBtn').hidden = false; // 2026-11-20 신산님: 기능은 늘 보이고 누를 수 있음(못 쓰면 서버가 알려 줌)
+  if (r.status === 200) { const sel = $('nsProfile'); const has = [...sel.options].some((o) => o.value === 'full'); if (r.body.allowFull && !has) { const o = el('option', t('web.ns_profile_full')); o.value = 'full'; sel.append(o); } else if (!r.body.allowFull && has) sel.querySelector('option[value="full"]').remove(); }
   if (r.status === 200) $('nsLimits').textContent = t('web.load_limits.1', { sessions: r.body.sessions, max_sessions: r.body.maxSessions, codex: r.body.perEngine.codex, codex2: r.body.maxPerEngine.codex, claude: r.body.perEngine.claude, claude2: r.body.maxPerEngine.claude, antigravity: (r.body.perEngine.antigravity ?? 0), antigravity2: (r.body.maxPerEngine.antigravity ?? 0), grok: (r.body.perEngine.grok ?? 0), grok2: (r.body.maxPerEngine.grok ?? 0) });
 }
 // SV2: 허브에서는 새 세션을 만들 곳을 고른다 — 허브 자신(글로만 답해요) 또는 엔진 칸·PC(명령·파일 작업까지). 칸 Claude는 서버 Claude 로그인을 같이 씀.
@@ -618,7 +620,7 @@ async function loadDevice() {
 async function setLive(on, { confirmed = false } = {}) {
   if (on && !confirmed && !confirm(t('web.set_live.1'))) return false;
   const r = await api('/v1/admin/local/device/live', { method: 'PUT', body: JSON.stringify({ live: on }) });
-  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('web.set_live.2', { on: (on ? t('web.set_live.5') : t('web.set_live.6')) }) : (r.body.error === 'local_only' ? t('web.set_live.3') : t('web.set_live.4', { error: r.body.error })));
+  toast(r.status === 200 ? 'ok' : 'err', r.status === 200 ? t('web.set_live.2', { on: (on ? t('web.set_live.5') : t('web.set_live.6')) }) : (['local_only', 'admin_only'].includes(r.body.error) ? t(authState?.mode === 'hub' ? 'web.set_live.hub' : 'web.set_live.3') : t('web.set_live.4', { error: r.body.error })));
   await loadDevice(); await refresh();
   return r.status === 200;
 }
@@ -872,7 +874,7 @@ async function msgClaim() {
     }
   }, 3000);
 }
-$('msgBtn').onclick = openMsg;
+$('msgBtn').onclick = () => (authState?.role === 'user' ? (location.href = '/settings#msg') : openMsg()); // 2026-11-23: 가입자는 메신저 연결 화면으로(마법사는 봇 주인용)
 $('m2Back').onclick = () => openMsg();
 $('m3New').onclick = () => msgClaim();
 const closeMsg = () => { stopMsgTimer(); $('msg').hidden = true; };
@@ -1290,7 +1292,8 @@ $('micBtn').onclick = async () => {
     if (vc.live) return startLive();
     if (vc.turn) return turnListen(vc);
   }
-  if (!SRcls || !(await voiceNotice())) return;
+  if (!SRcls) { toast('warn', t('web.mic_no_speech_api')); return; } // 2026-11-23: 기기 음성 인식이 없는 브라우저 — 조용히 끝내지 않고 이유를
+  if (!(await voiceNotice())) return;
   const rec = new SRcls(); rec.lang = t('common.speech_lang'); rec.interimResults = false; rec.maxAlternatives = 1;
   let got = '';
   $('micBtn').classList.add('on');
@@ -1374,8 +1377,11 @@ function renderPanel(c) {
   $('pState').textContent = stateOf(c)[1];
   $('pId').textContent = c.conversationId;
   $('pMode').hidden = false;
-  for (const r of document.getElementsByName('mode')) { r.checked = r.value === (c.connectMode || 'alternate'); r.disabled = c.busy || Boolean(pending); }
+  const codex = c.engine === 'codex_thread'; $('pModeWhy').hidden = codex; // 2026-11-23: 연결 방식은 Codex 대화만 — 다른 엔진은 칸은 보이고 못 바꾸는 이유만
+  for (const r of document.getElementsByName('mode')) { r.checked = r.value === (c.connectMode || 'alternate'); r.disabled = !codex || c.busy || Boolean(pending); }
   $('pNew').hidden = false;
+  $('nsDelete').disabled = !c.newSession;
+  if (!c.newSession) { $('pNewInfo').textContent = t('web.p_new_only'); $('nsSleep').disabled = true; } // 이어온에서 만든 새 세션만 잠재우기·삭제
   if (c.newSession) {
     $('pNewInfo').textContent = t('web.render_panel.2', { state: (NS_STATE[c.newSession.state] || c.newSession.state), profile: c.newSession.profile, session_id: (c.newSession.sessionId ? t('web.render_panel.7', { session_id: c.newSession.sessionId }) : '') });
     $('nsSleep').disabled = c.newSession.state !== 'active' || c.busy;
@@ -1407,7 +1413,7 @@ const STAFF_ERR = { bad_staff_name: t('web.staff_err.1'), staff_name_taken: t('w
   bad_room_name: t('web.staff_err.5'), bad_members: t('web.staff_err.6'), bad_lead: t('web.staff_err.7'), too_long: t('web.staff_err.8'), bad_handoff: t('web.staff_err.9') };
 let roleList = null;
 async function fillRoles(sel) {
-  if (!roleList) { const r = await api('/v1/admin/roles').catch(() => null); roleList = r?.status === 200 ? r.body.roles : []; }
+  if (!roleList) { const r = await api('/v1/roles').catch(() => null); roleList = r?.status === 200 ? r.body.roles : []; }
   const s = $('stRole'); s.replaceChildren(el('option', t('web.html_ho_perm.2'))); s.firstChild.value = '';
   for (const r of roleList) { const o = el('option', r.name); o.value = r.roleId; s.append(o); }
   s.value = sel;
