@@ -23,7 +23,7 @@
   "account.pc_grok": "PC 기본 로그인 — 그 PC의 Grok 로그인",
   "account.shared_server": "공유 서버의 로그인 — 그 PC에서 띄운 Codex 공유 서버",
   "account.cell_codex": "서버 칸의 Codex 로그인(허브 로그인을 같이 씀)",
-  "account.pc_codex": "PC 기본 로그인 — 그 PC의 Codex Desktop과 같은 계정",
+  "account.pc_codex": "PC 기본 로그인 — 그 PC의 Codex 로그인",
   "install.title": "이어온 서버 설치(허브에서 받기). 설치 폴더: $IEON_DIR(없으면 ~/ieon-gateway)",
   "install.need_curl": "curl이 필요해요(sudo apt-get install -y curl)",
   "install.downloading": "이어온 설치 파일을 받는 중... ($DIR)",

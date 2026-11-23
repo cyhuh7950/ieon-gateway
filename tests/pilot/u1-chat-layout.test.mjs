@@ -40,7 +40,7 @@ test('새 화면은 이미 있는 API만 부른다', () => {
     '/v1/admin/local/engines', // U4: 처음 설정 준비 확인
     '/v1/admin/bots', '/v1/admin/secrets', '/v1/admin/secrets/', '/v1/admin/kakao/skill-url', '/v1/admin/messenger/claim', '/v1/admin/messenger/claim?platform=', // U5: 메신저 연결
     '/v1/sessions', '/v1/sessions/limits', '/v1/admin/line/webhook-url', '/v1/admin/local/mode', // M1: 사용 방식
-    '/v1/rooms', '/v1/rooms/', '/v1/admin/roles', // AP-1: 방·AI 직원 역할
+    '/v1/rooms', '/v1/rooms/', '/v1/admin/roles', '/v1/roles', // AP-1: 방·AI 직원 역할
     '/v1/approvals/', // W1: 승인 카드
     '/v1/approvals', '/v1/tasks?filter=active', '/v1/tasks?limit=30', '/v1/tasks/', // RC3: 작업 화면(승인 대기함·작업 목록·작업 하나)
     '/v1/admin/hosts/', // 가입자 대화 붙이기: 허브에서 고른 PC의 Codex 대화(기존 기기 명령 API)

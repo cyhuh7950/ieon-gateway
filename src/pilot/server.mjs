@@ -1609,6 +1609,7 @@ export function createApp(config) {
         const conv = store.conversations(principal).find((c) => c.conversationId === cardsPath[1]);
         return conv ? json(res, 200, { cards: cardsFor(conv, localLive(), principal) }) : json(res, 404, { error: 'not_found' });
       }
+      if (req.method === 'GET' && path === '/v1/roles') return json(res, 200, { roles: store.listRoles().map((r) => ({ roleId: r.roleId, name: r.name, description: r.description })) }); // 2026-11-23: 가입자도 AI 직원 역할을 고를 수 있게 이름만(편집은 관리자)
       // --- 새 세션 만들기(설계 NEW_SESSIONS) ---
       if (path === '/v1/sessions' || path.startsWith('/v1/sessions/')) {
         if (!nsCfg?.enabled) return json(res, 403, { error: 'new_sessions_disabled' });
@@ -1628,7 +1629,7 @@ export function createApp(config) {
           return r.http === 201 ? json(res, 201, { conversationId: r.conversationId, name: r.name, engine: r.engine, profile: r.profile })
             : json(res, r.http, { error: r.code, ...(r.limit ? { limit: r.limit } : {}), ...(r.allowed ? { allowed: r.allowed } : {}) });
         }
-        if (req.method === 'GET' && path === '/v1/sessions/limits') return json(res, 200, store.sessionLimits(nsCfg, nsHost));
+        if (req.method === 'GET' && path === '/v1/sessions/limits') return json(res, 200, { ...store.sessionLimits(nsCfg, nsHost), allowFull: nsCfg?.permissions?.allowFullFromChat === true }); // 2026-11-23: 화면이 full 선택지를 보일지
         if (req.method === 'GET' && path === '/v1/sessions/notices') {
           const after = url.searchParams.get('after') ?? '';
           const mine = new Set(noticeConvs(principal).map((c) => c.conversationId));
