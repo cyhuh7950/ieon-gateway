@@ -96,7 +96,10 @@ case "$cmd" in
     node "$ROOT/scripts/ieon-init.mjs" --web-first "$ROOT" >/dev/null || true # 예전 설치에 빠진 설정만 채움(있는 값은 그대로)
     start_owned server node src/pilot/server.mjs .local/s2/server.json
     sleep 1
-    start_owned connector node src/pilot/connector.mjs .local/s2/connector.json
+    # 서버가 연결부를 직접 돌리는 설정(manageLocalConnector)이면 따로 띄우지 않는다 — 두 개가 같은 일을 받던 것(2026-11-23 시험)
+    if [[ "$(node -e "process.stdout.write(String(require('$LOCAL/s2/server.json').manageLocalConnector === true))")" != true ]]; then
+      start_owned connector node src/pilot/connector.mjs .local/s2/connector.json
+    fi
     if [[ "$(get_live)" == true ]]; then l='켬'; else l='끔'; fi
     echo "실제 엔진 실행: $l · 웹: http://127.0.0.1:28760"
     ;;
