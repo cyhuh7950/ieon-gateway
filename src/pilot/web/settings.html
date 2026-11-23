@@ -283,7 +283,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
       <h3>{{settings.html_ag_cp_key.2}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.html_hub_link_box.1}}" data-tip="{{settings.html_hub_link_box.1}}">i</span></h3>
       <div id="hubLinkState"></div>
       <form id="hubLinkForm" class="row">
-        <input id="hlUrl" placeholder="https://ieun-gateway.sinsan.kr" autocomplete="off" aria-label="{{settings.html_hl_url.1}}">
+        <input id="hlUrl" placeholder="https://hub.example.com" autocomplete="off" aria-label="{{settings.html_hl_url.1}}">
         <input id="hlName" placeholder="{{settings.html_join_name.1}}" maxlength="40" autocomplete="off" aria-label="{{settings.html_join_name.2}}">
         <button class="primary" type="submit">{{settings.html_ag_cp_url.3}}</button>
       </form>
@@ -520,7 +520,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
     <div class="row"><button class="primary" type="button" id="adCode">{{settings.html_sec_box.1}}</button></div>
     <div id="adCodeBox" class="state warn" hidden role="alert"></div>
     <table class="list"><thead><tr><th>{{settings.html_sec_src.2}}</th><th>{{settings.html_login_days.4}}</th><th>{{settings.html_sec_src.3}}</th><th></th></tr></thead><tbody id="adList"></tbody></table>
-    <details class="fold"><summary>{{settings.html_sec_src.4}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.html_ad_list.1}}" data-tip="{{settings.html_ad_list.1}}">i</span></summary>
+    <details class="fold" id="pushFold"><summary>{{settings.html_sec_src.4}} <span class="tip" tabindex="0" role="note" aria-label="{{settings.html_ad_list.1}}" data-tip="{{settings.html_ad_list.1}}">i</span></summary>
     <div id="pushState" class="muted"></div>
     <div class="row"><label class="field">{{settings.html_sec_ip_on.1}}<input type="file" id="pushKeyFile" accept=".json,application/json"></label></div>
     <div class="row"><label class="field">{{settings.html_sec_ts_on.1}}<input type="file" id="pushAppFile" accept=".json,application/json"></label></div>
@@ -793,9 +793,10 @@ async function loadTargets() {
   const pcs = r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf); // 허브 자신의 연결부는 PC가 아님(허브 자체로 다룸)
   const fill = (sel, list, cur) => { sel.innerHTML = ''; for (const [v, txt] of list) { const o = el('option', txt); o.value = v; sel.append(o); } if (list.some(([v]) => v === cur)) sel.value = cur; return sel.value; };
   const pcList = pcs.map((d) => [d.hostId, d.name + (d.online ? '' : t('settings.load_targets.1'))]);
-  pcTarget = pcList.length ? fill($('pcTarget'), pcList, pcTarget) : 'none';
-  acTarget = fill($('acTarget'), [['hub', t('settings.load_targets.2')], ...pcList], acTarget === 'local' ? 'hub' : acTarget);
-  $('pcTargetRow').hidden = !pcList.length; $('acTargetRow').hidden = false;
+  pcTarget = pcList.length ? fill($('pcTarget'), pcList, pcs.some((d) => d.hostId === pcTarget) ? pcTarget : (pcs.find((d) => d.online)?.hostId ?? pcList[0][0])) : 'none'; // 처음엔 켜진 PC부터
+  // 2026-11-23 시험: 가입자 화면은 관리자 계정 구역(acTarget)을 지우므로 있을 때만 — 없는 칸을 채우다 오류가 나 PC 고르기 칸이 안 보였음
+  if ($('acTarget')) { acTarget = fill($('acTarget'), [['hub', t('settings.load_targets.2')], ...pcList], acTarget === 'local' ? 'hub' : acTarget); $('acTargetRow').hidden = false; }
+  $('pcTargetRow').hidden = !pcList.length;
   $('pcTargetNote').hidden = Boolean(pcList.length); $('pcTargetNote').textContent = t('settings.load_targets.3');
 }
 $('pcTarget').onchange = () => { pcTarget = $('pcTarget').value; loadDevice().catch(() => {}); loadMode().catch(() => {}); };
@@ -822,7 +823,9 @@ async function loadUsage() {
 async function loadDevice() {
   if (pcTarget === 'none') { $('devBox').hidden = true; return; }
   const r = await devRun('device.get'); $('devBox').hidden = false;
-  if (r.status !== 200) { return; }
+  // 2026-11-23 시험: PC가 답하지 않으면 빈 기본값(꺼짐)을 보이던 것 — 칸은 두고 막은 뒤 이유를 보임
+  for (const x of $('devBox').querySelectorAll('input,select,button')) x.disabled = r.status !== 200;
+  if (r.status !== 200) { setStatus('err', DEV_ERR[r.body?.error] || HOST_ERR[r.body?.error] || t('settings.host_err.2')); return; }
   if (pcTarget !== 'local') $('pcTargetNote').hidden = true;
   const d = r.body;
   $('devLive').checked = d.live;
@@ -873,7 +876,7 @@ async function loadWsTargets() {
   if (authState?.mode !== 'hub') { $('wsTargetRow').hidden = true; return; }
   const r = await api('/v1/admin/devices'); if (r.status !== 200) return;
   wsHubSelf = r.body.devices.find((d) => d.hubSelf && !d.revokedAt)?.hostId ?? null;
-  const list = [['hub', t('settings.load_targets.2')], ...r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).map((d) => [d.hostId, d.name + (d.online ? '' : t('settings.load_targets.1'))])];
+  const list = [...(authState?.role === 'user' ? [] : [['hub', t('settings.load_targets.2')]]), ...r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).map((d) => [d.hostId, d.name + (d.online ? '' : t('settings.load_targets.1'))])];
   const sel = $('wsTarget'); sel.innerHTML = '';
   for (const [v, txt] of list) { const o = el('option', txt); o.value = v; sel.append(o); }
   wsTarget = list.length ? (list.some(([v]) => v === wsTarget) ? wsTarget : list[0][0]) : 'none';
@@ -1836,6 +1839,7 @@ async function loadUser() {
 }
 async function boot() {
   authState = await fetch('/v1/auth/state', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
+  if (authState?.role === 'user') $('pushFold').hidden = true; // 2026-11-23 시험: 휴대폰 알림 키(허브 전체 설정)는 관리자 것 — 가입자에게 보이지 않게
   if (!authState?.loggedIn && !(authState?.localAuto && (await authPost('/v1/auth/local')).status === 200)) { location.href = '/'; return; }
   if (authState?.status === 'pending') { location.href = '/'; return; }
   if (authState?.role === 'user') { applyUserMode(); applyMode(); loadUser().catch(() => {}); return; }

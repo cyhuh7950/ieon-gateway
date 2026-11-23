@@ -76,7 +76,9 @@ switch ($Command) {
     if (-not $connectorRunning) { Set-Live $Live.IsPresent }
     Start-Owned 'server' 'node' @('src/pilot/server.mjs', '.local/s2/server.json')
     Start-Sleep -Seconds 1
-    Start-Owned 'connector' 'node' @('src/pilot/connector.mjs', '.local/s2/connector.json')
+    # 서버가 연결부를 직접 돌리는 설정(manageLocalConnector)이면 따로 띄우지 않는다 — 두 개가 같은 일을 받던 것(2026-11-23 시험)
+    $managed = (Get-Content (Join-Path $Local 's2\server.json') -Raw | ConvertFrom-Json).manageLocalConnector -eq $true
+    if (-not $managed) { Start-Owned 'connector' 'node' @('src/pilot/connector.mjs', '.local/s2/connector.json') }
     $liveNow = (Get-Content $ConnectorConfig -Raw | ConvertFrom-Json).live
     Write-Output "실제 엔진 실행: $(if ($liveNow) { '켬' } else { '끔' }) · 웹: http://127.0.0.1:28760"
   }

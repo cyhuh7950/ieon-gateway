@@ -66,6 +66,7 @@ details.arch { margin:8px 4px 0; } details.arch summary { cursor:pointer; color:
 .switch { display:flex; align-items:center; gap:8px; border:1px solid var(--border); background:var(--surface); border-radius:99px; padding:4px 10px 4px 4px; font-size:12px; }
 .switch .knob { width:34px; height:20px; border-radius:99px; background:var(--border); position:relative; flex:none; }
 .switch .knob::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff; transition:left .15s; }
+.switch[aria-checked="mixed"] .knob { display:none; } /* 허브 화면: PC의 상태를 몰라 켜짐·꺼짐 대신 바꾸는 곳 안내 */
 .switch[aria-checked="true"] .knob { background:var(--accent); } .switch[aria-checked="true"] .knob::after { left:16px; }
 .iconbtn { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:6px 10px; font-size:12px; }
 .back { display:none; }
@@ -192,6 +193,10 @@ details.adv[open] summary { margin-bottom:10px; }
 .card { width:min(420px,100%); background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; box-shadow:var(--shadow); }
 .card h1 { font-size:20px; margin:14px 0 6px; }
 .card input { width:100%; border:1px solid var(--border); background:var(--surface-alt); border-radius:10px; padding:10px 12px; margin-top:10px; }
+/* 2026-11-23 시험: 동의 칸이 혼자 한 줄을 차지하고 가입 신청 버튼이 글 사이에 끼던 것 — 체크칸은 글 앞, 버튼은 한 줄 전체 */
+#agreeRow { display:flex; gap:8px; align-items:flex-start; margin-top:12px; line-height:1.5; }
+#agreeRow input { width:auto; margin:3px 0 0; flex:none; }
+#signupBtn { width:100%; margin-top:8px; min-height:44px; }
 #langSel { display:block; margin:14px 0 0 auto; border:1px solid var(--border); background:var(--surface-alt); color:var(--text); border-radius:8px; padding:4px 8px; font:inherit; font-size:12px; }
 .card .primary { width:100%; border:0; border-radius:12px; padding:12px; background:var(--accent); color:var(--on-accent); font-weight:600; margin-top:16px; }
 
@@ -245,7 +250,7 @@ details.adv[open] summary { margin-bottom:10px; }
     <input id="pw" type="password" placeholder="{{web.html_pw.1}}" aria-label="{{web.html_pw.1}}" autocomplete="current-password" required>
     <input id="pw2" type="password" placeholder="{{web.html_pw2.1}}" aria-label="{{web.html_pw2.1}}" autocomplete="new-password" hidden>
     <button class="primary" id="loginBtn">{{web.html_login_title.1}}</button>
-    <label class="small" id="agreeRow" hidden><input type="checkbox" id="agree"> <a href="/terms" target="_blank" rel="noopener">{{web.html_agree.1}}</a>{{web.html_agree.2}} <a href="/privacy" target="_blank" rel="noopener">{{web.html_agree.3}}</a>{{web.html_signup_btn.1}}</label>
+    <label class="small" id="agreeRow" hidden><input type="checkbox" id="agree"><span><a href="/terms" target="_blank" rel="noopener">{{web.html_agree.1}}</a>{{web.html_agree.2}} <a href="/privacy" target="_blank" rel="noopener">{{web.html_agree.3}}</a>{{web.html_signup_btn.1}}</span></label>
     <button type="button" id="signupBtn" hidden>{{web.html_pending_box.2}}</button>
     <select id="langSel" class="small" aria-label="{{common.language}}"></select>
   </form>
@@ -505,7 +510,7 @@ async function loadLimits() {
   const r = await api('/v1/sessions/limits').catch(() => ({ status: 0 }));
   $('newSessBtn').hidden = false; // 2026-11-20 신산님: 기능은 늘 보이고 누를 수 있음(못 쓰면 서버가 알려 줌)
   if (r.status === 200) { const sel = $('nsProfile'); const has = [...sel.options].some((o) => o.value === 'full'); if (r.body.allowFull && !has) { const o = el('option', t('web.ns_profile_full')); o.value = 'full'; sel.append(o); } else if (!r.body.allowFull && has) sel.querySelector('option[value="full"]').remove(); }
-  if (r.status === 200) $('nsLimits').textContent = t('web.load_limits.1', { sessions: r.body.sessions, max_sessions: r.body.maxSessions, codex: r.body.perEngine.codex, codex2: r.body.maxPerEngine.codex, claude: r.body.perEngine.claude, claude2: r.body.maxPerEngine.claude, antigravity: (r.body.perEngine.antigravity ?? 0), antigravity2: (r.body.maxPerEngine.antigravity ?? 0), grok: (r.body.perEngine.grok ?? 0), grok2: (r.body.maxPerEngine.grok ?? 0) });
+  if (r.status === 200) $('nsLimits').textContent = t('web.load_limits.1', { sessions: r.body.sessions, max_sessions: r.body.maxSessions, codex: r.body.perEngine.codex, codex2: r.body.maxPerEngine.codex, claude: r.body.perEngine.claude, claude2: r.body.maxPerEngine.claude, antigravity: (r.body.perEngine.antigravity ?? 0), antigravity2: (r.body.maxPerEngine.antigravity ?? 0), grok: (r.body.perEngine.grok ?? 0), grok2: (r.body.maxPerEngine.grok ?? 0) }) + (r.body.allowFull || authState?.role === 'user' ? '' : ' ' + t('web.load_limits.full_hint'));
 }
 // SV2: 허브에서는 새 세션을 만들 곳을 고른다 — 허브 자신(글로만 답해요) 또는 엔진 칸·PC(명령·파일 작업까지). 칸 Claude는 서버 Claude 로그인을 같이 씀.
 async function loadNsHosts() {
@@ -514,8 +519,9 @@ async function loadNsHosts() {
   const list = r.status === 200 ? r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf).sort((a, b) => Number(Boolean(b.cell)) - Number(Boolean(a.cell))) : [];
   $('nsHostRow').hidden = false; const sel = $('nsHost'); const keep = sel.value; sel.replaceChildren();
   // 기본: 켜진 첫 엔진 칸(명령·파일 작업까지). 엔진 칸이 없으면 허브 자신(글로만 답해요)
-  for (const [v, lbl] of [['', t('web.load_ns_hosts.1')], ...list.map((d) => [d.hostId, (d.name || d.hostId) + (d.cell ? t('web.load_ns_hosts.2') : '') + (d.online ? '' : t('web.load_ns_hosts.3'))])]) { const o = el('option', lbl); o.value = v; sel.append(o); }
-  const def = list.find((d) => d.nsDefault)?.hostId ?? '';
+  const member = authState?.role === 'user'; // 2026-11-23 시험: 가입자는 자기 PC에만 만들 수 있음(허브 자신은 서버가 거절) — 선택지에서 뺌
+  for (const [v, lbl] of [...(member ? [] : [['', t('web.load_ns_hosts.1')]]), ...list.map((d) => [d.hostId, (d.name || d.hostId) + (d.cell ? t('web.load_ns_hosts.2') : '') + (d.online ? '' : t('web.load_ns_hosts.3'))])]) { const o = el('option', lbl); o.value = v; sel.append(o); }
+  const def = list.find((d) => d.nsDefault)?.hostId ?? (member ? (list.find((d) => d.online) ?? list[0])?.hostId ?? '' : '');
   sel.value = [...sel.options].some((o) => o.value === keep) && keep ? keep : def;
 }
 $('newSessBtn').onclick = () => { $('newSess').hidden = false; loadLimits(); loadNsHosts().catch(() => {}); $('nsName').focus(); };
@@ -575,6 +581,7 @@ $('logoutBtn').onclick = async () => { await authPost('/v1/auth/logout'); locati
 $('signupBtn').onclick = async () => {
   const email = $('email').value.trim(); const pw = $('pw').value;
   if (!email) return toast('err', t('web.show_login.5'));
+  if (!$('email').checkValidity()) return toast('err', t('web.auth_err.3'));
   if (!$('agree').checked) return toast('err', t('web.show_login.6'));
   if (!confirm(t('web.show_login.7', { email }))) return;
   const r = await authPost('/v1/auth/signup', { email, password: pw, agree: true });
@@ -614,7 +621,7 @@ async function startApp() {
 async function loadDevice() {
   const r = await api('/v1/admin/local/device').catch(() => ({ status: 0 }));
   device = r.status === 200 ? r.body : null;
-  $('liveSwitch').hidden = false; if (!device) $('liveLabel').textContent = t('web.load_device.1'); // 이 PC 화면이 아니면 상태를 모름(누르면 서버가 알려 줌)
+  $('liveSwitch').hidden = false; if (!device) { $('liveSwitch').setAttribute('aria-checked', 'mixed'); $('liveLabel').textContent = t('web.live_on_pc'); } // 이 PC 화면이 아니면 상태를 모름(누르면 서버가 알려 줌)
   if (device) { $('liveSwitch').setAttribute('aria-checked', String(device.live)); $('liveLabel').textContent = device.live ? t('web.load_device.2') : t('web.html_title.1'); }
 }
 async function setLive(on, { confirmed = false } = {}) {
@@ -1372,7 +1379,7 @@ function renderPanel(c) {
   if (document.activeElement?.closest?.('#pStaff') == null) { $('stName').value = c.staff?.name ?? ''; $('stIcon').value = c.staff?.icon ?? ''; fillRoles(c.staff?.roleId ?? ''); }
   $('msgDel').disabled = c.busy || Boolean(pending); // AP-5a
   $('pEngine').textContent = ENGINE[c.engine] || c.engine;
-  $('pAccount').textContent = c.account ? tFrom(c.account.label, c.account.labelKey, c.account.labelVars) + (c.account.mode === 'pc_default' ? t('web.render_panel.1') : '') : '—';
+  $('pAccount').textContent = c.account ? tFrom(c.account.label, c.account.labelKey, c.account.labelVars) + (c.account.mode === 'pc_default' && authState?.role !== 'user' ? t('web.render_panel.1') : '') : '—';
   $('pHow').textContent = HOW[c.engine] || '';
   $('pState').textContent = stateOf(c)[1];
   $('pId').textContent = c.conversationId;
@@ -1383,7 +1390,7 @@ function renderPanel(c) {
   $('nsDelete').disabled = !c.newSession;
   if (!c.newSession) { $('pNewInfo').textContent = t('web.p_new_only'); $('nsSleep').disabled = true; } // 이어온에서 만든 새 세션만 잠재우기·삭제
   if (c.newSession) {
-    $('pNewInfo').textContent = t('web.render_panel.2', { state: (NS_STATE[c.newSession.state] || c.newSession.state), profile: c.newSession.profile, session_id: (c.newSession.sessionId ? t('web.render_panel.7', { session_id: c.newSession.sessionId }) : '') });
+    $('pNewInfo').textContent = t('web.render_panel.2', { state: (NS_STATE[c.newSession.state] || c.newSession.state), profile: ({ workspace: t('web.html_ns_name.3'), read_only: t('web.html_ns_profile.1'), full: t('web.ns_profile_full') }[c.newSession.profile] || c.newSession.profile), session_id: (c.newSession.sessionId ? t('web.render_panel.7', { session_id: c.newSession.sessionId }) : '') });
     $('nsSleep').disabled = c.newSession.state !== 'active' || c.busy;
   }
 }
