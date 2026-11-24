@@ -72,3 +72,9 @@ test('화면: Codex·Claude 호환 주소를 방식으로 구별, 고를 수 없
   assert.ok(S.includes('호환 주소는 새 세션에서만(고를 수 없음)') && S.includes('로그인·호환 주소가 없어 고를 수 없음'));
   assert.ok(S.includes('o.disabled = Boolean(off)'));
 });
+
+test('같은 이름 계정 구별: 고르기 칸 이름에 종류·모델(호환 주소 · solar-pro4 / API 키 / 구독)', () => {
+  const S = koView('settings.html');
+  assert.ok(S.includes('const optLabel = (a)') && S.includes('(호환 주소 · {model})'.replace('{model}', '')) || S.includes('호환 주소 ·'));
+  assert.ok(!S.includes("{ label: a.label, logged_in"), 'Codex 고르기 칸도 optLabel');
+});
