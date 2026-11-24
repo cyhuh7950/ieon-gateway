@@ -47,7 +47,13 @@
 <body>
 <div id="stage"></div>
 <script>
+// 화면 글 언어: render.cjs가 ?lang=<언어>로 연다(VIDEO_LANG). 영어 글은 usage-text.<언어>.js — window.__TEXT = { 한국어 원문: 번역 }
+window.__LANG = new URLSearchParams(location.search).get('lang') || 'ko';
+if (window.__LANG !== 'ko') document.write('<script src="usage-text.' + window.__LANG + '.js"><\/script>');
+</script>
+<script>
 'use strict';
+const L = (s) => (window.__TEXT && window.__TEXT[s]) || s; // 화면 글(한국어 원문 → 고른 언어)
 // 시간표: build-usage.mjs가 window.__TIMELINE = [{ id, type, start, dur, say, sayStart, sayDur, shots, hl, zoom, ep, epTitle, … }]
 const W = 1920, H = 1080, CX = 960;
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -58,7 +64,7 @@ const lerp = (a, b, p) => a + (b - a) * p;
 const stage = document.getElementById('stage');
 const el = (cls, html, style = {}, parent = stage) => { const e = document.createElement('div'); if (cls) e.className = cls; if (html != null) e.innerHTML = html; Object.assign(e.style, style); parent.append(e); return e; };
 const place = (e, x, y, o = 1, s = 1) => { e.style.left = x + 'px'; e.style.top = y + 'px'; e.style.opacity = o; e.style.transform = `translate(-50%,-50%) scale(${s})`; };
-const SHOT = '../../.local/video/usage-shots/';
+const SHOT = window.__LANG === 'ko' ? '../../.local/video/usage-shots/' : `../../.local/video/${window.__LANG}/usage-shots/`;
 const SIZE = { web: [1920, 1200], phone: [1170, 2532], pc: [960, 1640] };
 
 // 장면 안 비율(0~1)에 맞는 캡처 그림
@@ -81,16 +87,16 @@ function hlOpacity(sc, lt, d) {
 const SCN = {
   title(sc, lt, d) {
     const g = el('logo', '<b>이</b>'); place(g, CX, 380, prog(lt, 0, .5), lerp(.8, .8, 1));
-    const n = el('txt', '사용법 ' + sc.ep, { fontSize: '34px', color: '#8fd3c8', letterSpacing: '.12em' }); place(n, CX, 560, prog(lt, .2, .7));
+    const n = el('txt', L('사용법 ') + sc.ep, { fontSize: '34px', color: '#8fd3c8', letterSpacing: '.12em' }); place(n, CX, 560, prog(lt, .2, .7));
     const t = el('txt', sc.epTitle, { fontSize: '76px', fontWeight: 700 }); place(t, CX, 650, prog(lt, .3, .9), lerp(.96, 1, prog(lt, .3, 1)));
   },
   end(sc, lt, d) {
     const g = el('logo', '<b>이</b>'); place(g, CX, 360, 1, .75);
     if (sc.last) {
-      const t = el('txt', '이어온', { fontSize: '72px', fontWeight: 700 }); place(t, CX, 590, prog(lt, .2, .8));
+      const t = el('txt', L('이어온'), { fontSize: '72px', fontWeight: 700 }); place(t, CX, 590, prog(lt, .2, .8));
       const s = el('txt', 'ieon-gateway', { fontSize: '30px', color: '#8fd3c8', letterSpacing: '.08em' }); place(s, CX, 670, prog(lt, .6, 1.2));
     } else {
-      const s = el('txt', '다음 영상', { fontSize: '32px', color: '#8fd3c8', letterSpacing: '.1em' }); place(s, CX, 560, prog(lt, .2, .7));
+      const s = el('txt', L('다음 영상'), { fontSize: '32px', color: '#8fd3c8', letterSpacing: '.1em' }); place(s, CX, 560, prog(lt, .2, .7));
       const t = el('txt', sc.next, { fontSize: '64px', fontWeight: 700 }); place(t, CX, 645, prog(lt, .3, .9));
     }
     stage.style.opacity = 1 - prog(lt, d - .8, d);
@@ -132,7 +138,7 @@ const SCN = {
     const scr = el('scr', '', { width: w + 'px', height: hh + 'px' }, fr);
     place(fr, lerp(CX, 470, side), 458, prog(lt, 0, .35));
     const c = el('chat', '', {}, scr);
-    const peer = sc.peer === 'BotFather' ? ['B', 'BotFather', '봇'] : ['이', sc.peer, '봇'];
+    const peer = sc.peer === 'BotFather' ? ['B', 'BotFather', L('봇')] : ['이', sc.peer, L('봇')];
     el('hd', `<div class="av">${peer[0]}</div><div><b>${peer[1]}</b><small>${peer[2]}</small></div>`, {}, c);
     const ms = el('ms', '', {}, c);
     sc.msgs.forEach(([who, text, at], i) => {
@@ -142,8 +148,8 @@ const SCN = {
       m.style.opacity = a; m.style.transform = `translateY(${(1 - a) * 14}px)`;
       if (sc.hlMsg === i && prog(lt, at * d + .5, at * d + .9) > .5) m.classList.add('hl');
     });
-    el('in', '메시지', {}, c);
-    const tag = el('plat', '✈ 텔레그램 (휴대폰)'); place(tag, CX + 400, 110, prog(lt, .2, .6) * (1 - side));
+    el('in', L('메시지'), {}, c);
+    const tag = el('plat', L('✈ 텔레그램 (휴대폰)')); place(tag, CX + 400, 110, prog(lt, .2, .6) * (1 - side));
     if (sc.webAfter) {
       const [sw, sh] = SIZE.web; const ww = 1080, k = ww / sw, h2 = sh * k + 40;
       const b = el('frame brw', '<div class="url">127.0.0.1:28799</div>', { width: ww + 'px', height: h2 + 'px' });
@@ -157,7 +163,7 @@ const SCN = {
     const desk = el('', '', { position: 'absolute', inset: 0, background: 'linear-gradient(135deg,#1e3a5f,#0f2a3f 55%,#14202e)' });
     el('task', '', {}, desk);
     const mini = prog(lt, 1.8, 2.8);
-    const f = el('frame win', '<div class="wt">이어온</div>', { width: w + 'px', height: hh + 34 + 'px' });
+    const f = el('frame win', `<div class="wt">${L('이어온')}</div>`, { width: w + 'px', height: hh + 34 + 'px' });
     el('scr', `<img src="${SHOT + shotAt(sc, lt / d)}.png">`, { height: hh + 'px' }, f);
     f.style.left = lerp(CX, 900, mini) + 'px'; f.style.top = lerp(486, 1040, mini) + 'px';
     f.style.opacity = 1 - mini * .95; f.style.transform = `translate(-50%,-50%) scale(${lerp(1, .05, mini)})`;

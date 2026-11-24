@@ -27,3 +27,12 @@ test('인수 시험 모은 고침: 계정 탭은 PC부터, 사용량은 PC 이�
   assert.ok(A.includes('실행 안 됨') && A.includes('tStateOf(tk)') && A.includes('tStateOf(x)'));
   assert.ok(S.includes('설치 파일에 적힌 PC') && S.includes('이 PC에서는 쓸 수 없어요 — 서버 엔진 칸'));
 });
+
+test('메신저 /sessions: 빠른 응답(기본) 대화를 "번갈아 쓰기"가 아니라 "빠른 응답"으로(2026-11-25)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../../src/pilot/messenger/bridge.mjs', import.meta.url), 'utf8');
+  assert.ok(src.includes("c.connectMode === 'warm' ? 'messenger.engine.mode.warm'"));
+  const ko = JSON.parse(readFileSync(new URL('../../locales/ko/messenger.json', import.meta.url), 'utf8'));
+  const en = JSON.parse(readFileSync(new URL('../../locales/en/messenger.json', import.meta.url), 'utf8'));
+  assert.deepEqual([ko['engine.mode.warm'], en['engine.mode.warm']], ['빠른 응답', 'fast replies']);
+});

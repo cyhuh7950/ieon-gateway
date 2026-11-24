@@ -6,6 +6,8 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
+/* VIDEO_NO_GPU=1: GPU 프로세스가 꺼져 "Unable to capture screenshot"이 날 때(2026-11-25 영어 06편) 소프트웨어로 그림 */
+if (process.env.VIDEO_NO_GPU) app.disableHardwareAcceleration();
 app.on("window-all-closed", () => {});
 const ai = process.argv.findIndex((a) => a.endsWith("timeline.json"));
 const [tlFile, mode, out, fpsArg, timesArg] = process.argv.slice(ai, ai + 5);
