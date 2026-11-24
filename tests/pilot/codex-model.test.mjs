@@ -82,3 +82,17 @@ test('설정 파일의 [mcp_servers.이름] 만 읽음(따옴표 이름 포함, 
   writeFileSync(join(d, 'config.toml'), ['model = "x"', '[mcp_servers.korean-law]', 'command = "a"', '[mcp_servers."daon2"]', 'url = "b"', '[mcp_servers.korean-law.env]', 'K = "v"', '[profiles.p]'].join(String.fromCharCode(10)));
   assert.deepEqual([...configMcpNames({ CODEX_HOME: d })].sort(), ['daon2', 'korean-law']);
 });
+
+test('호환 주소 계정(그 계정에 모델이 있음)에는 이어온이 쓸 Codex 모델을 덧씌우지 않음, Upstage 모델 거절도 모델 거절로(2026-11-24)', async () => {
+  const seen = [];
+  const loadSdk = async () => ({ Codex: class {
+    constructor(o) { seen.push(o); }
+    resumeThread(id) { return { id, async runStreamed() { return { events: (async function* () { yield { type: 'thread.started', thread_id: id }; yield { type: 'item.completed', item: { type: 'agent_message', text: '확인' } }; yield { type: 'turn.completed' }; })() }; } }; }
+  } });
+  const a = codexThreadAdapter({ live: true, allowlist: [TID], probe: () => 'NO_LOCK_FILE', loadSdk, model: 'gpt-6.1-sol', accountEnv: () => ({ CODEX_HOME: 'x', IEON_COMPAT_API_KEY: 'k' }) });
+  await a.run({ engine: 'codex_thread', sessionRef: TID, question: 'q', connectMode: 'alternate' });
+  assert.equal(seen[0]?.config?.model, undefined);
+  assert.equal(seen[0]?.env?.CODEX_HOME, 'x');
+  const { isModelUnsupported } = await import('../../src/pilot/adapters/codex-thread.mjs');
+  assert.ok(isModelUnsupported('The requested model is invalid or no longer supported. You can find the list'));
+});
