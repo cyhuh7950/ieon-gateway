@@ -14,3 +14,8 @@ test('역할 칸: 만든 역할이 없으면 만드는 곳을 칸 안에 알림,
   const S = koView('settings.html');
   assert.ok(S.includes("c.label + (c.staff?.name ? ' (@' + c.staff.name + ')' : '')"));
 });
+
+test('작업 폴더: 10초마다 새로 읽을 때 열어 둔 폴더 정하기 칸은 닫지 않음(신산님 "금방 없어져서 불편해")', () => {
+  const S = koView('settings.html');
+  assert.equal((S.match(/if \(\$\('wsEdit'\)\.hidden\) loadWsTargets\(\)/g) || []).length, 2);
+});
