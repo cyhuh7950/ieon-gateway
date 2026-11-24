@@ -50,7 +50,7 @@ test('기기 명령: 호환 주소 저장·보기(호스트·모델만, 키 없�
   const r = await pc.run('accounts.compat', { id, baseUrl: 'https://router.example.com/v1', key: KEY, model: 'gpt-oss-120b' });
   assert.equal(r.status, 200);
   const a = r.body.accounts.find((x) => x.id === id);
-  assert.deepEqual([a.loggedIn, a.kind, a.compat], [true, 'compat', { host: 'router.example.com', model: 'gpt-oss-120b' }]);
+  assert.deepEqual([a.loggedIn, a.kind, a.compat], [true, 'compat', { host: 'router.example.com', url: 'https://router.example.com/v1', model: 'gpt-oss-120b' }]); // 2026-11-24: 화면에 주소 전체(키 없음)
   assert.ok(!JSON.stringify(r.body).includes(KEY), '응답에 키 없음');
   const out = await pc.run('accounts.logout', { id });
   assert.equal(out.body.accounts.find((x) => x.id === id).kind, null);

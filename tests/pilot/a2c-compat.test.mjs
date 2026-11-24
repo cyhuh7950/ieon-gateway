@@ -53,7 +53,8 @@ test('기기 명령: 호환 주소 저장, 화면에는 호스트·모델·확�
   assert.equal((await pc.run('claude.accounts.compat', { id, baseUrl: 'ftp://x', key: KEY, model: 'm' })).body.error, 'bad_base_url');
   const r = await pc.run('claude.accounts.compat', { id, baseUrl: 'https://api.upstage.ai/v1/claude', key: KEY, model: 'solar-pro4' });
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body.accounts[0].compat, { host: 'api.upstage.ai', model: 'solar-pro4', confirmed: true });
+  assert.deepEqual({ ...r.body.accounts[0].compat, url: undefined }, { host: 'api.upstage.ai', url: undefined, model: 'solar-pro4', confirmed: true }); // 2026-11-24: url(주소 전체)도 보임
+  assert.match(r.body.accounts[0].compat.url, /^https:\/\/api\.upstage\.ai/);
   assert.ok(!JSON.stringify(r.body).includes(KEY), '응답에 키가 없음');
   assert.ok(!readFileSync(join(d, 'accounts', 'claude', id, 'compat.json'), 'utf8').includes(KEY), '키는 따로(600) 파일');
   assert.equal((await pc.run('claude.accounts.logout', { id })).body.accounts[0].kind, null);

@@ -9,7 +9,7 @@ import { setCodexMode, setCodexModel, addGrokAccount, removeGrokAccount, useGrok
 import { workspacesView } from './workspaces.mjs';
 import { accountsDirFor, codexHomeOf, createCodexHome, removeCodexHome, hasLogin, desktopCodexHome, readCodexCompat, saveCodexCompat, removeCodexCompat, compatHostOf } from './accounts.mjs';
 import { createCodexLogin } from './codex-login.mjs';
-import { claudeBusy, claudeProjectsDir, findClaudeSession, listClaudeSessions } from './claude-sessions.mjs';
+import { claudeBusy, claudeProjectsDir, claudeSessionModel, findClaudeSession, isForeignModel, listClaudeSessions } from './claude-sessions.mjs';
 import { EXCLUDED_THREAD } from './lock-probe.mjs';
 import { AGY_KEY, agyAccountKind, agyCompatHost, agyHomeOf, agyLogoutFiles, createAgyLogin, readAgyCompat, saveAgyApiKey, saveAgyCompat } from './agy-accounts.mjs';
 import { CLI_ENGINES } from './adapters/cli-once.mjs';
@@ -97,7 +97,7 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     for (const [id, l] of logins) if (l.view().state === 'done' && !k[id]) { setKind(p, id, 'subscription'); k[id] = 'subscription'; } // 기기 코드 로그인이 끝나면 구독으로 적음
     return { defaultLogin: { loggedIn: hasLogin(desktopCodexHome()), login: logins.get(DEFAULT_ID)?.view() ?? { state: 'idle' }, kind: k[DEFAULT_ID] ?? null },
       accounts: d.codexAccounts.map((a) => { const home = codexHomeOf(dir, a.id); const cp = readCodexCompat(home); // A2-c: 호환 주소는 호스트·모델만(키 없음)
-        return { ...a, engine: 'codex', loggedIn: Boolean(cp) || hasLogin(home), login: logins.get(a.id)?.view() ?? { state: 'idle' }, kind: cp ? 'compat' : k[a.id] ?? null, ...(cp ? { compat: { host: compatHostOf(cp.baseUrl), model: cp.model } } : {}) }; }),
+        return { ...a, engine: 'codex', loggedIn: Boolean(cp) || hasLogin(home), login: logins.get(a.id)?.view() ?? { state: 'idle' }, kind: cp ? 'compat' : k[a.id] ?? null, ...(cp ? { compat: { host: compatHostOf(cp.baseUrl), url: cp.baseUrl, model: cp.model } } : {}) }; }),
       defaultAccount: d.codexDefaultAccount, accountFor: d.codexAccountFor, threads: d.codexThreads.map((t) => ({ threadId: t.threadId, mode: t.mode })) };
   };
   const known = (p, id) => {
@@ -125,7 +125,7 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
     try {
       const f = JSON.parse(readFileSync(p, 'utf8')).newSessions?.createdPath;
       if (f && existsSync(f)) for (const l of readFileSync(f, 'utf8').split('\n').filter(Boolean)) {
-        try { const r = JSON.parse(l); if (/^[0-9a-f-]{36}$/i.test(String(r.id)) && findClaudeSession(r.id, claudeProjects)) out.set(r.id.toLowerCase(), { sessionId: r.id.toLowerCase(), name: String(r.name ?? '') }); } catch { /* 깨진 줄 */ }
+        try { const r = JSON.parse(l); if (/^[0-9a-f-]{36}$/i.test(String(r.id)) && findClaudeSession(r.id, claudeProjects)) out.set(r.id.toLowerCase(), { sessionId: r.id.toLowerCase(), name: String(r.name ?? ''), newSession: true, model: claudeSessionModel(r.id, claudeProjects) }); } catch { /* 깨진 줄 */ }
       }
     } catch { /* 설정 없음 */ }
     for (const x of readDevice(p).cliSessions.filter((s) => s.engine === 'claude_cli')) if (!out.has(x.sessionId.toLowerCase())) out.set(x.sessionId.toLowerCase(), { sessionId: x.sessionId.toLowerCase(), name: '' });
@@ -144,7 +144,7 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
   const claudePc = (p) => {
     const d = readDevice(p); const dir = dirOf(p);
     // 호환 주소는 주소의 호스트·모델·확인된 조합 여부만(키는 내지 않음)
-    const compatOf = (home) => { const cp = readCompat(home); return cp ? { host: compatHost(cp.baseUrl), model: cp.model, confirmed: compatConfirmed(cp.baseUrl) } : null; };
+    const compatOf = (home) => { const cp = readCompat(home); return cp ? { host: compatHost(cp.baseUrl), url: cp.baseUrl, model: cp.model, confirmed: compatConfirmed(cp.baseUrl) } : null; };
     return { accounts: d.claudeAccounts.map((x) => { const home = claudeHomeOf(dir, x.id); const kind = claudeAccountKind(home);
       return { ...x, engine: 'claude', kind, ...(kind === 'compat' ? { compat: compatOf(home) } : {}), login: cLogins.get(x.id)?.view() ?? { state: 'idle' } }; }), defaultAccount: d.claudeDefaultAccount,
       sessions: claudeSessions(p), accountFor: d.claudeAccountFor };
@@ -303,10 +303,24 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         log({ event: 'account_removed', engine: 'claude' });
         return { status: 200, body: { ...claudePc(p), ...(await applyDevice()) } };
       }
-      case 'claude.accounts.use':
+      case 'claude.accounts.use': {
         if (claudeDir) return { status: 409, body: { error: 'claude_shared_login' } };
+        // 2026-11-24 신산님 "설정한 대로 안 된다면 그렇게 설정을 못하게": 그대로 동작할 수 없는 조합은 고르지 못한다
+        const pcv = claudePc(p); const want = String(a.accountId ?? ''); const kindOf = (id) => (id === 'pc_default' ? 'pc' : pcv.accounts.find((x) => x.id === id)?.kind ?? null);
+        const acc = pcv.accounts.find((x) => x.id === want);
+        if (acc && !acc.kind) return { status: 409, body: { error: 'account_not_logged_in' } };
+        if (a.sessionId) {
+          const s = pcv.sessions.find((x) => x.sessionId === String(a.sessionId).toLowerCase());
+          const eff = want === 'inherit' ? pcv.defaultAccount : want;
+          if (s?.newSession && isForeignModel(s.model) && kindOf(eff) !== 'compat') return { status: 409, body: { error: 'session_model_mismatch', model: s.model } };
+          if (s && !s.newSession && acc?.kind === 'compat' && !acc.compat?.confirmed) return { status: 409, body: { error: 'combo_unverified' } };
+        } else if (kindOf(want) !== 'compat') {
+          const stuck = pcv.sessions.filter((x) => x.newSession && isForeignModel(x.model) && !pcv.accountFor?.[x.sessionId] && kindOf(pcv.defaultAccount) === 'compat');
+          if (stuck.length) return { status: 409, body: { error: 'session_model_mismatch', sessions: stuck.map((x) => x.name || x.sessionId) } };
+        }
         useClaudeAccount(p, { sessionId: a.sessionId ?? null, accountId: String(a.accountId ?? ''), knownSession: (id) => claudeSessions(p).some((s) => s.sessionId === id) });
         return { status: 200, body: { ...claudePc(p), ...(await applyDevice()) } };
+      }
       case 'device.live':
         setLive(p, a.live);
         log({ event: 'device_live', live: a.live });
@@ -354,9 +368,13 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         log({ event: 'account_added', engine: 'codex' });
         return { status: 201, body: { id, ...accounts(p) } };
       }
-      case 'accounts.use':
+      case 'accounts.use': {
+        const want = String(a.accountId ?? ''); const v = accounts(p).accounts.find((x) => x.id === want);
+        if (v && !v.loggedIn) return { status: 409, body: { error: 'account_not_logged_in' } }; // 로그인·호환 주소 없는 계정은 고르지 못함(2026-11-24)
+        if (v && a.threadId && v.kind === 'compat') return { status: 409, body: { error: 'combo_unverified' } }; // 기존 대화에는 호환 주소를 쓰지 못함
         useCodexAccount(p, { threadId: a.threadId ?? null, accountId: String(a.accountId ?? '') });
         return { status: 200, body: { ...accounts(p), ...(await applyDevice()) } };
+      }
       case 'accounts.compat': {
         const id = known(p, a.id);
         saveCodexCompat(codexHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, model: a.model });

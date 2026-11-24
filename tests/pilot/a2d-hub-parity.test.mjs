@@ -72,7 +72,8 @@ test('허브 화면 → PC: AI 응답·허용 목록·계정을 PC 화면과 같
   r = await s.viaHub('accounts.add', { label: '회사' });
   assert.equal(r.status, 201);
   assert.ok(existsSync(join(s.d, 'pc', 'accounts', 'codex', r.body.id, 'config.toml')), '계정 폴더는 그 PC에');
-  r = await s.viaHub('accounts.use', { threadId: T1, accountId: r.body.id });
+  assert.equal((await s.viaHub('accounts.use', { threadId: T1, accountId: r.body.id })).body.error, 'account_not_logged_in', '로그인 안 된 계정은 허브에서도 못 고름(2026-11-24)');
+  r = await s.viaHub('accounts.use', { threadId: T1, accountId: 'pc_default' });
   assert.equal(Object.keys(r.body.accountFor)[0], T1);
   r = await s.viaHub('device.codex.delete', { threadId: T1 });
   assert.deepEqual(r.body.codexThreads, []);

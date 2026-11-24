@@ -53,6 +53,21 @@ export function listClaudeSessions({ dir = claudeProjectsDir(), limit = 30, skip
   });
 }
 
+// 2026-11-24: 세션 파일 끝에서 마지막으로 쓴 모델 이름(<synthetic> 빼고). 다른 회사 모델(예: Upstage solar-pro4)로 만든 세션을
+// Anthropic 로그인으로 이어 쓰면 Claude Code가 그 모델 이름을 그대로 보내 실패한다 → 화면에서 고르지 못하게, 보내기 전에 막는 데 쓴다.
+export function claudeSessionModel(id, dir = claudeProjectsDir()) {
+  if (!UUID.test(String(id)) || String(id).toLowerCase() === EXCLUDED || !existsSync(dir)) return null;
+  for (const p of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, p.name, `${id}.jsonl`);
+    if (!p.isDirectory() || !existsSync(path)) continue;
+    let text = ''; try { text = readFileSync(path, 'utf8'); } catch { return null; }
+    const all = [...text.slice(-400_000).matchAll(/"model":"([^"]{1,100})"/g)].map((m) => m[1]).filter((m) => m !== '<synthetic>');
+    return all.at(-1) ?? null;
+  }
+  return null;
+}
+export const isForeignModel = (m) => Boolean(m) && !/^claude[-.]/i.test(m) && !['sonnet', 'opus', 'haiku', 'fable', 'default', 'opusplan'].includes(m);
+
 export function findClaudeSession(id, dir = claudeProjectsDir()) {
   if (!UUID.test(String(id)) || String(id).toLowerCase() === EXCLUDED || !existsSync(dir)) return null;
   for (const p of readdirSync(dir, { withFileTypes: true })) {
