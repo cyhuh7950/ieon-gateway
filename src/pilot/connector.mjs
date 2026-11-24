@@ -260,7 +260,7 @@ export function codexKindCache(config, { statusOf = (env) => createCodexLogin({ 
     refresh,
     get() { if (!busy && Date.now() - at > everyMs) refresh().catch(() => {}); return kinds; },
     // 대화(또는 새 세션=기본)가 쓰는 계정의 종류
-    kindFor(threadId) { const id = codexAccountId(config, threadId); return id === PC_DEFAULT ? kinds.default : (kinds.byAccount[id] ?? null); },
+    kindFor(threadId) { const id = codexAccountId(config, threadId, config.accountsDir); return id === PC_DEFAULT ? kinds.default : (kinds.byAccount[id] ?? null); },
   };
 }
 
@@ -268,7 +268,7 @@ export function codexAccountHealth(config) {
   const out = {};
   for (const t of config.codex?.allowlist ?? []) {
     if (config.codex?.modes?.[t] === 'shared_server') continue; // 공유 서버 방식은 그 서버의 로그인
-    const label = accountLabel(config, codexAccountId(config, t));
+    const label = accountLabel(config, codexAccountId(config, t, config.accountsDir));
     if (label) out[t] = label;
   }
   const kc = config.kindCache;
@@ -276,7 +276,7 @@ export function codexAccountHealth(config) {
   if (kc) { kc.get(); for (const t of config.codex?.allowlist ?? []) if (config.codex?.modes?.[t] !== 'shared_server') { const k = kc.kindFor(t); if (k) kinds[t] = k; } }
   // SV3-b: 대화별 계정 ID(사용량·한도를 계정마다 — 이름표는 바뀔 수 있어 ID로)
   const ids = {};
-  for (const t of config.codex?.allowlist ?? []) if (config.codex?.modes?.[t] !== 'shared_server') ids[t] = codexAccountId(config, t);
+  for (const t of config.codex?.allowlist ?? []) if (config.codex?.modes?.[t] !== 'shared_server') ids[t] = codexAccountId(config, t, config.accountsDir);
   return { codexAccounts: out, codexDefault: accountLabel(config, codexAccountId(config, null)), codexAccountIds: ids, codexDefaultId: codexAccountId(config, null), ...(kc ? { codexKinds: kinds, codexKind: kc.kindFor(null) } : {}) };
 }
 

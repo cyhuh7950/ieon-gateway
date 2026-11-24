@@ -149,3 +149,19 @@ test('빠른 응답: 오래 안 쓴 대화의 Codex는 내려 두고(처리 중�
   wt(A, { make }); assert.equal(made, 3, '다음 질문 때 다시 띄움');
   closeWarm();
 });
+
+test('호환 주소가 기본 계정이어도(2026-11-24 인수 시험): 기존 대화는 PC 기본 로그인, 새 세션만 호환 주소, 대화별로 직접 고르면 거절, 미리 띄우기는 연결부를 끄지 않음', async (t) => {
+  const { codexEnvFor, saveCodexCompat, codexHomeOf } = await import('../../src/pilot/accounts.mjs');
+  const dir = tmp(t); const id = 'accup';
+  mkdirSync(codexHomeOf(dir, id), { recursive: true });
+  saveCodexCompat(codexHomeOf(dir, id), { baseUrl: 'https://api.example.com/v1', key: 'k-12345678', model: 'm1' });
+  const c = { codex: { allowlist: [TID], defaultAccount: id, accounts: [{ id, label: 'up' }] } };
+  assert.equal(codexEnvFor(c, dir, TID), null, '기존 대화는 PC 기본');
+  assert.ok(codexEnvFor(c, dir, null).IEON_COMPAT_API_KEY, '새 세션은 호환 주소');
+  assert.throws(() => codexEnvFor({ codex: { ...c.codex, accountFor: { [TID]: id } } }, dir, TID), /combo_unverified/);
+  const logs = [];
+  const a = codexThreadAdapter({ live: true, allowlist: [TID], loadSdk: async () => ({}), modes: { [TID]: 'warm' },
+    accountEnv: () => { const e = new Error('combo_unverified'); e.http = 409; throw e; }, warmUp: async () => {} });
+  assert.deepEqual(a.warmup((e) => logs.push(e)), [TID]);
+  assert.equal(logs[0].event, 'warm_failed');
+});
