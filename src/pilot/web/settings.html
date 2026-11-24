@@ -786,7 +786,7 @@ let pcTarget = 'local'; let acTarget = 'local';
 const runOn = (target, op, args = {}) => api(target === 'local' ? '/v1/admin/local/run' : '/v1/admin/hosts/' + encodeURIComponent(target) + '/run', { method: 'POST', body: JSON.stringify({ op, args }) });
 const devRun = (op, args) => runOn(pcTarget, op, args);
 const acRun = (op, args) => runOn(acTarget, op, args);
-const HOST_ERR = { device_offline: t('settings.host_err.1'), device_no_response: t('settings.host_err.2'),
+const HOST_ERR = { device_admin_busy: t('settings.host_err_busy'), device_offline: t('settings.host_err.1'), device_no_response: t('settings.host_err.2'),
   device_admin_unknown: t('settings.host_err.3'), unknown_host: t('settings.host_err.4'), no_connector_config: t('settings.host_err.5') };
 let hostNames = new Map(); // 기기 ID → 이름(사용량 표에서 내부 ID 대신)
 async function loadTargets() {

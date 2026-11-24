@@ -32,9 +32,13 @@ export function codexAccounts(c) {
 
 // 대화(또는 새 세션)의 계정: 대화별로 고른 것 → 엔진 기본 → PC 기본 로그인. 없는 계정이 남아 있으면 PC 기본으로 보지 않고 그대로 돌려줘
 // 보내기 전에 막는다(어느 계정인지 모르는 채로 다른 계정 사용량을 쓰지 않게).
-export function codexAccountId(c, threadId) {
+// 2026-11-24 인수 시험(Upstage 호환 주소를 기본 계정으로 고르자 연결부가 꺼졌다 켜지기를 반복): 호환 주소 계정은 새 세션 전용이므로,
+// 기존 대화가 "기본 계정 따름"이고 기본이 호환 주소면 그 대화는 PC 기본 로그인을 쓴다(대화별로 직접 고른 경우만 combo_unverified로 거절).
+export function codexAccountId(c, threadId, dir = null) {
   const per = threadId ? c.codex?.accountFor?.[String(threadId).toLowerCase()] : undefined;
-  return per ?? c.codex?.defaultAccount ?? PC_DEFAULT;
+  const def = c.codex?.defaultAccount ?? PC_DEFAULT;
+  if (per === undefined && threadId && def !== PC_DEFAULT && dir && readCodexCompat(codexHomeOf(dir, def))) return PC_DEFAULT;
+  return per ?? def;
 }
 
 // A2-c(신산님 2026-11-19 "2번 진행하자", 설계 EA8): Codex 호환 주소 — Codex는 그대로, 모델만 다른 곳(OpenAI Responses API 호환 라우터·게이트웨이·로컬 모델).
@@ -69,7 +73,7 @@ export const compatHostOf = (baseUrl) => { try { return new URL(baseUrl).host.to
 
 // SDK에 넘길 환경. PC 기본이면 null(지금처럼 new Codex()). 계정이 없거나 로그인 전이면 보내기 전에 거절.
 export function codexEnvFor(c, dir, threadId, { env = process.env } = {}) {
-  const id = codexAccountId(c, threadId);
+  const id = codexAccountId(c, threadId, dir);
   if (id === PC_DEFAULT) return null;
   if (!codexAccounts(c).some((a) => a.id === id)) fail('account_missing', 409);
   const home = codexHomeOf(dir, id);

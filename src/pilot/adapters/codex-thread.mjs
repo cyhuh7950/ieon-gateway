@@ -522,7 +522,8 @@ export function codexThreadAdapter(opts) {
       const ids = Object.entries(opts.modes ?? {}).filter(([id, m]) => m === 'warm' && opts.allowlist.includes(id) && id !== EXCLUDED).map(([id]) => id);
       for (const id of ids) {
         const s = Date.now();
-        (opts.warmUp ?? warmUp)(id, { env: accountEnv(opts, id), cwd: opts.workingDirectories?.[id] ?? undefined, model: opts.model ?? null })
+        let env; try { env = accountEnv(opts, id); } catch (e) { log({ event: 'warm_failed', error: e.code ?? e.message }); continue; } // 계정 오류로 연결부가 꺼지지 않게(2026-11-24)
+        (opts.warmUp ?? warmUp)(id, { env, cwd: opts.workingDirectories?.[id] ?? undefined, model: opts.model ?? null })
           .then(() => log({ event: 'warm_ready', ms: Date.now() - s }), () => log({ event: 'warm_failed' }));
       }
       return ids;

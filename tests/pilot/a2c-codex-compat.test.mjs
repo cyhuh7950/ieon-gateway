@@ -30,14 +30,15 @@ test('저장: config.toml에 공식 모델 제공처(responses), 키는 config�
   assert.equal(readCodexCompat(home), null);
 });
 
-test('실행 환경: 새 세션은 그 계정 폴더 + 키 변수(OpenAI 키 변수는 지움), 기존 대화는 부르기 전에 combo_unverified', (t) => {
+test('실행 환경: 새 세션은 그 계정 폴더 + 키 변수(OpenAI 키 변수는 지움), 기존 대화는 기본을 따르면 PC 기본(2026-11-24), 직접 고르면 combo_unverified', (t) => {
   const d = tmp(t); const dir = join(d, 'acc'); const home = codexHomeOf(dir, 'a1'); mkdirSync(home, { recursive: true });
   saveCodexCompat(home, { baseUrl: 'http://localhost:11434/v1', key: KEY, model: 'qwen3' });
   const c = { codex: { accounts: [{ id: 'a1', label: '로컬' }], defaultAccount: 'a1', allowlist: [T1] } };
   const env = codexEnvFor(c, dir, null, { env: { PATH: 'p', OPENAI_API_KEY: 'leak', CODEX_API_KEY: 'leak' } });
   assert.equal(env.CODEX_HOME, home); assert.equal(env[COMPAT_ENV_KEY], KEY);
   assert.ok(!('OPENAI_API_KEY' in env) && !('CODEX_API_KEY' in env));
-  assert.throws(() => codexEnvFor(c, dir, T1, { env: {} }), /combo_unverified/);
+  assert.equal(codexEnvFor(c, dir, T1, { env: {} }), null); // 2026-11-24: 기본 계정이 호환 주소여도 기존 대화는 PC 기본 로그인
+  assert.throws(() => codexEnvFor({ codex: { ...c.codex, accountFor: { [T1]: 'a1' } } }, dir, T1, { env: {} }), /combo_unverified/);
 });
 
 test('기기 명령: 호환 주소 저장·보기(호스트·모델만, 키 없음, 로그인됨·호환 주소)·지우기, 화면이 명령을 씀', async (t) => {
