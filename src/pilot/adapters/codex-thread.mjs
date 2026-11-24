@@ -27,7 +27,8 @@ export const isUsageLimit = (m) => /usage[ _]?limit|hit your limit|usageLimitExc
 const limitHit = (turn) => turn.failed && isUsageLimit(turn.failMessage) && !turn.answer && !turn.worked;
 // 2026-11-23 인수 시험: Codex 설정 모델을 지금 로그인으로 쓸 수 없으면(예: "The 'gpt-…' model is not supported when using Codex with a ChatGPT account")
 // 모델이 일을 시작하지 않았으므로 "실행 안 됨"이 확실하다 → 결과 불명 대신 model_not_supported(실패)로 이유를 알린다.
-export const isModelUnsupported = (m) => /model is not supported|model_not_supported|unsupported model|model .* does not exist/i.test(String(m ?? ''));
+// 2026-11-24: Upstage는 "The requested model is invalid or no longer supported"로 거절 — 이것도 모델 거절로(결과 불명 대신 이유)
+export const isModelUnsupported = (m) => /model is not supported|model_not_supported|unsupported model|model .* does not exist|requested model is invalid|model is invalid or no longer supported/i.test(String(m ?? ''));
 const modelHit = (turn) => turn.failed && isModelUnsupported(turn.failMessage) && !turn.answer && !turn.worked;
 
 async function runAlternate(threadId, question, deps) {
@@ -506,8 +507,10 @@ export function listMcpNames(env, { now = Date.now(), run = execFile, inConfig =
   });
 }
 // SDK(codex exec)에 넘길 것: 이어온 전용 계정 env, 이어온이 쓸 모델·끌 MCP 서버(--config …). 없으면 그 PC Codex 기본 그대로.
+// 호환 주소 계정(그 계정 폴더 설정에 모델이 있음)에는 "이어온이 쓸 Codex 모델"을 덧씌우지 않는다(2026-11-24 Upstage가 gpt-6.1-sol을 받고 거절).
 const sdkOpts = (deps) => {
-  const config = { ...(deps.model ? { model: deps.model } : {}), ...(deps.mcpOff?.length ? { mcp_servers: Object.fromEntries(deps.mcpOff.map((n) => [n, { enabled: false }])) } : {}) };
+  const model = deps.env?.IEON_COMPAT_API_KEY ? null : deps.model;
+  const config = { ...(model ? { model } : {}), ...(deps.mcpOff?.length ? { mcp_servers: Object.fromEntries(deps.mcpOff.map((n) => [n, { enabled: false }])) } : {}) };
   return deps.env || Object.keys(config).length ? { ...(deps.env ? { env: deps.env } : {}), ...(Object.keys(config).length ? { config } : {}) } : undefined;
 };
 
