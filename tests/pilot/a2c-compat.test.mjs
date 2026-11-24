@@ -24,7 +24,7 @@ test('호환 주소 저장·종류·실행 환경: 공식 변수로만, 키 보�
   assert.equal(claudeAccountKind(home), 'compat');
   const c = { claudeAccounts: { accounts: [{ id: 'c1', label: '로컬' }], defaultAccount: 'c1' } };
   const env = claudeEnvFor(c, dir, { env: { PATH: 'p', ANTHROPIC_API_KEY: 'leak', CLAUDE_CODE_OAUTH_TOKEN: 'leak' } });
-  assert.deepEqual({ ...env, PATH: undefined }, { PATH: undefined, CLAUDE_CONFIG_DIR: home, ANTHROPIC_BASE_URL: 'http://localhost:4000', ANTHROPIC_AUTH_TOKEN: KEY, ANTHROPIC_MODEL: 'qwen3:8b', ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:8b', ANTHROPIC_SMALL_FAST_MODEL: 'qwen3:8b' }); // 2026-11-24: 그 계정 폴더로 실행(PC의 Claude 로그인이 호환 주소로 나가지 않게)
+  assert.deepEqual({ ...env, PATH: undefined }, { PATH: undefined, CLAUDE_CONFIG_DIR: home, CLAUDE_CODE_MAX_RETRIES: '2', ANTHROPIC_BASE_URL: 'http://localhost:4000', ANTHROPIC_AUTH_TOKEN: KEY, ANTHROPIC_MODEL: 'qwen3:8b', ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:8b', ANTHROPIC_SMALL_FAST_MODEL: 'qwen3:8b' }); // 2026-11-24: 그 계정 폴더로 실행(PC의 Claude 로그인이 호환 주소로 나가지 않게)
   saveCompat(home, { baseUrl: 'https://api.upstage.ai/v1/claude', key: KEY, model: 'solar-pro4', auth: 'x-api-key' });
   const e2 = claudeEnvFor(c, dir, { env: {} });
   assert.equal(e2.ANTHROPIC_API_KEY, KEY); assert.ok(!('ANTHROPIC_AUTH_TOKEN' in e2));
@@ -48,7 +48,7 @@ test('세션 경계(EA8): 사람이 만든 기존 대화는 확인된 조합(Ups
 test('기기 명령: 호환 주소 저장, 화면에는 호스트·모델·확인 여부만(키 없음), 지우기', async (t) => {
   const d = tmp(t); mkdirSync(join(d, 's2')); mkdirSync(join(d, 'desk'));
   const cfg = join(d, 's2', 'connector.json'); writeFileSync(cfg, JSON.stringify({}));
-  const pc = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: null, claudeDesktop: join(d, 'desk'), claudeLogoutImpl: async (home) => { rmSync(join(home, 'compat.json'), { force: true }); rmSync(join(home, 'compat-key'), { force: true }); return true; } });
+  const pc = createDeviceAdmin({ probeUrl: async () => true, connectorConfigPath: cfg, claudeDir: null, claudeDesktop: join(d, 'desk'), claudeLogoutImpl: async (home) => { rmSync(join(home, 'compat.json'), { force: true }); rmSync(join(home, 'compat-key'), { force: true }); return true; } });
   const id = (await pc.run('claude.accounts.add', { label: 'Solar' })).body.id;
   assert.equal((await pc.run('claude.accounts.compat', { id, baseUrl: 'ftp://x', key: KEY, model: 'm' })).body.error, 'bad_base_url');
   const r = await pc.run('claude.accounts.compat', { id, baseUrl: 'https://api.upstage.ai/v1/claude', key: KEY, model: 'solar-pro4' });

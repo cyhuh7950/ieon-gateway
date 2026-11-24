@@ -55,9 +55,15 @@ export const HUB_SELF_OPS = new Set(['workspace.get', 'workspace.folder.add', 'w
 export const API_KEY = /^sk-[A-Za-z0-9_-]{20,300}$/;
 const DEFAULT_ID = 'pc_default';
 
+// 2026-11-24 신산님 "설정한 대로 안 된다면 그렇게 설정을 못하게": 호환 주소는 저장하기 전에 그 주소에 닿는지 본다(오타 api.upstage.a로 저장돼 Connection error가 났음).
+// 키는 보내지 않고 주소만 한 번 부른다 — 어떤 HTTP 답(401·404 포함)이든 오면 닿은 것, 이름을 못 찾거나 연결이 안 되면 못 닿은 것.
+export async function reachable(url) {
+  try { await fetch(String(url), { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(8000) }); return true; } catch { return false; }
+}
+
 export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, applyDevice = async () => ({ restarted: false, restartRequired: true }), accountLogin, connectorState = () => ({}), log = () => {},
   claudeDir = claudeAuthDir(), claudeLogin = null, claudeProjects = claudeProjectsDir(), busyOf = claudeBusy, listThreads = null,
-  claudeAccountLogin = null, claudeLogoutImpl = claudeLogout, claudeDesktop = undefined, agyLogin = null }) {
+  claudeAccountLogin = null, claudeLogoutImpl = claudeLogout, claudeDesktop = undefined, agyLogin = null, probeUrl = reachable }) {
   const logins = new Map(); // 계정별 공식 로그인 진행 상태
   let cLogin = null;
   const claudeLoginJob = () => (cLogin ??= claudeLogin ?? createClaudeLogin({ dir: claudeDir, log }));
@@ -268,6 +274,7 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
       }
       case 'agy.accounts.compat': {
         const id = aKnown(p, a.id);
+        if (!(await probeUrl(a.baseUrl))) return { status: 400, body: { error: 'compat_unreachable' } };
         saveAgyCompat(agyHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, models: a.models ?? '', wire: a.wire ?? 'gemini' });
         log({ event: 'account_compat', engine: 'antigravity', ok: true });
         return { status: 200, body: { ...agyView(p), ...(await applyDevice()) } };
@@ -283,6 +290,7 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
       case 'agy.accounts.use': useAgyAccount(p, { accountId: String(a.accountId ?? '') }); return { status: 200, body: { ...agyView(p), ...(await applyDevice()) } };
       case 'claude.accounts.compat': {
         const id = cKnown(p, a.id);
+        if (!(await probeUrl(a.baseUrl))) return { status: 400, body: { error: 'compat_unreachable' } };
         saveCompat(claudeHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, model: a.model, auth: a.auth ?? 'bearer' });
         log({ event: 'account_compat', engine: 'claude', ok: true });
         return { status: 200, body: { ...claudePc(p), ...(await applyDevice()) } };
@@ -377,6 +385,7 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
       }
       case 'accounts.compat': {
         const id = known(p, a.id);
+        if (!(await probeUrl(a.baseUrl))) return { status: 400, body: { error: 'compat_unreachable' } };
         saveCodexCompat(codexHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, model: a.model });
         log({ event: 'account_compat', engine: 'codex', ok: true });
         return { status: 200, body: { ...accounts(p), ...(await applyDevice()) } };

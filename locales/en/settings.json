@@ -278,6 +278,7 @@
   "opt_compat": " (compatible endpoint · {model})",
   "opt_api": " (API key)",
   "opt_sub": " (subscription)",
+  "compat_unreachable_save": "Not saved: that address can't be reached — check the address (typos, /v1) and that the server is up",
   "html_ns_agy.1": "Create schedule",
   "html_ns_arch.1": "Role ID",
   "html_ns_arch.2": "Engines allowed",

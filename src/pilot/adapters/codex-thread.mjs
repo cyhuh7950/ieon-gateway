@@ -29,6 +29,10 @@ const limitHit = (turn) => turn.failed && isUsageLimit(turn.failMessage) && !tur
 // 모델이 일을 시작하지 않았으므로 "실행 안 됨"이 확실하다 → 결과 불명 대신 model_not_supported(실패)로 이유를 알린다.
 // 2026-11-24: Upstage는 "The requested model is invalid or no longer supported"로 거절 — 이것도 모델 거절로(결과 불명 대신 이유)
 export const isModelUnsupported = (m) => /model is not supported|model_not_supported|unsupported model|model .* does not exist|requested model is invalid|model is invalid or no longer supported/i.test(String(m ?? ''));
+// 2026-11-24: 호환 주소 키 거절·닿지 않음은 결과 불명 대신 이유로(모델이 일하기 전이라 실행되지 않음이 분명)
+export const isKeyRejected = (m) => /\b401\b|unauthorized|invalid api key|invalid_api_key|incorrect api key|api key is invalid/i.test(String(m ?? ''));
+const keyHit = (turn) => turn.failed && isKeyRejected(turn.failMessage) && !turn.answer && !turn.worked;
+const NET_WAIT_MS = 20_000;
 const modelHit = (turn) => turn.failed && isModelUnsupported(turn.failMessage) && !turn.answer && !turn.worked;
 
 async function runAlternate(threadId, question, deps) {
@@ -54,6 +58,7 @@ async function runAlternate(threadId, question, deps) {
   if (turn.stopped) throw new StoppedError();
   if (limitHit(turn)) throw new EngineError('usage_limit', 429);
   if (modelHit(turn)) throw new EngineError('model_not_supported', 400);
+  if (keyHit(turn)) throw new EngineError('compat_key_rejected', 409);
   if ((turn.failed && !turn.blocked) || (turn.returned ?? thread.id) !== threadId) throw new Error('turn_failed_or_thread_mismatch');
   return { receipt: `codex:${threadId}`, answer: withNote(turn.answer, blockedNote(turn)) };
 }
@@ -97,6 +102,8 @@ async function streamTurn(thread, question, { cwd, blocked: blockedTypes, stop }
   let failed = false;
   let failMessage = null; // 실패 이유(한도 판별용, 기록하지 않음)
   let worked = false; // 사용자 메시지 말고 모델이 만든 항목이 하나라도 있었는지
+  // Codex는 닿지 않는 주소면 다시 시도 설정과 상관없이 "Reconnecting... waiting for network"로 끝없이 기다린다(2026-11-24 실측 200초+) → 20초 뒤 끊는다
+  let netWait = null; let unreachable = false;
   const all = (async function* () { if (!first.done) yield first.value; yield* rest; })();
   try {
   for await (const event of all) {
@@ -110,13 +117,19 @@ async function streamTurn(thread, question, { cwd, blocked: blockedTypes, stop }
       if (!['user_message', 'error'].includes(event.item.type)) worked = true;
     }
     if (event.type === 'turn.failed') { failed = true; failMessage = event.error?.message ?? failMessage; }
-    if (event.type === 'error') failMessage = event.message ?? failMessage;
+    if (event.type === 'error') {
+      failMessage = event.message ?? failMessage;
+      if (/waiting for network|connection failed/i.test(String(event.message ?? '')) && !netWait && !worked) netWait = setTimeout(() => { unreachable = true; controller.abort(); }, NET_WAIT_MS);
+    } else if (netWait && event.type !== 'turn.started') { clearTimeout(netWait); netWait = null; }
   }
   } catch (e) {
+    if (unreachable) throw Object.assign(new EngineError('compat_unreachable', 409), { sessionRef: returned });
     if (!stopped && !blocked) throw e; // 멈춤·막힘으로 끊은 것만 정상 종료로 본다
   } finally {
+    clearTimeout(netWait);
     stop?.removeEventListener?.('abort', onStop);
   }
+  if (unreachable) throw Object.assign(new EngineError('compat_unreachable', 409), { sessionRef: returned });
   return { answer, returned, blocked, blockedWhat, deniedFiles, failed, failMessage, worked, stopped: stopped && !blocked };
 }
 
@@ -168,6 +181,7 @@ async function runNewSession({ sessionRef, question, newSession }, deps, { confi
   // 멈추거나 실패해도 이미 만들어진 대화 ID는 서버에 남겨 같은 세션으로 이어 가게 한다.
   if (limitHit(turn)) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: threadId });
   if (modelHit(turn)) throw Object.assign(new EngineError('model_not_supported', 400), { sessionRef: threadId });
+  if (keyHit(turn)) throw Object.assign(new EngineError('compat_key_rejected', 409), { sessionRef: threadId });
   if ((turn.failed && !turn.blocked) || !threadId || (turn.returned ?? thread.id) !== threadId) {
     throw Object.assign(new Error('turn_failed_or_thread_mismatch'), { sessionRef: threadId });
   }

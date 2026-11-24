@@ -26,7 +26,7 @@ test('Codex: 로그인·호환 주소 없는 계정은 기본·대화별로 못 
   const d = tmp(t); mkdirSync(join(d, 's2')); const cfg = join(d, 's2', 'connector.json');
   writeFileSync(cfg, JSON.stringify({ codex: { allowlist: [TID] } }));
   const prev = process.env.CODEX_HOME; process.env.CODEX_HOME = join(d, 'desk'); t.after(() => { if (prev === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = prev; });
-  const pc = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: null, accountLogin: () => ({ start() {}, cancel() {}, view: () => ({ state: 'idle' }), logout: async () => {} }) });
+  const pc = createDeviceAdmin({ probeUrl: async () => true, connectorConfigPath: cfg, claudeDir: null, accountLogin: () => ({ start() {}, cancel() {}, view: () => ({ state: 'idle' }), logout: async () => {} }) });
   const empty = (await pc.run('accounts.add', { label: 'empty' })).body.id;
   assert.equal((await pc.run('accounts.use', { accountId: empty })).body.error, 'account_not_logged_in');
   assert.equal((await pc.run('accounts.use', { threadId: TID, accountId: empty })).body.error, 'account_not_logged_in');
@@ -45,7 +45,7 @@ test('Claude: 다른 회사 모델로 만든 새 세션은 그 모델을 아는 
   writeFileSync(cfg, JSON.stringify({ newSessions: { createdPath: created } }));
   const proj = join(d, 'projects'); mkdirSync(join(proj, 'D--w-solar'), { recursive: true });
   writeFileSync(join(proj, 'D--w-solar', `${SOLAR}.jsonl`), '{"message":{"model":"solar-pro4"}}\n');
-  const pc = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: null, claudeDesktop: join(d, 'desk'), claudeProjects: proj });
+  const pc = createDeviceAdmin({ probeUrl: async () => true, connectorConfigPath: cfg, claudeDir: null, claudeDesktop: join(d, 'desk'), claudeProjects: proj });
   const solar = (await pc.run('claude.accounts.add', { label: '개인' })).body.id;
   await pc.run('claude.accounts.compat', { id: solar, baseUrl: 'https://api.upstage.ai', model: 'solar-pro4', key: 'up_test_key_123' });
   const g = await pc.run('claude.get');
@@ -77,4 +77,26 @@ test('같은 이름 계정 구별: 고르기 칸 이름에 종류·모델(호환
   const S = koView('settings.html');
   assert.ok(S.includes('const optLabel = (a)') && S.includes('(호환 주소 · {model})'.replace('{model}', '')) || S.includes('호환 주소 ·'));
   assert.ok(!S.includes("{ label: a.label, logged_in"), 'Codex 고르기 칸도 optLabel');
+});
+
+test('호환 주소: 저장할 때 닿지 않으면 저장 안 함(Codex·Claude·Antigravity), 키 거절·닿지 않음은 결과 불명 대신 이유(2026-11-24)', async (t) => {
+  const d = tmp(t); mkdirSync(join(d, 's2')); const cfg = join(d, 's2', 'connector.json');
+  writeFileSync(cfg, JSON.stringify({}));
+  const prev = process.env.CODEX_HOME; process.env.CODEX_HOME = join(d, 'desk'); t.after(() => { if (prev === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = prev; });
+  const pc = createDeviceAdmin({ probeUrl: async (u) => !String(u).includes('upstage.a/') && !String(u).endsWith('upstage.a'), connectorConfigPath: cfg, claudeDir: null, claudeDesktop: join(d, 'cdesk'),
+    accountLogin: () => ({ start() {}, cancel() {}, view: () => ({ state: 'idle' }), logout: async () => {} }) });
+  const cx = (await pc.run('accounts.add', { label: 'cx' })).body.id;
+  assert.equal((await pc.run('accounts.compat', { id: cx, baseUrl: 'https://api.upstage.a/v1', model: 'm', key: 'k-12345678' })).body.error, 'compat_unreachable');
+  assert.equal((await pc.run('accounts.compat', { id: cx, baseUrl: 'https://api.upstage.ai/v1', model: 'm', key: 'k-12345678' })).status, 200);
+  const cl = (await pc.run('claude.accounts.add', { label: 'cl' })).body.id;
+  assert.equal((await pc.run('claude.accounts.compat', { id: cl, baseUrl: 'https://api.upstage.a', model: 'm', key: 'k-12345678' })).body.error, 'compat_unreachable');
+  const { reachable } = await import('../../src/pilot/device-admin.mjs');
+  assert.equal(await reachable('http://127.0.0.1:1/'), false, '닫힌 곳은 못 닿음');
+  // Claude: 호환 주소에서 키 거절·연결 오류 → 이유
+  const { isKeyRejected } = await import('../../src/pilot/adapters/codex-thread.mjs');
+  assert.ok(isKeyRejected('401 Unauthorized') && isKeyRejected('Your API key is invalid') && !isKeyRejected('rate limit'));
+  const mk = (result) => claudeCliAdapter({ live: true, allowlist: [SOLAR], workingDirectories: { [SOLAR]: d }, busy: () => 'free', sessionModel: () => 'solar-pro4',
+    accountEnv: () => ({ ANTHROPIC_BASE_URL: 'https://api.upstage.ai' }), spawnClaude: async () => ({ code: 1, stdout: JSON.stringify({ session_id: SOLAR, is_error: true, subtype: 'success', result }), stopped: false }) });
+  await assert.rejects(mk('API Error: 401 {"error":{"message":"Your API key is invalid"}}').run({ sessionRef: SOLAR, question: 'q' }), /compat_key_rejected/);
+  await assert.rejects(mk('API Error: Connection error.').run({ sessionRef: SOLAR, question: 'q' }), /compat_unreachable/);
 });
