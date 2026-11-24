@@ -367,7 +367,7 @@ export function createApp(config) {
   const lab = (key, vars) => ({ label: i18nT(key, vars), labelKey: key, ...(vars ? { labelVars: vars } : {}) });
   const accountOf = (c) => {
     // A2-d: 허브 새 세션도 허브에서 고른 이어온 계정이면 그 이름표(허브 연결부가 알려 줌)
-    const hubMine = access && c.newSession && c.engine === 'codex_thread' ? health.get(c.hostId)?.codexDefault : null;
+    const hubMine = access && c.newSession && c.engine === 'codex_thread' && c.hostId === selfHostId() ? health.get(c.hostId)?.codexDefault : null; // 2026-11-24: 허브 자신의 새 세션만 (허브) — PC의 새 세션까지 붙이던 것
     if (hubMine) return { mode: 'ieon_login', ...lab('server.account.ieon_hub', { name: hubMine }) };
     if (c.engine === 'claude_cli' && health.get(c.hostId)?.claudeKind) return { mode: 'hub_login', ...lab('server.account.server_claude'), ...kindTag(c) }; // SV2
     if (access && c.newSession && c.hostId === selfHostId()) return { mode: 'hub_login', ...lab(c.engine === 'codex_thread' ? 'server.account.hub_codex' : 'server.account.hub_claude') }; // PC·칸의 새 세션은 그곳의 계정(아래)
