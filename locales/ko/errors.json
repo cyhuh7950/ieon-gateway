@@ -75,5 +75,6 @@
   "bad_voice_model": "모델 이름이 맞지 않아요(영문 소문자·숫자·.-_ 만)",
   "bad_voice_voice": "목소리 이름이 맞지 않아요",
   "bad_voice_limit": "시간 값이 범위를 벗어났어요",
-  "bad_voice_key": "OpenAI API 키 모양이 아니에요(sk-로 시작)"
+  "bad_voice_key": "OpenAI API 키 모양이 아니에요(sk-로 시작)",
+  "session_model_mismatch": "이 세션은 다른 회사 모델로 만들어서 지금 계정(PC 로그인 등)으로는 이어 쓸 수 없어 보내지 않았어요. 설정 → 계정 → Claude 계정의 대화별 표에서 이 대화의 계정을 그 모델을 아는 호환 주소 계정으로 고르세요."
 }

@@ -1119,7 +1119,7 @@ $('devAdd').onsubmit = async (e) => {
   $('devThread').value = ''; $('devDir').value = ''; setStatus('ok', t('settings.load_claude_sessions.10', { dev_note: devNote(r.body) })); loadDevice();
 };
 // --- A2: 설정 → 계정(PC형은 이 PC, 허브형은 허브 자신 또는 고른 PC) ---
-const AC_ERR = { local_only: t('settings.dev_err.1'), too_many_accounts: t('settings.ac_err.1'), bad_label: t('settings.ac_err.2'), bad_account: t('settings.ac_err.3'), thread_not_allowed: t('settings.ac_err.4') };
+const AC_ERR = { account_not_logged_in: t('settings.ac_cannot_login_err'), combo_unverified: t('settings.ac_cannot_compat_err'), session_model_mismatch: t('settings.cl_cannot_model_err'), local_only: t('settings.dev_err.1'), too_many_accounts: t('settings.ac_err.1'), bad_label: t('settings.ac_err.2'), bad_account: t('settings.ac_err.3'), thread_not_allowed: t('settings.ac_err.4') };
 const AC_LOGIN = { waiting: t('settings.ac_login.1'), failed: t('settings.ac_login.2'), cancelled: t('settings.ac_login.3') };
 let acPoll = null; let acKeyFor = null;
 // API 키는 이 화면에서 한 번 넣으면 그 PC·칸의 Codex가 직접 저장한다. 이어온은 키를 기록하거나 다시 보여 주지 않는다.
@@ -1152,7 +1152,7 @@ async function loadAccounts() {
   const rows = [{ id: 'pc_default', label: acTarget === 'hub' ? t('settings.load_accounts.4') : t('settings.load_accounts.5'), ...(d.defaultLogin ?? { loggedIn: true, login: { state: 'idle' } }), builtin: true }, ...d.accounts];
   for (const a of rows) {
     const tr = el('tr'); tr.append(el('td', a.label));
-    tr.append(el('td', a.kind === 'compat' ? t('settings.load_accounts.6', { host: (a.compat?.host ?? ''), model: (a.compat?.model ?? '') }) : a.loggedIn ? t('settings.load_accounts.7', { kind: (KIND[a.kind] ?? '') }) : (AC_LOGIN[a.login.state] ?? t('settings.load_accounts.8')), a.loggedIn ? 'ok' : 'warn'));
+    tr.append(el('td', a.kind === 'compat' ? t('settings.load_accounts.6', { host: String(a.compat?.url ?? a.compat?.host ?? '').replace(/^https?:\/\//, ''), model: (a.compat?.model ?? '') }) : a.loggedIn ? t('settings.load_accounts.7', { kind: (KIND[a.kind] ?? '') }) : (AC_LOGIN[a.login.state] ?? t('settings.load_accounts.8')), a.loggedIn ? 'ok' : 'warn'));
     const td = el('td');
     const act = (text, fn) => { const b = el('button', text); b.type = 'button'; b.onclick = fn; td.append(b); };
     if (!a.loggedIn && a.login.state !== 'waiting') act(t('settings.html_dv_section.3'), async () => { await acRun('accounts.login', { id: a.id }); loadAccounts(); });
@@ -1180,9 +1180,12 @@ async function loadAccounts() {
   loadClaude().catch(() => {});
   loadAgy().catch(() => {}); // A3
   loadGrok().catch(() => {}); // G1
-  const opts = [['pc_default', acTarget === 'hub' ? t('settings.load_accounts.17') : t('settings.load_accounts.18')], ...d.accounts.map((a) => [a.id, t('settings.load_accounts.19', { label: a.label, logged_in: (a.loggedIn ? '' : t('settings.render_claude_pc.25')) })])];
-  const fill = (sel, list, val) => { sel.innerHTML = ''; for (const [v, tv] of list) { const o = el('option', tv); o.value = v; sel.append(o); } sel.value = val; };
+  // 2026-11-24 신산님 "설정한 대로 안 된다면 그렇게 설정을 못하게": 로그인·호환 주소가 없는 계정, 기존 대화에 호환 주소 계정은 고를 수 없음(이유를 이름 뒤에)
+  const opts = [['pc_default', acTarget === 'hub' ? t('settings.load_accounts.17') : t('settings.load_accounts.18')], ...d.accounts.map((a) => [a.id, t('settings.load_accounts.19', { label: a.label, logged_in: (a.loggedIn ? '' : t('settings.ac_cannot_login')) }), !a.loggedIn])];
+  const fill = (sel, list, val) => { sel.innerHTML = ''; for (const [v, tv, off] of list) { const o = el('option', tv); o.value = v; o.disabled = Boolean(off) && v !== val; sel.append(o); } sel.value = val; };
   fill($('acDefault'), opts, d.defaultAccount);
+  const defCompat = d.accounts.find((a) => a.id === d.defaultAccount)?.kind === 'compat';
+  const threadOpts = opts.map(([v, tv, off]) => { const a = d.accounts.find((x) => x.id === v); return a?.kind === 'compat' ? [v, tv + t('settings.ac_cannot_compat'), true] : [v, tv, off]; });
   const tt = $('acThreads'); tt.innerHTML = '';
   for (const tv of d.threads) {
     const tr = el('tr'); tr.append(el('td', tv.threadId));
@@ -1190,7 +1193,7 @@ async function loadAccounts() {
     if (tv.mode === 'shared_server') td.append(el('span', t('settings.load_accounts.20'), 'muted'));
     else {
       const sel = el('select'); sel.setAttribute('aria-label', t('settings.load_accounts.21', { thread_id: tv.threadId }));
-      fill(sel, [['inherit', t('settings.load_accounts.22')], ...opts], d.accountFor[tv.threadId] ?? 'inherit');
+      fill(sel, [['inherit', t('settings.load_accounts.22') + (defCompat ? t('settings.ac_inherit_compat') : '')], ...threadOpts], d.accountFor[tv.threadId] ?? 'inherit');
       sel.onchange = () => useAccount({ threadId: tv.threadId, accountId: sel.value });
       td.append(sel);
     }
@@ -1214,7 +1217,7 @@ function renderClaudePc(pc) {
   const rows = [{ id: 'pc_default', label: t('settings.render_claude_pc.3'), builtin: true, login: { state: 'idle' } }, ...pc.accounts];
   for (const a of rows) {
     const tr = el('tr'); tr.append(el('td', a.label));
-    const st = a.builtin ? t('settings.render_claude_pc.4') : a.kind === 'compat' ? t('settings.render_claude_pc.5', { host: (a.compat?.host ?? ''), model: (a.compat?.model ?? ''), confirmed: (a.compat?.confirmed ? '' : t('settings.render_claude_pc.26')) }) : a.kind ? t('settings.render_claude_pc.6', { kind: CL_KIND[a.kind] }) : a.login.state === 'waiting' ? t('settings.ac_login.1') : a.login.state === 'failed' ? (CL_FAIL[a.login.error] || t('settings.render_claude_pc.7')) : t('settings.load_accounts.8');
+    const st = a.builtin ? t('settings.render_claude_pc.4') : a.kind === 'compat' ? t('settings.render_claude_pc.5', { host: String(a.compat?.url ?? a.compat?.host ?? '').replace(/^https?:\/\//, ''), model: (a.compat?.model ?? ''), confirmed: (a.compat?.confirmed ? '' : t('settings.render_claude_pc.26')) }) : a.kind ? t('settings.render_claude_pc.6', { kind: CL_KIND[a.kind] }) : a.login.state === 'waiting' ? t('settings.ac_login.1') : a.login.state === 'failed' ? (CL_FAIL[a.login.error] || t('settings.render_claude_pc.7')) : t('settings.load_accounts.8');
     tr.append(el('td', st, a.builtin || a.kind ? 'ok' : 'warn'));
     const td = el('td'); const act = (text, fn, primary) => { const b = el('button', text); b.type = 'button'; if (primary) b.className = 'primary'; b.onclick = fn; td.append(b); };
     const err = (y) => { if (y.status !== 200) setStatus('err', CL_ERR[y.body.error] || AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); };
@@ -1246,7 +1249,7 @@ function renderClaudePc(pc) {
     if (y.status !== 201) return setStatus('err', AC_ERR[y.body.error] || CL_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); setStatus('ok', t('settings.render_claude_pc.16')); loadClaude(); };
   box.append(add);
   const row = el('div'); row.className = 'row'; const sel = el('select'); sel.id = 'clDefaultSel'; sel.setAttribute('aria-label', t('settings.render_claude_pc.17'));
-  for (const [v, tx] of [['pc_default', t('settings.render_claude_pc.3')], ...pc.accounts.map((a) => [a.id, t('settings.render_claude_pc.18', { label: a.label, kind: (a.kind ? '' : t('settings.render_claude_pc.25')) })])]) { const o = el('option', tx); o.value = v; sel.append(o); }
+  for (const [v, tx, off] of [['pc_default', t('settings.render_claude_pc.3')], ...pc.accounts.map((a) => [a.id, t('settings.render_claude_pc.18', { label: a.label, kind: (a.kind ? '' : t('settings.ac_cannot_login')) }), !a.kind])]) { const o = el('option', tx); o.value = v; o.disabled = Boolean(off) && v !== pc.defaultAccount; sel.append(o); }
   sel.value = pc.defaultAccount;
   sel.onchange = async () => { const y = await acRun('claude.accounts.use', { accountId: sel.value });
     setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? t('settings.render_claude_pc.19', { y: devNote(y.body) }) : (AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadClaude(); };
@@ -1255,12 +1258,21 @@ function renderClaudePc(pc) {
   if ((pc.sessions ?? []).length) {
     box.append(tip(t('settings.render_claude_pc.20')));
     const st = el('table'); st.className = 'list'; const sh = el('thead'); const hr = el('tr'); hr.append(el('th', t('settings.render_claude_pc.21')), el('th', t('settings.html_ac_sum.6'))); sh.append(hr); const sb = el('tbody'); st.append(sh, sb);
-    const choices = [['inherit', t('settings.load_accounts.22')], ['pc_default', t('settings.render_claude_pc.3')], ...pc.accounts.map((a) => [a.id, t('settings.render_claude_pc.18', { label: a.label, kind: (a.kind ? '' : t('settings.render_claude_pc.25')) })])];
+    const kindOf = (id) => (id === 'pc_default' ? 'pc' : pc.accounts.find((a) => a.id === id)?.kind ?? null);
+    const foreign = (m) => Boolean(m) && !/^claude[-.]/i.test(m) && !['sonnet', 'opus', 'haiku', 'fable', 'default', 'opusplan'].includes(m);
+    // 이 대화에 쓸 수 없는 계정은 고를 수 없음(이유를 이름 뒤에): 로그인 안 됨 / 다른 회사 모델로 만든 세션은 그 모델을 아는 호환 주소 계정만 / 기존 대화에 확인 안 된 호환 주소
+    const choicesFor = (s) => [['inherit', t('settings.load_accounts.22')], ['pc_default', t('settings.render_claude_pc.3')], ...pc.accounts.map((a) => [a.id, t('settings.render_claude_pc.18', { label: a.label, kind: (a.kind ? '' : t('settings.ac_cannot_login')) }), !a.kind])]
+      .map(([v, tx, off]) => { const k = v === 'inherit' ? kindOf(pc.defaultAccount) : kindOf(v); const acc = pc.accounts.find((a) => a.id === (v === 'inherit' ? pc.defaultAccount : v));
+        if (s.newSession && foreign(s.model) && k !== 'compat') return [v, tx + t('settings.cl_cannot_model', { model: s.model }), true];
+        if (!s.newSession && k === 'compat' && !acc?.compat?.confirmed) return [v, tx + t('settings.ac_cannot_compat'), true];
+        return [v, tx, off]; });
     for (const s of pc.sessions) {
       const tr = el('tr'); tr.append(el('td', s.name || s.sessionId));
       const td = el('td'); const ss = el('select'); ss.setAttribute('aria-label', t('settings.render_claude_pc.22', { session_id: (s.name || s.sessionId) }));
-      for (const [v, tx] of choices) { const o = el('option', tx); o.value = v; ss.append(o); }
-      ss.value = pc.accountFor?.[s.sessionId] ?? 'inherit';
+      const cur = pc.accountFor?.[s.sessionId] ?? 'inherit'; const list = choicesFor(s);
+      for (const [v, tx, off] of list) { const o = el('option', tx); o.value = v; o.disabled = Boolean(off) && v !== cur; ss.append(o); }
+      ss.value = cur;
+      if (list.find(([v]) => v === cur)?.[2]) td.append(el('div', t('settings.cl_now_blocked', { model: s.model ?? '' }), 'warn small'));
       ss.onchange = async () => { const y = await acRun('claude.accounts.use', { sessionId: s.sessionId, accountId: ss.value });
         setStatus(y.status === 200 ? 'ok' : 'err', y.status === 200 ? t('settings.render_claude_pc.23', { y: devNote(y.body) }) : (AC_ERR[y.body.error] || CL_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error)); loadClaude(); };
       td.append(ss); tr.append(td); sb.append(tr);

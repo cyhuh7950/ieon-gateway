@@ -166,8 +166,9 @@ test('기기 명령: 대화별 Claude 계정은 이 PC의 Claude 새 세션·허
   const cfg = join(d, 's2', 'connector.json'); writeFileSync(cfg, JSON.stringify({ newSessions: { createdPath: created } }));
   const pc = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: null, claudeDesktop: join(d, 'desk'), claudeProjects: projects, claudeLogoutImpl: async () => true });
   const id = (await pc.run('claude.accounts.add', { label: '회사' })).body.id;
+  await pc.run('claude.accounts.apikey', { id, key: FAKE_KEY }); // 2026-11-24: 로그인 안 된 계정은 고를 수 없으므로 로그인한 계정으로
   let g = await pc.run('claude.get');
-  assert.deepEqual(g.body.pc.sessions, [{ sessionId: SID, name: '보고서' }], 'Claude 세션 기록이 있는 새 세션만');
+  assert.deepEqual(g.body.pc.sessions, [{ sessionId: SID, name: '보고서', newSession: true, model: null }], 'Claude 세션 기록이 있는 새 세션만(2026-11-24: 새 세션 표시·마지막 모델)');
   assert.equal((await pc.run('claude.accounts.use', { sessionId: SID2, accountId: id })).body.error, 'session_not_allowed');
   assert.equal((await pc.run('claude.accounts.use', { sessionId: 'nope', accountId: id })).body.error, 'bad_session_id');
   assert.deepEqual((await pc.run('claude.accounts.use', { sessionId: SID, accountId: id })).body.accountFor, { [SID]: id });

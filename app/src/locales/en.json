@@ -83,6 +83,7 @@
   "errors.bad_voice_voice": "The voice name isn't valid",
   "errors.bad_voice_limit": "A time value is out of range",
   "errors.bad_voice_key": "That doesn't look like an OpenAI API key (starts with sk-)",
+  "errors.session_model_mismatch": "Not sent: this session was made with another provider's model, so it can't continue with the current account (such as the PC sign-in). In Settings → Accounts → Claude accounts, choose a compatible-endpoint account that serves that model for this conversation.",
   "app.texts.1": "This session answers in text only (new sessions run directly by the hub can't run commands or work with files — use an engine cell conversation on the server).",
   "app.texts.2": "This PC is connected to a hub. Send from an app connected with the hub address.",
   "app.texts.3": "The PC is disconnected. Check that the PC is on.",

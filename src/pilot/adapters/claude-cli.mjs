@@ -4,6 +4,7 @@
 // 안전: --restricted(사용자·프로젝트 설정·훅 무시, 파일 도구를 작업 폴더로 제한, bypassPermissions 거부),
 // --strict-mcp-config(MCP 없음), --tools·--allowedTools는 프로필 도구만, --permission-prompts none(그 밖은 자동 거부).
 // 질문은 표준 입력으로만 넘기고 로그에 남기지 않는다.
+import { claudeSessionModel, isForeignModel } from '../claude-sessions.mjs';
 import { t as i18nT } from '../../i18n/index.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -82,6 +83,8 @@ export function claudeCliAdapter(opts) {
       let env = null;
       const ref = newSession && sessionRef.startsWith('pending:') ? null : sessionRef; // 처음 질문 전 새 세션은 엔진 기본
       try { env = opts.accountEnv?.(ref, { existing: !newSession }) ?? null; } catch (e) { throw new EngineError(e.message, e.http ?? 409); }
+      // 다른 회사 모델로 만든 세션을 Anthropic 로그인으로 이어 쓰면 그 모델 이름을 그대로 보내 실패한다(2026-11-24 solar-test) — 보내기 전에 이유로 거절
+      if (ref && !String(ref).startsWith('pending:') && !env?.ANTHROPIC_BASE_URL && isForeignModel((opts.sessionModel ?? claudeSessionModel)(ref))) throw new EngineError('session_model_mismatch', 409);
       const { id, pending, cwd, tools: list } = newSession ? forNew(sessionRef, newSession) : forExisting(sessionRef);
       const tools = list.join(',');
       // WS1-b: 붙인 작업 공간(개인·공유 폴더) — 지금 있는 폴더만 --add-dir, 공유(읽기만)는 고치기 거부
