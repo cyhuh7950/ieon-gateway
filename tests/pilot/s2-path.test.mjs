@@ -100,11 +100,11 @@ test('Codex 어댑터: live 꺼짐·allowlist 밖·업무 대화 거부, 잠금 
   assert.equal(sdkLoaded, 0);
 });
 
-test('X2.4 연결 모드: 기본 alternate, 처리 중 전환 거부, 바뀐 모드가 연결부 작업에 실림', async (t) => {
+test('X2.4 연결 모드: 기본 warm(2026-11-24 빠른 응답 기본), 처리 중 전환 거부, 바뀐 모드가 연결부 작업에 실림', async (t) => {
   const s = await setup(t);
   const list = async () => (await s.call('/v1/conversations')).body.conversations;
   const put = (conv, connectMode, token) => s.call(`/v1/conversations/${conv}/settings`, { method: 'PUT', token, body: JSON.stringify({ connectMode }) });
-  assert.equal((await list()).find((c) => c.conversationId === 'c_codex').connectMode, 'alternate');
+  assert.equal((await list()).find((c) => c.conversationId === 'c_codex').connectMode, 'warm');
   assert.equal((await list()).find((c) => c.conversationId === 'c_claude').connectMode, undefined);
   assert.equal((await put('c_claude', 'shared_server')).status, 400);
   assert.equal((await put('c_codex', 'other')).status, 400);
@@ -120,7 +120,7 @@ test('X2.4 연결 모드: 기본 alternate, 처리 중 전환 거부, 바뀐 모
   assert.equal((await put('c_codex', 'shared_server')).status, 200);
   const last = await s.ask('c_codex', '다음');
   await pollOnce(conn);
-  assert.deepEqual(seen, ['alternate', 'shared_server']);
+  assert.deepEqual(seen, ['warm', 'shared_server']);
   assert.deepEqual((await s.call(`/v1/requests/${last.body.requestId}`)).body.usage, { inputTokens: 10, outputTokens: 2 });
 });
 

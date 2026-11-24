@@ -154,7 +154,7 @@ Tidying up: after 30 minutes without use it is "Asleep" (it wakes when you ask),
 3. The status changes in the order "✓ Received → Running… → ✓ Completed", and then the answer bubble appears. To stop, press **Stop**.
 
 - **AI replies switch:** "AI replies on/off" at the top of the PC screen. If it's off, the first time you send, the "AI will answer this question" window appears; press **Turn on and send**. On the hub screen it shows as "AI replies (PC settings)", and pressing it tells you where to change it (**Settings → PC settings → Real runs · Codex allowlist → Turn on real runs**).
-- **Codex conversations in Alternate mode (the default):** if that conversation is open in the Codex app when you send, it is not sent. The app can stay on; just close that one conversation.
+- **Codex conversations use Fast replies (the default):** Ieon keeps a Codex running for that conversation, so answers come in a few seconds (about 10 seconds of preparation right after Ieon starts). Meanwhile, **don't use that conversation in the Codex app.** If you often open it in the Codex app too, switch to **Alternate** in Connection settings → Advanced. In Alternate mode, if the conversation is open in the Codex app when you send, it is not sent (the app can stay on; just close that conversation), and answers can take over 10 seconds.
 - If something blocks it, a **card** in the conversation shows the reason and buttons ([Card table](#card-table)).
 - A question whose result is unknown is locked with the "Question needing review" card. Check whether it ran in the original session, then press **It ran** or **It didn't run**. Ieon never resends anything on its own.
 
@@ -492,7 +492,7 @@ For each screen: **how to open it · what it does · steps · main items**.
 | "AI staff name and role" (collapsed) | Name, icon, role → **Save** |
 | "Stored history" | **Delete this conversation's history stored on the server** (confirmation window; the original session's history stays as it is; blocked while processing) |
 | "New session" | Status ("Before first question · permission read only" and so on), **Sleep** and **Delete**. Blocked for conversations that already existed, with the reason shown |
-| "Advanced" (collapsed) | Codex connection method **Alternate / Shared** (Codex conversations only), conversation ID |
+| "Advanced" (collapsed) | Codex connection method **Fast replies (default) / Alternate / Shared** (Codex conversations only), conversation ID. Choosing one shows "Connection method changed" at the top; Fast replies takes the PC about 10 seconds to prepare |
 
 #### AI will answer this question (window)
 
@@ -664,7 +664,7 @@ For each screen: **how to open it · what it does · steps · main items**.
 ### Known limitations
 
 - In this test, bot owner registration with real messenger accounts (Telegram, Discord, Slack, Kakao, LINE) was not done (no real test bot accounts). Rejection of fake tokens and the notice text were verified.
-- The hub doesn't know whether a PC has a Codex shared server, so even a conversation on a PC without one can be switched to "Shared". The PC refuses when you send (normally use Alternate).
+- The hub doesn't know whether a PC has a Codex shared server, so even a conversation on a PC without one can be switched to "Shared". The PC refuses when you send (normally use Fast replies).
 - The count in a member's new session limit line is counted on the hub (it may differ from the count on the member's PC).
 - If you open two Ieon screens (different ports) on the same computer with `localhost`, their logins overwrite each other (browser cookies don't distinguish ports). Open each at a different address (127.0.0.1 and localhost).
 

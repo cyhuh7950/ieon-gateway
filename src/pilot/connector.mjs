@@ -178,6 +178,7 @@ export async function runConnector({ pollMs = 700, signal, ...opts }) { // 2026-
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   (await import('./parent-watch.mjs')).watchParent(); // W6: 서버가 띄운 경우, 서버가 사라지면 함께 끝난다
+  try { (await import('./device-settings.mjs')).migrateWarmDefault(process.argv[2]); } catch { /* 설정 파일을 못 쓰면 그대로 */ }
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
   config.accountsDir = accountsDirFor(process.argv[2], config); // A2: 이어온 전용 계정 폴더 뿌리
   config.kindCache = codexKindCache(config); // SV3: 계정 종류(구독/API) 자동 인식

@@ -87,12 +87,20 @@ export function approvalState(a) {
   return a.exec_status ?? 'approved';
 }
 
+// 새로 연결하는 Codex 대화는 빠른 응답(2026-11-24 신산님), 그 밖의 엔진은 이 값을 쓰지 않는다
+const defaultMode = (engine) => (engine === 'codex_thread' ? 'warm' : 'alternate');
+
 export function openStore(path) {
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
   // X2.4: Codex 세션별 연결 모드. 기존 DB에는 열을 추가한다. 기본값은 실증된 alternate다.
   if (!db.prepare('PRAGMA table_info(bindings)').all().some((c) => c.name === 'connect_mode')) {
     db.exec("ALTER TABLE bindings ADD COLUMN connect_mode TEXT NOT NULL DEFAULT 'alternate'");
+  }
+  // 2026-11-24 신산님 "빠른 응답이 기본": Codex 대화의 기본 연결 방식을 warm으로. 예전 기본값(alternate)으로 남은 대화는 한 번만 바꾼다(동시 사용은 그대로).
+  if (!db.prepare("SELECT 1 FROM settings WHERE key = 'codex_warm_default'").get()) {
+    db.prepare("UPDATE bindings SET connect_mode = 'warm' WHERE engine = 'codex_thread' AND connect_mode = 'alternate'").run();
+    db.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('codex_warm_default', 'true', ?)").run(new Date().toISOString());
   }
   // 엔진이 알려 준 사용량(토큰 수만). 없으면 NULL이다.
   // 여러 봇 M3: 역할 봇에서 만든 새 세션의 AI 역할 안내(첫 질문 앞에 붙임)
@@ -251,10 +259,10 @@ export function openStore(path) {
   return {
     // server.json의 기존 세션 등록(출처 file). 서버를 켤 때마다 다시 쓴다(파일이 정본).
     addBinding(b) {
-      db.prepare(`INSERT INTO bindings (conversation_id, owner_user_id, app_ids, host_id, engine, session_ref, label, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'file') ON CONFLICT (conversation_id) DO UPDATE SET app_ids = excluded.app_ids,
+      db.prepare(`INSERT INTO bindings (conversation_id, owner_user_id, app_ids, host_id, engine, session_ref, label, source, connect_mode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'file', ?) ON CONFLICT (conversation_id) DO UPDATE SET app_ids = excluded.app_ids,
         label = excluded.label, source = 'file'`)
-        .run(b.conversationId, b.ownerUserId, JSON.stringify(b.appIds), b.hostId, b.engine, b.sessionRef, b.label ?? null);
+        .run(b.conversationId, b.ownerUserId, JSON.stringify(b.appIds), b.hostId, b.engine, b.sessionRef, b.label ?? null, defaultMode(b.engine));
     },
 
     // --- P1-b: 웹에서 등록하는 기존 세션(출처 web). 파일 등록·새 세션은 여기서 바꾸지 않는다. ---
@@ -274,10 +282,10 @@ export function openStore(path) {
         if (cur && locked(cur) && (cur.sessionRef !== b.sessionRef || cur.engine !== b.engine || cur.hostId !== b.hostId)) {
           return { http: 409, code: 'conversation_busy' };
         }
-        db.prepare(`INSERT INTO bindings (conversation_id, owner_user_id, app_ids, host_id, engine, session_ref, label, source)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'web') ON CONFLICT (conversation_id) DO UPDATE SET app_ids = excluded.app_ids,
+        db.prepare(`INSERT INTO bindings (conversation_id, owner_user_id, app_ids, host_id, engine, session_ref, label, source, connect_mode)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'web', ?) ON CONFLICT (conversation_id) DO UPDATE SET app_ids = excluded.app_ids,
           host_id = excluded.host_id, engine = excluded.engine, session_ref = excluded.session_ref, label = excluded.label`)
-          .run(b.conversationId, ownerUserId, JSON.stringify(b.appIds), b.hostId, b.engine, b.sessionRef, b.label);
+          .run(b.conversationId, ownerUserId, JSON.stringify(b.appIds), b.hostId, b.engine, b.sessionRef, b.label, defaultMode(b.engine));
         return { http: 200, binding: this.listBindings(ownerUserId).find((x) => x.conversationId === b.conversationId) };
       });
     },

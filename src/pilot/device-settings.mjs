@@ -29,7 +29,7 @@ export function readDevice(path) {
   const allow = c.codex?.allowlist ?? [];
   return {
     live: c.live === true,
-    codexThreads: allow.map((threadId) => ({ threadId, mode: c.codex?.modes?.[threadId] ?? 'alternate', workingDirectory: c.codex?.workingDirectories?.[threadId] ?? null })),
+    codexThreads: allow.map((threadId) => ({ threadId, mode: c.codex?.modes?.[threadId] ?? 'warm', workingDirectory: c.codex?.workingDirectories?.[threadId] ?? null })),
     sharedServer: Boolean(c.codex?.shared?.endpoint),
     codexModel: c.codex?.model ?? null, // 2026-11-23 인수 시험: 이어온이 쓸 Codex 모델(비우면 그 PC의 Codex 기본 모델)
     claudeChannel: Boolean(c.claude?.baseUrl),
@@ -188,6 +188,16 @@ export function setLive(path, live) {
 }
 
 // 연결 방식만 바꾼다(작업 폴더는 그대로) — 대화 화면 연결 설정에서 고르면 허브가 그 PC에 보낸다(빠른 응답은 PC 연결부가 미리 띄워야 해서).
+// 2026-11-24: 예전 기본값(alternate)으로 적힌 대화를 한 번만 빠른 응답으로(연결부가 켜질 때). 동시 사용은 그대로.
+export function migrateWarmDefault(path) {
+  const c = read(path);
+  if (c.codex?.warmDefault || !c.codex?.modes) return false;
+  for (const [id, m] of Object.entries(c.codex.modes)) if (m === 'alternate') c.codex.modes[id] = 'warm';
+  c.codex.warmDefault = true;
+  write(path, c);
+  return true;
+}
+
 export function setCodexMode(path, threadId, mode) {
   const id = String(threadId ?? '').trim().toLowerCase();
   if (!UUID.test(id) || id === EXCLUDED_THREAD) fail('bad_thread_id');
@@ -198,12 +208,14 @@ export function setCodexMode(path, threadId, mode) {
   write(path, c);
 }
 
-export function upsertCodexThread(path, { threadId, mode = 'alternate', workingDirectory = null }) {
+// mode를 주지 않으면 이미 정한 방식을 그대로, 처음이면 빠른 응답(2026-11-24 신산님 "빠른 응답이 기본")
+export function upsertCodexThread(path, { threadId, mode: given = null, workingDirectory = null }) {
   const id = String(threadId ?? '').trim().toLowerCase();
   if (!UUID.test(id)) fail('bad_thread_id');
   if (id === EXCLUDED_THREAD) fail('excluded_session');
-  if (!['alternate', 'shared_server', 'warm'].includes(mode)) fail('bad_mode');
   const c = read(path);
+  const mode = given ?? c.codex?.modes?.[id] ?? 'warm';
+  if (!['alternate', 'shared_server', 'warm'].includes(mode)) fail('bad_mode');
   if (mode === 'shared_server' && !c.codex?.shared?.endpoint) fail('shared_server_not_configured');
   let dir = workingDirectory ? String(workingDirectory).trim() : null;
   if (dir) {

@@ -514,7 +514,7 @@ export function codexThreadAdapter(opts) {
       }
       if (threadId === EXCLUDED || !opts.allowlist.includes(threadId)) throw new EngineError('thread_not_allowed', 403);
       if (!opts.live) throw new EngineError('live_disabled', 503);
-      // 서버가 보낸 세션 설정이 우선이고, 없으면 연결부 설정·기본값(alternate) 순으로 쓴다.
+      // 서버가 보낸 세션 설정이 우선이고(서버 기본은 빠른 응답), 없으면 연결부 설정·alternate 순으로 쓴다.
       const mode = connectMode ?? opts.modes?.[threadId] ?? 'alternate';
       if (mode === 'shared_server') {
         if (!opts.shared?.endpoint || !opts.shared?.tokenFile) throw new EngineError('shared_server_not_configured', 503);

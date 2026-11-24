@@ -139,7 +139,7 @@
   "html_mode_pc.1": "Connect to my hub — questions, messengers, and this PC's settings on the hub screen; this PC's bots and Kakao relay off",
   "html_mode_hub.1": "Change usage mode",
   "html_dev_box.2": "Real runs · Codex allowlist",
-  "mode_warm": "Fast replies (keep running)",
+  "mode_warm": "Fast replies (default · keep running)",
   "codex_model.label": "Codex model for Ieon",
   "codex_model.tip": "Leave empty to follow that PC's default Codex model. If the Codex app changed its default to a model your sign-in can't use (\"model is not supported\"), enter a usable model name here. It only applies to Ieon questions and doesn't change the Codex app settings.",
   "codex_model.ph": "Empty = that PC's default Codex model",
