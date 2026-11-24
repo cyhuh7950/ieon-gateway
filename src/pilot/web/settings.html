@@ -1612,7 +1612,8 @@ async function loadAdmin() {
   loadPairings().catch(() => {});
   loadHubLink().catch(() => {});
   loadTargets().catch(() => {}).finally(() => { loadMode().catch(() => {}); loadDevice().catch(() => {}); loadAccounts().catch(() => {}); });
-  loadWsTargets().catch(() => {}).finally(() => loadWorkspaces().catch(() => {})); // WS1-a
+  // 2026-11-24 인수 시험(신산님 "이 창이 금방 없어져서 불편해"): 10초마다 새로 읽을 때 열어 둔 폴더 정하기 칸은 닫지 않음
+  if ($('wsEdit').hidden) loadWsTargets().catch(() => {}).finally(() => loadWorkspaces().catch(() => {})); // WS1-a
   loadCodex().catch(() => {});
   loadSecurity().catch(() => {});
   loadHubEngine().catch(() => {});
@@ -1871,7 +1872,8 @@ async function loadUser() {
   loadMyMessenger().catch(() => {});
   loadPairings().catch(() => {});
   loadTargets().catch(() => {}).finally(() => { loadDevice().catch(() => {}); });
-  loadWsTargets().catch(() => {}).finally(() => loadWorkspaces().catch(() => {}));
+  // 2026-11-24 인수 시험(신산님 "이 창이 금방 없어져서 불편해"): 10초마다 새로 읽을 때 열어 둔 폴더 정하기 칸은 닫지 않음
+  if ($('wsEdit').hidden) loadWsTargets().catch(() => {}).finally(() => loadWorkspaces().catch(() => {}));
   loadAppDevices().catch(() => {});
   loadSchedules().catch(() => {});
   loadDevices().catch(() => {});
