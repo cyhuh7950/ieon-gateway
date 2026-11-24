@@ -710,11 +710,27 @@ async function select(id) {
   current = id; currentRoom = null; clearTimeout(roomTimer); $('app').classList.add('in-chat');
   await load();
   const { body } = await api('/v1/conversations/' + id + '/messages');
-  const box = $('msgs'); box.replaceChildren();
-  if (!body.messages.length) box.append(el('div', t('web.select.1'), 'welcome'));
-  for (const m of body.messages) { box.append(el('div', m.question, 'bubble me')); box.append(el('div', m.answer ?? t('web.select.2'), 'bubble ai')); }
-  renderHead(); box.scrollTop = box.scrollHeight;
+  drawMsgs(body.messages);
+  renderHead(); $('msgs').scrollTop = $('msgs').scrollHeight;
   cardsKey = ''; await loadCards();
+}
+// 2026-11-24 인수 시험(신산님 "나갔다가 들어와야 보여"): 예약·메신저·다른 화면에서 온 질문과 답도 열어 둔 대화에 나타나게, 목록을 새로 읽을 때 바뀌었으면 다시 그린다.
+let msgsKey = '';
+const keyOf = (ms) => ms.length + ':' + (ms.at(-1)?.question ?? '') + ':' + (ms.at(-1)?.answer ?? '');
+function drawMsgs(ms) {
+  msgsKey = keyOf(ms);
+  const box = $('msgs'); box.replaceChildren();
+  if (!ms.length) box.append(el('div', t('web.select.1'), 'welcome'));
+  for (const m of ms) { box.append(el('div', m.question, 'bubble me')); box.append(el('div', m.answer ?? t('web.select.2'), 'bubble ai')); }
+}
+async function refreshMsgs() {
+  const id = current;
+  if (!id || currentRoom || pending) return;
+  const { body } = await api('/v1/conversations/' + id + '/messages');
+  if (id !== current || currentRoom || pending || !body?.messages || keyOf(body.messages) === msgsKey) return;
+  const box = $('msgs'); const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  drawMsgs(body.messages);
+  if (atEnd) box.scrollTop = box.scrollHeight;
 }
 // --- U3 대화 연결 ---
 const CONN_ERR = { codex_unavailable: t('web.conn_err.1'), excluded_session: t('web.conn_err.2'),
@@ -1370,7 +1386,12 @@ async function send(question, o = {}) {
       if (r.status === 'approval_required') { out.remove(); s2.textContent = t('web.send.10'); break; }
       if (r.status === 'cancelled') { out.remove(); s2.textContent = t('web.send.11'); break; }
     }
-  } finally { stopBtn.remove(); pending = null; if (current === id) await refresh(); }
+  } finally {
+    stopBtn.remove();
+    // 내가 보낸 질문은 이미 그려져 있으니(접수·완료 칩 포함) 다시 그리지 않게 기준만 맞춘다
+    try { const r = await api('/v1/conversations/' + id + '/messages'); if (current === id && r.body?.messages) msgsKey = keyOf(r.body.messages); } catch { /* 다음에 다시 */ }
+    pending = null; if (current === id) await refresh();
+  }
 }
 
 // --- 연결 설정 패널 ---
@@ -1427,9 +1448,11 @@ const STAFF_ERR = { bad_staff_name: t('web.staff_err.1'), staff_name_taken: t('w
   bad_room_name: t('web.staff_err.5'), bad_members: t('web.staff_err.6'), bad_lead: t('web.staff_err.7'), too_long: t('web.staff_err.8'), bad_handoff: t('web.staff_err.9') };
 let roleList = null;
 async function fillRoles(sel) {
-  if (!roleList) { const r = await api('/v1/roles').catch(() => null); roleList = r?.status === 200 ? r.body.roles : []; }
+  if (!roleList?.length) { const r = await api('/v1/roles').catch(() => null); roleList = r?.status === 200 ? r.body.roles : []; }
   const s = $('stRole'); s.replaceChildren(el('option', t('web.html_ho_perm.2'))); s.firstChild.value = '';
   for (const r of roleList) { const o = el('option', r.name); o.value = r.roleId; s.append(o); }
+  // 2026-11-24 인수 시험: 만든 역할이 없으면 "없음"만 보여 헷갈림 — 만드는 곳을 칸 안에 알림
+  if (!roleList.length) { const o = el('option', t('web.role_none')); o.disabled = true; o.value = '__none'; s.append(o); }
   s.value = sel;
 }
 // RC5: "사람이 직접 할 일" 규칙
@@ -1586,7 +1609,7 @@ async function loadDenied() {
   if (list.length > 3) box.append(el('div', t('web.load_denied.5', { list: (list.length - 3) })));
 }
 boot();
-setInterval(() => { if (!$('app').hidden && !pending) load().catch(() => {}); }, 5000);
+setInterval(() => { if (!$('app').hidden && !pending) load().then(() => refreshMsgs()).catch(() => {}); }, 5000);
 setInterval(() => { if (!$('app').hidden) { loadDevice().catch(() => {}); loadDenied().catch(() => {}); } }, 30000);
 // --- RC3 작업 화면: 질문(작업) 하나하나의 진행·승인 대기·결과를 모아 보고, 여기서 바로 허용·거부·중지 ---
 const TSTATE = { queued: t('web.tstate.1'), dispatching: t('web.tstate.2'), running: t('web.tstate.3'), completed: t('web.tstate.4'), failed: t('web.tstate.5'), cancelled: t('web.send.11'), unknown: t('web.state_of.5'), approval_required: t('web.send.10') };

@@ -918,7 +918,7 @@ async function loadWorkspaces() {
   for (const c of convs) {
     const w = c.workspace; const lv = wsLevel(c);
     const tr = el('tr');
-    tr.append(el('td', (c.staff?.name || c.label) + ' · ' + WS_ENGINE_TXT[c.engine] + (c.newSession ? t('settings.load_workspaces.7') : '')));
+    tr.append(el('td', c.label + (c.staff?.name ? ' (@' + c.staff.name + ')' : '') + ' · ' + WS_ENGINE_TXT[c.engine] + (c.newSession ? t('settings.load_workspaces.7') : '')));
     tr.append(el('td', w ? [w.personal && t('settings.load_workspaces.8', { personal: w.personal }), ...(w.shared || []).map((s) => t('settings.load_workspaces.9', { name: s.name, write: (s.write ? t('settings.ws_editor.16') : t('settings.ws_editor.17')) }))].filter(Boolean).join(', ') : t('settings.load_workspaces.10'), w ? '' : 'muted'));
     tr.append(el('td', w ? t('settings.load_workspaces.11', { split: tFrom(lv.writeText, lv.writeKey).split(' — ')[0], split2: tFrom(lv.readText, lv.readKey).split(' — ')[0] }) : '—', w ? '' : 'muted'));
     const td = el('td'); const b = el('button', t('settings.load_workspaces.12')); b.type = 'button'; b.onclick = () => wsEditor(c); td.append(b); tr.append(td); srows.push(tr);
@@ -982,7 +982,7 @@ const SCH_PAUSE = { last_unknown: t('settings.sch_pause.1'), conversation_gone: 
 async function loadSchedules() {
   const [r, cv] = await Promise.all([api('/v1/schedules'), api('/v1/conversations')]);
   const sel = $('schConv'); const keep = sel.value; sel.innerHTML = '';
-  for (const c of cv.status === 200 ? cv.body.conversations : []) { const o = el('option', (c.staff?.name || c.label) + (c.host?.name ? ' · ' + c.host.name : '')); o.value = c.conversationId; sel.append(o); }
+  for (const c of cv.status === 200 ? cv.body.conversations : []) { const o = el('option', c.label + (c.staff?.name ? ' (@' + c.staff.name + ')' : '') + (c.host?.name ? ' · ' + c.host.name : '')); o.value = c.conversationId; sel.append(o); } // 2026-11-24 인수 시험: 직원 이름만 보여 대화를 못 찾음
   if (keep) sel.value = keep;
   const hub = r.status === 200 && r.body.hubMode;
   $('schHub').hidden = !hub; $('schAdd').hidden = hub;

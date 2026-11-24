@@ -192,7 +192,7 @@ If you open a task link received in a messenger (`/#task=…`), that task opens 
 
 **Who:** everyone · **Screens used:** [Connection settings](#connection-settings), [Room window](#room-create-and-edit-window), [Room screen](#room-screen), [Messenger advanced tab](#admin--messenger-advanced)
 
-1. Name each conversation: in **Connection settings → AI staff name and role**, enter a name (1–20 characters, no spaces), an icon (one emoji), and a role, then press **Save** → "Saved AI staff info". The list shows the icon and @name.
+1. Name each conversation: in **Connection settings → AI staff name and role**, enter a name (1–20 characters, no spaces), and an icon (one emoji), choose a role (from roles made in step 2 — if none, the box says "No roles yet"), then press **Save** → "Saved AI staff info". The list shows the icon and @name.
 2. Roles (admin): in **Settings → Admin → Messenger advanced → Roles → Create · edit roles**, enter the role ID, name, engines it can create, allowed permissions, and AI role instructions, then press **Save role**. Members can also pick and use these roles.
 3. Create a room: press **＋ Room** next to "Rooms" on the left → room name, members (1–10), lead, shared instructions → **Save** → "Room created".
 4. Using a room: call someone with @name and that staff member answers; if you call no one, the lead answers. Each answer has **Hand off to another AI staff member**.
