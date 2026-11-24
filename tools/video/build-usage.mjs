@@ -4,9 +4,11 @@
 //   목소리는 .local/video/usage-voice/<편>/<장면>.wav — 없을 때만 만든다(신산님 목소리로 바꾸려면 같은 이름으로 넣고 다시 실행)
 import { execFileSync, spawnSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { EPISODES, FPS, LEAD, TAIL } from './usage-scenes.mjs';
+// 영어판(2026-11-25): VIDEO_LANG=en — 장면 usage-scenes.en.mjs, 그림 장면 글 usage-text.en.js, 작업 폴더 .local/video/en, 목소리 en-US(Zira)
+const LANG = process.env.VIDEO_LANG === 'en' ? 'en' : 'ko';
+const { EPISODES, FPS, LEAD, TAIL } = await import(LANG === 'en' ? './usage-scenes.en.mjs' : './usage-scenes.mjs');
 
-const OUT = '.local/video';
+const OUT = LANG === 'en' ? '.local/video/en' : '.local/video';
 const ELECTRON = 'app/node_modules/electron/dist/electron.exe';
 const args = process.argv.slice(2);
 const still = args.includes('still');
@@ -22,7 +24,7 @@ for (const ep of eps.length ? eps : Object.keys(EPISODES)) {
   const missing = E.scenes.filter((s) => !existsSync(`${vdir}/${s.id}.wav`));
   if (missing.length) {
     writeFileSync(`${vdir}/lines.json`, JSON.stringify(missing.map((s) => ({ id: s.id, say: s.say }))), 'utf8');
-    execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'tools/video/tts.ps1', '-List', `${vdir}/lines.json`, '-Out', vdir], { stdio: 'inherit' });
+    execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'tools/video/tts.ps1', '-List', `${vdir}/lines.json`, '-Out', vdir, ...(LANG === 'en' ? ['-Culture', 'en-US'] : [])], { stdio: 'inherit' });
   }
   // 2) 시간표
   let t = 0;
@@ -37,7 +39,7 @@ for (const ep of eps.length ? eps : Object.keys(EPISODES)) {
   const tlFile = `${OUT}/usage${ep}_timeline.json`;
   writeFileSync(tlFile, JSON.stringify(TL, null, 1));
   console.log(`${ep} ${E.title}: ${TL.length}장면, ${total.toFixed(1)}초`);
-  const env = { ...process.env, VIDEO_HTML: 'usage.html' };
+  const env = { ...process.env, VIDEO_HTML: 'usage.html', VIDEO_LANG: LANG };
   if (still) {
     const times = TL.map((s) => (s.start + s.dur * 0.8).toFixed(2)).join(',');
     spawnSync(ELECTRON, ['tools/video/render.cjs', tlFile, 'still', `${OUT}/usage-stills/${ep}`, String(FPS), times], { stdio: 'inherit', env });

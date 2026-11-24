@@ -63,7 +63,9 @@ const ANSWERS_EN = [
   [S.ins, '', 'For an inherited home, change the fire insurance holder to the new owner and decide whether to keep or cancel the policy. If the house is empty, the coverage can change. (For reference only)'],
 ];
 const ANSWERS = EN ? ANSWERS_EN : ANSWERS_KO;
-const answerFor = (sessionRef, q) => (ANSWERS.find(([s, k]) => s === sessionRef && (!k || q.toLowerCase().includes(k))) ?? [0, 0, EN ? 'Sure, got it.' : '네, 알겠습니다.'])[2];
+// 영어는 낱말 단위로 맞춤(2026-11-25: 'Please'의 'lease'가 전세 답을 고르던 것)
+const hit = (q, k) => (EN ? new RegExp('\\b' + k, 'i').test(q) : q.toLowerCase().includes(k));
+const answerFor = (sessionRef, q) => (ANSWERS.find(([s, k]) => s === sessionRef && (!k || hit(q, k))) ?? [0, 0, EN ? 'Sure, got it.' : '네, 알겠습니다.'])[2];
 
 // 지난 기록 하나(2-5 화면에서 "하던 대화"로 보이게) — 가짜 PC가 먼저 한 번 접속해야 받아 준다
 await fetch(base + '/v1/device/jobs', { headers: { ...H('dev-video'), 'x-ieon-health': JSON.stringify({ codexShared: 'false', claudeChannel: 'up' }) } });

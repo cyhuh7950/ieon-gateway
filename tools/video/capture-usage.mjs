@@ -4,7 +4,10 @@
 import { mkdirSync } from 'node:fs';
 import { connect } from './cdp.mjs';
 
-const OUT = '.local/video/usage-shots';
+// 영어판(VIDEO_LANG=en): 웹은 쿠키 ieon_lang=en, 앱은 localStorage ieon_lang=en, 질문·이름·버튼 글은 영어(가짜 서버도 VIDEO_LANG=en) → .local/video/en/usage-shots
+const EN = process.env.VIDEO_LANG === 'en';
+const T = (ko, en) => (EN ? en : ko);
+const OUT = EN ? '.local/video/en/usage-shots' : '.local/video/usage-shots';
 const BASE = 'http://127.0.0.1:28799';
 mkdirSync(OUT, { recursive: true });
 const which = process.argv[2] ?? 'all';
@@ -19,24 +22,24 @@ const must = async (p, what) => { if (!(await p)) throw new Error('찾지 못함
 async function web() {
   const w = await connect(9335);
   await w.size(1440, 900, 4 / 3, false);
-  await w.eval(`location.href = '${BASE}/', 1`); await w.sleep(3000);
+  await w.eval(`document.cookie = 'ieon_lang=${EN ? 'en' : 'ko'}; path=/', location.href = '${BASE}/', 1`); await w.sleep(3000);
   await w.eval('window.confirm = () => true, 1');
   const shot = (n) => w.shot(`${OUT}/${n}.png`);
   const row = (t) => must(clickText(w, '#list .row', t), t);
 
   // 01 웹 화면에서 질문하기
   await shot('w01_list');
-  await row('결제 모듈'); await w.sleep(1500);
+  await row(T('결제 모듈', 'Payment module')); await w.sleep(1500);
   await shot('w01_chat');
-  await w.type('#question', '어제 하던 작업 어디까지 했어?'); await w.sleep(300);
+  await w.type('#question', T('어제 하던 작업 어디까지 했어?', 'How far did you get with yesterday\'s work?')); await w.sleep(300);
   await shot('w01_typing');
   await w.click('#send'); await w.sleep(900);
   await shot('w01_queued');
   await w.sleep(6500);
   await shot('w01_answer');
-  await row('회사 PC'); await w.sleep(1500);
+  await row(T('회사 PC', 'Office PC')); await w.sleep(1500);
   await shot('w01_card');
-  await row('결제 모듈'); await w.sleep(1200);
+  await row(T('결제 모듈', 'Payment module')); await w.sleep(1200);
   await w.click('#panelBtn'); await w.sleep(800);
   await shot('w01_panel');
 
@@ -44,33 +47,33 @@ async function web() {
   await w.eval(`(() => { const d = document.getElementById('stName').closest('details'); if (d) d.open = true; return 1; })()`); await w.sleep(400);
   await shot('w02_staff');
   await w.click('#panelClose'); await w.sleep(300);
-  await must(clickText(w, '#list button', '＋ 방'), '방 만들기'); await w.sleep(600);
-  await w.type('#rdName', '전문 상담');
-  await w.eval(`(() => { for (const n of ['@법률봇', '@세무봇', '@보험봇']) { const l = [...document.querySelectorAll('#rdMembers label')].find((x) => x.textContent.includes(n)); l.querySelector('input').click(); } return 1; })()`);
+  await must(clickText(w, '#list button', T('＋ 방', '＋ Room')), '방 만들기'); await w.sleep(600);
+  await w.type('#rdName', T('전문 상담', 'Expert advice'));
+  await w.eval(`(() => { for (const n of ${JSON.stringify(EN ? ['@LawBot', '@TaxBot', '@InsuranceBot'] : ['@법률봇', '@세무봇', '@보험봇'])}) { const l = [...document.querySelectorAll('#rdMembers label')].find((x) => x.textContent.includes(n)); l.querySelector('input').click(); } return 1; })()`);
   await w.sleep(400);
   await shot('w02_room_dlg');
   await w.click('#rdOk'); await w.sleep(1800);
-  await w.type('#question', '@법률봇 @세무봇 상속받은 집, 법적 절차랑 세금 같이 봐 줘'); await w.sleep(300);
+  await w.type('#question', T('@법률봇 @세무봇 상속받은 집, 법적 절차랑 세금 같이 봐 줘', '@LawBot @TaxBot I inherited a house. Check the legal steps and the taxes together.')); await w.sleep(300);
   await shot('w02_mention');
   await w.click('#send'); await w.sleep(10000);
   await w.eval('document.getElementById("msgs").scrollTop = 1e6, 1'); await w.sleep(400);
   await shot('w02_answers');
-  await w.eval(`(() => { let k = 0; window.prompt = () => (k++ % 2 === 0 ? '@보험봇' : ''); return 1; })()`);
-  await must(clickText(w, '#msgs button', '다른 AI 직원에게 넘기기'), '넘기기'); await w.sleep(9000);
+  await w.eval(`(() => { let k = 0; window.prompt = () => (k++ % 2 === 0 ? '${T('@보험봇', '@InsuranceBot')}' : ''); return 1; })()`);
+  await must(clickText(w, '#msgs button', T('다른 AI 직원에게 넘기기', 'Hand off to another AI staff member')), '넘기기'); await w.sleep(9000);
   await w.eval('document.getElementById("msgs").scrollTop = 1e6, 1'); await w.sleep(400);
   await shot('w02_handoff');
 
   // 03 허락 카드
-  await row('결제 모듈'); await w.sleep(1500);
+  await row(T('결제 모듈', 'Payment module')); await w.sleep(1500);
   await w.click('#panelBtn'); await w.sleep(600);
   await w.eval(`(() => { const c = document.getElementById('wmOn'); c.checked = true; c.dispatchEvent(new Event('change')); return 1; })()`); await w.sleep(900);
   await shot('w03_workmode');
   await w.click('#panelClose'); await w.sleep(1500);
-  await w.type('#question', '환불 처리 테스트 돌려서 결과 알려 줘'); await w.sleep(300);
+  await w.type('#question', T('환불 처리 테스트 돌려서 결과 알려 줘', 'Run the refund tests and tell me the result')); await w.sleep(300);
   await shot('w03_ask');
   await w.click('#send'); await w.sleep(9000);
   await shot('w03_card');
-  await must(clickText(w, '#cards button', '허용'), '허용'); await w.sleep(9000);
+  await must(clickText(w, '#cards button', T('허용', 'Allow')), '허용'); await w.sleep(9000);
   await w.eval('document.getElementById("msgs").scrollTop = 1e6, 1'); await w.sleep(400);
   await shot('w03_answer');
 
@@ -92,7 +95,7 @@ async function web() {
 async function messenger() {
   const w = await connect(9335);
   await w.size(1440, 900, 4 / 3, false);
-  await w.eval(`location.href = '${BASE}/', 1`); await w.sleep(3000);
+  await w.eval(`document.cookie = 'ieon_lang=${EN ? 'en' : 'ko'}; path=/', location.href = '${BASE}/', 1`); await w.sleep(3000);
   const shot = (n) => w.shot(`${OUT}/${n}.png`);
   await w.eval(`(() => {
     const real = window.fetch; let saved = false; window.__claimed = false;
@@ -110,7 +113,7 @@ async function messenger() {
   await shot('m06_btn');
   await w.click('#msgBtn'); await w.sleep(1200);
   await shot('m06_plats');
-  await must(clickText(w, '#mPlats button', '텔레그램'), '텔레그램'); await w.sleep(1000);
+  await must(clickText(w, '#mPlats button', T('텔레그램', 'Telegram')), '텔레그램'); await w.sleep(1000);
   await w.type('#m2Fields input[data-name]', '7712345678:AAH-video-demo-token-not-real'); await w.sleep(300);
   await shot('m06_token');
   await w.click('#m2Next'); await w.sleep(4000);
@@ -123,7 +126,7 @@ async function messenger() {
 async function phone() {
   const p = await connect(9333);
   await p.size(390, 844, 3, false);
-  await p.eval('localStorage.clear(), location.reload(), 1'); await p.sleep(2500);
+  await p.eval(`localStorage.clear(), localStorage.setItem('ieon_lang', '${EN ? 'en' : 'ko'}'), location.reload(), 1`); await p.sleep(2500);
   await p.eval('window.confirm = () => true, window.alert = () => {}, 1');
   const shot = (n) => p.shot(`${OUT}/${n}.png`);
   if (!pairCode) pairCode = (await (await fetch(`${BASE}/v1/admin/app-devices/code`, { method: 'POST', headers: H, body: '{}' })).json()).code;
@@ -136,17 +139,17 @@ async function phone() {
   await p.click('.pair button.primary'); await p.sleep(3000);
   await p.eval('window.confirm = () => true, window.alert = () => {}, 1');
   await shot('p04_list');
-  await must(clickText(p, 'button.row', '코덱스'), '코덱스'); await p.sleep(1500);
-  await p.type('textarea', '환불 처리 테스트는 어떻게 됐어?');
+  await must(clickText(p, 'button.row', T('코덱스', '🛠')), '코덱스'); await p.sleep(1500);
+  await p.type('textarea', T('환불 처리 테스트는 어떻게 됐어?', 'How did the refund tests go?'));
   await p.click('.composer button.primary'); await p.sleep(900);
   await shot('p04_wait');
   await p.sleep(6000);
   await shot('p04_answer');
   await workMode(true);
-  await p.type('textarea', '테스트 한 번 더 돌려 줘');
+  await p.type('textarea', T('테스트 한 번 더 돌려 줘', 'Run the tests once more'));
   await p.click('.composer button.primary'); await p.sleep(9000);
   await shot('p04_card');
-  await must(clickText(p, '.card button', '허용'), '허용'); await p.sleep(8000);
+  await must(clickText(p, '.card button', T('허용', 'Allow')), '허용'); await p.sleep(8000);
   await shot('p04_allowed');
   await workMode(false);
 
@@ -155,10 +158,10 @@ async function phone() {
   await must(p.click('button.mic'), '마이크');
   await p.sleep(800);
   await shot('p05_notice');
-  await must(clickText(p, '.dialog button', '확인'), '확인'); await p.sleep(500);
-  await p.eval(`(() => { const b = [...document.querySelectorAll('.vhint button')].find((x) => x.textContent === '닫기'); if (b) b.click(); return 1; })()`); await p.sleep(300);
+  await must(clickText(p, '.dialog button', T('확인', 'OK')), '확인'); await p.sleep(500);
+  await p.eval(`(() => { const b = [...document.querySelectorAll('.vhint button')].find((x) => x.textContent === '${T('닫기', 'Close')}'); if (b) b.click(); return 1; })()`); await p.sleep(300);
   await shot('p05_chat');
-  await p.type('textarea', '결제 모듈 테스트 결과를 짧게 정리해 줘'); await p.sleep(300);
+  await p.type('textarea', T('결제 모듈 테스트 결과를 짧게 정리해 줘', 'Summarize the payment module test results briefly')); await p.sleep(300);
   await shot('p05_dictated');
   await p.type('textarea', ''); await p.sleep(200);
   await p.eval(`(() => { const b = document.querySelector('header.bar button[aria-pressed]'); if (b && b.getAttribute('aria-pressed') !== 'true') b.click(); return 1; })()`); await p.sleep(600);

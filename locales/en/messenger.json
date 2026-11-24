@@ -13,6 +13,7 @@
   "no_answer_kept": "(Answer not kept)",
   "deliver_failed": "[{label}] Couldn't deliver the answer ({error}) — the engine won't run again. You can get it again with /last",
   "engine.mode.shared_server": "shared",
+  "engine.mode.warm": "fast replies",
   "engine.mode.alternate": "alternate",
   "ns_state.pending": "before first question",
   "ns_state.active": "awake",

@@ -134,7 +134,7 @@ export function createBridge(opts) {
   const byName = (all, name) => all.find((c) => c.newSession?.name === name);
   const nsFail = (r) => errText(t, r.body?.error, { ns: true, fallback: 'messenger.fail.ns' });
   const describe = (c, i) => {
-    const engine = c.engine === 'claude_channel' ? 'Claude' : c.engine === 'claude_cli' ? 'Claude(CLI)' : c.engine === 'agy_cli' ? 'Antigravity' : c.engine === 'grok_cli' ? 'Grok' : `Codex(${t(c.connectMode === 'shared_server' ? 'messenger.engine.mode.shared_server' : 'messenger.engine.mode.alternate')})`;
+    const engine = c.engine === 'claude_channel' ? 'Claude' : c.engine === 'claude_cli' ? 'Claude(CLI)' : c.engine === 'agy_cli' ? 'Antigravity' : c.engine === 'grok_cli' ? 'Grok' : `Codex(${t(c.connectMode === 'shared_server' ? 'messenger.engine.mode.shared_server' : c.connectMode === 'warm' ? 'messenger.engine.mode.warm' : 'messenger.engine.mode.alternate')})` /* 2026-11-25: 빠른 응답(기본)도 이름대로 */;
     const ns = c.newSession ? t('messenger.describe.new_session', { state: STATE(c.newSession.state) }) : '';
     const state = t(!c.deviceOnline ? 'messenger.state.offline' : c.heldBy ? 'messenger.state.held' : c.engineReady === false ? 'messenger.state.engine_off' : c.busy ? 'messenger.state.busy' : 'messenger.state.ready');
     // 어느 PC·작업 모드인지도 보이게(허브는 PC 이름을 알려 줌)

@@ -142,3 +142,33 @@ node tools/video/build-usage.mjs
 
 - 확인 창(confirm·prompt)은 캡처에 찍히지 않아 캡처 도구가 미리 "예"로 답한다. 받아쓰기 창과 Windows 알림은 실제로 띄우지 않고 `usage.html`에서 그린다.
 - 목소리를 바꾸려면 `.local/video/usage-voice/<편>/<장면>.wav`를 같은 이름으로 바꾸고 `build-usage.mjs`를 다시 실행.
+
+## 영어 사용법 영상(01~06) 만들기 (2026-11-25)
+
+같은 도구에 `VIDEO_LANG=en`만 붙인다. 말·제목·텔레그램 대화는 `usage-scenes.en.mjs`(장면·캡처·강조 상자는 한국어판과 같고, 영어 글이 길어 자리가 바뀐 02-6·03-2·05-6만 상자 위치가 다름), 그림 장면의 고정 글은 `usage-text.en.js`, 작업 폴더는 `.local/video/en/`.
+
+```bash
+VIDEO_LANG=en VIDEO_SET=usage VIDEO_DELAY_MS=3500 node tools/video/demo-server.mjs
+```
+
+```bash
+app/node_modules/electron/dist/electron.exe tools/video/viewer.cjs --remote-debugging-port=9335 --user-data-dir=.local/video/en/ud-usage-web http://127.0.0.1:28799/
+```
+
+```bash
+app/node_modules/electron/dist/electron.exe app/electron/main.cjs --remote-debugging-port=9333 --user-data-dir=.local/video/en/ud-usage-app
+```
+
+```bash
+VIDEO_LANG=en node tools/video/capture-usage.mjs
+```
+(웹은 쿠키 `ieon_lang=en`, 앱은 `ieon_lang=en`으로 영어 화면 → `.local/video/en/usage-shots`. 영어에서는 직원 이름 "Codex"와 엔진 이름이 같아 휴대폰에서는 아이콘 🛠으로 그 줄을 고른다)
+
+```bash
+VIDEO_LANG=en node tools/video/build-usage.mjs still
+VIDEO_LANG=en node tools/video/build-usage.mjs
+```
+→ `.local/video/en/Ieon_usage_01_ask_on_the_web.mp4` … `Ieon_usage_06_give_work_by_messenger.mp4`와 같은 이름의 `.srt`(목소리는 Windows 영어 목소리 Zira).
+
+- 가짜 서버의 영어 예시 답은 낱말 단위로 고른다 — 전에는 질문의 "Please"에 든 "lease"가 전세 답을 골랐다.
+- 만드는 중 `GPU process exited unexpectedly` / `Unable to capture screenshot`으로 영상이 깨지면(2026-11-25 영어 06편) 그 편만 `VIDEO_NO_GPU=1 VIDEO_LANG=en node tools/video/build-usage.mjs 06`으로 다시 만든다(소프트웨어로 그림, 조금 느림).

@@ -13,6 +13,7 @@
   "no_answer_kept": "(보관하지 않은 답변)",
   "deliver_failed": "[{label}] 답을 보내지 못했어요({error}) — 엔진은 다시 돌리지 않아요. /last 로 다시 받을 수 있어요",
   "engine.mode.shared_server": "동시 사용",
+  "engine.mode.warm": "빠른 응답",
   "engine.mode.alternate": "번갈아 쓰기",
   "ns_state.pending": "첫 질문 전",
   "ns_state.active": "깨어 있음",
