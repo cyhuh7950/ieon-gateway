@@ -19,3 +19,11 @@ test('작업 폴더: 10초마다 새로 읽을 때 열어 둔 폴더 정하기 �
   const S = koView('settings.html');
   assert.equal((S.match(/if \(\$\('wsEdit'\)\.hidden\) loadWsTargets\(\)/g) || []).length, 2);
 });
+
+test('인수 시험 모은 고침: 계정 탭은 PC부터, 사용량은 PC 이름, 정리한 질문은 "실행 안 됨", 설치 파일 기기 이름, 서버 Claude는 못 쓰는 이유', () => {
+  const S = koView('settings.html'); const A = koView('app.html');
+  assert.ok(S.includes("acTarget === 'local' ? (pcList.length ? pcTarget : 'hub') : acTarget); /*"));
+  assert.ok(S.includes('hostNames.get('));
+  assert.ok(A.includes('실행 안 됨') && A.includes('tStateOf(tk)') && A.includes('tStateOf(x)'));
+  assert.ok(S.includes('설치 파일에 적힌 PC') && S.includes('이 PC에서는 쓸 수 없어요 — 서버 엔진 칸'));
+});

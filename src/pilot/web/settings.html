@@ -727,7 +727,7 @@ async function loadDevices() {
   for (const d of r.body.devices) {
     const tr = el('tr');
     const state = d.revokedAt ? ['st-err', t('settings.load_devices.1')] : d.online ? ['st-ok', t('settings.state.1')] : ['muted', t('settings.load_devices.2')];
-    { const nm = el('td', d.name); nm.title = d.hostId; tr.append(nm); } // 기기 ID는 이름에 마우스를 올리면(2026-11-20 내부 ID 접기)
+    { const nm = el('td', d.source === 'file' && d.name === d.hostId ? (d.hubSelf ? t('settings.dev_file_self') : d.cell ? d.hostId : t('settings.dev_file', { id: d.hostId })) : d.name); nm.title = d.hostId; tr.append(nm); } // 2026-11-24: 설치 파일 줄이 ID만 보여 무엇인지 몰랐음 // 기기 ID는 이름에 마우스를 올리면(2026-11-20 내부 ID 접기)
     [d.source === 'web' ? t('settings.html_au_form.1') : t('settings.load_bindings.1'), when(d.createdAt), when(d.lastSeenAt)].forEach((v) => tr.append(el('td', v)));
     tr.append(el('td', state[1], state[0]));
     const act = el('td');
@@ -788,15 +788,17 @@ const devRun = (op, args) => runOn(pcTarget, op, args);
 const acRun = (op, args) => runOn(acTarget, op, args);
 const HOST_ERR = { device_offline: t('settings.host_err.1'), device_no_response: t('settings.host_err.2'),
   device_admin_unknown: t('settings.host_err.3'), unknown_host: t('settings.host_err.4'), no_connector_config: t('settings.host_err.5') };
+let hostNames = new Map(); // 기기 ID → 이름(사용량 표에서 내부 ID 대신)
 async function loadTargets() {
   if (authState?.mode !== 'hub') return;
   const r = await api('/v1/admin/devices'); if (r.status !== 200) return;
+  hostNames = new Map(r.body.devices.map((d) => [d.hostId, d.name]));
   const pcs = r.body.devices.filter((d) => !d.revokedAt && !d.hubSelf); // 허브 자신의 연결부는 PC가 아님(허브 자체로 다룸)
   const fill = (sel, list, cur) => { sel.innerHTML = ''; for (const [v, txt] of list) { const o = el('option', txt); o.value = v; sel.append(o); } if (list.some(([v]) => v === cur)) sel.value = cur; return sel.value; };
   const pcList = pcs.map((d) => [d.hostId, d.name + (d.online ? '' : t('settings.load_targets.1'))]);
   pcTarget = pcList.length ? fill($('pcTarget'), pcList, pcs.some((d) => d.hostId === pcTarget) ? pcTarget : (pcs.find((d) => d.online)?.hostId ?? pcList[0][0])) : 'none'; // 처음엔 켜진 PC부터
   // 2026-11-23 시험: 가입자 화면은 관리자 계정 구역(acTarget)을 지우므로 있을 때만 — 없는 칸을 채우다 오류가 나 PC 고르기 칸이 안 보였음
-  if ($('acTarget')) { acTarget = fill($('acTarget'), [['hub', t('settings.load_targets.2')], ...pcList], acTarget === 'local' ? 'hub' : acTarget); $('acTargetRow').hidden = false; }
+  if ($('acTarget')) { acTarget = fill($('acTarget'), [['hub', t('settings.load_targets.2')], ...pcList], acTarget === 'local' ? (pcList.length ? pcTarget : 'hub') : acTarget); /* 2026-11-24 인수 시험: 처음엔 PC(대화가 있는 곳)부터 — 허브 자체로 열려 대화 표가 비어 보였음 */ $('acTargetRow').hidden = false; }
   $('pcTargetRow').hidden = !pcList.length;
   $('pcTargetNote').hidden = Boolean(pcList.length); $('pcTargetNote').textContent = t('settings.load_targets.3');
 }
@@ -811,7 +813,8 @@ async function loadUsage() {
   if (!list.length) { const tr = el('tr'); tr.append(el('td', t('settings.load_usage.1'), 'muted')); tb.append(tr); return; }
   for (const a of list) {
     const tr = el('tr');
-    tr.append(el('td', a.accountId === 'pc_default' ? t('settings.load_usage.2', { split: a.key.split(':')[0] }) : a.key), el('td', String(a.todayQuestions)), el('td', a.monthTokens.toLocaleString(t('common.intl_locale'))));
+    const hn = hostNames.get(a.key.split(':')[0]) ?? a.key.split(':')[0];
+    tr.append(el('td', a.accountId === 'pc_default' ? t('settings.load_usage.2', { split: hn }) : hn + ' · ' + (a.label ?? a.accountId)), el('td', String(a.todayQuestions)), el('td', a.monthTokens.toLocaleString(t('common.intl_locale'))));
     const d = el('input'); d.type = 'number'; d.min = '1'; d.placeholder = t('settings.html_mu_per_day.1'); d.value = a.limit?.perDay ?? ''; d.style.width = '7em'; d.setAttribute('aria-label', t('settings.load_usage.3', { key: a.key }));
     const m = el('input'); m.type = 'number'; m.min = '1'; m.placeholder = t('settings.html_mu_per_day.1'); m.value = a.limit?.tokensPerMonth ?? ''; m.style.width = '10em'; m.setAttribute('aria-label', t('settings.load_usage.4', { key: a.key }));
     const td1 = el('td'); td1.append(d); const td2 = el('td'); td2.append(m);
@@ -849,6 +852,7 @@ async function loadDevice() {
   $('cxBox').hidden = false; // 이 PC 화면에서도 같은 기능(대화 화면의 ＋ 대화 연결과 같음)
   $('clsBox').hidden = false; const clsOk = Boolean(d.claudeServer && pcTarget !== 'local'); // 서버 엔진 칸에서만 사용
   if (clsOk) loadClaudeSessions();
+  else { const tr = el('tr'); tr.append(Object.assign(el('td', t('settings.cls_not_here'), 'muted'), { colSpan: 4 })); $('clsList').replaceChildren(tr); } // 기능은 보이고 못 쓰는 이유만(2026-11-24)
   const tb = $('devThreads'); tb.innerHTML = '';
   if (!d.codexThreads.length) { const tr = el('tr'); tr.append(el('td', t('settings.load_device.8'), 'muted')); tb.append(tr); }
   for (const x of d.codexThreads) {

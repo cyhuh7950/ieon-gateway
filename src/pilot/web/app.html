@@ -1612,6 +1612,8 @@ boot();
 setInterval(() => { if (!$('app').hidden && !pending) load().then(() => refreshMsgs()).catch(() => {}); }, 5000);
 setInterval(() => { if (!$('app').hidden) { loadDevice().catch(() => {}); loadDenied().catch(() => {}); } }, 30000);
 // --- RC3 작업 화면: 질문(작업) 하나하나의 진행·승인 대기·결과를 모아 보고, 여기서 바로 허용·거부·중지 ---
+// 2026-11-24 인수 시험: 확인 필요를 "실행되지 않았어요"로 정리해도 "실패"로 보이던 것 — 정리한 결과로
+const tStateOf = (x) => (/^(reviewed_)?not_executed/.test(x.errorCode ?? '') ? t('web.tstate_not_run') : /^reviewed_executed/.test(x.errorCode ?? '') ? t('web.tstate_ran') : TSTATE[x.status] || x.status);
 const TSTATE = { queued: t('web.tstate.1'), dispatching: t('web.tstate.2'), running: t('web.tstate.3'), completed: t('web.tstate.4'), failed: t('web.tstate.5'), cancelled: t('web.send.11'), unknown: t('web.state_of.5'), approval_required: t('web.send.10') };
 const ASTATE = { handoff: t('web.astate.1'), handoff_done: t('web.card_view.32'), handoff_dropped: t('web.card_view.20'), pending: t('web.astate.2'), approved: t('web.astate.3'), running: t('web.tstate.3'), completed: t('web.card_view.26'), failed: t('web.astate.4'), unknown: t('web.astate.5'), denied: t('web.card_view.8'), expired: t('web.astate.6'), turn_ended: t('web.astate.7') };
 const AKIND = { command: t('web.card_view.15'), file: t('web.card_view.16'), permissions: t('web.card_view.17') };
@@ -1681,7 +1683,7 @@ async function renderTasks({ force = false } = {}) {
 function taskRow(tk) {
   const d = el('div', null, 'task');
   const t1 = el('div', null, 't1');
-  t1.append(el('b', tk.label), el('span', (tk.stopRequested && ['dispatching', 'running'].includes(tk.status) ? t('web.task_row.1') : TSTATE[tk.status] || tk.status), 'st'), el('span', when(tk.createdAt), 'small muted'));
+  t1.append(el('b', tk.label), el('span', (tk.stopRequested && ['dispatching', 'running'].includes(tk.status) ? t('web.task_row.1') : tStateOf(tk)), 'st'), el('span', when(tk.createdAt), 'small muted'));
   if (tk.pendingApprovals) t1.append(el('span', t('web.task_row.2', { pending_approvals: tk.pendingApprovals }), 'st'));
   d.append(t1, el('div', tk.preview || '', 't2'));
   const ac = el('div', null, 'acts2');
@@ -1693,7 +1695,7 @@ function taskRow(tk) {
     if (r.status !== 200) { more.append(el('p', t('web.task_row.4'), 'muted')); return; }
     const x = r.body; const dl = el('dl');
     const kv = (k, v) => { if (v) dl.append(el('dt', k), el('dd', v)); };
-    kv(t('web.task_row.5'), x.question); kv(t('web.html_panel.2'), (TSTATE[x.status] || x.status) + (x.errorCode ? ' (' + (ERR[x.errorCode]?.[1] || x.errorCode) + ')' : ''));
+    kv(t('web.task_row.5'), x.question); kv(t('web.html_panel.2'), tStateOf(x) + (x.errorCode ? ' (' + (ERR[x.errorCode]?.[1] || x.errorCode) + ')' : ''));
     kv(t('web.html_ns_title.3'), ENGINE[x.engine] || x.engine); kv(t('web.task_row.6'), when(x.createdAt)); kv(t('web.task_row.7'), when(x.updatedAt));
     for (const a of x.approvals) kv(t('web.task_row.8', { v: (a.n ?? '') }), (AKIND[a.kind] || a.kind) + ' — ' + a.summary + ' → ' + (ASTATE[a.state] || a.state) + (a.state === 'failed' && Number.isInteger(a.exitCode) ? t('web.task_row.9', { exit_code: a.exitCode }) : ''));
     if (x.resume?.known) { // RC4: 재개 확인
