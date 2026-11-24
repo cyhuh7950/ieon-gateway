@@ -139,6 +139,7 @@
   "kind_txt.3": " · compatible endpoint",
   "engine.1": "Claude channel",
   "how.1": "Reopens the same conversation each time you send",
+  "role_none": "No roles yet — create one in Settings → Admin → Messenger advanced → Roles",
   "how_warm": "Keeps a Codex for this conversation running and sends right away (don't use it in the Codex app at the same time)",
   "how_shared": "Joins the shared server and uses the same conversation as the person (TUI)",
   "how.2": "Delivers directly to the running session",
