@@ -135,3 +135,17 @@ test('빠른 응답이 기본: PC 설정의 예전 alternate는 한 번만 warm,
   upsertCodexThread(cfg, { threadId: N });
   assert.equal(JSON.parse(readFileSync(cfg, 'utf8')).codex.modes[N], 'warm');
 });
+
+test('빠른 응답: 오래 안 쓴 대화의 Codex는 내려 두고(처리 중은 그대로), 다음 질문 때 다시 띄움', async () => {
+  const { sweepWarm, warmTransport: wt, WARM_IDLE_MIN } = await import('../../src/pilot/adapters/codex-thread.mjs');
+  assert.equal(WARM_IDLE_MIN, 60);
+  const A = '01a18790-0000-4000-8000-0000000000a1'; const B = '01a18790-0000-4000-8000-0000000000b2';
+  let made = 0; const make = () => { made += 1; return fakeServer(); };
+  const ta = wt(A, { make }); const tb = wt(B, { make });
+  assert.deepEqual(sweepWarm(60_000), [], '방금 쓴 것은 그대로');
+  const later = Date.now() + 61_000;
+  assert.deepEqual(sweepWarm(60_000, later).sort(), [A, B].sort());
+  assert.deepEqual([ta.closed, tb.closed], [1, 1]);
+  wt(A, { make }); assert.equal(made, 3, '다음 질문 때 다시 띄움');
+  closeWarm();
+});

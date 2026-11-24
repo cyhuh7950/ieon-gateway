@@ -413,7 +413,9 @@ export function stdioAppServer({ env, cwd, model = null, spawnImpl = spawn }) {
 // 질문마다 차례만 연다. 띄워 둔 동안 그 대화는 이어온의 Codex가 잡고 있으므로 Codex 앱과 동시에 쓰지 않는다(화면·설명서 안내).
 const warmPool = new Map(); // threadId → transport
 const warmBusy = new Set();
+const warmUsed = new Map(); // threadId → 마지막으로 쓴 때(ms)
 export function warmTransport(threadId, { env, cwd, model, make = stdioAppServer } = {}) {
+  warmUsed.set(threadId, Date.now());
   const hit = warmPool.get(threadId);
   if (hit?.alive) return hit;
   const t = make({ env, cwd, model });
@@ -421,7 +423,25 @@ export function warmTransport(threadId, { env, cwd, model, make = stdioAppServer
   return t;
 }
 export function closeWarm(threadId = null) {
-  for (const [id, t] of warmPool) if (!threadId || id === threadId) { try { t.close(); } catch { /* 이미 끝남 */ } warmPool.delete(id); }
+  for (const [id, t] of warmPool) if (!threadId || id === threadId) { try { t.close(); } catch { /* 이미 끝남 */ } warmPool.delete(id); warmUsed.delete(id); }
+}
+// 2026-11-24 신산님 "4 → 1 → 2"(PC 자원 줄이기): 오래 안 쓴 대화의 Codex는 내려 둔다(처리 중인 것은 그대로). 다음 질문 때 다시 띄우므로 그 첫 질문만 10초쯤 더 걸린다.
+export const WARM_IDLE_MIN = 60;
+export function sweepWarm(idleMs, now = Date.now()) {
+  const closed = [];
+  for (const [id, t] of warmPool) {
+    if (warmBusy.has(id) || now - (warmUsed.get(id) ?? 0) < idleMs) continue;
+    try { t.close(); } catch { /* 이미 끝남 */ }
+    warmPool.delete(id); warmUsed.delete(id); closed.push(id);
+  }
+  return closed;
+}
+let sweepTimer = null;
+function startSweep(minutes, log) {
+  if (sweepTimer || !(minutes > 0)) return;
+  const idleMs = minutes * 60_000;
+  sweepTimer = setInterval(() => { const c = sweepWarm(idleMs); if (c.length) log({ event: 'warm_idle_closed', count: c.length }); }, Math.min(5 * 60_000, idleMs));
+  sweepTimer.unref?.();
 }
 process.on?.('exit', () => closeWarm());
 // 미리 띄우기: initialize + thread/resume까지(모델 호출 없음) — MCP 서버·대화 기록을 이때 읽어 둔다.
@@ -498,6 +518,7 @@ export function codexThreadAdapter(opts) {
     // 빠른 응답으로 정한 대화를 미리 띄운다(연결부 시작 때, 질문을 받는 연결부만). 실패해도 질문 때 다시 띄운다.
     warmup(log = () => {}) {
       if (!opts.live) return [];
+      startSweep(opts.warmIdleMinutes ?? WARM_IDLE_MIN, log); // 0이면 내려 두지 않음
       const ids = Object.entries(opts.modes ?? {}).filter(([id, m]) => m === 'warm' && opts.allowlist.includes(id) && id !== EXCLUDED).map(([id]) => id);
       for (const id of ids) {
         const s = Date.now();
@@ -538,7 +559,7 @@ export function codexThreadAdapter(opts) {
           const t = (opts.warmTransport ?? warmTransport)(threadId, { env: accountEnv(opts, threadId), cwd: cwd ?? undefined, model: opts.model ?? null });
           return await appServerTurn(t, { threadId, question, cwd: cwd ?? undefined, extraRoots: workMode ? liveRoots(opts.writableExtra?.[threadId]) : [], approve: workMode ? approve : null, approvalResult,
             timeoutMs: opts.workTimeoutMs, signal, policy: workMode ? 'work' : 'read', keep: true, model: opts.model ?? null });
-        } finally { warmBusy.delete(threadId); }
+        } finally { warmBusy.delete(threadId); warmUsed.set(threadId, Date.now()); }
       }
       if (workMode) return runAlternateWork(threadId, question, { ...deps, model: opts.model ?? null, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], extraRoots: liveRoots(opts.writableExtra?.[threadId]), approve, approvalResult, appServer: opts.appServer, workTimeoutMs: opts.workTimeoutMs, signal });
       return runAlternate(threadId, question, { ...deps, model: opts.model ?? null, env: accountEnv(opts, threadId), workingDirectory: opts.workingDirectories?.[threadId], signal });
