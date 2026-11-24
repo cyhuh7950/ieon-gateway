@@ -1121,7 +1121,7 @@ $('devAdd').onsubmit = async (e) => {
   $('devThread').value = ''; $('devDir').value = ''; setStatus('ok', t('settings.load_claude_sessions.10', { dev_note: devNote(r.body) })); loadDevice();
 };
 // --- A2: 설정 → 계정(PC형은 이 PC, 허브형은 허브 자신 또는 고른 PC) ---
-const AC_ERR = { compat_unreachable: t('settings.compat_unreachable_save'), account_not_logged_in: t('settings.ac_cannot_login_err'), combo_unverified: t('settings.ac_cannot_compat_err'), session_model_mismatch: t('settings.cl_cannot_model_err'), local_only: t('settings.dev_err.1'), too_many_accounts: t('settings.ac_err.1'), bad_label: t('settings.ac_err.2'), bad_account: t('settings.ac_err.3'), thread_not_allowed: t('settings.ac_err.4') };
+const AC_ERR = { compat_unverified_engine: t('settings.agy_compat_off_tip'), compat_unreachable: t('settings.compat_unreachable_save'), account_not_logged_in: t('settings.ac_cannot_login_err'), combo_unverified: t('settings.ac_cannot_compat_err'), session_model_mismatch: t('settings.cl_cannot_model_err'), local_only: t('settings.dev_err.1'), too_many_accounts: t('settings.ac_err.1'), bad_label: t('settings.ac_err.2'), bad_account: t('settings.ac_err.3'), thread_not_allowed: t('settings.ac_err.4') };
 const AC_LOGIN = { waiting: t('settings.ac_login.1'), failed: t('settings.ac_login.2'), cancelled: t('settings.ac_login.3') };
 let acPoll = null; let acKeyFor = null;
 // API 키는 이 화면에서 한 번 넣으면 그 PC·칸의 Codex가 직접 저장한다. 이어온은 키를 기록하거나 다시 보여 주지 않는다.
@@ -1348,7 +1348,7 @@ async function loadAgy() {
     const err = (y) => { if (y.status !== 200) setStatus('err', AC_ERR[y.body.error] || HOST_ERR[y.body.error] || y.body.error); };
     if (!a.builtin) {
       if (!a.kind) { act(t('settings.html_ac_key.2'), () => { agFor = a.id; $('agKeyForm').hidden = false; $('agKey').value = ''; $('agKey').focus(); }, true); // 구독 로그인은 아직 안 됨(2026-11-19 실측)
-        act(t('settings.html_cl_cp_url.2'), () => { agFor = a.id; $('agCompatForm').hidden = false; for (const k of ['agCpUrl', 'agCpModels', 'agCpKey']) $(k).value = ''; $('agCpUrl').focus(); }); }
+        { const b = el('button', t('settings.agy_compat_off')); b.type = 'button'; b.disabled = true; b.title = t('settings.agy_compat_off_tip'); td.append(b); } } // 2026-11-25 보류 — 이유를 버튼에
       else act(a.kind === 'compat' ? t('settings.load_accounts.9') : t('settings.html_logout_btn.1'), async () => { if (!confirm(t('settings.load_agy.6', { label: a.label }))) return; err(await acRun('agy.accounts.logout', { id: a.id })); loadAgy(); });
       act(t('settings.load_schedules.12'), async () => { if (!confirm(t('settings.load_agy.7', { label: a.label }))) return; const y = await acRun('agy.accounts.delete', { id: a.id }); err(y); if (y.status === 200) setStatus('ok', t('settings.load_agy.8')); loadAgy(); });
     }

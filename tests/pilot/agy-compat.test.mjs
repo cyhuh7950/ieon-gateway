@@ -23,23 +23,17 @@ test('저장(https·localhost만, 모델 목록·형식)·키는 따로, 실행 
   assert.deepEqual(readAgyCompat(home), { baseUrl: 'https://gw.example.com/v1beta', models: ['gemini-x', 'my-tuned'], wire: 'gemini' });
   assert.ok(!readFileSync(join(home, 'compat.json'), 'utf8').includes(GW));
   const c = { agyAccounts: { accounts: [{ id: 'g1', label: '회사 게이트웨이' }], defaultAccount: 'g1' } };
-  const r = agyRunFor(c, dir, null, { env: { GEMINI_API_KEY: 'leak', AGY_LLM_GATEWAY_HEADERS: 'leak' } });
-  const e = r.env;
-  assert.deepEqual([r.authMethod, e.AGY_LLM_GATEWAY_URL, e.AGY_LLM_GATEWAY_API_KEY, e.AGY_LLM_GATEWAY_MODELS, e.AGY_LLM_GATEWAY_WIRE_PROTOCOL, 'GEMINI_API_KEY' in e, 'AGY_LLM_GATEWAY_HEADERS' in e],
-    [null, 'https://gw.example.com/v1beta', GW, 'gemini-x,my-tuned', 'gemini', false, false]);
-  saveAgyCompat(home, { baseUrl: 'http://localhost:8080', key: GW });
-  assert.equal(agyRunFor(c, dir, null, { env: {} }).env.AGY_LLM_GATEWAY_MODELS, undefined, '모델을 비우면 게이트웨이 목록');
+  // 2026-11-25 신산님 "보류하고 막기": 실제 게이트웨이로 확인 못 해 호환 주소 계정은 보내기 전에 이유로 거절
+  assert.throws(() => agyRunFor(c, dir, null, { env: {} }), /compat_unverified_engine/);
 });
 
 test('기기 명령: 호환 주소 저장·보기(호스트·모델·형식, 키 없음)·지우기, 화면 칸', async (t) => {
   const d = tmp(t); mkdirSync(join(d, 's2')); const cfg = join(d, 's2', 'connector.json'); writeFileSync(cfg, '{}');
   const pc = createDeviceAdmin({ probeUrl: async () => true, connectorConfigPath: cfg, claudeDir: null });
   const id = (await pc.run('agy.accounts.add', { label: '게이트웨이' })).body.id;
-  assert.equal((await pc.run('agy.accounts.compat', { id, baseUrl: 'ftp://x', key: 'k'.repeat(10) })).body.error, 'bad_base_url');
+  // 2026-11-25 보류: 저장 명령은 이유로 거절, 화면 버튼은 막힘(이유를 버튼에)
   const r = await pc.run('agy.accounts.compat', { id, baseUrl: 'https://gw.example.com', key: GW, models: 'm1', wire: 'responses' });
-  assert.deepEqual([r.status, r.body.accounts[0].kind, r.body.accounts[0].compat], [200, 'compat', { host: 'gw.example.com', models: ['m1'], wire: 'responses' }]);
-  assert.ok(!JSON.stringify(r.body).includes(GW));
-  assert.equal((await pc.run('agy.accounts.logout', { id })).body.accounts[0].kind, null);
+  assert.deepEqual([r.status, r.body.error], [409, 'compat_unverified_engine']);
   const SET = koView('settings.html');
-  assert.ok(SET.includes('id="agCompatForm"') && SET.includes("acRun('agy.accounts.compat'"));
+  assert.ok(SET.includes('호환 주소(지금은 쓸 수 없음)') && SET.includes('b.disabled = true'));
 });

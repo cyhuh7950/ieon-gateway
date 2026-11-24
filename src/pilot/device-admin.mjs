@@ -273,6 +273,12 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         return { status: 200, body: agyView(p) };
       }
       case 'agy.accounts.compat': {
+        aKnown(p, a.id);
+        // 2026-11-25 신산님 "보류하고 막기": Antigravity 기업용 게이트웨이는 실제 게이트웨이(Ollama)로 동작을 확인하지 못함(ACP "plan model not specified", -p는 Antigravity 로그인 요구)
+        // → 고를 수 없게 막는다(신산님 원칙 "설정한 대로 안 된다면 그렇게 설정을 못하게"). 저장 코드는 다시 열 때를 위해 남겨 둠.
+        return { status: 409, body: { error: 'compat_unverified_engine' } };
+      }
+      case 'agy.accounts.compat.unused': {
         const id = aKnown(p, a.id);
         if (!(await probeUrl(a.baseUrl))) return { status: 400, body: { error: 'compat_unreachable' } };
         saveAgyCompat(agyHomeOf(dirOf(p), id), { baseUrl: a.baseUrl, key: a.key, models: a.models ?? '', wire: a.wire ?? 'gemini' });

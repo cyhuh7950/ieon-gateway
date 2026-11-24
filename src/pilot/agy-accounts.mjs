@@ -57,6 +57,7 @@ export function agyRunFor(c, dir, accountId, { env = process.env } = {}) {
   if (!kind) fail('account_not_logged_in', 409);
   const e = { ...env }; for (const k of ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'AGY_ADC_AUTH', 'AGY_LLM_GATEWAY_URL', 'AGY_LLM_GATEWAY_API_KEY', 'AGY_LLM_GATEWAY_MODELS', 'AGY_LLM_GATEWAY_WIRE_PROTOCOL', 'AGY_LLM_GATEWAY_HEADERS']) delete e[k];
   if (kind === 'api') e.GEMINI_API_KEY = readFileSync(join(home, 'api-key'), 'utf8').trim();
+  if (kind === 'compat') fail('compat_unverified_engine', 409); // 2026-11-25 보류 — 예전에 넣은 호환 주소 계정도 보내기 전에 이유로 거절
   if (kind === 'compat') { const cp = readAgyCompat(home); e.AGY_LLM_GATEWAY_URL = cp.baseUrl; e.AGY_LLM_GATEWAY_API_KEY = readFileSync(join(home, 'compat-key'), 'utf8').trim(); if (cp.models?.length) e.AGY_LLM_GATEWAY_MODELS = cp.models.join(','); e.AGY_LLM_GATEWAY_WIRE_PROTOCOL = cp.wire; }
   return { accountId: id, geminiDir: home, authMethod: agyAuthMethod(kind), env: e };
 }
