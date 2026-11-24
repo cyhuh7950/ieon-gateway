@@ -77,7 +77,7 @@ export function claudeEnvFor(c, dir, { env = process.env, ref = null, existing =
     const key = readFileSync(join(home, 'compat-key'), 'utf8').trim();
     // 2026-11-24: 원래 Claude 설정 폴더로 실행하면 Claude Code가 저장된 Claude 로그인(Bearer sk-ant-…)을 호환 주소로 보내고 이 키는 쓰지 않았다
     // (Upstage가 401, 가짜 주소로 헤더를 보고 확인) — 로그인 정보가 없는 그 계정 폴더(세션 기록은 연결돼 있음)로 실행해 이 키만 보낸다.
-    return { ...without(env), CLAUDE_CONFIG_DIR: home, ANTHROPIC_BASE_URL: cp.baseUrl, ...(cp.auth === 'x-api-key' ? { ANTHROPIC_API_KEY: key } : { ANTHROPIC_AUTH_TOKEN: key }),
+    return { ...without(env), CLAUDE_CONFIG_DIR: home, CLAUDE_CODE_MAX_RETRIES: '2' /* 다시 시도 2번(기본 10번이면 키가 틀려도 3분 기다림) */, ANTHROPIC_BASE_URL: cp.baseUrl, ...(cp.auth === 'x-api-key' ? { ANTHROPIC_API_KEY: key } : { ANTHROPIC_AUTH_TOKEN: key }),
       ANTHROPIC_MODEL: cp.model, ANTHROPIC_DEFAULT_HAIKU_MODEL: cp.model, ANTHROPIC_SMALL_FAST_MODEL: cp.model };
   }
   if (kind === 'api') return { ...without(env), ANTHROPIC_API_KEY: readFileSync(join(home, 'api-key'), 'utf8').trim() };

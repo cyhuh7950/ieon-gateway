@@ -44,7 +44,7 @@ test('실행 환경: 새 세션은 그 계정 폴더 + 키 변수(OpenAI 키 변
 test('기기 명령: 호환 주소 저장·보기(호스트·모델만, 키 없음, 로그인됨·호환 주소)·지우기, 화면이 명령을 씀', async (t) => {
   const d = tmp(t); const prev = process.env.CODEX_HOME; process.env.CODEX_HOME = join(d, 'desktop-codex'); t.after(() => { if (prev === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = prev; });
   mkdirSync(join(d, 's2')); const cfg = join(d, 's2', 'connector.json'); writeFileSync(cfg, JSON.stringify({}));
-  const pc = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: null, accountLogin: () => ({ start() {}, cancel() {}, view: () => ({ state: 'idle' }), logout: async () => {} }) });
+  const pc = createDeviceAdmin({ probeUrl: async () => true, connectorConfigPath: cfg, claudeDir: null, accountLogin: () => ({ start() {}, cancel() {}, view: () => ({ state: 'idle' }), logout: async () => {} }) });
   const id = (await pc.run('accounts.add', { label: '라우터' })).body.id;
   assert.equal((await pc.run('accounts.compat', { id, baseUrl: 'ftp://x', key: KEY, model: 'm' })).body.error, 'bad_base_url');
   const r = await pc.run('accounts.compat', { id, baseUrl: 'https://router.example.com/v1', key: KEY, model: 'gpt-oss-120b' });

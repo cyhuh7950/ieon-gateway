@@ -278,6 +278,7 @@
   "opt_compat": " (호환 주소 · {model})",
   "opt_api": " (API 키)",
   "opt_sub": " (구독)",
+  "compat_unreachable_save": "그 주소에 닿을 수 없어 저장하지 않았어요 — 주소(오타·/v1 여부)와 서버가 켜져 있는지 확인하세요",
   "html_ns_agy.1": "예약 만들기",
   "html_ns_arch.1": "역할 ID",
   "html_ns_arch.2": "만들 수 있는 엔진",

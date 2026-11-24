@@ -101,6 +101,12 @@ export function claudeCliAdapter(opts) {
       if (out.session_id && out.session_id !== id) throw Object.assign(new Error('session_forked'), { unknownCode: 'session_forked', sessionRef: id });
       // A1: 계정 사용 한도로 거절된 경우는 실행 안 됨이 확실 → 잠그지 않고 usage_limit로 알린다.
       if (out.is_error && /usage[ _]?limit|hit your limit/i.test(String(out.result ?? ''))) throw Object.assign(new EngineError('usage_limit', 429), { sessionRef: id });
+      // 2026-11-24: 호환 주소에서 키 거절·연결 오류는 모델이 일하기 전이라 결과 불명 대신 이유로
+      if ((out.is_error || out.subtype !== 'success') && env?.ANTHROPIC_BASE_URL) {
+        const why = String(out.result ?? '');
+        if (/\b401\b|api key is invalid|invalid.{0,10}api.?key|authentication/i.test(why)) throw Object.assign(new EngineError('compat_key_rejected', 409), { sessionRef: id });
+        if (/connection error|ENOTFOUND|ECONNREFUSED|fetch failed|getaddrinfo/i.test(why)) throw Object.assign(new EngineError('compat_unreachable', 409), { sessionRef: id });
+      }
       if (out.is_error || out.subtype !== 'success') throw Object.assign(new Error('claude_error'), { unknownCode: 'claude_error', sessionRef: id });
       const note = deniedNote(out.permission_denials ?? []);
       const answer = [String(out.result ?? '').trim(), note].filter(Boolean).join('\n\n');

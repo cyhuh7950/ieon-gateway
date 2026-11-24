@@ -33,7 +33,7 @@ test('저장(https·localhost만, 모델 목록·형식)·키는 따로, 실행 
 
 test('기기 명령: 호환 주소 저장·보기(호스트·모델·형식, 키 없음)·지우기, 화면 칸', async (t) => {
   const d = tmp(t); mkdirSync(join(d, 's2')); const cfg = join(d, 's2', 'connector.json'); writeFileSync(cfg, '{}');
-  const pc = createDeviceAdmin({ connectorConfigPath: cfg, claudeDir: null });
+  const pc = createDeviceAdmin({ probeUrl: async () => true, connectorConfigPath: cfg, claudeDir: null });
   const id = (await pc.run('agy.accounts.add', { label: '게이트웨이' })).body.id;
   assert.equal((await pc.run('agy.accounts.compat', { id, baseUrl: 'ftp://x', key: 'k'.repeat(10) })).body.error, 'bad_base_url');
   const r = await pc.run('agy.accounts.compat', { id, baseUrl: 'https://gw.example.com', key: GW, models: 'm1', wire: 'responses' });

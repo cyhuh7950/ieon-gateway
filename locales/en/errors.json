@@ -76,5 +76,7 @@
   "bad_voice_voice": "The voice name isn't valid",
   "bad_voice_limit": "A time value is out of range",
   "bad_voice_key": "That doesn't look like an OpenAI API key (starts with sk-)",
-  "session_model_mismatch": "Not sent: this session was made with another provider's model, so it can't continue with the current account (such as the PC sign-in). In Settings → Accounts → Claude accounts, choose a compatible-endpoint account that serves that model for this conversation."
+  "session_model_mismatch": "Not sent: this session was made with another provider's model, so it can't continue with the current account (such as the PC sign-in). In Settings → Accounts → Claude accounts, choose a compatible-endpoint account that serves that model for this conversation.",
+  "compat_key_rejected": "Not sent (not run): the compatible endpoint rejected the key. Check that account's compatible-endpoint key in Settings → Accounts.",
+  "compat_unreachable": "Not sent (not run): the compatible endpoint can't be reached. Check that account's compatible endpoint (typo in the address, or the server is down) in Settings → Accounts."
 }
