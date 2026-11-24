@@ -21,6 +21,8 @@ There are three kinds of Ieon users. Each chapter says who it is for.
 | **Hub admin** | Someone who installs and runs a public server (hub). Logs in with a password. | "Hub · address · Administrator" |
 | **Member** | Someone who signs up on another person's hub. Logs in with an email and password. | "Hub · address · email" |
 
+Notifications (e.g. "Scheduled task created", "Connection method changed") appear for a few seconds **at the top center of the screen**. Green means done; red means it did not work (with the reason).
+
 How text is shown: **bold text** is a button or menu you press, and "quoted text" is text that appears on the screen. Arrows, as in "Settings → Apps and devices → Devices", show the order in which you press things.
 
 ---
@@ -138,7 +140,7 @@ Ieon creates a new Codex, Claude, Antigravity, or Grok session with its own work
 2. Choose the engine, (hub) **Where**, the name (2–32 letters, digits, or -), and the permission, then press **Create**.
    - A hub admin chooses from "Hub (text replies only)" and the PCs and engine cells. A member chooses from their own PCs (a PC that is on is picked first).
    - The permission "Full (run commands, internet)" appears only when the admin allows it in **Settings → Admin → Register conversations → New session settings**.
-3. "Created new session "name". It starts when you send the first question." → it appears in the list, and its status is "Before first question".
+3. "Created new session "name". It starts when you send the first question." → it appears in the list, and its status is "Ready to send" (the session is actually created when you send the first question).
 4. It starts when you send the first question (Chapter 7).
 
 Tidying up: after 30 minutes without use it is "Asleep" (it wakes when you ask), and after 14 days without use it goes to the archive (restore it before asking). To delete, use **Connection settings → New session → Delete** (with a confirmation window). Sleep and delete are blocked for conversations that already existed, with the notice "Only new sessions made in Ieon can be put to sleep or deleted…".
@@ -543,7 +545,8 @@ For each screen: **how to open it · what it does · steps · main items**.
 | --- | --- |
 | "PC" (hub) | The PC to manage. Shows " (disconnected)" |
 | "Usage mode" | "This PC only —…" / "Connect to my hub —…" → **Change usage mode** (confirms what turns off and on) |
-| "Real runs · Codex allowlist" | **Turn on real runs** (same as AI replies), "Connector running", table (Codex conversation ID, connection method, work folder, remove), add row → **Add to allowlist** |
+| "Real runs · Codex allowlist" | **Turn on real runs** (same as AI replies), "Connector running", table (Codex conversation ID, connection method (fast replies by default), work folder, remove), add row → **Add to allowlist** |
+| "Codex model for Ieon" | Leave empty to use the model in that PC's Codex settings. If the signed-in account can't use that model, questions are refused with "Not run because that PC's default Codex model can't be used with the current sign-in…", so enter a usable model name (e.g. gpt-6.1-sol) and press **Save model**. The Codex app's settings file is not changed |
 | "Codex conversations on that PC" | **Load conversation list** → **Connect** on each row |
 | "Server Claude conversations" | When a hub server engine cell is chosen, **Connect** recent Claude conversations |
 | "Antigravity · Grok allowlist" (collapsed) | Engine, session ID, work folder → **Add to allowlist** |
