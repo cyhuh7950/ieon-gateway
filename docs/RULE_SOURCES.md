@@ -53,7 +53,7 @@
 | 15 | 연결 방식 | 연구 미리보기 동안 `--dangerously-load-development-channels`로만 씀 | 신산님 | WS C1: "개발 플래그 … 사용 승인 포함으로 진행" | 아니오 |
 | 16 | 연결 방식 | 채널 지시에 "도구 금지" 대신 "reply 외 도구 금지"로 씀 | AI | WS C0.3: "도구나 명령은 쓰지 말고"가 reply까지 막음 — "어울의 질문 설계 오류". 여기서 나온 작업 요령 | 아니오 |
 | 17 | 연결 방식 | Codex `alternate`: Desktop에서 열려 있으면 busy로 거부 | AI | WS 2026-10-29 S0 분석 "busy로 거부·재시도 없음이 원칙"(잠금 충돌 33 실측). 요구 문서는 "같은 thread 충돌 정책을 명시"만 요구했고, 거부로 정한 신산님 원문은 없다 | 검토 필요: 대화를 Desktop에 열어 두면 이어온에서 보낼 수 없다 |
-| 18 | 연결 방식 | Codex는 세션별로 `alternate`(기본)·`shared_server`를 고름, shared는 app-server·TUI `--remote`·`turn/start` | 신산님 | WS "2026-10-30 Codex 연결 모드 이원화 결정": "신산님 결정: … 둘 다 구현해 Codex 세션별 설정에서 선택" | 아니오 |
+| 18 | 연결 방식 | Codex는 세션별로 `warm`(기본, 2026-11-24 신산님 "빠른 응답이 기본")·`alternate`·`shared_server`를 고름, shared는 app-server·TUI `--remote`·`turn/start` | 신산님 | WS "2026-10-30 Codex 연결 모드 이원화 결정": "신산님 결정: … 둘 다 구현해 Codex 세션별 설정에서 선택" | 아니오 |
 | 19 | 연결 방식 | shared: thread가 idle이 아니면 합류(steer)하지 않고 거부 | 신산님 | WS 요구 "실행 중 질문 삽입·중단 금지". 합류 실측(10-30 TUI 입력 합류) 뒤 반영 | 아니오 |
 | 20 | 연결 방식 | shared 모드 thread는 Desktop에서 열지 않음 | AI | DESIGN 3절 "공유 엔진에 붙은 thread는 Desktop에서 열지 않는다(잠금 충돌)". 기술 사실을 AI가 규칙으로 적었다 | 아니오 |
 | 21 | 연결 방식 | Remote Control·Desktop 내부 protocol 모방·내부 인증 흉내·GUI 조작 HOLD | AI | 문장 안 표시 "2026-10-29 AI 검토에서 나온 문장". 2026-11-18 신산님이 "인증 재사용"을 "내부 인증 흉내"로 고침(WS 0-220, 커밋 061ca99, RULE_SOURCE_AUDIT 3-1) | 검토 필요: 막는 범위는 AI 검토가 정했다. RULE_SOURCE_AUDIT는 "실제로 막는 코드는 없음"이라고 적었다 |

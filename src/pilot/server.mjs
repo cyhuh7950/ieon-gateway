@@ -1169,9 +1169,9 @@ export function createApp(config) {
             const label = String(body.label ?? '').trim().slice(0, 60) || i18nT('server.conv.unnamed');
             // 작업 폴더는 Codex가 알려 준 값을 쓰되, 지금 없는 폴더면 비워 둔다(연결은 막지 않음).
             const dir = typeof body.workingDirectory === 'string' && body.workingDirectory ? body.workingDirectory : null;
-            try { upsertCodexThread(cfgPath, { threadId, mode: 'alternate', workingDirectory: dir }); } catch (e) {
+            try { upsertCodexThread(cfgPath, { threadId, workingDirectory: dir }); } catch (e) {
               if (!['working_directory_missing', 'bad_working_directory'].includes(e.message)) return json(res, e.http ?? 400, { error: e.message });
-              upsertCodexThread(cfgPath, { threadId, mode: 'alternate', workingDirectory: null });
+              upsertCodexThread(cfgPath, { threadId, workingDirectory: null });
             }
             const existing = store.listBindings(principal.userId).find((b) => b.engine === 'codex_thread' && String(b.sessionRef).toLowerCase() === threadId);
             let conversationId = existing?.conversationId;

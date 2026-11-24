@@ -469,9 +469,9 @@ details.adv[open] summary { margin-bottom:10px; }
         <div id="pMode" hidden>
           <div class="small muted">{{web.html_st_role.1}}</div>
           <div class="small muted" id="pModeWhy" hidden>{{web.p_mode_codex_only}}</div>
+          <label class="radio"><input type="radio" name="mode" value="warm"> <span>{{web.mode_warm}} <span class="tip" tabindex="0" role="note" aria-label="{{web.mode_warm_tip}}" data-tip="{{web.mode_warm_tip}}">i</span></span></label>
           <label class="radio"><input type="radio" name="mode" value="alternate"> <span>{{web.html_st_save.1}} <span class="muted small">{{web.html_p_data.2}}</span></span></label>
           <label class="radio"><input type="radio" name="mode" value="shared_server"> <span>{{web.html_p_data.3}} <span class="muted small">{{web.html_p_data.4}}</span></span></label>
-          <label class="radio"><input type="radio" name="mode" value="warm"> <span>{{web.mode_warm}} <span class="tip" tabindex="0" role="note" aria-label="{{web.mode_warm_tip}}" data-tip="{{web.mode_warm_tip}}">i</span></span></label>
         </div>
         <dl class="kv small" style="margin-top:10px"><dt>{{web.html_p_data.5}}</dt><dd id="pId" class="small"></dd></dl>
       </details>
@@ -1387,12 +1387,12 @@ function renderPanel(c) {
   $('msgDel').disabled = c.busy || Boolean(pending); // AP-5a
   $('pEngine').textContent = ENGINE[c.engine] || c.engine;
   $('pAccount').textContent = c.account ? tFrom(c.account.label, c.account.labelKey, c.account.labelVars) + (c.account.mode === 'pc_default' && authState?.role !== 'user' ? t('web.render_panel.1') : '') : '—';
-  $('pHow').textContent = HOW[c.engine] || '';
+  $('pHow').textContent = (c.engine === 'codex_thread' && c.connectMode === 'warm' ? t('web.how_warm') : c.engine === 'codex_thread' && c.connectMode === 'shared_server' ? t('web.how_shared') : HOW[c.engine]) || '';
   $('pState').textContent = stateOf(c)[1];
   $('pId').textContent = c.conversationId;
   $('pMode').hidden = false;
   const codex = c.engine === 'codex_thread'; $('pModeWhy').hidden = codex; // 2026-11-23: 연결 방식은 Codex 대화만 — 다른 엔진은 칸은 보이고 못 바꾸는 이유만
-  for (const r of document.getElementsByName('mode')) { r.checked = r.value === (c.connectMode || 'alternate'); r.disabled = !codex || c.busy || Boolean(pending); }
+  for (const r of document.getElementsByName('mode')) { r.checked = r.value === (c.connectMode || 'warm'); r.disabled = !codex || c.busy || Boolean(pending); }
   $('pNew').hidden = false;
   $('nsDelete').disabled = !c.newSession;
   if (!c.newSession) { $('pNewInfo').textContent = t('web.p_new_only'); $('nsSleep').disabled = true; } // 이어온에서 만든 새 세션만 잠재우기·삭제

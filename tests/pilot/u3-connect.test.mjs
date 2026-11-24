@@ -71,7 +71,7 @@ test('한 번에 연결: 허용 목록 + 세션 등록, 다시 누르면 같은 
   assert.equal(r.body.created, true);
   const cfg = JSON.parse(readFileSync(s.cfgPath, 'utf8'));
   assert.deepEqual(cfg.codex.allowlist, [T]);
-  assert.equal(cfg.codex.modes[T], 'alternate');
+  assert.equal(cfg.codex.modes[T], 'warm'); // 2026-11-24 빠른 응답 기본
   assert.equal(cfg.codex.workingDirectories[T], work.replaceAll('\\', '/'));
   const conv = (await s.call('/v1/conversations')).body.conversations.find((c) => c.conversationId === r.body.conversationId);
   assert.equal(conv.label, '결산 자동화'); assert.equal(conv.engine, 'codex_thread');

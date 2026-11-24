@@ -139,7 +139,7 @@
   "html_mode_pc.1": "내 허브에 연결 — 질문·메신저·이 PC 설정은 허브 화면에서, 이 PC의 봇·카카오 중계는 끔",
   "html_mode_hub.1": "사용 방식 바꾸기",
   "html_dev_box.2": "실제 실행·Codex 허용 목록",
-  "mode_warm": "빠른 응답(미리 띄워 두기)",
+  "mode_warm": "빠른 응답(기본 · 미리 띄워 두기)",
   "codex_model.label": "이어온이 쓸 Codex 모델",
   "codex_model.tip": "비우면 그 PC의 Codex 기본 모델을 따라요. Codex 앱이 기본 모델을 지금 로그인으로 못 쓰는 모델로 바꿨을 때(\"model is not supported\") 여기에 쓸 수 있는 모델 이름을 넣으세요. 이어온 질문에만 쓰이고 Codex 앱 설정은 바꾸지 않아요.",
   "codex_model.ph": "비우면 그 PC의 Codex 기본 모델",

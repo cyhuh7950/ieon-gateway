@@ -203,9 +203,9 @@ export function createDeviceAdmin({ modeAdmin = null, connectorConfigPath, apply
         if (threadId === EXCLUDED_THREAD) return { status: 400, body: { error: 'excluded_session' } };
         // 작업 폴더는 Codex가 알려 준 값을 쓰되, 그 PC에 없는 폴더면 비워 둔다(연결은 막지 않음 — 이 PC 화면의 연결과 같음)
         const dir = typeof a.workingDirectory === 'string' && a.workingDirectory ? a.workingDirectory : null;
-        try { upsertCodexThread(p, { threadId, mode: 'alternate', workingDirectory: dir }); } catch (e) {
+        try { upsertCodexThread(p, { threadId, workingDirectory: dir }); } catch (e) {
           if (!['working_directory_missing', 'bad_working_directory'].includes(e.message)) throw e;
-          upsertCodexThread(p, { threadId, mode: 'alternate', workingDirectory: null });
+          upsertCodexThread(p, { threadId, workingDirectory: null });
         }
         return { status: 200, body: { threadId, ...(await applyDevice()) } };
       }

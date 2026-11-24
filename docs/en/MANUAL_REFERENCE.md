@@ -16,7 +16,8 @@ Ieon takes a question sent from the web screen, puts it into **a work session yo
 
 | Engine | How it connects | Screen a person sees |
 | --- | --- | --- |
-| Codex · alternate (`alternate`, default) | For each question, reopens the same conversation through the SDK, continues it, and releases it right away | Codex Desktop (when needed) |
+| Codex · fast replies (`warm`, default) | Keeps an official app-server for the conversation running and only opens a turn per question (MCP starts once with it). Don't use the same conversation in the Codex app meanwhile | (not opened in the Codex app) |
+| Codex · alternate (`alternate`) | For each question, reopens the same conversation through the SDK, continues it, and releases it right away | Codex Desktop (when needed) |
 | Codex · shared (`shared_server`) | A person (TUI) and Ieon attach to one shared App Server together | Official Codex TUI |
 | Claude Code · channel | Puts the question into a running Claude Code session through the Ieon channel and receives the answer via `reply` | Claude Code terminal |
 | Antigravity · connected conversation | For each question, continues the same conversation with `agy` (work mode uses ACP `agy acp`) | Antigravity CLI |
@@ -83,7 +84,7 @@ pwsh scripts/ieon.ps1 claude
 
 ### Codex shared mode (TUI, advanced)
 
-This is a development feature that runs the shared App Server and the Codex TUI together, so it has no web screen yet. Usually you use "alternate". To use it, first remove auto-start with `pwsh scripts/install.ps1 -Uninstall` (so there are not two connectors), then run the commands below; when done, `stop` and restore with `pwsh scripts/install.ps1`.
+This is a development feature that runs the shared App Server and the Codex TUI together, so it has no web screen yet. Usually you use "fast replies". To use it, first remove auto-start with `pwsh scripts/install.ps1 -Uninstall` (so there are not two connectors), then run the commands below; when done, `stop` and restore with `pwsh scripts/install.ps1`.
 
 ```powershell
 pwsh scripts/ieon.ps1 start -Shared
@@ -103,7 +104,7 @@ Above the conversation are the conversation name, engine, and status, the **AI r
 
 ### Connecting a conversation (＋ Connect conversation)
 
-On this PC's screen, pressing **＋ Connect conversation** shows the list of Codex conversations used recently on this PC (takes about 10 seconds; the server removes the work conversation before showing it). Pressing one adds it to the allowlist (alternate) and registers the session in one step, and that conversation opens. The work folder is set automatically. If it is not in the list, use **Advanced: enter conversation ID**. The hub screen works the same way — when you press **＋ Connect conversation**, the hub asks your PC (choose one if there are two or more) for the list and shows it, and choosing one adds it to that PC's allowlist and registers the session in one step (the PC must be on). You can also connect from the hub's **Settings → PC settings** by choosing a PC and using **Codex conversations on that PC → Load conversation list**. To register a Claude channel session, use **Settings → Admin → Register conversations → Register manually**.
+On this PC's screen, pressing **＋ Connect conversation** shows the list of Codex conversations used recently on this PC (takes about 10 seconds; the server removes the work conversation before showing it). Pressing one adds it to the allowlist (fast replies) and registers the session in one step, and that conversation opens. The work folder is set automatically. If it is not in the list, use **Advanced: enter conversation ID**. The hub screen works the same way — when you press **＋ Connect conversation**, the hub asks your PC (choose one if there are two or more) for the list and shows it, and choosing one adds it to that PC's allowlist and registers the session in one step (the PC must be on). You can also connect from the hub's **Settings → PC settings** by choosing a PC and using **Codex conversations on that PC → Load conversation list**. To register a Claude channel session, use **Settings → Admin → Register conversations → Register manually**.
 
 ### Status labels and cards
 
@@ -126,7 +127,8 @@ The **Resend** button on an **Unsent question** appears only when it is certain 
 
 In a Codex conversation, choose **Connection settings → Advanced → Codex connection mode**.
 
-- **Alternate**: when you use only one of Desktop and Ieon at a time, or for an Ieon-only conversation. If that conversation is open in Desktop when sending, it is refused with "Not sent because this conversation is open in Desktop". The app can stay running; **just close that conversation**. When you reopen the conversation in Desktop, Ieon's questions and answers are visible.
+- **Fast replies (default)**: when you use the conversation only from Ieon. A Codex for the conversation is kept running so answers come in a few seconds (about 10 seconds of preparation when Ieon starts). Meanwhile, don't use the same conversation in the Codex app.
+- **Alternate**: when you switch between Desktop and Ieon (you also open the conversation in the Codex app). If that conversation is open in Desktop when sending, it is refused with "Not sent because this conversation is open in Desktop". The app can stay running; **just close that conversation**. When you reopen the conversation in Desktop, Ieon's questions and answers are visible.
 - **Shared**: a person (TUI) and Ieon use the same conversation without quitting the app. Ieon's questions and answers appear in the TUI right away.
 - You cannot change the mode while a question is processing or needs review.
 
