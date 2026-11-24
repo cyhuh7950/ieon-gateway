@@ -58,3 +58,18 @@ test('기기 명령: 호환 주소 저장·보기(호스트·모델만, 키 없�
   const SET = koView('settings.html');
   assert.ok(SET.includes('id="acCompatForm"') && SET.includes("acRun('accounts.compat'") && SET.includes('Responses API'));
 });
+
+test('호환 주소 계정은 Codex 플러그인 받기를 끔(2026-11-24 — 켜면 첫 실행 88초·남은 잠금 파일로 멈춤), 예전에 만든 계정도 실행할 때 덧붙이고 남은 잠금은 지움', (t) => {
+  const d = tmp(t); const dir = join(d, 'acc'); const home = codexHomeOf(dir, 'a1'); mkdirSync(home, { recursive: true });
+  saveCodexCompat(home, { baseUrl: 'http://localhost:11434/v1', key: KEY, model: 'qwen3' });
+  const toml = () => readFileSync(join(home, 'config.toml'), 'utf8');
+  assert.match(toml(), /\[features\]\nplugins = false/);
+  writeFileSync(join(home, 'config.toml'), toml().replace(/\n\[features\]\nplugins = false\n/, '\n')); // 예전 계정 흉내
+  mkdirSync(join(home, '.tmp')); writeFileSync(join(home, '.tmp', 'plugins.sync.lock'), '');
+  const c = { codex: { accounts: [{ id: 'a1', label: '로컬' }], defaultAccount: 'a1', allowlist: [] } };
+  codexEnvFor(c, dir, null, { env: {} });
+  assert.equal((toml().match(/plugins = false/g) || []).length, 1);
+  assert.ok(!existsSync(join(home, '.tmp', 'plugins.sync.lock')));
+  codexEnvFor(c, dir, null, { env: {} });
+  assert.equal((toml().match(/plugins = false/g) || []).length, 1, '두 번 덧붙이지 않음');
+});

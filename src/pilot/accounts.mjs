@@ -49,6 +49,14 @@ export const COMPAT_ENV_KEY = 'IEON_COMPAT_API_KEY';
 const COMPAT_URL = /^(https:\/\/[a-z0-9.-]+(:\d+)?|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?)(\/[\w.\-\/~%]*)?$/i;
 const COMPAT_MODEL = /^[\w.\-:/@]{1,100}$/;
 const BASE_TOML = '# 이어온 전용 계정 폴더(A2). 로그인은 이 폴더의 파일에만 둔다.\ncli_auth_credentials_store = "file"\n';
+// 2026-11-24 인수 시험(Upstage): 이어온 호환 주소 계정에서는 Codex 플러그인 받기를 끈다 — 켜 두면 첫 실행이 88초 걸리고(끄면 6초, 실제 Codex로 잼),
+// 도중에 끊기면 남은 잠금 파일(.tmp/plugins.sync.lock) 때문에 다음 실행이 끝없이 기다렸다(질문이 결과 불명). 이미 만든 계정은 실행할 때 덧붙인다.
+const NO_PLUGINS = '\n[features]\nplugins = false\n';
+function ensureNoPlugins(home) {
+  const p = join(home, 'config.toml');
+  try { const t = readFileSync(p, 'utf8'); if (!/^\s*plugins\s*=/m.test(t)) writeFileSync(p, t.replace(/\n*$/, '\n') + NO_PLUGINS); } catch { /* 설정이 없으면 그대로 */ }
+  try { rmSync(join(home, '.tmp', 'plugins.sync.lock'), { force: true }); } catch { /* 없음 */ }
+}
 export function readCodexCompat(home) { try { const c = JSON.parse(readFileSync(join(home, 'compat.json'), 'utf8')); return c && COMPAT_URL.test(c.baseUrl) && existsSync(join(home, 'compat-key')) ? c : null; } catch { return null; } }
 export function saveCodexCompat(home, { baseUrl, key, model }) {
   const url = String(baseUrl ?? '').trim().replace(/\/+$/, '');
@@ -61,7 +69,7 @@ export function saveCodexCompat(home, { baseUrl, key, model }) {
   writeFileSync(join(home, 'compat-key'), k + '\n', { mode: 0o600 });
   writeFileSync(join(home, 'compat.json'), JSON.stringify({ baseUrl: url, model: m }, null, 2) + '\n');
   // 주소·모델은 위 모양 검사를 통과한 값만이라 TOML 따옴표를 깨지 않는다
-  writeFileSync(join(home, 'config.toml'), BASE_TOML + `model = "${m}"\nmodel_provider = "ieon_compat"\n\n[model_providers.ieon_compat]\nname = "이어온 호환 주소"\nbase_url = "${url}"\nenv_key = "${COMPAT_ENV_KEY}"\nwire_api = "responses"\n`);
+  writeFileSync(join(home, 'config.toml'), BASE_TOML + `model = "${m}"\nmodel_provider = "ieon_compat"\n\n[model_providers.ieon_compat]\nname = "이어온 호환 주소"\nbase_url = "${url}"\nenv_key = "${COMPAT_ENV_KEY}"\nwire_api = "responses"\n` + NO_PLUGINS);
 }
 export function removeCodexCompat(home) {
   if (!existsSync(join(home, 'compat.json'))) return false;
@@ -80,6 +88,7 @@ export function codexEnvFor(c, dir, threadId, { env = process.env } = {}) {
   const cp = readCodexCompat(home);
   if (cp) {
     if (threadId) fail('combo_unverified', 409); // 기존 대화(사람이 만든 것)는 확인된 조합이 없어 새 세션에서만
+    ensureNoPlugins(home);
     const e = { ...env }; delete e.OPENAI_API_KEY; delete e.CODEX_API_KEY;
     return { ...e, CODEX_HOME: home, CODEX_SQLITE_HOME: desktopCodexHome(env), [COMPAT_ENV_KEY]: readFileSync(join(home, 'compat-key'), 'utf8').trim() };
   }
