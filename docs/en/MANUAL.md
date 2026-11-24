@@ -205,7 +205,7 @@ If you open a task link received in a messenger (`/#task=…`), that task opens 
 **Who:** everyone · **Screens used:** [Work tab](#my-settings--work)
 
 - **Work folders:** In **Settings → Work → Work folder** (on a hub, choose the "PC · cell" first), **Register** a folder name and path. Then use **Set folders** in the "AI staff" table to attach a personal folder and shared folders (read only / read and write) to each staff member. When you save, it shows "how strictly this PC actually blocks access" and asks you to confirm.
-- **Scheduled tasks:** In **Settings → Work → Scheduled tasks**, enter the conversation, when (daily / interval / once), the daily max, and the question to send, then press **Create schedule** (with a confirmation window). At that time the question goes to that conversation, and the answers collect in the conversation (and its connected messenger chat). If it is busy or the PC is off, that run is skipped.
+- **Scheduled tasks:** In **Settings → Work → Scheduled tasks**, enter the conversation, when (daily / interval / once), the daily max, and the question to send, then press **Create schedule** (with a confirmation window). At that time the question goes to that conversation, and the answers collect in the conversation (and its connected messenger chat). If it is busy or the PC is off, that run is skipped. To change one, press **Edit** in the table — its values fill the boxes below; change them and press **Save changes** (confirmation window; it turns back on). "Once" starts with a time 5 minutes from now.
 
 ---
 
@@ -553,7 +553,7 @@ For each screen: **how to open it · what it does · steps · main items**.
 | Section | Items and description |
 | --- | --- |
 | "Work folder" | (Hub) "PC · cell" (the admin also has "The hub itself"). "Folders" table + name and path → **Register**. **Set folders** in the "AI staff" table → personal folder and shared folders (not used / read only / read and write) |
-| "Scheduled tasks" | Conversation, "Daily / Interval / Once", time / interval / when to send, daily max, question to send → **Create schedule** (confirmation window). In the table: turn off, turn back on, delete |
+| "Scheduled tasks" | Conversation, "Daily / Interval / Once", time / interval / when to send, daily max, question to send → **Create schedule** (confirmation window). In the table: **Edit** (values fill the boxes below → **Save changes** · **Cancel edit**), turn off, turn back on, delete |
 
 #### My settings › Account
 

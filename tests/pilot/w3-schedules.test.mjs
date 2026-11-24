@@ -112,3 +112,27 @@ test('화면: 설정 → 대화에 예약 작업(만들 때·다시 켤 때 확�
   const set = koView('settings.html');
   assert.ok(set.includes('aria-label="예약 작업"') && set.includes("api('/v1/schedules'") && set.includes('승인할까요?') && set.includes('다시 켭니다'));
 });
+
+test('예약 고치기(2026-11-24 신산님 "수정 기능"): 주인 웹만, 값 검사, 다시 승인(켜짐), 남의 것·지난 시각 거절, 화면에 고치기 버튼', async (t) => {
+  const d = mkdtempSync(join(tmpdir(), 'ieon-w3e-'));
+  const app = createApp({ dbPath: join(d, 'p.db'), schedulesOff: true,
+    users: [{ tokenSha256: sha('web'), userId: 'u_sinsan', appId: 'app_web' }, { tokenSha256: sha('msg'), userId: 'u_sinsan', appId: 'app_messenger' }, { tokenSha256: sha('other'), userId: 'u_other', appId: 'app_web' }],
+    devices: [{ tokenSha256: sha('dev'), hostId: 'h_pc' }],
+    bindings: [{ conversationId: 'c1', ownerUserId: 'u_sinsan', appIds: ['app_web', 'app_messenger'], hostId: 'h_pc', engine: 'codex_thread', sessionRef: T1 }] });
+  const base = `http://127.0.0.1:${await app.listen(0)}`;
+  t.after(async () => { await app.close(); try { rmSync(d, { recursive: true, force: true }); } catch { /* Windows 잠금 */ } });
+  const call = (path, { method = 'GET', body, token = 'web' } = {}) => fetch(base + path, { method, body: body && JSON.stringify(body),
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' } }).then(async (r) => ({ status: r.status, body: r.status === 204 ? null : await r.json().catch(() => null) }));
+  const id = (await call('/v1/schedules', { method: 'POST', body: { conversationId: 'c1', kind: 'daily', time: '09:00', question: 'a' } })).body.scheduleId;
+  await call('/v1/schedules/' + id, { method: 'PUT', body: { enabled: false } });
+  const ed = await call('/v1/schedules/' + id, { method: 'PATCH', body: { conversationId: 'c1', kind: 'interval', minutes: 30, question: 'b', maxPerDay: 3 } });
+  assert.equal(ed.status, 200);
+  assert.deepEqual([ed.body.kind, ed.body.spec, ed.body.question, ed.body.maxPerDay, ed.body.enabled, ed.body.when], ['interval', { minutes: 30 }, 'b', 3, true, '30분마다']);
+  assert.equal((await call('/v1/schedules/' + id, { method: 'PATCH', token: 'msg', body: { conversationId: 'c1', kind: 'daily', time: '09:00', question: 'q' } })).status, 403);
+  assert.equal((await call('/v1/schedules/' + id, { method: 'PATCH', token: 'other', body: { conversationId: 'c1', kind: 'daily', time: '09:00', question: 'q' } })).status, 404);
+  assert.equal((await call('/v1/schedules/' + id, { method: 'PATCH', body: { conversationId: 'c1', kind: 'once', at: '2020-01-01T00:00:00Z', question: 'q' } })).body.error, 'bad_at');
+  assert.equal((await call('/v1/schedules/' + id, { method: 'PATCH', body: { conversationId: 'c1', kind: 'daily', time: '25:00', question: 'q' } })).body.error, 'bad_time');
+  assert.equal((await call('/v1/schedules', {})).body.schedules[0].question, 'b');
+  const S = koView('settings.html');
+  assert.ok(S.includes('id="schCancel"') && S.includes("method: 'PATCH'") && S.includes('고친 내용 저장'));
+});
