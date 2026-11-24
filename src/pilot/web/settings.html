@@ -411,7 +411,7 @@ table.list tr.pick:hover { background:var(--surface-alt); }
         <input id="schMin" type="number" min="15" value="60" aria-label="{{settings.html_sch_min.1}}" hidden>
         <input id="schAt" type="datetime-local" aria-label="{{settings.html_sch_at.1}}" hidden>
         <input id="schMax" type="number" min="1" max="96" placeholder="{{settings.html_sch_max.1}}" aria-label="{{settings.html_sch_max.2}}" style="width:7em"></div>
-      <div class="row"><input id="schQ" placeholder="{{settings.html_sch_q.1}}" maxlength="4000" aria-label="{{settings.html_sch_q.1}}" style="flex:1"><button class="primary" type="submit">{{settings.html_ns_agy.1}}</button></div>
+      <div class="row"><input id="schQ" placeholder="{{settings.html_sch_q.1}}" maxlength="4000" aria-label="{{settings.html_sch_q.1}}" style="flex:1"><button class="primary" type="submit" id="schSubmit">{{settings.html_ns_agy.1}}</button><button type="button" id="schCancel" hidden>{{settings.sch_edit_cancel}}</button></div>
     </form>
   </section>
   <section class="atab" data-atab="msgadv" data-admin hidden aria-label="{{settings.html_sch_q.2}}">
@@ -1005,20 +1005,42 @@ async function loadSchedules() {
     };
     const rm = el('button', t('settings.load_schedules.12')); rm.type = 'button';
     rm.onclick = async () => { if (!confirm(t('settings.load_schedules.13'))) return; const y = await api('/v1/schedules/' + s.scheduleId, { method: 'DELETE' }); setStatus(y.status === 204 ? 'ok' : 'err', y.status === 204 ? t('settings.load_schedules.14') : y.body?.error); loadSchedules(); };
-    td.append(tg, rm); tr.append(td); rows.push(tr);
+    const ed = el('button', t('settings.sch_edit')); ed.type = 'button'; ed.onclick = () => editSchedule(s);
+    td.append(ed, tg, rm); tr.append(td); rows.push(tr);
   }
   tb.replaceChildren(...rows);
 }
-$('schKind').onchange = () => { const k = $('schKind').value; $('schTime').hidden = k !== 'daily'; $('schMin').hidden = k !== 'interval'; $('schAt').hidden = k !== 'once'; };
+// 한 번 예약의 기본 시각은 5분 뒤(지금 시각이 들어가 "보낼 때가 지났어요"가 나던 것, 2026-11-24 인수 시험)
+const localIso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+$('schKind').onchange = () => { const k = $('schKind').value; $('schTime').hidden = k !== 'daily'; $('schMin').hidden = k !== 'interval'; $('schAt').hidden = k !== 'once';
+  if (k === 'once' && (!$('schAt').value || new Date($('schAt').value) <= new Date())) $('schAt').value = localIso(new Date(Date.now() + 5 * 60000)); };
+// 고치기: 아래 만들기 칸에 그 예약 값을 채우고, 저장하면 그 예약을 바꾼다(2026-11-24 신산님 "수정 기능이 있으면 좋겠어")
+let schEditing = null;
+function schEditMode(s) {
+  schEditing = s ? s.scheduleId : null;
+  $('schSubmit').textContent = s ? t('settings.sch_edit_save') : t('settings.html_ns_agy.1');
+  $('schCancel').hidden = !s;
+}
+function editSchedule(s) {
+  $('schConv').value = s.conversationId; $('schKind').value = s.kind;
+  if (s.kind === 'daily') $('schTime').value = s.spec.time;
+  if (s.kind === 'interval') $('schMin').value = String(s.spec.minutes);
+  if (s.kind === 'once') $('schAt').value = localIso(new Date(s.spec.at));
+  $('schMax').value = String(s.maxPerDay); $('schQ').value = s.question;
+  $('schKind').onchange(); schEditMode(s);
+  $('schAdd').scrollIntoView({ block: 'center' }); $('schQ').focus();
+}
+$('schCancel').onclick = () => { schEditMode(null); $('schQ').value = ''; };
 $('schAdd').onsubmit = async (e) => {
   e.preventDefault();
   const k = $('schKind').value; const label = $('schConv').selectedOptions[0]?.textContent || '';
   const body = { conversationId: $('schConv').value, kind: k, question: $('schQ').value.trim(), time: $('schTime').value, minutes: Number($('schMin').value), at: $('schAt').value ? new Date($('schAt').value).toISOString() : '', maxPerDay: $('schMax').value ? Number($('schMax').value) : undefined };
   const when = k === 'daily' ? t('settings.load_schedules.15', { time: body.time }) : k === 'interval' ? t('settings.load_schedules.16', { minutes: body.minutes }) : t('settings.load_schedules.17', { t: $('schAt').value.replace('T', ' ') });
   if (!confirm(t('settings.load_schedules.18', { label, when, question: body.question.slice(0, 200), interval: (body.maxPerDay || (k === 'interval' ? 24 : 1)) }))) return;
-  const r = await api('/v1/schedules', { method: 'POST', body: JSON.stringify(body) });
-  if (r.status !== 201) return setStatus('err', SCH_ERR[r.body.error] || r.body.error);
-  $('schQ').value = ''; setStatus('ok', t('settings.load_schedules.19', { when: whenText(r.body) })); loadSchedules();
+  const editing = schEditing;
+  const r = editing ? await api('/v1/schedules/' + editing, { method: 'PATCH', body: JSON.stringify(body) }) : await api('/v1/schedules', { method: 'POST', body: JSON.stringify(body) });
+  if (r.status !== (editing ? 200 : 201)) return setStatus('err', SCH_ERR[r.body.error] || r.body.error);
+  $('schQ').value = ''; schEditMode(null); setStatus('ok', t(editing ? 'settings.sch_edited' : 'settings.load_schedules.19', { when: whenText(r.body) })); loadSchedules();
 };
 const CLS_ERR = { session_not_found: t('settings.cls_err.1'), no_working_directory: t('settings.cls_err.2'), claude_not_server: t('settings.cls_err.3') };
 let cxFor = null;

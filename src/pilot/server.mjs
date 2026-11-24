@@ -1845,6 +1845,17 @@ export function createApp(config) {
           const r = store.setScheduleEnabled(principal, sm[1], on, next);
           return r.http === 200 ? json(res, 200, view(r.schedule)) : json(res, r.http, { error: r.code });
         }
+        if (sm && req.method === 'PATCH') { // 고치기(만들 때와 같은 값, 다시 승인)
+          if (hubModeOn()) return json(res, 409, { error: 'hub_mode' });
+          const b = await readJson(req);
+          let v; try { v = validateSchedule(b); } catch (e) { return json(res, 400, { error: e.message }); }
+          const conv = store.conversations(principal).find((c) => c.conversationId === String(b.conversationId ?? ''));
+          if (!conv) return json(res, 404, { error: 'not_found' });
+          const next = nextRun(v);
+          if (!next) return json(res, 400, { error: 'bad_at' });
+          const r = store.updateSchedule(principal, sm[1], conv.conversationId, v, next);
+          return r.http === 200 ? json(res, 200, view(r.schedule)) : json(res, r.http, { error: r.code });
+        }
         if (sm && req.method === 'DELETE') { const r = store.deleteSchedule(principal, sm[1]); return r.http === 204 ? json(res, 204) : json(res, r.http, { error: r.code }); }
         return json(res, 404, { error: 'not_found' });
       }

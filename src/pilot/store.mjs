@@ -763,6 +763,14 @@ export function openStore(path) {
       else db.prepare('UPDATE schedules SET enabled = 0 WHERE schedule_id = ?').run(id);
       return { http: 200, schedule: scheduleView(db.prepare('SELECT * FROM schedules WHERE schedule_id = ?').get(id)) };
     },
+    // 2026-11-24 신산님 "수정 기능이 있으면 좋겠어": 고치기 = 대화·언제·질문·하루 최대를 바꾸고 다시 승인(켜짐, 멈춘 이유 지움). 받은 답·하루 횟수는 그대로.
+    updateSchedule(principal, id, conversationId, s, nextRunAt) {
+      if (!db.prepare('SELECT 1 FROM schedules WHERE schedule_id = ? AND owner_user_id = ?').get(id, principal.userId)) return { http: 404, code: 'not_found' };
+      if (!canAccess(principal, binding(conversationId))) return { http: 404, code: 'not_found' };
+      db.prepare(`UPDATE schedules SET conversation_id = ?, question = ?, kind = ?, spec = ?, tz = ?, max_per_day = ?, enabled = 1, paused_reason = NULL, approved_at = ?, next_run_at = ? WHERE schedule_id = ?`)
+        .run(conversationId, s.question, s.kind, JSON.stringify(s.spec), s.tz, s.maxPerDay, new Date().toISOString(), nextRunAt, id);
+      return { http: 200, schedule: scheduleView(db.prepare('SELECT * FROM schedules WHERE schedule_id = ?').get(id)) };
+    },
     deleteSchedule(principal, id) { return db.prepare('DELETE FROM schedules WHERE schedule_id = ? AND owner_user_id = ?').run(id, principal.userId).changes ? { http: 204 } : { http: 404, code: 'not_found' }; },
     // 실행기가 회차를 끝낸 뒤: 결과·다음 실행·하루 횟수(그 시간대의 날짜로)·멈춤
     recordScheduleRun(id, { at, requestId = null, result, nextRunAt, day, counted, pause = null, disable = false }) {
