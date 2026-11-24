@@ -279,6 +279,8 @@
   "opt_api": " (API key)",
   "opt_sub": " (subscription)",
   "compat_unreachable_save": "Not saved: that address can't be reached — check the address (typos, /v1) and that the server is up",
+  "agy_compat_off": "Compatible endpoint (not available now)",
+  "agy_compat_off_tip": "Antigravity compatible endpoints (enterprise gateway) are on hold because they could not be verified with a real gateway. They will reopen once verified.",
   "html_ns_agy.1": "Create schedule",
   "html_ns_arch.1": "Role ID",
   "html_ns_arch.2": "Engines allowed",

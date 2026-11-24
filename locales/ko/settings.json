@@ -279,6 +279,8 @@
   "opt_api": " (API 키)",
   "opt_sub": " (구독)",
   "compat_unreachable_save": "그 주소에 닿을 수 없어 저장하지 않았어요 — 주소(오타·/v1 여부)와 서버가 켜져 있는지 확인하세요",
+  "agy_compat_off": "호환 주소(지금은 쓸 수 없음)",
+  "agy_compat_off_tip": "Antigravity 호환 주소(기업용 게이트웨이)는 실제 게이트웨이로 동작을 확인하지 못해 보류했어요. 확인되면 다시 열어요.",
   "html_ns_agy.1": "예약 만들기",
   "html_ns_arch.1": "역할 ID",
   "html_ns_arch.2": "만들 수 있는 엔진",

@@ -86,6 +86,7 @@
   "errors.session_model_mismatch": "Not sent: this session was made with another provider's model, so it can't continue with the current account (such as the PC sign-in). In Settings → Accounts → Claude accounts, choose a compatible-endpoint account that serves that model for this conversation.",
   "errors.compat_key_rejected": "Not sent (not run): the compatible endpoint rejected the key. Check that account's compatible-endpoint key in Settings → Accounts.",
   "errors.compat_unreachable": "Not sent (not run): the compatible endpoint can't be reached. Check that account's compatible endpoint (typo in the address, or the server is down) in Settings → Accounts.",
+  "errors.compat_unverified_engine": "Not sent: Antigravity compatible-endpoint accounts are on hold. Choose a different default Antigravity account in Settings → Accounts.",
   "app.texts.1": "This session answers in text only (new sessions run directly by the hub can't run commands or work with files — use an engine cell conversation on the server).",
   "app.texts.2": "This PC is connected to a hub. Send from an app connected with the hub address.",
   "app.texts.3": "The PC is disconnected. Check that the PC is on.",

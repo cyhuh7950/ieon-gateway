@@ -284,7 +284,7 @@ Tabs members see in Settings: **PC settings, Work, Account (My password), Messen
 **Who:** PC mode and hub admin · **Screens used:** [Account tab](#my-settings--account)
 
 - By default, Ieon uses the Codex and Claude already logged in on that PC ("PC default login — that PC's Codex login").
-- To use another account, go to **Settings → Account → Codex accounts** (or Claude, Antigravity, or Grok accounts), press **Add account** → choose login (subscription), API key, or compatible endpoint → **Default account**. A different account per conversation is set in the per-conversation table in the same section.
+- To use another account, go to **Settings → Account → Codex accounts** (or Claude, Antigravity, or Grok accounts), press **Add account** → choose login (subscription), API key, or compatible endpoint → **Default account**. A different account per conversation is set in the per-conversation table in the same section. Accounts that can't work as chosen (no sign-in or compatible endpoint, a compatible endpoint for an existing conversation, or the PC sign-in for a Claude session made with another provider's model) show the reason and can't be chosen. A compatible endpoint is checked for reachability when you save it. Antigravity compatible endpoints are on hold for now (the button is disabled).
 - In **Usage · limits**, see each account's questions today and tokens this month, and set daily question and monthly token limits. If a limit is exceeded, the card "This conversation's API account hit its limit" appears.
 
 ---
