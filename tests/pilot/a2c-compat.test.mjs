@@ -24,7 +24,7 @@ test('호환 주소 저장·종류·실행 환경: 공식 변수로만, 키 보�
   assert.equal(claudeAccountKind(home), 'compat');
   const c = { claudeAccounts: { accounts: [{ id: 'c1', label: '로컬' }], defaultAccount: 'c1' } };
   const env = claudeEnvFor(c, dir, { env: { PATH: 'p', ANTHROPIC_API_KEY: 'leak', CLAUDE_CODE_OAUTH_TOKEN: 'leak' } });
-  assert.deepEqual({ ...env, PATH: undefined }, { PATH: undefined, ANTHROPIC_BASE_URL: 'http://localhost:4000', ANTHROPIC_AUTH_TOKEN: KEY, ANTHROPIC_MODEL: 'qwen3:8b', ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:8b', ANTHROPIC_SMALL_FAST_MODEL: 'qwen3:8b' });
+  assert.deepEqual({ ...env, PATH: undefined }, { PATH: undefined, CLAUDE_CONFIG_DIR: home, ANTHROPIC_BASE_URL: 'http://localhost:4000', ANTHROPIC_AUTH_TOKEN: KEY, ANTHROPIC_MODEL: 'qwen3:8b', ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:8b', ANTHROPIC_SMALL_FAST_MODEL: 'qwen3:8b' }); // 2026-11-24: 그 계정 폴더로 실행(PC의 Claude 로그인이 호환 주소로 나가지 않게)
   saveCompat(home, { baseUrl: 'https://api.upstage.ai/v1/claude', key: KEY, model: 'solar-pro4', auth: 'x-api-key' });
   const e2 = claudeEnvFor(c, dir, { env: {} });
   assert.equal(e2.ANTHROPIC_API_KEY, KEY); assert.ok(!('ANTHROPIC_AUTH_TOKEN' in e2));
